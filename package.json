@@ -1,0 +1,13 @@
+{
+  "name": "particle-abstraction",
+  "version": "1.0.0",
+  "description": "Particle Abstraction Contracts",
+  "scripts": {
+    "test": "node scripts/test.js",
+    "deploy": "node scripts/deploy.js"
+  },
+  "dependencies": {
+  },
+  "devDependencies": {
+  }
+} 
