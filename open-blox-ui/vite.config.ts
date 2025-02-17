@@ -1,21 +1,39 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react-swc';
+import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
   build: {
-    target: 'chrome115',
+    target: 'es2020',
+    outDir: 'dist',
+    sourcemap: true,
     rollupOptions: {
       output: {
         manualChunks: {
-          'react-vendor': ['react', 'react-dom'],
-          'web3-vendor': ['viem', 'wagmi', '@rainbow-me/rainbowkit']
-        }
-      }
-    }
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'web3-vendor': ['@rainbow-me/rainbowkit', 'wagmi', 'viem'],
+          'ui-vendor': ['framer-motion', '@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu'],
+        },
+      },
+    },
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      target: 'es2020',
+    },
   },
   server: {
+    port: 5173,
+    strictPort: true,
+    host: true,
+    open: true,
     headers: {
       'Content-Security-Policy': [
         "default-src 'self'",
@@ -29,6 +47,11 @@ export default defineConfig({
       ].join('; '),
       'Permissions-Policy': 'interest-cohort=(), serial=()'
     }
+  },
+  preview: {
+    port: 4173,
+    strictPort: true,
+    host: true,
   },
   test: {
     globals: true,

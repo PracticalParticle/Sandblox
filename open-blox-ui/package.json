@@ -1,7 +1,7 @@
 {
   "name": "open-blox-ui",
   "version": "1.0.0",
-  "description": "UI components for blockchain interaction with Particle Abstraction Blox implementation",
+  "description": "Deploy, Secure, and Manage Your Smart Contracts with Ease - Powered by Particle Abstraction",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,21 +10,37 @@
     "preview": "vite preview",
     "test": "vitest",
     "typecheck": "tsc --noEmit",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\"",
+    "prepare": "husky install"
   },
   "dependencies": {
+    "@radix-ui/react-dialog": "^1.0.5",
+    "@radix-ui/react-dropdown-menu": "^2.0.6",
+    "@radix-ui/react-slot": "^1.0.2",
+    "@radix-ui/react-toast": "^1.1.5",
     "@rainbow-me/rainbowkit": "^2.0.0",
     "@tanstack/react-query": "^5.39.0",
+    "@types/react-router-dom": "^5.3.3",
     "buffer": "^6.0.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "framer-motion": "^11.0.5",
+    "lucide-react": "^0.331.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-router-dom": "^6.29.0",
+    "tailwind-merge": "^2.6.0",
+    "tailwindcss-animate": "^1.0.7",
     "viem": "^2.9.0",
-    "wagmi": "^2.5.0"
+    "wagmi": "^2.5.0",
+    "zustand": "^4.5.1"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
     "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^20.11.19",
     "@types/react": "^18.2.55",
     "@types/react-dom": "^18.2.19",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
@@ -35,11 +51,21 @@
     "eslint": "^8.56.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
+    "husky": "^9.0.11",
     "jsdom": "^24.0.0",
+    "lint-staged": "^15.2.2",
     "postcss": "^8.4.35",
+    "prettier": "^3.2.5",
+    "prettier-plugin-tailwindcss": "^0.5.11",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.2.2",
     "vite": "^5.1.0",
     "vitest": "^1.6.1"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ]
   }
 }
