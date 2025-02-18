@@ -16,7 +16,9 @@ export function Navbar() {
           showBalance={false}
           chainStatus="icon"
         />
-        <ThemeToggle />
+        <div className="hidden md:block">
+          <ThemeToggle />
+        </div>
       </div>
       <nav className="container flex h-16 items-center justify-between">
         {/* Logo & Desktop Navigation */}
@@ -122,6 +124,10 @@ export function Navbar() {
                 <Github className="h-5 w-5" />
                 GitHub
               </a>
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <ThemeToggle />
+                <span>Theme</span>
+              </div>
             </div>
           </motion.div>
         )}
