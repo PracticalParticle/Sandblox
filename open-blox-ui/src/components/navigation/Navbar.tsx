@@ -45,7 +45,7 @@ export function Navbar() {
             )}
             <a
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
-              href="https://docs.particle.network"
+              href="https://docs.particlecs.com"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -57,7 +57,7 @@ export function Navbar() {
         {/* Desktop Actions */}
         <div className="flex items-center gap-4">
           <a
-            href="https://github.com/particle-network"
+            href="https://github.com/particlecs-com"
             target="_blank"
             rel="noopener noreferrer"
             className="hidden md:flex rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground glow-primary"
@@ -105,7 +105,7 @@ export function Navbar() {
               )}
               <a
                 className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
-                href="https://docs.particle.network"
+                href="https://docs.particlecs.com"
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setIsMobileMenuOpen(false)}
@@ -113,7 +113,7 @@ export function Navbar() {
                 Docs
               </a>
               <a
-                href="https://github.com/particle-network"
+                href="https://github.com/particlecs-com"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"

@@ -32,17 +32,17 @@ export default function App() {
             <p className="text-center text-sm text-muted-foreground">
               Built with ❤️ by{' '}
               <a
-                href="https://particle.network"
+                href="https://particlecs.com"
                 target="_blank"
                 rel="noreferrer"
                 className="font-medium gradient-text hover:text-foreground"
               >
-                Particle Network
+                Particle CS
               </a>
             </p>
             <div className="flex items-center justify-center gap-4">
               <a
-                href="https://twitter.com/ParticleNtwrk"
+                href="https://twitter.com/Particlecs"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm text-muted-foreground hover:text-foreground"
@@ -50,7 +50,7 @@ export default function App() {
                 Twitter
               </a>
               <a
-                href="https://discord.gg/particle"
+                href="https://discord.gg/particlecs"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm text-muted-foreground hover:text-foreground"
@@ -58,7 +58,7 @@ export default function App() {
                 Discord
               </a>
               <a
-                href="https://docs.particle.network"
+                href="https://docs.particlecs.com"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm text-muted-foreground hover:text-foreground"

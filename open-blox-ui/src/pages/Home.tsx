@@ -38,7 +38,7 @@ export function Home() {
                 transition={{ duration: 0.5, delay: 0.2 }}
               >
                 Create, deploy, and manage secure smart contract systems with our modular building blocks. 
-                Powered by Particle Network's account abstraction infrastructure.
+                Powered by Particle CS's account abstraction infrastructure.
               </motion.p>
               <motion.div 
                 className="mt-10 flex items-center justify-center gap-x-6"
@@ -111,7 +111,7 @@ export function Home() {
                 <Zap className="h-10 w-10 text-primary" />
                 <h3 className="text-xl font-bold">Easy Integration</h3>
                 <p className="text-sm text-muted-foreground">
-                  Seamlessly integrate with Particle Network's account abstraction infrastructure.
+                  Seamlessly integrate with Particle CS's account abstraction infrastructure.
                 </p>
               </div>
             </motion.div>
