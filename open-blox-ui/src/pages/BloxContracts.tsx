@@ -198,7 +198,7 @@ export function BloxContracts() {
                 </div>
                 <button
                   onClick={() => navigate(`/contracts/${contract.id}`)}
-                  className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90"
+                  className="btn inline-flex w-full items-center justify-center gap-2 px-4 mt-6"
                 >
                   View Details
                   <ArrowRight className="h-4 w-4" />

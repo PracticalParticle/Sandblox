@@ -3,18 +3,20 @@ import { useAccount } from 'wagmi'
 import { Menu, X, Github } from 'lucide-react'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { ThemeToggle } from '../ThemeToggle'
 
 export function Navbar() {
   const { isConnected } = useAccount()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b glass">
-      <div className="fixed right-4 top-4 z-50">
+    <header className="sticky top-0 z-40 w-full border-b glass transition-colors duration-300">
+      <div className="fixed right-4 top-4 z-50 flex items-center gap-2">
         <ConnectButton
           showBalance={false}
           chainStatus="icon"
         />
+        <ThemeToggle />
       </div>
       <nav className="container flex h-16 items-center justify-between">
         {/* Logo & Desktop Navigation */}

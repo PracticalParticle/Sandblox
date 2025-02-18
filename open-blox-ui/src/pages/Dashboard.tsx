@@ -54,13 +54,13 @@ export function Dashboard() {
               Manage your deployed contracts and monitor their performance.
             </p>
           </div>
-          <a
-            href="/blox-contracts"
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90"
+          <button
+            onClick={() => navigate('/blox-contracts')}
+            className="btn"
           >
             Deploy New Contract
             <ArrowRight className="h-4 w-4" />
-          </a>
+          </button>
         </motion.div>
 
         {/* Stats Grid */}
@@ -138,13 +138,13 @@ export function Dashboard() {
                   Get started by deploying your first smart contract.
                 </p>
               </div>
-              <a
-                href="/blox-contracts"
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90"
+              <button
+                onClick={() => navigate('/blox-contracts')}
+                className="btn"
               >
                 Browse Contracts
                 <ArrowRight className="h-4 w-4" />
-              </a>
+              </button>
             </div>
           </div>
         </motion.div>
