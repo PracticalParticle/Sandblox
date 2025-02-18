@@ -52,10 +52,7 @@ export function Navbar() {
               Docs
             </a>
           </div>
-        </div>
-
-        {/* Desktop Actions */}
-        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4">
           <a
             href="https://github.com/particlecs-com"
             target="_blank"
@@ -75,6 +72,7 @@ export function Navbar() {
             )}
           </button>
         </div>
+        </div>     
       </nav>
 
       {/* Mobile Menu */}
