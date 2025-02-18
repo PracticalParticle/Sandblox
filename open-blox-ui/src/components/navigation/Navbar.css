@@ -1,0 +1,33 @@
+/* Navbar styles */
+.navbar {
+  @apply flex items-center justify-between h-16 bg-background border-b border-border; /* Base styles for the navbar */
+}
+
+.navbar .logo {
+  @apply flex items-center gap-2 text-lg font-bold; /* Logo styles */
+}
+
+.navbar .logo div {
+  @apply flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/50 text-primary-foreground; /* Logo background */
+}
+
+.navbar .desktop-nav {
+  @apply flex md:flex md:items-center md:gap-6; /* Ensure desktop navigation is visible on medium and larger screens */
+}
+
+.navbar .desktop-nav a {
+  @apply text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift; /* Link styles */
+}
+
+.navbar .mobile-menu-button {
+  @apply flex items-center justify-center rounded-lg p-2 hover:bg-accent; /* Ensure it's visible */
+  z-index: 50; /* Ensure it appears above other elements */
+}
+
+.mobile-menu {
+  @apply border-t glass; /* Mobile menu styles */
+}
+
+.mobile-menu a {
+  @apply block text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift; /* Mobile menu link styles */
+} 

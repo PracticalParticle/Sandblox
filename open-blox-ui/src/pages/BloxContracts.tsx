@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   Search,
-  Filter,
   ArrowRight,
   Shield,
   Clock,

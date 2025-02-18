@@ -35,17 +35,20 @@ export default defineConfig({
     host: true,
     open: true,
     headers: {
-      'Content-Security-Policy': [
-        "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-        "style-src 'self' 'unsafe-inline'",
-        "img-src 'self' data: https:",
-        "connect-src 'self' https://*.alchemyapi.io wss://*.alchemyapi.io https://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.org",
-        "frame-src 'self' https://*.walletconnect.com",
-        "worker-src 'self' blob:",
-        "font-src 'self' data:"
-      ].join('; '),
-      'Permissions-Policy': 'interest-cohort=(), serial=()'
+      'Content-Security-Policy': `
+        default-src 'self';
+        script-src 'self' 'unsafe-inline' 'unsafe-eval';
+        style-src 'self' 'unsafe-inline' https://rsms.me;
+        font-src 'self' data: https://rsms.me;
+        img-src 'self' data: https:;
+        connect-src 'self' 
+          https://*.alchemyapi.io 
+          wss://*.alchemyapi.io 
+          https://*.walletconnect.com 
+          wss://*.walletconnect.com
+          https://eth-mainnet.g.alchemy.com
+          https://eth-sepolia.g.alchemy.com;
+      `.replace(/\s+/g, ' ').trim()
     }
   },
   preview: {

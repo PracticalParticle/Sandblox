@@ -1,3 +1,59 @@
+@import './styles/theme.css';
 @tailwind base;
 @tailwind components;
-@tailwind utilities; 
+@tailwind utilities;
+
+/* Custom base styles */
+@layer base {
+  :root {
+    --background: 222 47% 11%;
+    --foreground: 214 32% 91%;
+    /* ... other CSS variables ... */
+  }
+
+  body {
+    @apply bg-background text-foreground min-h-screen;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Custom components */
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  /* RainbowKit overrides */
+  [data-rk] .rk-connect-button {
+    @apply !font-sans !text-sm;
+  }
+}
+
+/* Custom utilities */
+@layer utilities {
+  .gradient-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-[#3b82f6] via-[#8b5cf6] to-[#d946ef];
+  }
+
+  .glass {
+    @apply bg-background/40 backdrop-blur-lg backdrop-saturate-150;
+  }
+}
+
+/* Ensure base styles are applied */
+html {
+  @apply antialiased;
+}
+
+body {
+  @apply bg-background text-foreground min-h-screen;
+}
+
+/* Add any global styles here */
+.rainbow-button {
+  @apply btn-primary; /* Apply your Tailwind button style */
+}
+
+.rainbow-button:hover {
+  /* Add any custom hover styles */
+} 
