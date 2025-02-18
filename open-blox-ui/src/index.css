@@ -34,7 +34,6 @@ body {
 }
 
 /* Add any global styles here */
-
 .rainbow-button {
   @apply btn-primary; /* Apply your Tailwind button style */
 }

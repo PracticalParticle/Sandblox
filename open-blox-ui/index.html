@@ -4,6 +4,22 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      connect-src 'self' 
+        https://*.walletconnect.org
+        https://*.walletconnect.com
+        wss://*.walletconnect.com
+        https://*.alchemyapi.io
+        wss://*.alchemyapi.io
+        https://eth-mainnet.g.alchemy.com
+        https://eth-sepolia.g.alchemy.com
+        https://explorer-api.walletconnect.com;
+      script-src 'self' 'unsafe-eval' 'unsafe-inline';
+      style-src 'self' 'unsafe-inline' https://rsms.me/;
+      img-src 'self' data: https:;
+      font-src 'self' https://rsms.me/;
+    ">
     <link rel="preconnect" href="https://rsms.me/" />
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css" crossorigin="anonymous" />
     <title>Open Blox UI</title>
