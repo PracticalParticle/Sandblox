@@ -96,7 +96,7 @@ export function ContractDetails() {
   }
 
   return (
-    <div className="container py-8">
+    <div className="container py-16">
       <div className="flex flex-col space-y-8">
         <div className="flex flex-col space-y-4">
           <a

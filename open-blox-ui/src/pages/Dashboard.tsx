@@ -39,7 +39,7 @@ export function Dashboard() {
   }, [isConnected, navigate])
 
   return (
-    <div className="container py-8">
+    <div className="container py-8 ">
       <motion.div
         variants={container}
         initial="hidden"
@@ -47,16 +47,16 @@ export function Dashboard() {
         className="flex flex-col space-y-8"
       >
         {/* Header */}
-        <motion.div variants={item} className="flex items-center justify-between">
+        <motion.div variants={item} className="flex items-center justify-start">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-left">Dashboard</h1>
             <p className="mt-2 text-muted-foreground">
               Manage your deployed contracts and monitor their performance.
             </p>
           </div>
           <button
             onClick={() => navigate('/blox-contracts')}
-            className="btn"
+            className="btn ml-auto"
           >
             Deploy New Contract
             <ArrowRight className="h-4 w-4" />
@@ -152,7 +152,7 @@ export function Dashboard() {
         {/* Activity Section */}
         <motion.div variants={item} className="rounded-lg border bg-card">
           <div className="border-b p-4">
-            <h2 className="text-xl font-bold">Recent Activity</h2>
+            <h2 className="text-xl font-bold ">Recent Activity</h2>
           </div>
           <div className="divide-y">
             <div className="flex items-center gap-4 p-4">
@@ -160,8 +160,8 @@ export function Dashboard() {
                 <AlertCircle className="h-4 w-4 text-yellow-500" />
               </div>
               <div className="flex-1">
-                <p className="font-medium">Contract Deployment Initiated</p>
-                <p className="text-sm text-muted-foreground">
+                <p className="font-medium text-left">Contract Deployment Initiated</p>
+                <p className="text-sm text-muted-foreground text-left">
                   SimpleVault contract deployment started
                 </p>
               </div>
@@ -172,20 +172,21 @@ export function Dashboard() {
                 <CheckCircle2 className="h-4 w-4 text-green-500" />
               </div>
               <div className="flex-1">
-                <p className="font-medium">Transaction Confirmed</p>
-                <p className="text-sm text-muted-foreground">
+                <p className="font-medium text-left">Transaction Confirmed</p>
+                <p className="text-sm text-muted-foreground text-left">
                   0.1 ETH transferred successfully
                 </p>
               </div>
               <p className="text-sm text-muted-foreground">5 mins ago</p>
+              
             </div>
             <div className="flex items-center gap-4 p-4">
               <div className="rounded-full bg-red-500/10 p-2">
                 <XCircle className="h-4 w-4 text-red-500" />
               </div>
               <div className="flex-1">
-                <p className="font-medium">Transaction Failed</p>
-                <p className="text-sm text-muted-foreground">
+                <p className="font-medium text-left">Transaction Failed</p>
+                <p className="text-sm text-muted-foreground text-left">
                   Insufficient gas for contract deployment
                 </p>
               </div>

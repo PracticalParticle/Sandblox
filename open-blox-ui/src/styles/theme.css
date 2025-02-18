@@ -5,8 +5,8 @@
 @layer base {
   :root {
     /* Light theme */
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    --background: 0 0% 100%; /* Light background */
+    --foreground: 222 47% 11%; /* Light foreground */
 
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
@@ -37,8 +37,8 @@
   }
 
   .dark {
-    --background: 222 47% 11%;
-    --foreground: 214 32% 91%;
+    --background: 222 47% 11%; /* Dark background */
+    --foreground: 214 32% 91%; /* Dark foreground */
 
     --card: 222 47% 11%;
     --card-foreground: 214 32% 91%;

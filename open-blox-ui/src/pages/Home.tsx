@@ -11,10 +11,8 @@ export function Home() {
     <div className="relative">
       {/* Hero Section */}
       <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-background via-background/80 to-background" />
-        <div className="absolute inset-x-0 -top-40 -z-10 transform-gpu overflow-hidden blur-3xl sm:-top-80">
-          <div className="relative left-[calc(50%-11rem)] aspect-[1155/678] w-[36.125rem] -translate-x-1/2 rotate-[30deg] bg-gradient-to-tr from-primary to-purple-500 opacity-30 sm:left-[calc(50%-30rem)] sm:w-[72.1875rem]" />
-        </div>
+        <div className="absolute inset-0 " />
+    
         
         <div className="container relative">
           <div className="mx-auto max-w-4xl pt-16 sm:pt-24">
@@ -72,7 +70,7 @@ export function Home() {
         <div className="mx-auto max-w-4xl">
           <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
             <motion.div 
-              className="gradient-border relative overflow-hidden rounded-lg p-6"
+              className="gradient-border relative overflow-hidden rounded-lg p-6 bg-card/20"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
@@ -87,7 +85,7 @@ export function Home() {
             </motion.div>
 
             <motion.div 
-              className="gradient-border relative overflow-hidden rounded-lg p-6"
+              className="gradient-border relative overflow-hidden rounded-lg p-6 bg-card/20"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.4 }}
@@ -102,7 +100,7 @@ export function Home() {
             </motion.div>
 
             <motion.div 
-              className="gradient-border relative overflow-hidden rounded-lg p-6"
+              className="gradient-border relative overflow-hidden rounded-lg p-6 bg-card/20"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.6 }}

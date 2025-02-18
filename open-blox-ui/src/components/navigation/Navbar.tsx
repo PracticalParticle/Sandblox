@@ -10,7 +10,7 @@ export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b glass transition-colors duration-300">
+    <header className="sticky top-0 z-40 w-full border-b glass transition-colors duration-300 bg-background text-foreground">
       <div className="fixed right-4 top-4 z-50 flex items-center gap-2">
         <ConnectButton
           showBalance={false}
@@ -55,25 +55,25 @@ export function Navbar() {
             </a>
           </div>
           <div className="flex items-center gap-4">
-          <a
-            href="https://github.com/particlecs-com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden md:flex rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground glow-primary"
-          >
-            <Github className="h-5 w-5" />
-          </a>
-          <button
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="rounded-lg p-2 hover:bg-accent md:hidden hover-lift"
-          >
-            {isMobileMenuOpen ? (
-              <X className="h-6 w-6" />
-            ) : (
-              <Menu className="h-6 w-6" />
-            )}
-          </button>
-        </div>
+            <a
+              href="https://github.com/particlecs-com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden md:flex rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground glow-primary"
+            >
+              <Github className="h-5 w-5" />
+            </a>
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="rounded-lg p-2 hover:bg-accent md:hidden hover-lift"
+            >
+              {isMobileMenuOpen ? (
+                <X className="h-6 w-6" />
+              ) : (
+                <Menu className="h-6 w-6" />
+              )}
+            </button>
+          </div>
         </div>     
       </nav>
 

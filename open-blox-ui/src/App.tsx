@@ -17,7 +17,7 @@ export default function App() {
       <div className="flex min-h-screen flex-col">
         <Navbar />
 
-        <main className="flex-1 bg-gradient-to-b from-background via-background/80 to-background">
+        <main className="flex-1">
           <div className="mx-auto max-w-7xl text-center">
             <Routes>
               <Route path="/" element={<Home />} />

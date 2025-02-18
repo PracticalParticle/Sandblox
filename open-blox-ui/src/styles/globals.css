@@ -30,6 +30,10 @@
   .glass {
     @apply bg-background/40 backdrop-blur-lg backdrop-saturate-150 border-white/10;
   }
+
+  .dark .glass {
+    @apply bg-background/40 backdrop-blur-lg backdrop-saturate-150 border-white/10;
+  }
 }
 
 /* Remove duplicate RainbowKit overrides */
