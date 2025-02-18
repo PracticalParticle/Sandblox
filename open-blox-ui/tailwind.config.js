@@ -6,6 +6,7 @@ export default {
     './components/**/*.{ts,tsx}',
     './app/**/*.{ts,tsx}',
     './src/**/*.{ts,tsx}',
+    './index.html',
   ],
   prefix: "",
   theme: {
@@ -52,6 +53,9 @@ export default {
           foreground: "hsl(var(--card-foreground))",
         },
       },
+      fontFamily: {
+        sans: ['Inter var', 'sans-serif'],
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
@@ -85,4 +89,5 @@ export default {
     },
   },
   plugins: [require("tailwindcss-animate")],
+  important: true,
 } 

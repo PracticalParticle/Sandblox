@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 47% 11%;
+    --foreground: 214 32% 91%;
+    /* ... other CSS variables ... */
+  }
+
+  html,
+  body {
+    @apply antialiased bg-background text-foreground min-h-screen;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-lg border border-border bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .glass {
+    @apply bg-background/40 backdrop-blur-lg backdrop-saturate-150 border-white/10;
+  }
+}
+
+/* RainbowKit overrides */
+[data-rk] {
+  --rk-colors-accentColor: hsl(var(--primary));
+  --rk-colors-accentColorForeground: hsl(var(--primary-foreground));
+  /* ... other RainbowKit variables ... */
+}
+
+/* Ensure RainbowKit components inherit theme */
+[data-rk] .rk-modal-body {
+  @apply !bg-background;
+}
+
+[data-rk] .rk-connect-button {
+  @apply !font-sans;
+} 

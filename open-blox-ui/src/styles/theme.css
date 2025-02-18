@@ -1,7 +1,3 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
 @layer base {
   :root {
     --background: 222 47% 11%;
@@ -230,4 +226,99 @@
 /* Card Styles */
 .card {
   @apply rounded-lg border border-white/10 bg-white/5 p-6 backdrop-blur-lg transition-all hover:bg-white/10 hover:shadow-[0_8px_30px_rgb(59,130,246,0.1)] hover:-translate-y-1;
+}
+
+/* RainbowKit Overrides */
+[data-rk] {
+  --rk-colors-accentColor: hsl(var(--primary));
+  --rk-colors-accentColorForeground: hsl(var(--primary-foreground));
+  --rk-colors-actionButtonBorder: hsl(var(--border));
+  --rk-colors-actionButtonBorderMobile: hsl(var(--border));
+  --rk-colors-actionButtonSecondaryBackground: hsl(var(--secondary));
+  --rk-colors-closeButton: hsl(var(--muted-foreground));
+  --rk-colors-closeButtonBackground: hsl(var(--muted));
+  --rk-colors-connectButtonBackground: hsl(var(--background));
+  --rk-colors-connectButtonBackgroundError: hsl(var(--destructive));
+  --rk-colors-connectButtonInnerBackground: hsl(var(--muted));
+  --rk-colors-connectButtonText: hsl(var(--foreground));
+  --rk-colors-connectButtonTextError: hsl(var(--destructive-foreground));
+  --rk-colors-connectionIndicator: hsl(var(--primary));
+  --rk-colors-error: hsl(var(--destructive));
+  --rk-colors-generalBorder: hsl(var(--border));
+  --rk-colors-generalBorderDim: hsl(var(--border));
+  --rk-colors-menuItemBackground: hsl(var(--muted));
+  --rk-colors-modalBackground: hsl(var(--background));
+  --rk-colors-modalBorder: hsl(var(--border));
+  --rk-colors-modalText: hsl(var(--foreground));
+  --rk-colors-modalTextDim: hsl(var(--muted-foreground));
+  --rk-colors-modalTextSecondary: hsl(var(--muted-foreground));
+  --rk-colors-profileAction: hsl(var(--muted));
+  --rk-colors-profileActionHover: hsl(var(--accent));
+  --rk-colors-profileForeground: hsl(var(--background));
+  --rk-colors-selectedOptionBorder: hsl(var(--border));
+  --rk-colors-standby: hsl(var(--primary));
+  
+  --rk-radii-actionButton: var(--radius);
+  --rk-radii-connectButton: var(--radius);
+  --rk-radii-menuButton: var(--radius);
+  --rk-radii-modal: var(--radius);
+  --rk-radii-modalMobile: var(--radius);
+  
+  --rk-fonts-body: inherit;
+  
+  --rk-shadows-connectButton: none;
+  --rk-shadows-dialog: none;
+  --rk-shadows-profileDetailsAction: none;
+  --rk-shadows-selectedOption: none;
+  --rk-shadows-selectedWallet: none;
+  --rk-shadows-walletLogo: none;
+}
+
+/* Ensure RainbowKit components inherit your theme's background */
+[data-rk] .rk-modal-body {
+  background: hsl(var(--background));
+}
+
+[data-rk] .rk-connect-button {
+  font-family: inherit;
+}
+
+/* RainbowKit Custom Theme */
+[data-rk] {
+  --rk-colors-accentColor: hsl(var(--primary));
+  --rk-colors-accentColorForeground: hsl(var(--primary-foreground));
+  --rk-colors-actionButtonBorder: hsl(var(--border));
+  --rk-colors-actionButtonBorderMobile: hsl(var(--border));
+  --rk-colors-actionButtonSecondaryBackground: hsl(var(--secondary));
+  --rk-colors-closeButton: hsl(var(--muted-foreground));
+  --rk-colors-closeButtonBackground: hsl(var(--muted));
+  --rk-colors-connectButtonBackground: hsl(var(--background));
+  --rk-colors-connectButtonBackgroundError: hsl(var(--destructive));
+  --rk-colors-connectButtonInnerBackground: hsl(var(--muted));
+  --rk-colors-connectButtonText: hsl(var(--foreground));
+  --rk-colors-connectButtonTextError: hsl(var(--destructive-foreground));
+  --rk-colors-connectionIndicator: hsl(var(--primary));
+  --rk-colors-error: hsl(var(--destructive));
+  --rk-colors-generalBorder: hsl(var(--border));
+  --rk-colors-generalBorderDim: hsl(var(--border));
+  --rk-colors-menuItemBackground: hsl(var(--muted));
+  --rk-colors-modalBackground: hsl(var(--background));
+  --rk-colors-modalBorder: hsl(var(--border));
+  --rk-colors-modalText: hsl(var(--foreground));
+  --rk-colors-modalTextDim: hsl(var(--muted-foreground));
+  --rk-colors-modalTextSecondary: hsl(var(--muted-foreground));
+  --rk-colors-profileAction: hsl(var(--muted));
+  --rk-colors-profileActionHover: hsl(var(--accent));
+  --rk-colors-profileForeground: hsl(var(--background));
+  --rk-colors-selectedOptionBorder: hsl(var(--border));
+  --rk-colors-standby: hsl(var(--primary));
+}
+
+/* Ensure RainbowKit components inherit theme */
+[data-rk] .rk-modal-body {
+  @apply bg-background;
+}
+
+[data-rk] .rk-connect-button {
+  @apply font-sans;
 } 

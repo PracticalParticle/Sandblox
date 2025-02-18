@@ -1,3 +1,48 @@
+@import './styles/theme.css';
 @tailwind base;
 @tailwind components;
-@tailwind utilities; 
+@tailwind utilities;
+
+/* Add higher specificity overrides for RainbowKit components */
+@layer components {
+  /* RainbowKit Connect Button overrides */
+  [data-rk] .rk-connect-button {
+    @apply !font-sans !text-sm;
+  }
+
+  /* Add any other RainbowKit component overrides here */
+}
+
+@layer utilities {
+  /* Custom utility classes */
+  .gradient-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-[#3b82f6] via-[#8b5cf6] to-[#d946ef];
+  }
+
+  .glass-panel {
+    @apply bg-background/40 backdrop-blur-lg backdrop-saturate-150;
+  }
+}
+
+/* Ensure base styles are applied */
+html {
+  @apply antialiased;
+}
+
+body {
+  @apply bg-background text-foreground min-h-screen;
+}
+
+/* Add any global styles here */
+
+.rainbow-button {
+  @apply btn-primary; /* Apply your Tailwind button style */
+}
+
+.rainbow-button:hover {
+  /* Add any custom hover styles */
+}
+
+.rainbow-button.btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg ...; /* Your styles */
+} 
