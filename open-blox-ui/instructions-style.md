@@ -3,9 +3,9 @@
 
 3.  [ ] **Add Tailwind to your CSS**: In your `src/index.css` or `src/styles.css`, add the following lines:
     ```css
-    @tailwind base;
-    @tailwind components;
-    @tailwind utilities;
+    tailwind base;
+    tailwind components;
+    tailwind utilities;
     ```
 
 4.  [ ] **Install Icon Libraries**: For icons, you can use libraries like Font Awesome or Heroicons:

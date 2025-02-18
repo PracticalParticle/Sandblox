@@ -8,13 +8,11 @@ import { CustomWagmiProvider } from './components/providers/CustomWagmiProvider'
 import './styles/theme.css';        // Theme variables first
 import './styles/globals.css';      // Global styles second
 import '@rainbow-me/rainbowkit/styles.css'; // RainbowKit styles third
-import './index.css';
+import './index.css';                // Your app styles last
 
 import App from './App';
 
 // Initialize environment variables with defaults for development
-
-
 
 // Custom theme for RainbowKit
 
@@ -29,4 +27,4 @@ ReactDOM.createRoot(rootElement).render(
       </Router>
     </CustomWagmiProvider>
   </React.StrictMode>
-); 
+);

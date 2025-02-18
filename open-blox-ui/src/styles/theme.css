@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 @layer base {
   :root {
     --background: 222 47% 11%;
@@ -5,41 +9,40 @@
 
     --card: 222 47% 11%;
     --card-foreground: 214 32% 91%;
- 
+
     --popover: 222 47% 11%;
     --popover-foreground: 214 32% 91%;
- 
+
     --primary: 217 91% 60%;
     --primary-foreground: 222 47% 11%;
- 
+
     --secondary: 217 33% 17%;
     --secondary-foreground: 214 32% 91%;
- 
+
     --muted: 217 33% 17%;
     --muted-foreground: 215 20% 65%;
- 
+
     --accent: 217 33% 17%;
     --accent-foreground: 214 32% 91%;
- 
+
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
 
     --border: 217 33% 17%;
     --input: 217 33% 17%;
     --ring: 224 76% 48%;
- 
+
     --radius: 0.75rem;
   }
-}
- 
-@layer base {
+
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
-    background-image: 
+    background-image:
       radial-gradient(at 27% 37%, hsla(215, 98%, 61%, 0.15) 0px, transparent 50%),
       radial-gradient(at 97% 21%, hsla(125, 98%, 72%, 0.15) 0px, transparent 50%),
       radial-gradient(at 52% 99%, hsla(354, 98%, 61%, 0.15) 0px, transparent 50%),
@@ -53,7 +56,7 @@
     content: "";
     position: fixed;
     inset: 0;
-    background: 
+    background:
       linear-gradient(to bottom right, rgba(59, 130, 246, 0.1) 0%, transparent 40%),
       linear-gradient(to top left, rgba(139, 92, 246, 0.1) 0%, transparent 40%),
       url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
@@ -138,7 +141,7 @@
   /* Grid Background */
   .grid-bg {
     @apply relative;
-    background-image: 
+    background-image:
       linear-gradient(rgba(59, 130, 246, 0.05) 1px, transparent 1px),
       linear-gradient(to right, rgba(59, 130, 246, 0.05) 1px, transparent 1px);
     background-size: 40px 40px;
@@ -164,9 +167,11 @@
 }
 
 @keyframes float {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0) rotate(0);
   }
+
   50% {
     transform: translateY(-10px) rotate(1deg);
   }
@@ -176,6 +181,7 @@
   from {
     box-shadow: 0 0 10px -5px rgba(59, 130, 246, 0.5);
   }
+
   to {
     box-shadow: 0 0 20px -5px rgba(59, 130, 246, 0.5);
   }
@@ -254,18 +260,18 @@
   --rk-colors-modalTextSecondary: hsl(var(--muted-foreground));
   --rk-colors-profileAction: hsl(var(--muted));
   --rk-colors-profileActionHover: hsl(var(--accent));
-  --rk-colors-profileForeground: hsl(var(--background));
+  --rk-colors-profileForeground: hsl(var(--foreground));
   --rk-colors-selectedOptionBorder: hsl(var(--border));
   --rk-colors-standby: hsl(var(--primary));
-  
+
   --rk-radii-actionButton: var(--radius);
   --rk-radii-connectButton: var(--radius);
   --rk-radii-menuButton: var(--radius);
   --rk-radii-modal: var(--radius);
   --rk-radii-modalMobile: var(--radius);
-  
+
   --rk-fonts-body: inherit;
-  
+
   --rk-shadows-connectButton: none;
   --rk-shadows-dialog: none;
   --rk-shadows-profileDetailsAction: none;
@@ -309,7 +315,7 @@
   --rk-colors-modalTextSecondary: hsl(var(--muted-foreground));
   --rk-colors-profileAction: hsl(var(--muted));
   --rk-colors-profileActionHover: hsl(var(--accent));
-  --rk-colors-profileForeground: hsl(var(--background));
+  --rk-colors-profileForeground: hsl(var(--foreground));
   --rk-colors-selectedOptionBorder: hsl(var(--border));
   --rk-colors-standby: hsl(var(--primary));
 }
@@ -321,4 +327,4 @@
 
 [data-rk] .rk-connect-button {
   @apply font-sans;
-} 
+}
