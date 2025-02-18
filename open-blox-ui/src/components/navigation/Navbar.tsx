@@ -10,7 +10,7 @@ export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b glass transition-colors duration-300 bg-background text-foreground">
+    <header className="sticky top-0 z-40 w-full border-b glass transition-colors duration-300">
       <div className="fixed right-4 top-4 z-50 flex items-center gap-2">
         <ConnectButton
           showBalance={false}

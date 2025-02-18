@@ -5,7 +5,7 @@
 @layer base {
   html,
   body {
-    @apply antialiased bg-background text-foreground min-h-screen;
+    @apply antialiased min-h-screen;
   }
 }
 
