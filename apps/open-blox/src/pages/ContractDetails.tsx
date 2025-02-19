@@ -6,6 +6,8 @@ import { getContractDetails, getContractCode } from '../lib/catalog'
 import type { BloxContract } from '../lib/catalog/types'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import { DeploymentDialog } from '../components/DeploymentDialog'
+import { Button } from '../components/ui/button'
 
 // Custom dark theme that matches our UI
 const codeTheme = {
@@ -31,6 +33,7 @@ export function ContractDetails() {
   const [contractCode, setContractCode] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showDeployDialog, setShowDeployDialog] = useState(false)
 
   useEffect(() => {
     if (contractId) {
@@ -141,14 +144,15 @@ export function ContractDetails() {
             <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/50">
               <span className="text-sm font-medium">{contract.files.sol.split('/').pop()}</span>
               <div className="flex items-center gap-2">
-                <button
-                  className="text-xs px-2 py-1 rounded-md bg-primary/10 hover:bg-primary/20 transition-colors"
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     navigator.clipboard.writeText(contractCode)
                   }}
                 >
                   Copy Code
-                </button>
+                </Button>
               </div>
             </div>
             <div className="p-4 overflow-x-auto">
@@ -170,13 +174,22 @@ export function ContractDetails() {
         </div>
 
         <div className="flex justify-center">
-          <button
-            className="btn"
+          <Button
             disabled={!isConnected}
+            onClick={() => setShowDeployDialog(true)}
           >
             {isConnected ? 'Deploy Contract' : 'Connect Wallet to Deploy'}
-          </button>
+          </Button>
         </div>
+
+        {contract && (
+          <DeploymentDialog
+            isOpen={showDeployDialog}
+            onClose={() => setShowDeployDialog(false)}
+            contractId={contract.id}
+            contractName={contract.name}
+          />
+        )}
       </div>
     </div>
   )
