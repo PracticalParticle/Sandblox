@@ -1,95 +1,68 @@
-import { useParams } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { useAccount } from 'wagmi'
-
-interface ContractDetails {
-  id: string
-  name: string
-  description: string
-  category: string
-  securityLevel: 'Basic' | 'Advanced' | 'Enterprise'
-  features: string[]
-  requirements: string[]
-  code: string
-}
-
-const MOCK_CONTRACT_DETAILS: Record<string, ContractDetails> = {
-  'simple-vault': {
-    id: 'simple-vault',
-    name: 'Simple Vault',
-    description: 'A secure vault contract for storing and managing assets with basic access controls.',
-    category: 'Storage',
-    securityLevel: 'Basic',
-    features: [
-      'Secure asset storage',
-      'Owner-only withdrawals',
-      'Emergency pause functionality',
-      'Event logging',
-    ],
-    requirements: [
-      'Ethereum wallet',
-      'ETH for gas fees',
-    ],
-    code: `// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
-
-contract SimpleVault {
-    address public owner;
-    bool public paused;
-    
-    event Deposit(address indexed sender, uint amount);
-    event Withdrawal(address indexed recipient, uint amount);
-    
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Not owner");
-        _;
-    }
-    
-    modifier notPaused() {
-        require(!paused, "Contract is paused");
-        _;
-    }
-    
-    constructor() {
-        owner = msg.sender;
-    }
-    
-    receive() external payable notPaused {
-        emit Deposit(msg.sender, msg.value);
-    }
-    
-    function withdraw(uint _amount) external onlyOwner notPaused {
-        require(_amount <= address(this).balance, "Insufficient balance");
-        payable(owner).transfer(_amount);
-        emit Withdrawal(owner, _amount);
-    }
-    
-    function setPaused(bool _paused) external onlyOwner {
-        paused = _paused;
-    }
-}`,
-  },
-}
+import { useState, useEffect } from 'react'
+import { Loader2 } from 'lucide-react'
+import { getContractDetails, getContractCode } from '../lib/catalog'
+import type { BloxContract } from '../lib/catalog/types'
 
 export function ContractDetails() {
   const { contractId } = useParams<{ contractId: string }>()
   const { isConnected } = useAccount()
+  const [contract, setContract] = useState<BloxContract | null>(null)
+  const [contractCode, setContractCode] = useState<string>('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const contract = contractId ? MOCK_CONTRACT_DETAILS[contractId] : null
+  useEffect(() => {
+    if (contractId) {
+      setLoading(true)
+      setError(null)
 
-  if (!contract) {
+      Promise.all([
+        getContractDetails(contractId),
+        getContractCode(contractId)
+      ])
+        .then(([details, code]) => {
+          setContract(details)
+          setContractCode(code)
+        })
+        .catch(err => {
+          console.error(err)
+          setError('Failed to load contract details')
+        })
+        .finally(() => setLoading(false))
+    }
+  }, [contractId])
+
+  if (loading) {
+    return (
+      <div className="container py-8">
+        <div className="flex flex-col items-center justify-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading contract details...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !contract) {
     return (
       <div className="container py-8">
         <div className="text-center">
-          <h1 className="text-2xl font-bold">Contract Not Found</h1>
+          <h1 className="text-2xl font-bold">
+            {error || 'Contract Not Found'}
+          </h1>
           <p className="mt-2 text-muted-foreground">
-            The contract you're looking for doesn't exist.
+            {error 
+              ? 'There was an error loading the contract details. Please try again later.'
+              : 'The contract you\'re looking for doesn\'t exist.'}
           </p>
-          <a
-            href="/blox-contracts"
+          <Link
+            to="/blox-contracts"
             className="mt-4 inline-flex items-center text-sm font-medium text-primary hover:underline"
           >
             ← Back to Blox Contracts
-          </a>
+          </Link>
         </div>
       </div>
     )
@@ -99,14 +72,14 @@ export function ContractDetails() {
     <div className="container py-16">
       <div className="flex flex-col space-y-8">
         <div className="flex flex-col space-y-4">
-          <a
-            href="/blox-contracts"
+          <Link
+            to="/blox-contracts"
             className="inline-flex items-center text-sm font-medium text-primary hover:underline"
           >
             ← Back to Blox Contracts
-          </a>
+          </Link>
           <h1 className="text-3xl font-bold tracking-tight">{contract.name}</h1>
-          <div className=" space-x-2">
+          <div className="space-x-2">
             <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
               {contract.category}
             </span>
@@ -114,7 +87,9 @@ export function ContractDetails() {
               {contract.securityLevel}
             </span>
           </div>
-          <p className="text-lg items-center text-muted-foreground">{contract.description}</p>
+          <p className="text-lg items-center text-muted-foreground">
+            {contract.description}
+          </p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
@@ -145,7 +120,7 @@ export function ContractDetails() {
           <h2 className="text-xl font-bold">Contract Code</h2>
           <div className="rounded-lg border bg-card p-4">
             <pre className="overflow-x-auto text-sm">
-              <code>{contract.code}</code>
+              <code>{contractCode}</code>
             </pre>
           </div>
         </div>

@@ -1,0 +1,19 @@
+{
+  "id": "simple-vault",
+  "name": "Simple Vault",
+  "description": "A secure vault contract for storing and managing assets with basic access controls.",
+  "category": "Storage",
+  "securityLevel": "Basic",
+  "features": [
+    "Secure asset storage",
+    "Owner-only withdrawals",
+    "Emergency pause functionality",
+    "Event logging"
+  ],
+  "requirements": [
+    "Ethereum wallet",
+    "ETH for gas fees"
+  ],
+  "deployments": 1234,
+  "lastUpdated": "2024-02-15"
+} 

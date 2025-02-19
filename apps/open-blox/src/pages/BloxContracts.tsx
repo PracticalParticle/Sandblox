@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -8,47 +8,11 @@ import {
   Clock,
   Wallet,
   ChevronDown,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react'
-
-interface Contract {
-  id: string
-  name: string
-  description: string
-  category: string
-  securityLevel: 'Basic' | 'Advanced' | 'Enterprise'
-  deployments: number
-  lastUpdated: string
-}
-
-const MOCK_CONTRACTS: Contract[] = [
-  {
-    id: 'simple-vault',
-    name: 'Simple Vault',
-    description: 'A secure vault contract for storing and managing assets with basic access controls.',
-    category: 'Storage',
-    securityLevel: 'Basic',
-    deployments: 1234,
-    lastUpdated: '2024-02-15',
-  },
-  {
-    id: 'multi-sig-wallet',
-    name: 'Multi-Signature Wallet',
-    description: 'A wallet requiring multiple signatures for transaction approval.',
-    category: 'Wallet',
-    securityLevel: 'Advanced',
-    deployments: 856,
-    lastUpdated: '2024-02-14',
-  },
-  {
-    id: 'token-vesting',
-    name: 'Token Vesting',
-    description: 'A contract for managing token vesting schedules with time-locks.',
-    category: 'Tokens',
-    securityLevel: 'Advanced',
-    deployments: 567,
-    lastUpdated: '2024-02-13',
-  },
-]
+import { getAllContracts } from '../lib/catalog'
+import type { BloxContract } from '../lib/catalog/types'
 
 const container = {
   hidden: { opacity: 0 },
@@ -69,11 +33,25 @@ export function BloxContracts() {
   const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-  const [selectedSecurityLevel, setSelectedSecurityLevel] = useState<string | null>(
-    null
-  )
+  const [selectedSecurityLevel, setSelectedSecurityLevel] = useState<string | null>(null)
+  const [contracts, setContracts] = useState<BloxContract[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const filteredContracts = MOCK_CONTRACTS.filter((contract) => {
+  useEffect(() => {
+    setLoading(true)
+    setError(null)
+
+    getAllContracts()
+      .then(setContracts)
+      .catch((err) => {
+        console.error('Failed to load contracts:', err)
+        setError('Failed to load contracts. Please try again later.')
+      })
+      .finally(() => setLoading(false))
+  }, [])
+
+  const filteredContracts = contracts.filter((contract) => {
     const matchesSearch =
       contract.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       contract.description.toLowerCase().includes(searchQuery.toLowerCase())
@@ -83,10 +61,41 @@ export function BloxContracts() {
     return matchesSearch && matchesCategory && matchesSecurityLevel
   })
 
-  const categories = Array.from(new Set(MOCK_CONTRACTS.map((c) => c.category)))
+  const categories = Array.from(new Set(contracts.map((c) => c.category)))
   const securityLevels = Array.from(
-    new Set(MOCK_CONTRACTS.map((c) => c.securityLevel))
+    new Set(contracts.map((c) => c.securityLevel))
   )
+
+  if (loading) {
+    return (
+      <div className="container py-8">
+        <div className="flex flex-col items-center justify-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading contracts...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="container py-8">
+        <div className="flex flex-col items-center justify-center space-y-4">
+          <AlertCircle className="h-8 w-8 text-destructive" />
+          <div className="text-center">
+            <h2 className="text-lg font-semibold">Error Loading Contracts</h2>
+            <p className="text-muted-foreground">{error}</p>
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            className="btn"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="container py-8">
@@ -198,7 +207,7 @@ export function BloxContracts() {
                 </div>
                 <button
                   onClick={() => navigate(`/contracts/${contract.id}`)}
-                  className="mt-6 btn inline-flex w-full items-center justify-center gap-2  px-4 py-2  transition-all hover:bg-primary/90"
+                  className="mt-6 btn inline-flex w-full items-center justify-center gap-2 px-4 py-2 transition-all hover:bg-primary/90"
                 >
                   View Details
                   <ArrowRight className="h-4 w-4" />
