@@ -125,7 +125,7 @@ export function Dashboard() {
         {/* Contracts Section */}
         <motion.div variants={item} className="rounded-lg border bg-card">
           <div className="border-b p-4">
-            <h2 className="text-xl font-bold">Deployed Contracts</h2>
+            <h2 className="text-xl font-bold text-left">Deployed Contracts</h2>
           </div>
           <div className="p-4">
             <div className="flex flex-col items-center gap-4 py-8 text-center">
@@ -152,7 +152,7 @@ export function Dashboard() {
         {/* Activity Section */}
         <motion.div variants={item} className="rounded-lg border bg-card">
           <div className="border-b p-4">
-            <h2 className="text-xl font-bold ">Recent Activity</h2>
+            <h2 className="text-xl font-bold text-left">Recent Activity</h2>
           </div>
           <div className="divide-y">
             <div className="flex items-center gap-4 p-4">

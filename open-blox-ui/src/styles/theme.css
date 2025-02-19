@@ -76,7 +76,7 @@
     --popover-foreground: 214 32% 91%;
 
     --primary: 217 91% 60%;
-    --primary-foreground: 210 40% 98%;
+    --primary-foreground: 222 47% 11%;
 
     --secondary: 217 33% 17%;
     --secondary-foreground: 214 32% 91%;
@@ -119,7 +119,6 @@
     background-color: var(--background);
     background-image: var(--background-gradient);
     background-attachment: fixed;
-    color: var(--foreground);
   }
 
   /* Update glass effect for navbar and footer */

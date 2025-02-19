@@ -106,7 +106,7 @@ export function ContractDetails() {
             ← Back to Blox Contracts
           </a>
           <h1 className="text-3xl font-bold tracking-tight">{contract.name}</h1>
-          <div className="flex space-x-2">
+          <div className=" space-x-2">
             <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
               {contract.category}
             </span>
@@ -114,30 +114,30 @@ export function ContractDetails() {
               {contract.securityLevel}
             </span>
           </div>
-          <p className="text-lg text-muted-foreground">{contract.description}</p>
+          <p className="text-lg items-center text-muted-foreground">{contract.description}</p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
-          <div className="space-y-4">
+          <div className="space-y-4 bg-muted p-4 rounded-lg">
             <h2 className="text-xl font-bold">Features</h2>
-            <ul className="list-inside list-disc space-y-2">
+            <div className="space-y-2">
               {contract.features.map((feature) => (
-                <li key={feature} className="text-muted-foreground">
+                <p key={feature} className="text-muted-foreground">
                   {feature}
-                </li>
+                </p>
               ))}
-            </ul>
+            </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-4 bg-muted p-4 rounded-lg">
             <h2 className="text-xl font-bold">Requirements</h2>
-            <ul className="list-inside list-disc space-y-2">
+            <div className="space-y-2">
               {contract.requirements.map((requirement) => (
-                <li key={requirement} className="text-muted-foreground">
+                <p key={requirement} className="text-muted-foreground">
                   {requirement}
-                </li>
+                </p>
               ))}
-            </ul>
+            </div>
           </div>
         </div>
 
