@@ -14,7 +14,10 @@ import { Broadcaster } from './pages/Broadcaster'
 import { Navbar } from './components/navigation/Navbar'
 import { Footer } from './components/navigation/Footer'
 
-const WALLET_CONNECT_PROJECT_ID = "YOUR_PROJECT_ID"; // Replace with your WalletConnect project ID
+const WALLET_CONNECT_PROJECT_ID = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID;
+if (!WALLET_CONNECT_PROJECT_ID) {
+  throw new Error('Missing VITE_WALLET_CONNECT_PROJECT_ID environment variable');
+}
 
 export default function App() {
   return (

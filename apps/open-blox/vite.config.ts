@@ -38,16 +38,27 @@ export default defineConfig({
       'Content-Security-Policy': `
         default-src 'self';
         script-src 'self' 'unsafe-inline' 'unsafe-eval';
-        style-src 'self' 'unsafe-inline' https://rsms.me;
-        font-src 'self' data: https://rsms.me;
-        img-src 'self' data: https:;
+        style-src 'self' 'unsafe-inline';
         connect-src 'self' 
-          https://*.alchemyapi.io 
-          wss://*.alchemyapi.io 
-          https://*.walletconnect.com 
-          wss://*.walletconnect.com
+          https://*.walletconnect.org wss://*.walletconnect.org
+          https://*.walletconnect.com wss://*.walletconnect.com
+          https://*.alchemyapi.io wss://*.alchemyapi.io
           https://eth-mainnet.g.alchemy.com
-          https://eth-sepolia.g.alchemy.com;
+          https://eth-sepolia.g.alchemy.com
+          https://explorer-api.walletconnect.com
+          https://relay.walletconnect.org wss://relay.walletconnect.org
+          https://relay.walletconnect.com wss://relay.walletconnect.com;
+        img-src 'self' data: https: blob:;
+        font-src 'self' data:;
+        media-src 'self' blob:;
+        worker-src 'self' blob:;
+        frame-src 'self' https://*.walletconnect.org https://*.walletconnect.com;
+        object-src 'none';
+        base-uri 'self';
+        form-action 'self';
+        frame-ancestors 'none';
+        block-all-mixed-content;
+        upgrade-insecure-requests;
       `.replace(/\s+/g, ' ').trim()
     }
   },
