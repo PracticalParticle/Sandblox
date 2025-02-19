@@ -10,25 +10,28 @@
     --foreground-light: 222 47% 11%;
     --foreground-dark: 214 32% 91%;
     
-    /* Light theme background gradient */
-    --light-background-gradient: 
-      radial-gradient(at 27% 37%, hsla(215, 98%, 61%, 0.1) 0px, transparent 50%),
-      radial-gradient(at 97% 21%, hsla(125, 98%, 72%, 0.1) 0px, transparent 50%),
-      radial-gradient(at 52% 99%, hsla(354, 98%, 61%, 0.1) 0px, transparent 50%),
-      radial-gradient(at 10% 29%, hsla(256, 96%, 67%, 0.1) 0px, transparent 50%),
-      radial-gradient(at 97% 96%, hsla(38, 60%, 74%, 0.1) 0px, transparent 50%),
-      radial-gradient(at 33% 50%, hsla(222, 67%, 73%, 0.1) 0px, transparent 50%),
-      radial-gradient(at 79% 53%, hsla(343, 68%, 79%, 0.1) 0px, transparent 50%);
+/* Light theme background gradient */
+--light-background-gradient: 
+  radial-gradient(at 27% 37%, hsla(215, 85%, 65%, 0.15) 0px, transparent 50%),
+  radial-gradient(at 97% 21%, hsla(160, 90%, 75%, 0.15) 0px, transparent 50%),
+  radial-gradient(at 52% 99%, hsla(340, 85%, 70%, 0.15) 0px, transparent 50%),
+  radial-gradient(at 10% 29%, hsla(255, 80%, 70%, 0.15) 0px, transparent 50%),
+  radial-gradient(at 97% 96%, hsla(45, 80%, 75%, 0.15) 0px, transparent 50%),
+  radial-gradient(at 33% 50%, hsla(225, 75%, 78%, 0.15) 0px, transparent 50%),
+  radial-gradient(at 79% 53%, hsla(295, 75%, 70%, 0.15) 0px, transparent 50%),
+  radial-gradient(at 15% 75%, hsla(195, 85%, 72%, 0.15) 0px, transparent 50%);
 
-    /* Dark theme background gradient */
-    --dark-background-gradient: 
-      radial-gradient(at 27% 37%, hsla(215, 98%, 61%, 0.15) 0px, transparent 50%),
-      radial-gradient(at 97% 21%, hsla(125, 98%, 72%, 0.15) 0px, transparent 50%),
-      radial-gradient(at 52% 99%, hsla(354, 98%, 61%, 0.15) 0px, transparent 50%),
-      radial-gradient(at 10% 29%, hsla(256, 96%, 67%, 0.15) 0px, transparent 50%),
-      radial-gradient(at 97% 96%, hsla(38, 60%, 74%, 0.15) 0px, transparent 50%),
-      radial-gradient(at 33% 50%, hsla(222, 67%, 73%, 0.15) 0px, transparent 50%),
-      radial-gradient(at 79% 53%, hsla(343, 68%, 79%, 0.15) 0px, transparent 50%);
+/* Dark theme background gradient */
+--dark-background-gradient: 
+  radial-gradient(at 27% 37%, hsla(220, 95%, 20%, 0.3) 0px, transparent 50%),
+  radial-gradient(at 97% 21%, hsla(215, 85%, 25%, 0.3) 0px, transparent 50%),
+  radial-gradient(at 52% 99%, hsla(200, 80%, 30%, 0.3) 0px, transparent 50%),
+  radial-gradient(at 10% 29%, hsla(195, 85%, 35%, 0.3) 0px, transparent 50%),
+  radial-gradient(at 97% 96%, hsla(280, 65%, 35%, 0.2) 0px, transparent 50%),
+  radial-gradient(at 33% 50%, hsla(210, 90%, 28%, 0.3) 0px, transparent 50%),
+  radial-gradient(at 79% 53%, hsla(240, 65%, 32%, 0.3) 0px, transparent 50%);
+
+
 
     /* Theme variables */
     --background: hsl(var(--background-light));
