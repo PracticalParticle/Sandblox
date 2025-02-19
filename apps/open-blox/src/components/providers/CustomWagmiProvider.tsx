@@ -3,6 +3,7 @@ import { WagmiProvider, http } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RainbowKitProvider, getDefaultConfig } from '@rainbow-me/rainbowkit';
 import { mainnet, sepolia } from 'wagmi/chains';
+import { localDevnet } from '@/config/chains';
 
 // Create a new QueryClient instance
 const queryClient = new QueryClient();
@@ -10,10 +11,11 @@ const queryClient = new QueryClient();
 const wagmiConfig = getDefaultConfig({
   appName: import.meta.env.VITE_APP_NAME || 'OpenBlox UI',
   projectId: import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID,
-  chains: [mainnet, sepolia],
+  chains: [mainnet, sepolia, localDevnet],
   transports: {
     [mainnet.id]: http(`https://eth-mainnet.g.alchemy.com/v2/${import.meta.env.VITE_ALCHEMY_API_KEY}`),
     [sepolia.id]: http(`https://eth-sepolia.g.alchemy.com/v2/${import.meta.env.VITE_ALCHEMY_API_KEY}`),
+    [localDevnet.id]: http(localDevnet.rpcUrls.default.http[0]),
   },
   ssr: false, // Disable SSR
 });
