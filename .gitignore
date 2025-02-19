@@ -1,8 +1,97 @@
-# Node modules
+# Dependencies
 node_modules
+.pnp
+.pnp.js
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
 
-# Environment variables
+# Environment and secrets
 .env
+.env.*
+!.env.example
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# Build output
+# Build outputs
 dist
+dist-ssr
+build
+out
+
+# Testing
+coverage
+coverage.json
+typechain-types
+cache
+artifacts
+
+# Hardhat/Foundry files
+cache/
+out/
+forge-cache/
+broadcast/
+deployments/localhost
+
+# IDE and editor files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea
+*.swp
+*.swo
+.DS_Store
+*.pem
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+debug.log
+.pnpm-debug.log*
+
+# Local development
+*.local
+.local
+
+# TypeScript
+*.tsbuildinfo
+
+# Testing
+/playwright-report/
+/test-results/
+
+# Production optimizations
+stats.html
+bundle-analysis.html
+.eslintcache
+.stylelintcache
+
+# Temporary files
+*.tmp
+*.temp
+.cache
+.turbo
+
+# Blockchain specific
+.openzeppelin
+artifacts-zk
+cache-zk
+.secret
+mnemonic.txt
+private-keys.txt
+account-keys.json
+
+# Generated contract types
+/src/types/contracts/
+/src/abis/
+generated
+
+# Misc
+.vercel
+.netlify

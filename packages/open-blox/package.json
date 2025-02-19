@@ -1,0 +1,14 @@
+{
+  "name": "@open-blox/core",
+  "version": "0.1.0",
+  "description": "Open Blox Smart Contracts",
+  "private": true,
+  "scripts": {
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.9.3",
+    "@particle/core": "0.1.0"
+  },
+  "devDependencies": {
+  }
+} 

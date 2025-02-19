@@ -9,5 +9,8 @@
   "dependencies": {
   },
   "devDependencies": {
-  }
+  },
+  "workspaces": [
+    "packages/*"
+  ]
 } 

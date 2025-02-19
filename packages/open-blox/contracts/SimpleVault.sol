@@ -1,7 +1,7 @@
 // SPDX-License-Identifier:
 pragma solidity ^0.8.0;
 
-import "../core-contracts/abstract/access/SecureOwnable.sol";
+import "@particle/core/contracts/abstract/access/SecureOwnable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
