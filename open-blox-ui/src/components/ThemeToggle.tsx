@@ -11,12 +11,10 @@ export function ThemeToggle() {
 
   useEffect(() => {
     const root = window.document.documentElement;
-    
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
+
+    // Apply the theme immediately
+    root.classList.toggle('dark', theme === 'dark');
+    document.body.classList.toggle('dark', theme === 'dark');
 
     // Set CSS variables for light and dark themes
     root.style.setProperty('--background', theme === 'dark' ? 'hsl(var(--background-dark))' : 'hsl(var(--background-light))');

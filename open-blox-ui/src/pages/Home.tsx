@@ -70,7 +70,7 @@ export function Home() {
         <div className="mx-auto max-w-4xl">
           <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
             <motion.div 
-              className="gradient-border relative overflow-hidden rounded-lg p-6 bg-card/20"
+              className="gradient-border relative overflow-hidden rounded-lg p-6 bg-card"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
@@ -85,7 +85,7 @@ export function Home() {
             </motion.div>
 
             <motion.div 
-              className="gradient-border relative overflow-hidden rounded-lg p-6 bg-card/20"
+              className="gradient-border relative overflow-hidden rounded-lg p-6 bg-card"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.4 }}
@@ -100,7 +100,7 @@ export function Home() {
             </motion.div>
 
             <motion.div 
-              className="gradient-border relative overflow-hidden rounded-lg p-6 bg-card/20"
+              className="gradient-border relative overflow-hidden rounded-lg p-6 bg-card"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.6 }}

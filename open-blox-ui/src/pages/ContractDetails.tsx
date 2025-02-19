@@ -118,7 +118,7 @@ export function ContractDetails() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
-          <div className="space-y-4 bg-muted p-4 rounded-lg">
+          <div className="space-y-4 bg-card p-4 rounded-lg">
             <h2 className="text-xl font-bold">Features</h2>
             <div className="space-y-2">
               {contract.features.map((feature) => (
@@ -129,7 +129,7 @@ export function ContractDetails() {
             </div>
           </div>
 
-          <div className="space-y-4 bg-muted p-4 rounded-lg">
+          <div className="space-y-4 bg-card p-4 rounded-lg">
             <h2 className="text-xl font-bold">Requirements</h2>
             <div className="space-y-2">
               {contract.requirements.map((requirement) => (
@@ -143,7 +143,7 @@ export function ContractDetails() {
 
         <div className="space-y-4">
           <h2 className="text-xl font-bold">Contract Code</h2>
-          <div className="rounded-lg border bg-muted p-4">
+          <div className="rounded-lg border bg-card p-4">
             <pre className="overflow-x-auto text-sm">
               <code>{contract.code}</code>
             </pre>

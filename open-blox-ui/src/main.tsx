@@ -9,6 +9,7 @@ const initializeTheme = () => {
   if (typeof window !== 'undefined') {
     const theme = localStorage.getItem('theme') || 'dark';
     document.documentElement.classList.toggle('dark', theme === 'dark');
+    document.body.classList.toggle('dark', theme === 'dark'); // Ensure body also reflects the theme
   }
 };
 
