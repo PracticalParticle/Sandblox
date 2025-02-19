@@ -1,11 +1,13 @@
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
+import { useAccount } from 'wagmi'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import MetaTxBroadcast from '@/components/MetaTxBroadcast'
 import { ArrowRight, ArrowLeft, Send, Radio } from 'lucide-react'
+import { isValidEthereumAddress } from '@/lib/utils'
 
 const container = {
   hidden: { opacity: 0 },
@@ -29,8 +31,8 @@ type WizardStep = {
 
 const WIZARD_STEPS: WizardStep[] = [
   {
-    title: 'Connect Wallet',
-    description: 'Connect your wallet to broadcast meta transactions',
+    title: 'Connect Wallets',
+    description: 'Connect your main wallet and broadcaster wallet',
   },
   {
     title: 'Transaction Details',
@@ -50,7 +52,9 @@ interface MetaTxData {
 }
 
 export function Broadcaster() {
+  const { address: mainWalletAddress, isConnected: isMainWalletConnected } = useAccount()
   const [currentStep, setCurrentStep] = useState(0)
+  const [broadcasterAddress, setBroadcasterAddress] = useState<string>('')
   const [metaTxData, setMetaTxData] = useState<MetaTxData>({
     to: '',
     data: '',
@@ -59,6 +63,9 @@ export function Broadcaster() {
   })
 
   const handleNext = () => {
+    if (currentStep === 0 && (!isMainWalletConnected || !broadcasterAddress)) {
+      return // Don't proceed if wallets aren't connected
+    }
     if (currentStep < WIZARD_STEPS.length - 1) {
       setCurrentStep(currentStep + 1)
     }
@@ -70,12 +77,76 @@ export function Broadcaster() {
     }
   }
 
+  const handleBroadcasterConnect = (address: string) => {
+    setBroadcasterAddress(address)
+  }
+
+  const handleBroadcasterDisconnect = () => {
+    setBroadcasterAddress('')
+  }
+
+  const validateTransactionData = () => {
+    if (!metaTxData.to || !isValidEthereumAddress(metaTxData.to)) {
+      return false
+    }
+    if (!metaTxData.data || !metaTxData.data.startsWith('0x')) {
+      return false
+    }
+    if (isNaN(Number(metaTxData.value))) {
+      return false
+    }
+    if (isNaN(Number(metaTxData.nonce))) {
+      return false
+    }
+    return true
+  }
+
+  const handleBroadcast = async () => {
+    if (!validateTransactionData()) {
+      console.error('Invalid transaction data')
+      return
+    }
+    
+    try {
+      // TODO: Implement meta-transaction broadcasting logic
+      console.log('Broadcasting meta-transaction...', {
+        mainWallet: mainWalletAddress,
+        broadcasterWallet: broadcasterAddress,
+        ...metaTxData,
+      })
+    } catch (error) {
+      console.error('Failed to broadcast meta-transaction:', error)
+    }
+  }
+
   const renderStepContent = () => {
     switch (currentStep) {
       case 0:
         return (
-          <div className="space-y-4">
-            <MetaTxBroadcast />
+          <div className="space-y-6">
+            <div className="space-y-4">
+              <div className="rounded-lg border p-4">
+                <h3 className="mb-2 text-sm font-medium">Main Wallet</h3>
+                {isMainWalletConnected ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      {mainWalletAddress?.slice(0, 6)}...{mainWalletAddress?.slice(-4)}
+                    </span>
+                    <span className="text-xs text-green-500">Connected</span>
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground">
+                    Please connect your main wallet using RainbowKit
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="space-y-4">
+              <MetaTxBroadcast
+                onWalletConnect={handleBroadcasterConnect}
+                onWalletDisconnect={handleBroadcasterDisconnect}
+              />
+            </div>
           </div>
         )
       case 1:
@@ -134,6 +205,18 @@ export function Broadcaster() {
               <CardContent className="pt-6">
                 <dl className="divide-y">
                   <div className="px-4 py-3 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0">
+                    <dt className="text-sm font-medium leading-6">Main Wallet</dt>
+                    <dd className="mt-1 text-sm leading-6 sm:col-span-2 sm:mt-0">
+                      {mainWalletAddress || 'Not connected'}
+                    </dd>
+                  </div>
+                  <div className="px-4 py-3 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0">
+                    <dt className="text-sm font-medium leading-6">Broadcaster Wallet</dt>
+                    <dd className="mt-1 text-sm leading-6 sm:col-span-2 sm:mt-0">
+                      {broadcasterAddress || 'Not connected'}
+                    </dd>
+                  </div>
+                  <div className="px-4 py-3 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0">
                     <dt className="text-sm font-medium leading-6">To Address</dt>
                     <dd className="mt-1 text-sm leading-6 sm:col-span-2 sm:mt-0">
                       {metaTxData.to || 'Not set'}
@@ -160,7 +243,11 @@ export function Broadcaster() {
                 </dl>
               </CardContent>
             </Card>
-            <Button className="w-full" onClick={() => console.log('Broadcasting...', metaTxData)}>
+            <Button 
+              className="w-full" 
+              onClick={handleBroadcast}
+              disabled={!validateTransactionData()}
+            >
               <Send className="mr-2 h-4 w-4" />
               Broadcast Transaction
             </Button>
@@ -240,7 +327,10 @@ export function Broadcaster() {
             </Button>
             <Button
               onClick={handleNext}
-              disabled={currentStep === WIZARD_STEPS.length - 1}
+              disabled={
+                currentStep === WIZARD_STEPS.length - 1 ||
+                (currentStep === 0 && (!isMainWalletConnected || !broadcasterAddress))
+              }
             >
               Next
               <ArrowRight className="ml-2 h-4 w-4" />
