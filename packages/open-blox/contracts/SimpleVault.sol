@@ -1,9 +1,12 @@
 // SPDX-License-Identifier:
 pragma solidity ^0.8.0;
 
-import "@particle/core/contracts/abstract/access/SecureOwnable.sol";
+// OpenZeppelin imports
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+// Particle imports
+import "@particle/core/contracts/abstract/access/SecureOwnable.sol";
 
 contract SimpleVault is SecureOwnable {
     using SafeERC20 for IERC20;
