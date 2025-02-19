@@ -4,6 +4,25 @@ import { useState, useEffect } from 'react'
 import { Loader2 } from 'lucide-react'
 import { getContractDetails, getContractCode } from '../lib/catalog'
 import type { BloxContract } from '../lib/catalog/types'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
+
+// Custom dark theme that matches our UI
+const codeTheme = {
+  ...vscDarkPlus,
+  'pre[class*="language-"]': {
+    ...vscDarkPlus['pre[class*="language-"]'],
+    background: 'transparent',
+    margin: 0,
+    padding: 0,
+  },
+  'code[class*="language-"]': {
+    ...vscDarkPlus['code[class*="language-"]'],
+    background: 'transparent',
+    fontSize: '0.875rem',
+    lineHeight: '1.5',
+  },
+}
 
 export function ContractDetails() {
   const { contractId } = useParams<{ contractId: string }>()
@@ -118,10 +137,35 @@ export function ContractDetails() {
 
         <div className="space-y-4">
           <h2 className="text-xl font-bold">Contract Code</h2>
-          <div className="rounded-lg border bg-card p-4">
-            <pre className="overflow-x-auto text-sm">
-              <code>{contractCode}</code>
-            </pre>
+          <div className="rounded-lg border bg-card overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/50">
+              <span className="text-sm font-medium">{contract.files.sol.split('/').pop()}</span>
+              <div className="flex items-center gap-2">
+                <button
+                  className="text-xs px-2 py-1 rounded-md bg-primary/10 hover:bg-primary/20 transition-colors"
+                  onClick={() => {
+                    navigator.clipboard.writeText(contractCode)
+                  }}
+                >
+                  Copy Code
+                </button>
+              </div>
+            </div>
+            <div className="p-4 overflow-x-auto">
+              <SyntaxHighlighter
+                language="solidity"
+                style={codeTheme}
+                customStyle={{
+                  background: 'transparent',
+                  margin: 0,
+                  padding: 0,
+                }}
+                showLineNumbers
+                wrapLongLines={false}
+              >
+                {contractCode}
+              </SyntaxHighlighter>
+            </div>
           </div>
         </div>
 
