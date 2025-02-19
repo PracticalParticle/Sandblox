@@ -40,12 +40,20 @@ export function Navbar() {
               Contracts
             </a>
             {isConnected && (
-              <a
-                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
-                href="/dashboard"
-              >
-                Dashboard
-              </a>
+              <>
+                <a
+                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
+                  href="/dashboard"
+                >
+                  Dashboard
+                </a>
+                <a
+                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
+                  href="/broadcaster"
+                >
+                  Broadcaster
+                </a>
+              </>
             )}
             <a
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
@@ -97,13 +105,22 @@ export function Navbar() {
                 Contracts
               </a>
               {isConnected && (
-                <a
-                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
-                  href="/dashboard"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Dashboard
-                </a>
+                <>
+                  <a
+                    className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
+                    href="/dashboard"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Dashboard
+                  </a>
+                  <a
+                    className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
+                    href="/broadcaster"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Broadcaster
+                  </a>
+                </>
               )}
               <a
                 className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
