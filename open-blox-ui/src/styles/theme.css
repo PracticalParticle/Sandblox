@@ -4,8 +4,73 @@
 
 @layer base {
   :root {
-    --background: 222 47% 11%;
-    --foreground: 214 32% 91%;
+    /* Light theme */
+    --background-light: 0 0% 100%;
+    --background-dark: 222 47% 11%;
+    --foreground-light: 222 47% 11%;
+    --foreground-dark: 214 32% 91%;
+    
+/* Light theme background gradient */
+--light-background-gradient: 
+  radial-gradient(at 27% 37%, hsla(215, 85%, 65%, 0.15) 0px, transparent 50%),
+  radial-gradient(at 97% 21%, hsla(160, 90%, 75%, 0.15) 0px, transparent 50%),
+  radial-gradient(at 52% 99%, hsla(340, 85%, 70%, 0.15) 0px, transparent 50%),
+  radial-gradient(at 10% 29%, hsla(255, 80%, 70%, 0.15) 0px, transparent 50%),
+  radial-gradient(at 97% 96%, hsla(45, 80%, 75%, 0.15) 0px, transparent 50%),
+  radial-gradient(at 33% 50%, hsla(225, 75%, 78%, 0.15) 0px, transparent 50%),
+  radial-gradient(at 79% 53%, hsla(295, 75%, 70%, 0.15) 0px, transparent 50%),
+  radial-gradient(at 15% 75%, hsla(195, 85%, 72%, 0.15) 0px, transparent 50%);
+
+/* Dark theme background gradient */
+--dark-background-gradient: 
+  radial-gradient(at 27% 37%, hsla(220, 95%, 20%, 0.3) 0px, transparent 50%),
+  radial-gradient(at 97% 21%, hsla(215, 85%, 25%, 0.3) 0px, transparent 50%),
+  radial-gradient(at 52% 99%, hsla(200, 80%, 30%, 0.3) 0px, transparent 50%),
+  radial-gradient(at 10% 29%, hsla(195, 85%, 35%, 0.3) 0px, transparent 50%),
+  radial-gradient(at 97% 96%, hsla(280, 65%, 35%, 0.2) 0px, transparent 50%),
+  radial-gradient(at 33% 50%, hsla(210, 90%, 28%, 0.3) 0px, transparent 50%),
+  radial-gradient(at 79% 53%, hsla(240, 65%, 32%, 0.3) 0px, transparent 50%);
+
+
+
+    /* Theme variables */
+    --background: hsl(var(--background-light));
+    --foreground: hsl(var(--foreground-light));
+    --background-gradient: var(--light-background-gradient);
+    
+    /* Other theme variables */
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 217 91% 60%;
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: hsl(var(--background-dark));
+    --foreground: hsl(var(--foreground-dark));
+    --background-gradient: var(--dark-background-gradient);
 
     --card: 222 47% 11%;
     --card-foreground: 214 32% 91%;
@@ -31,38 +96,50 @@
     --border: 217 33% 17%;
     --input: 217 33% 17%;
     --ring: 224 76% 48%;
-
-    --radius: 0.75rem;
   }
 
   * {
     @apply border-border;
   }
 
+  html,
   body {
-    @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
-    background-image:
-      radial-gradient(at 27% 37%, hsla(215, 98%, 61%, 0.15) 0px, transparent 50%),
-      radial-gradient(at 97% 21%, hsla(125, 98%, 72%, 0.15) 0px, transparent 50%),
-      radial-gradient(at 52% 99%, hsla(354, 98%, 61%, 0.15) 0px, transparent 50%),
-      radial-gradient(at 10% 29%, hsla(256, 96%, 67%, 0.15) 0px, transparent 50%),
-      radial-gradient(at 97% 96%, hsla(38, 60%, 74%, 0.15) 0px, transparent 50%),
-      radial-gradient(at 33% 50%, hsla(222, 67%, 73%, 0.15) 0px, transparent 50%),
-      radial-gradient(at 79% 53%, hsla(343, 68%, 79%, 0.15) 0px, transparent 50%);
+    @apply min-h-screen antialiased;
   }
 
+  body {
+    background-color: var(--background);
+    background-image: var(--background-gradient);
+    background-attachment: fixed;
+    color: var(--foreground);
+  }
+
+  /* Remove any potential overrides */
+  body.light,
+  body.dark,
+  :root body,
+  .dark body {
+    background-color: var(--background);
+    background-image: var(--background-gradient);
+    background-attachment: fixed;
+  }
+
+  /* Update glass effect for navbar and footer */
+  .glass {
+    @apply bg-background/40 backdrop-blur-lg backdrop-saturate-150 border-border/50;
+  }
+
+  .dark .glass {
+    @apply bg-background/40 backdrop-blur-lg backdrop-saturate-150 border-white/10;
+  }
+
+  /* Pattern overlay */
   body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    background:
-      linear-gradient(to bottom right, rgba(59, 130, 246, 0.1) 0%, transparent 40%),
-      linear-gradient(to top left, rgba(139, 92, 246, 0.1) 0%, transparent 40%),
-      url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-    pointer-events: none;
-    z-index: -1;
-    opacity: 0.5;
+    opacity: 0.15;
+  }
+
+  .dark body::before {
+    opacity: 0.25;
   }
 }
 
@@ -86,7 +163,7 @@
 
   /* Glass Effect */
   .glass {
-    @apply bg-background/40 backdrop-blur-lg backdrop-saturate-150 border-white/10 hover:bg-background/50 transition-all duration-300;
+    @apply bg-background/40 backdrop-blur-lg backdrop-saturate-150 border-border/50;
   }
 
   .glass-hover {

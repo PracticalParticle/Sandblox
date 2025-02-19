@@ -99,7 +99,7 @@ export function BloxContracts() {
         {/* Header */}
         <motion.div variants={item} className="space-y-4">
           <h1 className="text-3xl font-bold tracking-tight">Blox Contracts</h1>
-          <p className="max-w-[750px] text-lg text-muted-foreground">
+          <p className="max-w-[750px] text-lg text-muted-foreground text-center mx-auto">
             Browse our collection of pre-audited smart contracts. Each contract is
             thoroughly tested and secured with built-in safety features.
           </p>
@@ -198,7 +198,7 @@ export function BloxContracts() {
                 </div>
                 <button
                   onClick={() => navigate(`/contracts/${contract.id}`)}
-                  className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90"
+                  className="mt-6 btn inline-flex w-full items-center justify-center gap-2  px-4 py-2  transition-all hover:bg-primary/90"
                 >
                   View Details
                   <ArrowRight className="h-4 w-4" />

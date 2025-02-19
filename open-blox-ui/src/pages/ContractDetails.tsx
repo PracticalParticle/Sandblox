@@ -96,7 +96,7 @@ export function ContractDetails() {
   }
 
   return (
-    <div className="container py-8">
+    <div className="container py-16">
       <div className="flex flex-col space-y-8">
         <div className="flex flex-col space-y-4">
           <a
@@ -106,7 +106,7 @@ export function ContractDetails() {
             ← Back to Blox Contracts
           </a>
           <h1 className="text-3xl font-bold tracking-tight">{contract.name}</h1>
-          <div className="flex space-x-2">
+          <div className=" space-x-2">
             <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
               {contract.category}
             </span>
@@ -114,36 +114,36 @@ export function ContractDetails() {
               {contract.securityLevel}
             </span>
           </div>
-          <p className="text-lg text-muted-foreground">{contract.description}</p>
+          <p className="text-lg items-center text-muted-foreground">{contract.description}</p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
-          <div className="space-y-4">
+          <div className="space-y-4 bg-card p-4 rounded-lg">
             <h2 className="text-xl font-bold">Features</h2>
-            <ul className="list-inside list-disc space-y-2">
+            <div className="space-y-2">
               {contract.features.map((feature) => (
-                <li key={feature} className="text-muted-foreground">
+                <p key={feature} className="text-muted-foreground">
                   {feature}
-                </li>
+                </p>
               ))}
-            </ul>
+            </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-4 bg-card p-4 rounded-lg">
             <h2 className="text-xl font-bold">Requirements</h2>
-            <ul className="list-inside list-disc space-y-2">
+            <div className="space-y-2">
               {contract.requirements.map((requirement) => (
-                <li key={requirement} className="text-muted-foreground">
+                <p key={requirement} className="text-muted-foreground">
                   {requirement}
-                </li>
+                </p>
               ))}
-            </ul>
+            </div>
           </div>
         </div>
 
         <div className="space-y-4">
           <h2 className="text-xl font-bold">Contract Code</h2>
-          <div className="rounded-lg border bg-muted p-4">
+          <div className="rounded-lg border bg-card p-4">
             <pre className="overflow-x-auto text-sm">
               <code>{contract.code}</code>
             </pre>
@@ -152,7 +152,7 @@ export function ContractDetails() {
 
         <div className="flex justify-center">
           <button
-            className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-8 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+            className="btn"
             disabled={!isConnected}
           >
             {isConnected ? 'Deploy Contract' : 'Connect Wallet to Deploy'}
