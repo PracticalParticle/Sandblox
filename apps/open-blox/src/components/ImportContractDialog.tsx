@@ -1,15 +1,26 @@
 import { useState } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from './ui/dialog'
 import { Button } from './ui/button'
 import { isValidEthereumAddress } from '../lib/utils'
 
 interface ImportContractDialogProps {
-  isOpen: boolean
-  onClose: () => void
+  open: boolean
+  onOpenChange: (open: boolean) => void
   onImport: (address: string) => void
 }
 
-export function ImportContractDialog({ isOpen, onClose, onImport }: ImportContractDialogProps) {
+export function ImportContractDialog({
+  open,
+  onOpenChange,
+  onImport,
+}: ImportContractDialogProps) {
   const [address, setAddress] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -26,11 +37,10 @@ export function ImportContractDialog({ isOpen, onClose, onImport }: ImportContra
 
     setError(null)
     onImport(address)
-    onClose()
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Import Existing Contract</DialogTitle>
@@ -61,16 +71,19 @@ export function ImportContractDialog({ isOpen, onClose, onImport }: ImportContra
               <p className="text-sm text-destructive">{error}</p>
             )}
           </div>
-
-          <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button onClick={handleImport}>
-              Import Contract
-            </Button>
-          </div>
         </div>
+
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
+            Cancel
+          </Button>
+          <Button onClick={handleImport}>
+            Import Contract
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

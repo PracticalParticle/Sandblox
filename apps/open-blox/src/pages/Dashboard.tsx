@@ -16,6 +16,8 @@ import {
 } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { ImportContractDialog } from '../components/ImportContractDialog'
+import { ContractInfoDialog } from '../components/ContractInfoDialog'
+import type { ContractInfo } from '../lib/verification'
 
 const container = {
   hidden: { opacity: 0 },
@@ -36,6 +38,8 @@ export function Dashboard() {
   const { isConnected } = useAccount()
   const navigate = useNavigate()
   const [showImportDialog, setShowImportDialog] = useState(false)
+  const [showContractInfoDialog, setShowContractInfoDialog] = useState(false)
+  const [importedAddress, setImportedAddress] = useState('')
 
   useEffect(() => {
     if (!isConnected) {
@@ -44,8 +48,15 @@ export function Dashboard() {
   }, [isConnected, navigate])
 
   const handleImportContract = (address: string) => {
-    // TODO: Implement contract import logic
-    console.log('Importing contract:', address)
+    setImportedAddress(address)
+    setShowImportDialog(false)
+    setShowContractInfoDialog(true)
+  }
+
+  const handleContractInfoContinue = (contractInfo: ContractInfo) => {
+    setShowContractInfoDialog(false)
+    // TODO: Handle the imported contract (e.g., add to list, navigate to details, etc.)
+    console.log('Contract imported:', contractInfo)
   }
 
   return (
@@ -214,9 +225,16 @@ export function Dashboard() {
         </motion.div>
 
         <ImportContractDialog
-          isOpen={showImportDialog}
-          onClose={() => setShowImportDialog(false)}
+          open={showImportDialog}
+          onOpenChange={setShowImportDialog}
           onImport={handleImportContract}
+        />
+
+        <ContractInfoDialog
+          address={importedAddress}
+          open={showContractInfoDialog}
+          onOpenChange={setShowContractInfoDialog}
+          onContinue={handleContractInfoContinue}
         />
       </motion.div>
     </div>
