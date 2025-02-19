@@ -1,4 +1,6 @@
 import { Routes, Route } from 'react-router-dom'
+import { SingleWalletManagerProvider, WalletConnectButton } from "./components/SingleWalletManager";
+import { Toaster } from "./components/ui/toaster";
 
 // Layouts
 import { MainLayout } from './components/layouts/MainLayout'
@@ -12,26 +14,32 @@ import { Broadcaster } from './pages/Broadcaster'
 import { Navbar } from './components/navigation/Navbar'
 import { Footer } from './components/navigation/Footer'
 
+const WALLET_CONNECT_PROJECT_ID = "YOUR_PROJECT_ID"; // Replace with your WalletConnect project ID
+
 export default function App() {
   return (
-    <MainLayout>
-      <div className="flex min-h-screen flex-col">
-        <Navbar />
+    <SingleWalletManagerProvider projectId={WALLET_CONNECT_PROJECT_ID}>
+      <MainLayout>
+        <div className="flex min-h-screen flex-col">
+          <Navbar />
 
-        <main className="flex-1">
-          <div className="mx-auto max-w-7xl text-center">
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/blox-contracts" element={<BloxContracts />} />
-              <Route path="/contracts/:contractId" element={<ContractDetails />} />
-              <Route path="/broadcaster" element={<Broadcaster />} />
-            </Routes>
-          </div>
-        </main>
+          <main className="flex-1">
+            <div className="mx-auto max-w-7xl text-center">
+              <WalletConnectButton />
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/blox-contracts" element={<BloxContracts />} />
+                <Route path="/contracts/:contractId" element={<ContractDetails />} />
+                <Route path="/broadcaster" element={<Broadcaster />} />
+              </Routes>
+            </div>
+          </main>
 
-        <Footer />
-      </div>
-    </MainLayout>
+          <Footer />
+        </div>
+      </MainLayout>
+      <Toaster />
+    </SingleWalletManagerProvider>
   )
 } 
