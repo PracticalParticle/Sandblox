@@ -1,6 +1,6 @@
 import { useAccount } from 'wagmi'
 import { useNavigate } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   BarChart3,
@@ -11,7 +11,11 @@ import {
   AlertCircle,
   CheckCircle2,
   XCircle,
+  Plus,
+  Download,
 } from 'lucide-react'
+import { Button } from '../components/ui/button'
+import { ImportContractDialog } from '../components/ImportContractDialog'
 
 const container = {
   hidden: { opacity: 0 },
@@ -31,6 +35,7 @@ const item = {
 export function Dashboard() {
   const { isConnected } = useAccount()
   const navigate = useNavigate()
+  const [showImportDialog, setShowImportDialog] = useState(false)
 
   useEffect(() => {
     if (!isConnected) {
@@ -38,8 +43,13 @@ export function Dashboard() {
     }
   }, [isConnected, navigate])
 
+  const handleImportContract = (address: string) => {
+    // TODO: Implement contract import logic
+    console.log('Importing contract:', address)
+  }
+
   return (
-    <div className="container py-8 ">
+    <div className="container py-8">
       <motion.div
         variants={container}
         initial="hidden"
@@ -54,13 +64,21 @@ export function Dashboard() {
               Manage your deployed contracts and monitor their performance.
             </p>
           </div>
-          <button
-            onClick={() => navigate('/blox-contracts')}
-            className="btn ml-auto"
-          >
-            Deploy New Contract
-            <ArrowRight className="h-4 w-4" />
-          </button>
+          <div className="ml-auto flex gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setShowImportDialog(true)}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Import Contract
+            </Button>
+            <Button
+              onClick={() => navigate('/blox-contracts')}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Deploy New Contract
+            </Button>
+          </div>
         </motion.div>
 
         {/* Stats Grid */}
@@ -194,6 +212,12 @@ export function Dashboard() {
             </div>
           </div>
         </motion.div>
+
+        <ImportContractDialog
+          isOpen={showImportDialog}
+          onClose={() => setShowImportDialog(false)}
+          onImport={handleImportContract}
+        />
       </motion.div>
     </div>
   )
