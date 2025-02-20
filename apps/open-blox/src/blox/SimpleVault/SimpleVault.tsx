@@ -8,13 +8,13 @@ import {
   encodeFunctionData
 } from 'viem';
 import SimpleVaultABIJson from './SimpleVault.abi.json';
-import SecureOwnable from '../../core/SecureOwnable/SecureOwnable';
+import SecureOwnable from '../../../contracts/core/SecureOwnable/SecureOwnable';
 import { 
   TransactionOptions,
   TransactionResult,
   TxRecord,
   MetaTransaction
-} from '../../core/iCore';
+} from '../../../contracts/core/iCore';
 
 // Parse and type the ABI
 const SimpleVaultABI = SimpleVaultABIJson as Abi;
