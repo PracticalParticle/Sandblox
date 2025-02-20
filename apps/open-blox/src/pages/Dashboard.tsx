@@ -22,9 +22,10 @@ import { ImportContractDialog } from '../components/ImportContractDialog'
 import { DashboardWidget } from '../components/DashboardWidget'
 import { Card } from '../components/ui/card'
 import { Alert, AlertDescription } from '../components/ui/alert'
-import { toast } from '../components/ui/use-toast'
+import { useToast } from '../components/ui/use-toast'
 import { useSecureContract } from '@/hooks/useSecureContract'
 import { Address } from 'viem'
+import { ImportContract } from '../components/ImportContract'
 
 const container = {
   hidden: { opacity: 0 },
@@ -173,13 +174,10 @@ const DeployedContract = ({ contract, onUnload }: DeployedContractProps & { onUn
   );
 };
 
-export function Dashboard() {
+export function Dashboard(): JSX.Element {
   const { isConnected } = useAccount()
   const navigate = useNavigate()
-  const [showImportDialog, setShowImportDialog] = useState(false)
-  const [loadingContracts, setLoadingContracts] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const { validateAndLoadContract } = useSecureContract()
+  const { toast } = useToast()
 
   useEffect(() => {
     if (!isConnected) {
@@ -187,83 +185,53 @@ export function Dashboard() {
     }
   }, [isConnected, navigate])
 
-  const handleImportContract = async (address: string) => {
-    setShowImportDialog(false)
-    setLoadingContracts(true)
-    setError(null)
-    
-    try {
-      await validateAndLoadContract(address as Address)
-      toast({
-        title: "Contract validated",
-        description: "The contract has been validated successfully.",
-        variant: "default"
-      })
-    } catch (error) {
-      console.error('Error validating contract:', error)
-      setError(error instanceof Error ? error.message : 'Failed to validate contract')
-      toast({
-        title: "Validation failed",
-        description: error instanceof Error ? error.message : 'Failed to validate contract',
-        variant: "destructive"
-      })
-    } finally {
-      setLoadingContracts(false)
-    }
+  const handleImportSuccess = (contractInfo: any) => {
+    toast({
+      title: "Contract imported successfully",
+      description: "The contract has been imported and is ready to use.",
+      variant: "default"
+    })
+    // You can add additional logic here if needed
   }
 
   return (
-    <div className="container py-8">
-      <motion.div
-        variants={container}
-        initial="hidden"
-        animate="show"
-        className="flex flex-col space-y-8"
-      >
-        <DashboardWidget />
-
-        {error && (
-          <motion.div variants={item} role="alert">
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" aria-hidden="true" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          </motion.div>
-        )}
-
-        {/* Contracts Section */}
-        <motion.div variants={item} className="rounded-lg border bg-card">
-          <div className="border-b p-4">
-            <h2 className="text-xl font-bold text-left">Contracts</h2>
+    <div className="mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex flex-col space-y-8">
+        {/* Header */}
+        <div className="flex items-center justify-start">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-left">Dashboard</h1>
+            <p className="mt-2 text-muted-foreground">
+              Manage your contracts and monitor their activity.
+            </p>
           </div>
-          <div className="p-4">
-            <div className="flex flex-col items-center gap-4 py-8 text-center">
-              <div className="rounded-full bg-primary/10 p-3">
-                <Wallet className="h-6 w-6 text-primary" />
-              </div>
-              <div className="space-y-2">
-                <h3 className="font-medium">No Contracts Deployed</h3>
-                <p className="text-sm text-muted-foreground">
-                  Get started by deploying your first smart contract.
-                </p>
-              </div>
-              <button
-                onClick={() => navigate('/blox-contracts')}
-                className="btn"
-              >
-                Browse Contracts
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            </div>
+          <div className="ml-auto">
+            <ImportContract
+              buttonVariant="outline"
+              onImportSuccess={handleImportSuccess}
+            />
           </div>
-        </motion.div>
+        </div>
 
-        <ImportContractDialog
-          open={showImportDialog}
-          onOpenChange={setShowImportDialog}
-          onImport={handleImportContract}
-        />
-      </motion.div>
+        {/* No Contracts Message */}
+        <div className="flex flex-col items-center gap-4 py-8 text-center">
+          <div className="rounded-full bg-primary/10 p-3">
+            <Shield className="h-6 w-6 text-primary" />
+          </div>
+          <div className="space-y-2">
+            <h3 className="font-medium">No Contracts Deployed</h3>
+            <p className="text-sm text-muted-foreground">
+              Import your first contract to get started.
+            </p>
+          </div>
+          <ImportContract
+            buttonVariant="default"
+            buttonIcon="arrow"
+            buttonText="Import your first contract"
+            onImportSuccess={handleImportSuccess}
+          />
+        </div>
+      </div>
     </div>
   )
 } 

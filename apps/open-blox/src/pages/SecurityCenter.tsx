@@ -14,7 +14,7 @@ import {
   PackageX,
 } from 'lucide-react'
 import { Button } from '../components/ui/button'
-import { ImportContractDialog } from '../components/ImportContractDialog'
+import { ImportContract } from '../components/ImportContract'
 import { Card } from '../components/ui/card'
 import { Alert, AlertDescription } from '../components/ui/alert'
 import { Address } from 'viem'
@@ -93,17 +93,14 @@ const ContractCard = ({
 export function SecurityCenter(): JSX.Element {
   const { isConnected } = useAccount()
   const navigate = useNavigate()
-  const [showImportDialog, setShowImportDialog] = useState<boolean>(false)
   const [secureContracts, setSecureContracts] = useState<SecureContractInfo[]>(() => {
     // Load contracts from local storage on initial render
     const storedContracts = localStorage.getItem('secureContracts')
     return storedContracts ? JSON.parse(storedContracts) : []
   })
-  const [loadingContracts, setLoadingContracts] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const publicClient = usePublicClient()
   const { toast } = useToast()
-  const { validateAndLoadContract } = useSecureContract()
 
   useEffect(() => {
     if (!isConnected) {
@@ -128,43 +125,25 @@ export function SecurityCenter(): JSX.Element {
     })
   }
 
-  const handleImportContract = async (address: string): Promise<void> => {
-    setShowImportDialog(false)
-    setLoadingContracts(true)
-    setError(null)
-    
-    try {
-      const contractInfo = await validateAndLoadContract(address as Address)
-      
-      setSecureContracts(prev => {
-        if (prev.some(c => c.address === address)) {
-          toast({
-            title: "Contract already imported",
-            description: "This contract has already been imported to the Security Center.",
-            variant: "default"
-          })
-          return prev
-        }
-        
+  const handleImportSuccess = (contractInfo: SecureContractInfo) => {
+    setSecureContracts(prev => {
+      if (prev.some(c => c.address === contractInfo.address)) {
         toast({
-          title: "Contract imported successfully",
-          description: "The SecureOwnable contract has been imported to the Security Center.",
+          title: "Contract already imported",
+          description: "This contract has already been imported to the Security Center.",
           variant: "default"
         })
-        
-        return [...prev, contractInfo]
-      })
-    } catch (error) {
-      console.error('Error importing contract:', error)
-      setError(error instanceof Error ? error.message : 'Failed to import contract')
+        return prev
+      }
+      
       toast({
-        title: "Import failed",
-        description: error instanceof Error ? error.message : 'Failed to import contract',
-        variant: "destructive"
+        title: "Contract imported successfully",
+        description: "The SecureOwnable contract has been imported to the Security Center.",
+        variant: "default"
       })
-    }
-    
-    setLoadingContracts(false)
+      
+      return [...prev, contractInfo]
+    })
   }
 
   return (
@@ -184,14 +163,10 @@ export function SecurityCenter(): JSX.Element {
             </p>
           </div>
           <div className="ml-auto">
-            <Button
-              variant="outline"
-              onClick={() => setShowImportDialog(true)}
-              aria-label="Import Contract"
-            >
-              <Download className="mr-2 h-4 w-4" aria-hidden="true" />
-              Import Contract
-            </Button>
+            <ImportContract
+              buttonVariant="outline"
+              onImportSuccess={handleImportSuccess}
+            />
           </div>
         </motion.div>
 
@@ -289,7 +264,7 @@ export function SecurityCenter(): JSX.Element {
           </>
         )}
 
-        {!loadingContracts && secureContracts.length === 0 && (
+        {!secureContracts.length && (
           <motion.div variants={item} className="flex flex-col items-center gap-4 py-8 text-center" role="status" aria-label="No contracts">
             <div className="rounded-full bg-primary/10 p-3">
               <Shield className="h-6 w-6 text-primary" aria-hidden="true" />
@@ -300,22 +275,12 @@ export function SecurityCenter(): JSX.Element {
                 Import your first SecureOwnable contract to get started.
               </p>
             </div>
-            <Button
-              onClick={() => setShowImportDialog(true)}
-              className="btn"
-              aria-label="Import your first contract"
-            >
-              Import Contract
-              <ArrowRight className="h-4 w-4 ml-2" aria-hidden="true" />
-            </Button>
+            <ImportContract
+              buttonVariant="outline"
+              onImportSuccess={handleImportSuccess}
+            />
           </motion.div>
         )}
-
-        <ImportContractDialog
-          open={showImportDialog}
-          onOpenChange={setShowImportDialog}
-          onImport={handleImportContract}
-        />
       </motion.div>
     </div>
   )
