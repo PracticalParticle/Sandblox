@@ -1,71 +1,25 @@
-import React, { useState, useEffect } from 'react'
-import { createConfig, WagmiProvider, useConnect, useAccount, useDisconnect } from 'wagmi'
-import { mainnet, sepolia } from 'wagmi/chains'
-import { http } from 'viem'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Wallet, X } from 'lucide-react'
-import { walletConnect } from 'wagmi/connectors'
-import { localDevnet } from '@/config/chains'
-
-// Create a dedicated query client for meta transactions
-const metaTxQueryClient = new QueryClient()
-
-// Create a separate Wagmi configuration for meta transactions
-const metaTxConfig = createConfig({
-  chains: [mainnet, sepolia, localDevnet],
-  connectors: [
-    walletConnect({
-      projectId: import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID || '',
-      metadata: {
-        name: 'OpenBlox MetaTx',
-        description: 'OpenBlox Meta Transaction Broadcaster',
-        url: window.location.origin,
-        icons: ['https://avatars.githubusercontent.com/u/37784886']
-      },
-    })
-  ],
-  transports: {
-    [mainnet.id]: http(`https://eth-mainnet.g.alchemy.com/v2/${import.meta.env.VITE_ALCHEMY_API_KEY}`),
-    [sepolia.id]: http(`https://eth-sepolia.g.alchemy.com/v2/${import.meta.env.VITE_ALCHEMY_API_KEY}`),
-    [localDevnet.id]: http(localDevnet.rpcUrls.default.http[0]),
-  },
-})
+import React, { useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Wallet, X } from 'lucide-react';
+import { SingleWalletManagerProvider, useSingleWallet } from './SingleWalletManager';
+import { formatAddress } from '@/lib/utils';
 
 interface MetaTxBroadcastProps {
-  onWalletConnect?: (address: string) => void
-  onWalletDisconnect?: () => void
+  onWalletConnect?: (address: string) => void;
+  onWalletDisconnect?: () => void;
 }
 
-function MetaTxBroadcastInner({ onWalletConnect, onWalletDisconnect }: MetaTxBroadcastProps) {
-  const { connect, connectors } = useConnect()
-  const { address, isConnected } = useAccount()
-  const { disconnect } = useDisconnect()
-  const [isMetaTxWalletConnected, setIsMetaTxWalletConnected] = useState(false)
+function BroadcasterWallet({ onWalletConnect, onWalletDisconnect }: MetaTxBroadcastProps) {
+  const { session, isConnecting, connect, disconnect } = useSingleWallet();
 
   useEffect(() => {
-    if (isConnected && address && !isMetaTxWalletConnected) {
-      setIsMetaTxWalletConnected(true)
-      onWalletConnect?.(address)
-    } else if (!isConnected && isMetaTxWalletConnected) {
-      setIsMetaTxWalletConnected(false)
-      onWalletDisconnect?.()
+    if (session?.account) {
+      onWalletConnect?.(session.account);
+    } else {
+      onWalletDisconnect?.();
     }
-  }, [isConnected, address, isMetaTxWalletConnected, onWalletConnect, onWalletDisconnect])
-
-  const handleConnect = async () => {
-    const connector = connectors[0] // WalletConnect connector
-    try {
-      await connect({ connector })
-    } catch (error) {
-      console.error('Failed to connect meta tx wallet:', error)
-    }
-  }
-
-  const handleDisconnect = () => {
-    disconnect()
-  }
+  }, [session, onWalletConnect, onWalletDisconnect]);
 
   return (
     <Card className="w-full">
@@ -76,25 +30,26 @@ function MetaTxBroadcastInner({ onWalletConnect, onWalletDisconnect }: MetaTxBro
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {!isMetaTxWalletConnected ? (
+        {!session ? (
           <Button
-            onClick={handleConnect}
+            onClick={() => void connect()}
+            disabled={isConnecting}
             className="w-full"
             variant="outline"
           >
             <Wallet className="mr-2 h-4 w-4" />
-            Connect Broadcaster Wallet
+            {isConnecting ? 'Connecting...' : 'Connect Broadcaster Wallet'}
           </Button>
         ) : (
           <div className="flex items-center justify-between rounded-lg border p-3">
             <div className="flex flex-col gap-1">
               <span className="text-sm font-medium">Connected Wallet</span>
               <span className="text-xs text-muted-foreground">
-                {address?.slice(0, 6)}...{address?.slice(-4)}
+                {formatAddress(session.account)}
               </span>
             </div>
             <Button
-              onClick={handleDisconnect}
+              onClick={() => void disconnect()}
               variant="ghost"
               size="sm"
             >
@@ -104,15 +59,27 @@ function MetaTxBroadcastInner({ onWalletConnect, onWalletDisconnect }: MetaTxBro
         )}
       </CardContent>
     </Card>
-  )
+  );
 }
 
 export default function MetaTxBroadcast(props: MetaTxBroadcastProps) {
+  const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID;
+  if (!projectId) {
+    throw new Error('Missing VITE_WALLET_CONNECT_PROJECT_ID environment variable');
+  }
+
   return (
-    <WagmiProvider config={metaTxConfig}>
-      <QueryClientProvider client={metaTxQueryClient}>
-        <MetaTxBroadcastInner {...props} />
-      </QueryClientProvider>
-    </WagmiProvider>
-  )
+    <SingleWalletManagerProvider
+      projectId={projectId}
+      autoConnect={false}
+      metadata={{
+        name: 'OpenBlox MetaTx',
+        description: 'OpenBlox Meta Transaction Broadcaster',
+        url: window.location.origin,
+        icons: ['https://avatars.githubusercontent.com/u/37784886']
+      }}
+    >
+      <BroadcasterWallet {...props} />
+    </SingleWalletManagerProvider>
+  );
 } 

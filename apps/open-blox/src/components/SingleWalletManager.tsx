@@ -1,38 +1,29 @@
 import * as React from "react";
-import UniversalProvider from '@walletconnect/universal-provider';
 import { type SessionTypes } from '@walletconnect/types';
 import { WalletConnectModal } from '@walletconnect/modal';
 import { Button } from "./ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { toast } from "@/components/ui/use-toast";
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { ProviderPool } from '@/lib/provider-pool';
+import { WalletConnectError, ErrorCodes, isUserRejectionError } from '@/lib/errors';
+import { validateSession, validateWalletSession, type ValidWalletSession } from '@/lib/schemas';
+import { encryptData, decryptData, generateSecretKey } from '@/lib/crypto';
+import { CHAINS, type Chain } from '@/lib/utils';
 
-// Strict type definitions
-export interface WalletSession {
-  topic: string;
-  account: string;
-  chainId: number;
-  peerMetadata?: {
-    name: string;
-    url: string;
-    icons: string[];
-  };
-  lastActivity: number; // For session timeout tracking
-}
+// Constants
+const SESSION_TIMEOUT = 15 * 60 * 1000; // 15 minutes
+const STORAGE_KEY = 'singleWalletSession';
+const SECRET_KEY = generateSecretKey();
 
 interface WalletManagerContextType {
-  session: WalletSession | undefined;
+  session: ValidWalletSession | undefined;
   isConnecting: boolean;
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   sendRequest: <T>(method: string, params: unknown[]) => Promise<T>;
 }
 
-// Session management constants
-const SESSION_TIMEOUT = 15 * 60 * 1000; // 15 minutes
-const STORAGE_KEY = 'singleWalletSession';
-
-// Create context with proper type and default values
 const WalletManagerContext = createContext<WalletManagerContextType>({
   session: undefined,
   isConnecting: false,
@@ -45,7 +36,7 @@ interface SingleWalletManagerProviderProps {
   children: React.ReactNode;
   projectId: string;
   autoConnect?: boolean;
-  allowedChainIds?: number[];
+  allowedChainIds?: Chain[];
   metadata?: {
     name: string;
     description: string;
@@ -58,7 +49,7 @@ export function SingleWalletManagerProvider({
   children,
   projectId,
   autoConnect = true,
-  allowedChainIds = [1],
+  allowedChainIds = [CHAINS.MAINNET],
   metadata = {
     name: 'Single Wallet Manager',
     description: 'Secure wallet connection',
@@ -66,9 +57,8 @@ export function SingleWalletManagerProvider({
     icons: [`${window.location.origin}/logo.png`]
   }
 }: SingleWalletManagerProviderProps) {
-  const [provider, setProvider] = useState<InstanceType<typeof UniversalProvider>>();
   const [modal, setModal] = useState<WalletConnectModal>();
-  const [session, setSession] = useState<WalletSession>();
+  const [session, setSession] = useState<ValidWalletSession>();
   const [isConnecting, setIsConnecting] = useState(false);
 
   // Initialize WalletConnect Modal
@@ -76,11 +66,25 @@ export function SingleWalletManagerProvider({
     const modal = new WalletConnectModal({
       projectId,
       themeMode: 'dark',
-      explorerExcludedWalletIds: undefined, // Remove this to show all wallets
+      explorerRecommendedWalletIds: undefined, // Show all wallets
+      explorerExcludedWalletIds: undefined, // Don't exclude any wallets
+      chains: allowedChainIds.map(id => `eip155:${id}`), // Explicitly set supported chains
+      mobileWallets: [], // Let WalletConnect handle mobile wallet list
+      desktopWallets: [], // Let WalletConnect handle desktop wallet list
+      walletImages: {}, // Let WalletConnect handle wallet images
       themeVariables: {
         '--wcm-z-index': '9999',
         '--wcm-accent-color': '#3b82f6',
-        '--wcm-background-color': '#1a1b1f'
+        '--wcm-accent-fill-color': '#3b82f6',
+        '--wcm-background-color': '#1a1b1f',
+        '--wcm-background-border-radius': '24px',
+        '--wcm-container-border-radius': '24px',
+        '--wcm-wallet-icon-border-radius': '12px',
+        '--wcm-input-border-radius': '12px',
+        '--wcm-button-border-radius': '12px',
+        '--wcm-notification-border-radius': '12px',
+        '--wcm-secondary-button-border-radius': '12px',
+        '--wcm-font-family': '-apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu'
       }
     });
     setModal(modal);
@@ -88,7 +92,7 @@ export function SingleWalletManagerProvider({
     return () => {
       modal.closeModal();
     };
-  }, [projectId]);
+  }, [projectId, allowedChainIds]);
 
   // Session timeout checker
   useEffect(() => {
@@ -110,42 +114,73 @@ export function SingleWalletManagerProvider({
     return () => clearInterval(interval);
   }, [session]);
 
-  const initProvider = useCallback(async () => {
-    try {
-      const instance = await UniversalProvider.init({
-        projectId,
-        metadata,
-        relayUrl: "wss://relay.walletconnect.com"
-      });
-      setProvider(instance);
-      return instance;
-    } catch (error) {
-      console.error('Provider initialization failed:', error);
-      toast({
-        title: "Connection Error",
-        description: "Failed to initialize wallet connection.",
-        variant: "destructive"
-      });
-      return null;
-    }
-  }, [projectId, metadata]);
-
   const connect = async (): Promise<void> => {
     if (isConnecting || !modal) return;
+
+    let handleVisibilityChange: (() => void) | undefined;
+    let uriTimeout: ReturnType<typeof setTimeout> | undefined;
+    const providerPool = ProviderPool.getInstance();
 
     try {
       setIsConnecting(true);
       
-      // Initialize provider if not already initialized
-      const currentProvider = provider || await initProvider();
-      if (!currentProvider) {
-        throw new Error('Failed to initialize provider');
-      }
+      // Clear any existing sessions and close modal
+      localStorage.removeItem('walletconnect');
+      modal.closeModal();
+      
+      // Get fresh provider instance
+      const provider = await providerPool.getProvider(projectId, metadata);
+      
+      let uri: string | undefined;
+      let isModalClosed = false;
+      let hasDisplayedUri = false;
+      
+      // Set timeout for URI generation
+      uriTimeout = setTimeout(() => {
+        if (!hasDisplayedUri) {
+          throw new WalletConnectError(
+            'Connection timed out - please try again',
+            ErrorCodes.CONNECTION_FAILED
+          );
+        }
+      }, providerPool.getConnectionTimeout());
+      
+      provider.on('display_uri', (displayUri: string) => {
+        console.log('Got URI:', displayUri);
+        if (uriTimeout) {
+          clearTimeout(uriTimeout);
+        }
+        
+        hasDisplayedUri = true;
+        uri = displayUri;
+        
+        // Ensure modal is closed before reopening
+        modal.closeModal();
+        setTimeout(() => {
+          modal.openModal({ 
+            uri,
+            onClose: () => {
+              isModalClosed = true;
+              setIsConnecting(false);
+              // Clean up on modal close
+              void provider.disconnect().catch(console.error);
+              localStorage.removeItem('walletconnect');
+            }
+          });
+        }, 100); // Small delay to ensure modal is fully closed
+      });
 
-      // Open modal
-      await modal.openModal();
+      handleVisibilityChange = () => {
+        if (document.hidden) {
+          modal.closeModal();
+          setIsConnecting(false);
+          void provider.disconnect().catch(console.error);
+          localStorage.removeItem('walletconnect');
+        }
+      };
+      document.addEventListener('visibilitychange', handleVisibilityChange);
 
-      const session = await currentProvider.connect({
+      const rawSession = await provider.connect({
         namespaces: {
           eip155: {
             methods: [
@@ -158,24 +193,45 @@ export function SingleWalletManagerProvider({
             events: ['chainChanged', 'accountsChanged']
           }
         }
+      }).catch(error => {
+        if (isModalClosed) {
+          throw new WalletConnectError(
+            'Connection cancelled by user',
+            ErrorCodes.USER_REJECTED
+          );
+        }
+        throw error;
       });
 
-      // Close modal after successful connection
-      modal.closeModal();
-
-      if (!session?.namespaces?.eip155?.accounts?.[0] || !session?.namespaces?.eip155?.chains?.[0]) {
-        throw new Error('Invalid session data');
+      if (handleVisibilityChange) {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
       }
 
-      const newSession: WalletSession = {
-        topic: session.topic,
-        account: session.namespaces.eip155.accounts[0].split(':')[2],
-        chainId: Number(session.namespaces.eip155.chains[0].split(':')[1]),
-        peerMetadata: session.peer.metadata,
+      if (isModalClosed) {
+        return;
+      }
+
+      modal.closeModal();
+
+      const validatedSession = validateSession(rawSession);
+      const chainId = Number(validatedSession.namespaces.eip155.chains[0].split(':')[1]) as Chain;
+
+      if (!allowedChainIds.includes(chainId)) {
+        throw new WalletConnectError(
+          'Invalid chain ID',
+          ErrorCodes.INVALID_CHAIN
+        );
+      }
+
+      const newSession: ValidWalletSession = {
+        topic: validatedSession.topic,
+        account: validatedSession.namespaces.eip155.accounts[0].split(':')[2],
+        chainId,
+        peerMetadata: validatedSession.peer.metadata,
         lastActivity: Date.now()
       };
 
-      const encryptedSession = window.btoa(JSON.stringify(newSession));
+      const encryptedSession = await encryptData(JSON.stringify(newSession), SECRET_KEY);
       localStorage.setItem(STORAGE_KEY, encryptedSession);
       setSession(newSession);
 
@@ -186,24 +242,42 @@ export function SingleWalletManagerProvider({
     } catch (error) {
       console.error('Connection failed:', error);
       modal.closeModal();
-      toast({
-        title: "Connection Failed",
-        description: error instanceof Error ? error.message : "Failed to connect wallet",
-        variant: "destructive"
-      });
+      
+      // Clean up on error
+      localStorage.removeItem('walletconnect');
+      
+      const wcError = WalletConnectError.fromError(error);
+      
+      if (!isUserRejectionError(error)) {
+        toast({
+          title: "Connection Failed",
+          description: wcError.message,
+          variant: "destructive"
+        });
+      }
     } finally {
       setIsConnecting(false);
+      if (handleVisibilityChange) {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+      if (uriTimeout) {
+        clearTimeout(uriTimeout);
+      }
     }
   };
 
   const disconnect = async (): Promise<void> => {
-    if (!provider || !session) return;
+    if (!session) return;
     
     try {
-      await provider.disconnect();
+      const providerPool = ProviderPool.getInstance();
+      const provider = await providerPool.getProvider(projectId, metadata);
+      
+      // Disconnect and clean up
+      await provider.disconnect().catch(console.error);
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem('walletconnect');
       setSession(undefined);
-      setProvider(undefined); // Clear provider on disconnect
       
       toast({
         title: "Disconnected",
@@ -211,24 +285,31 @@ export function SingleWalletManagerProvider({
       });
     } catch (error) {
       console.error('Disconnection failed:', error);
+      const wcError = WalletConnectError.fromError(error);
       toast({
         title: "Disconnection Failed",
-        description: error instanceof Error ? error.message : "Failed to disconnect wallet",
+        description: wcError.message,
         variant: "destructive"
       });
     }
   };
 
   const sendRequest = async <T,>(method: string, params: unknown[]): Promise<T> => {
-    if (!provider || !session) {
-      throw new Error('No active session');
+    if (!session) {
+      throw new WalletConnectError('No active session', ErrorCodes.SESSION_INVALID);
     }
 
     const updatedSession = { ...session, lastActivity: Date.now() };
     setSession(updatedSession);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedSession));
+    
+    // Encrypt and store updated session
+    const encryptedSession = await encryptData(JSON.stringify(updatedSession), SECRET_KEY);
+    localStorage.setItem(STORAGE_KEY, encryptedSession);
 
     try {
+      const providerPool = ProviderPool.getInstance();
+      const provider = await providerPool.getProvider(projectId, metadata);
+      
       const result = await provider.request({
         method,
         params
@@ -236,12 +317,13 @@ export function SingleWalletManagerProvider({
       return result as T;
     } catch (error) {
       console.error('Request failed:', error);
+      const wcError = WalletConnectError.fromError(error);
       toast({
         title: "Transaction Failed",
-        description: error instanceof Error ? error.message : "Transaction failed",
+        description: wcError.message,
         variant: "destructive"
       });
-      throw error;
+      throw wcError;
     }
   };
 
@@ -250,36 +332,46 @@ export function SingleWalletManagerProvider({
     if (!autoConnect) return;
 
     const restoreSession = async () => {
-      const storedSession = localStorage.getItem(STORAGE_KEY);
-      if (!storedSession) return;
+      const encryptedSession = localStorage.getItem(STORAGE_KEY);
+      if (!encryptedSession) return;
 
       try {
-        const parsed = JSON.parse(storedSession) as WalletSession;
+        const decryptedSession = await decryptData(encryptedSession, SECRET_KEY);
+        const parsed = JSON.parse(decryptedSession);
+        
+        // Validate session data
+        const validatedSession = validateWalletSession(parsed);
         
         // Validate chain ID
-        if (!allowedChainIds.includes(parsed.chainId)) {
-          throw new Error('Invalid chain ID');
+        if (!allowedChainIds.includes(validatedSession.chainId)) {
+          throw new WalletConnectError(
+            'Invalid chain ID',
+            ErrorCodes.INVALID_CHAIN
+          );
         }
 
         // Check session age
-        if (Date.now() - parsed.lastActivity > SESSION_TIMEOUT) {
-          throw new Error('Session expired');
+        if (Date.now() - validatedSession.lastActivity > SESSION_TIMEOUT) {
+          throw new WalletConnectError(
+            'Session expired',
+            ErrorCodes.SESSION_EXPIRED
+          );
         }
 
-        const currentProvider = await initProvider();
-        if (!currentProvider) return;
+        const providerPool = ProviderPool.getInstance();
+        const provider = await providerPool.getProvider(projectId, metadata);
 
-        await currentProvider.connect({
+        await provider.connect({
           namespaces: {
             eip155: {
               methods: ['eth_sendTransaction', 'eth_sign'],
-              chains: [`eip155:${parsed.chainId}`],
+              chains: [`eip155:${validatedSession.chainId}`],
               events: ['chainChanged', 'accountsChanged']
             }
           }
         });
 
-        setSession(parsed);
+        setSession(validatedSession);
       } catch (error) {
         localStorage.removeItem(STORAGE_KEY);
         console.error('Failed to restore session:', error);
@@ -287,7 +379,7 @@ export function SingleWalletManagerProvider({
     };
 
     void restoreSession();
-  }, [autoConnect, allowedChainIds]);
+  }, [autoConnect, allowedChainIds, projectId, metadata]);
 
   return (
     <WalletManagerContext.Provider
@@ -330,6 +422,7 @@ export function WalletConnectButton() {
               variant="destructive" 
               onClick={() => void disconnect()}
               className="w-full"
+              aria-label="Disconnect wallet"
             >
               Disconnect
             </Button>
@@ -339,6 +432,8 @@ export function WalletConnectButton() {
             onClick={() => void connect()}
             disabled={isConnecting}
             className="w-full"
+            aria-label="Connect wallet"
+            aria-busy={isConnecting}
           >
             {isConnecting ? 'Connecting...' : 'Connect Wallet'}
           </Button>
