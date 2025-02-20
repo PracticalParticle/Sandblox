@@ -26,6 +26,7 @@ import { useToast } from '../components/ui/use-toast'
 import { useSecureContract } from '@/hooks/useSecureContract'
 import { Address } from 'viem'
 import { ImportContract } from '../components/ImportContract'
+import { identifyContract } from '../lib/verification'
 
 const container = {
   hidden: { opacity: 0 },
@@ -90,9 +91,7 @@ const DeployedContract = ({ contract, onUnload }: DeployedContractProps & { onUn
   // Dynamically import the UI component for this contract type
   const ContractUI = lazy(() => {
     // Map contract type to component path
-    const componentPath = {
-      'simple-vault': 'SimpleVault'
-    }[contract.type] || 'SimpleVault';
+    const componentPath = contract.type || 'unknown';
     
     console.log(`Loading UI component for contract type: ${componentPath}`);
     
@@ -159,11 +158,11 @@ const DeployedContract = ({ contract, onUnload }: DeployedContractProps & { onUn
               contractAddress={contract.address as `0x${string}`}
               contractInfo={{
                 address: contract.address as `0x${string}`,
-                type: 'simple-vault',
+                type: contract.type,
                 name: contract.name,
                 category: 'Storage',
-                description: 'A secure vault contract for storing and managing assets with basic access controls.',
-                bloxId: 'simple-vault'
+                description: 'Contract imported from address',
+                bloxId: contract.type
               }}
               dashboardMode={true}
             />
@@ -184,7 +183,6 @@ export function Dashboard(): JSX.Element {
     address: string;
     type: string;
   }>>(() => {
-    // Load contracts from localStorage on initial render
     const storedContracts = localStorage.getItem('dashboardContracts')
     return storedContracts ? JSON.parse(storedContracts) : []
   })
@@ -195,7 +193,6 @@ export function Dashboard(): JSX.Element {
     }
   }, [isConnected, navigate])
 
-  // Save contracts to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem('dashboardContracts', JSON.stringify(contracts))
   }, [contracts])
@@ -212,34 +209,51 @@ export function Dashboard(): JSX.Element {
     })
   }
 
-  const handleImportSuccess = (contractInfo: any) => {
-    setContracts(prev => {
-      // Check if contract already exists
-      if (prev.some(c => c.address === contractInfo.address)) {
+  const handleImportSuccess = async (contractInfo: any) => {
+    try {
+      // First validate it's a SecureOwnable contract
+      if (!contractInfo.owner || !contractInfo.broadcaster || !contractInfo.recoveryAddress) {
+        throw new Error('Invalid contract type')
+      }
+
+      // Then identify the specific contract type
+      const identifiedContract = await identifyContract(contractInfo.address)
+      
+      setContracts(prev => {
+        // Check if contract already exists
+        if (prev.some(c => c.address === contractInfo.address)) {
+          toast({
+            title: "Contract already imported",
+            description: "This contract has already been imported to the dashboard.",
+            variant: "default"
+          })
+          return prev
+        }
+
+        // Create new contract entry with identified type
+        const newContract = {
+          id: contractInfo.address,
+          name: identifiedContract.name || 'Imported Contract',
+          address: contractInfo.address,
+          type: identifiedContract.bloxId || 'unknown'
+        }
+
         toast({
-          title: "Contract already imported",
-          description: "This contract has already been imported to the dashboard.",
+          title: "Contract imported successfully",
+          description: "The contract has been imported and is ready to use.",
           variant: "default"
         })
-        return prev
-      }
 
-      // Create new contract entry
-      const newContract = {
-        id: contractInfo.address,
-        name: contractInfo.name || 'Imported Contract',
-        address: contractInfo.address,
-        type: 'simple-vault' // Default to simple-vault for now
-      }
-
-      toast({
-        title: "Contract imported successfully",
-        description: "The contract has been imported and is ready to use.",
-        variant: "default"
+        return [...prev, newContract]
       })
-
-      return [...prev, newContract]
-    })
+    } catch (error) {
+      console.error('Error processing contract:', error)
+      toast({
+        title: "Import failed",
+        description: "Failed to process contract information.",
+        variant: "destructive"
+      })
+    }
   }
 
   return (
