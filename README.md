@@ -108,4 +108,4 @@ npm run test:coverage
 
 ## License
 
-MIT 
+MPL 2.0 
