@@ -1,11 +1,11 @@
 import { type Abi, type Address, createPublicClient, http } from 'viem'
 import { mainnet } from 'viem/chains'
 import { getAllContracts, getContractABI } from '../catalog'
-import { useContractRead } from 'wagmi'
+import { useReadContract } from 'wagmi'
 
 export interface ContractInfo {
   address: string
-  type: 'known' | 'unknown'
+  type: 'secure-ownable' | 'unknown'
   name?: string
   description?: string
   category?: string
@@ -40,27 +40,77 @@ async function verifyContractType(address: string, contractId: string): Promise<
   }
 }
 
-export async function identifyContract(address: string): Promise<ContractInfo> {
+// Function to check if contract is SecureOwnable
+async function isSecureOwnable(address: string): Promise<boolean> {
   try {
-    // Get all known contract types
-    const knownContracts = await getAllContracts()
+    const client = createPublicClient({
+      chain: mainnet,
+      transport: http()
+    })
     
-    // For each known contract, try to match its ABI functions with the target contract
-    for (const contract of knownContracts) {
-      const isMatch = await verifyContractType(address, contract.id)
-      if (isMatch) {
-        return {
-          address,
-          type: 'known',
-          name: contract.name,
-          description: contract.description,
-          category: contract.category,
-          bloxId: contract.id
-        }
+    // Check for key SecureOwnable functions
+    const secureOwnableFunctions = [
+      'owner',
+      'getBroadcaster',
+      'getRecoveryAddress',
+      'getTimeLockPeriodInDays'
+    ]
+
+    for (const functionName of secureOwnableFunctions) {
+      try {
+        await client.readContract({
+          address: address as Address,
+          abi: [{
+            name: functionName,
+            type: 'function',
+            stateMutability: 'view',
+            inputs: [],
+            outputs: [{ type: functionName === 'getTimeLockPeriodInDays' ? 'uint256' : 'address' }],
+          }] as const,
+          functionName,
+        })
+      } catch {
+        return false
       }
     }
 
-    // If no match found, return unknown type
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function identifyContract(address: string): Promise<ContractInfo> {
+  try {
+    // First check if it's a SecureOwnable contract
+    const isSecureOwnableContract = await isSecureOwnable(address)
+    if (isSecureOwnableContract) {
+      // Get all known contracts to find additional metadata
+      const knownContracts = await getAllContracts()
+      
+      // Try to match with a known contract for additional metadata
+      for (const contract of knownContracts) {
+        const isMatch = await verifyContractType(address, contract.id)
+        if (isMatch) {
+          return {
+            address,
+            type: 'secure-ownable',
+            name: contract.name,
+            description: contract.description,
+            category: contract.category,
+            bloxId: contract.id
+          }
+        }
+      }
+
+      // If no specific match found but it is SecureOwnable
+      return {
+        address,
+        type: 'secure-ownable'
+      }
+    }
+
+    // If not SecureOwnable, return unknown
     return {
       address,
       type: 'unknown'
@@ -72,7 +122,7 @@ export async function identifyContract(address: string): Promise<ContractInfo> {
 }
 
 export function useContractVerification(address: string) {
-  const { data: isContract, isError } = useContractRead({
+  const { data: isContract, isError } = useReadContract({
     address: address as Address,
     abi: [{
       name: 'supportsInterface',
