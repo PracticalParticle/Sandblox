@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from './ui/button'
 import { useContractDeployment } from '../lib/deployment'
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react'
-import { useChainId, useConfig } from 'wagmi'
+import { useChainId, useConfig, useWalletClient } from 'wagmi'
 
 interface DeploymentDialogProps {
   isOpen: boolean
@@ -16,6 +16,8 @@ export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: 
   const chainId = useChainId()
   const config = useConfig()
   const [deploymentStarted, setDeploymentStarted] = useState(false)
+  
+  const { data: walletClient } = useWalletClient()
 
   const {
     deploy,
@@ -28,9 +30,18 @@ export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: 
     contractId,
   })
 
-  const handleDeploy = () => {
+  const handleDeploy = async () => {
     setDeploymentStarted(true)
-    deploy()
+    try {
+      if (!walletClient) {
+        throw new Error("Wallet client is not available")
+      }
+      await deploy()
+      console.log("Transaction sent")
+    } catch (err) {
+      console.error("Deployment error:", err)
+      setDeploymentStarted(false)
+    }
   }
 
   const getExplorerLink = () => {

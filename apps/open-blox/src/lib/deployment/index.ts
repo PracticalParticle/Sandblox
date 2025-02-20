@@ -15,7 +15,7 @@ export interface DeploymentResult {
   isSuccess: boolean
   hash?: Hash
   address?: Address
-  deploy: () => void
+  deploy: () => Promise<void>
 }
 
 interface DeploymentData {
@@ -68,9 +68,9 @@ export function useContractDeployment(config: DeploymentConfig): DeploymentResul
     isSuccess,
     hash: deployData ? (deployData as unknown as DeploymentData).hash : undefined,
     address: deployData ? (deployData as unknown as DeploymentData).address : undefined,
-    deploy: () => {
+    deploy: async () => {
       if (simulateData?.request && abi) {
-        deploy(simulateData.request)
+        await deploy(simulateData.request)
       }
     },
   }

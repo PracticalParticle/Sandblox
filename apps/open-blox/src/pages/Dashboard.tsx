@@ -24,13 +24,18 @@ import type { ContractInfo } from '../lib/verification'
 import { Card } from '../components/ui/card'
 import { Alert, AlertDescription } from '../components/ui/alert'
 
-// We'll replace this with real data from your contract management system later
+// Update the initial contracts data with the correct type
 const DEPLOYED_CONTRACTS: Array<{
   id: string;
   name: string;
   address: string;
   type: string;
-}> = [];
+}> = [{
+  id: 'simple-vault',
+  name: 'Simple Vault',
+  address: '0xe73F9B85b3a040F9AD6422C1Ea4864C2Db0c2cdD',
+  type: 'simple-vault'
+}];
 
 const container = {
   hidden: { opacity: 0 },
@@ -86,15 +91,29 @@ class ErrorBoundary extends React.Component<
 
 const DeployedContract = ({ contract }: DeployedContractProps) => {
   const [error, setError] = useState<Error | null>(null);
+  const navigate = useNavigate();
   
+  // Add handler for preview navigation
+  const handlePreviewClick = () => {
+    navigate(`/preview/${contract.id}`);
+  };
+
   // Dynamically import the UI component for this contract type
-  const ContractUI = lazy(() => 
-    import(`../blox/${contract.type}/${contract.type}.ui`)
+  const ContractUI = lazy(() => {
+    // Map contract type to component path
+    const componentPath = {
+      'simple-vault': 'SimpleVault'
+    }[contract.type] || 'SimpleVault';
+    
+    console.log(`Loading UI component for contract type: ${componentPath}`);
+    
+    return import(`../blox/${componentPath}/${componentPath}.ui.tsx`)
       .catch(err => {
-        setError(err);
+        console.error(`Failed to load contract UI for type ${componentPath}:`, err);
+        setError(new Error(`Failed to load contract UI: ${err.message}`));
         return { default: () => null };
-      })
-  );
+      });
+  });
 
   if (error) {
     return (
@@ -105,7 +124,7 @@ const DeployedContract = ({ contract }: DeployedContractProps) => {
         </div>
         <Alert variant="destructive">
           <AlertDescription>
-            Failed to load contract UI: {error.message}
+            {error.message}
           </AlertDescription>
         </Alert>
       </Card>
@@ -114,6 +133,19 @@ const DeployedContract = ({ contract }: DeployedContractProps) => {
 
   return (
     <Card className="p-4">
+      <div className="mb-4 flex justify-between items-center">
+        <div>
+          <h3 className="text-lg font-semibold">{contract.name}</h3>
+          <p className="text-sm text-muted-foreground">{contract.address}</p>
+        </div>
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={handlePreviewClick}
+        >
+          Preview
+        </Button>
+      </div>
       <ErrorBoundary>
         <div className="relative rounded-lg">
           <Suspense fallback={
@@ -123,6 +155,14 @@ const DeployedContract = ({ contract }: DeployedContractProps) => {
           }>
             <ContractUI 
               contractAddress={contract.address as `0x${string}`}
+              contractInfo={{
+                address: contract.address as `0x${string}`,
+                type: 'simple-vault',
+                name: contract.name,
+                category: 'Storage',
+                description: 'A secure vault contract for storing and managing assets with basic access controls.',
+                bloxId: 'simple-vault'
+              }}
               dashboardMode={true}
             />
           </Suspense>
@@ -157,6 +197,14 @@ export function Dashboard() {
     console.log('Contract imported:', contractInfo)
   }
 
+  // Load imported contracts from local storage
+  const importedContracts: Array<{
+    id: string;
+    name: string;
+    address: string;
+    type: string;
+  }> = JSON.parse(localStorage.getItem('secureContracts') || '[]') || [];
+
   return (
     <div className="container py-8">
       <motion.div
@@ -171,18 +219,18 @@ export function Dashboard() {
         {/* Contracts Section */}
         <motion.div variants={item} className="rounded-lg border bg-card">
           <div className="border-b p-4">
-            <h2 className="text-xl font-bold text-left">Deployed Contracts</h2>
+            <h2 className="text-xl font-bold text-left">Contracts</h2>
           </div>
           <div className="p-4">
-            {DEPLOYED_CONTRACTS.length === 0 ? (
+            {DEPLOYED_CONTRACTS.length === 0 && importedContracts.length === 0 ? (
               <div className="flex flex-col items-center gap-4 py-8 text-center">
                 <div className="rounded-full bg-primary/10 p-3">
                   <Wallet className="h-6 w-6 text-primary" />
                 </div>
                 <div className="space-y-2">
-                  <h3 className="font-medium">No Contracts Deployed</h3>
+                  <h3 className="font-medium">No Contracts Deployed or Imported</h3>
                   <p className="text-sm text-muted-foreground">
-                    Get started by deploying your first smart contract.
+                    Get started by deploying or importing your first smart contract.
                   </p>
                 </div>
                 <button
@@ -198,6 +246,7 @@ export function Dashboard() {
                 {DEPLOYED_CONTRACTS.map((contract) => (
                   <DeployedContract key={contract.id} contract={contract} />
                 ))}
+           
               </div>
             )}
           </div>
