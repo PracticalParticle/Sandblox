@@ -49,10 +49,9 @@ export default defineConfig({
           https://eth-mainnet.g.alchemy.com 
           https://eth-sepolia.g.alchemy.com 
           https://explorer-api.walletconnect.com 
-          https://remote-ganache-1.tailb0865.ts.net; /* Add your remote Ganache URL here */
-        font-src 'self' data: https://fonts.googleapis.com; /* Allow fonts from Google Fonts */
-        img-src 'self' data: https: blob:;
-        font-src 'self' data: https:; /* Allow fonts from other sources */
+          https://remote-ganache-1.tailb0865.ts.net;
+        font-src 'self' data: https://fonts.googleapis.com https://rsms.me;
+        img-src 'self' data: https: blob;
         media-src 'self' blob:;
         worker-src 'self' blob:;
         frame-src 'self' 

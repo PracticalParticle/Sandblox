@@ -35,7 +35,7 @@ export function DashboardWidget() {
       chainId,
       address,
       publicClient: !!publicClient,
-      balance: balance?.formatted,
+      balance: balance ? parseFloat(formatEther(balance.value)).toFixed(2) : '0.00',
     })
   }, [isConnected, chainId, address, balance, balanceError, error, publicClient])
 
@@ -60,7 +60,7 @@ export function DashboardWidget() {
       return <span className="text-muted-foreground">Loading...</span>
     }
     if (balance) {
-      return `${balance.formatted} ${balance.symbol}`
+      return `${parseFloat(formatEther(balance.value)).toFixed(2)} ${balance.symbol}`
     }
     return '0 ETH'
   }
