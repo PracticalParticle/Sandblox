@@ -33,10 +33,9 @@ export function DashboardWidget() {
     console.log('Connection status:', {
       isConnected,
       chainId,
-      expectedChainId: localDevnet.id,
       address,
       publicClient: !!publicClient,
-      balance: balance?.formatted
+      balance: balance?.formatted,
     })
   }, [isConnected, chainId, address, balance, balanceError, error, publicClient])
 
@@ -51,13 +50,11 @@ export function DashboardWidget() {
   // Format balance display
   const getBalanceDisplay = () => {
     if (balanceError) {
+      console.error('Error fetching balance:', error)
       return <span className="text-red-500">Error loading balance</span>
     }
     if (!isConnected) {
       return <span className="text-muted-foreground">Not connected</span>
-    }
-    if (!isCorrectNetwork) {
-      return <span className="text-yellow-500">Wrong network</span>
     }
     if (isLoading) {
       return <span className="text-muted-foreground">Loading...</span>

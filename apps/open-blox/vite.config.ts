@@ -38,7 +38,7 @@ export default defineConfig({
       'Content-Security-Policy': `
         default-src 'self';
         script-src 'self' 'unsafe-inline' 'unsafe-eval';
-        style-src 'self' 'unsafe-inline';
+        style-src 'self' 'unsafe-inline' https://rsms.me;
         connect-src 'self' 
           https://*.walletconnect.org 
           wss://*.walletconnect.org 
@@ -49,12 +49,10 @@ export default defineConfig({
           https://eth-mainnet.g.alchemy.com 
           https://eth-sepolia.g.alchemy.com 
           https://explorer-api.walletconnect.com 
-          https://relay.walletconnect.org 
-          wss://relay.walletconnect.org 
-          https://relay.walletconnect.com 
-          wss://relay.walletconnect.com;
+          https://remote-ganache-1.tailb0865.ts.net; /* Add your remote Ganache URL here */
+        font-src 'self' data: https://fonts.googleapis.com; /* Allow fonts from Google Fonts */
         img-src 'self' data: https: blob:;
-        font-src 'self' data:;
+        font-src 'self' data: https:; /* Allow fonts from other sources */
         media-src 'self' blob:;
         worker-src 'self' blob:;
         frame-src 'self' 

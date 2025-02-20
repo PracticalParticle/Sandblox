@@ -3,10 +3,17 @@ import { Suspense, lazy } from 'react';
 import { Loader2 } from 'lucide-react';
 
 export function BloxPreview() {
-  const { bloxName } = useParams<{ bloxName: string }>();
+  const { contractId } = useParams<{ contractId: string }>();
   
-  // Dynamically import the preview component
-  const PreviewComponent = lazy(() => import(`../blox/${bloxName}/${bloxName}.preview`));
+  // Dynamically import the preview component using contractId
+  const PreviewComponent = lazy(() => {
+    return import(`../blox/${contractId}/${contractId}.preview`)
+      .catch((error) => {
+        console.error(`Failed to load preview for ${contractId}:`, error);
+        // Fallback to a mock component if the import fails
+        return import('../blox/SimpleVault/SimpleVault.preview');
+      });
+  });
 
   return (
     <div className="min-h-screen bg-background">
