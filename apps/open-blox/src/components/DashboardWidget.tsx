@@ -7,6 +7,7 @@ import { useAccount, useBalance } from 'wagmi'
 import { formatEther } from 'viem'
 import { BarChart3, Clock, Wallet, Shield } from 'lucide-react'
 import type { ContractInfo } from '../lib/verification'
+import { localDevnet } from '../config/chains'
 
 export function DashboardWidget() {
   const navigate = useNavigate()
@@ -15,7 +16,8 @@ export function DashboardWidget() {
   const [importedAddress, setImportedAddress] = useState('')
   const { address } = useAccount()
   const { data: balance } = useBalance({
-    address
+    address,
+    chainId: localDevnet.id
   })
 
   const handleImport = (address: string) => {
@@ -60,6 +62,24 @@ export function DashboardWidget() {
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* Wallet Balance */}
+        <div className="group relative overflow-hidden rounded-lg bg-[#0f1729] p-6 transition-colors">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
+          <div className="relative space-y-2">
+            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <Wallet className="h-4 w-4" />
+              Wallet Balance
+            </div>
+            <p className="text-2xl font-bold">
+              {balance ? `${Number(formatEther(balance.value)).toFixed(4)} ETH` : '0 ETH'}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Connected wallet balance
+            </p>
+          </div>
+        </div>
+
+        {/* Total Value Locked */}
         <div className="group relative overflow-hidden rounded-lg bg-[#0f1729] p-6 transition-colors">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
           <div className="relative space-y-2">
@@ -67,20 +87,19 @@ export function DashboardWidget() {
               <BarChart3 className="h-4 w-4" />
               Total Value Locked
             </div>
-            <p className="text-2xl font-bold">
-              {balance ? `${Number(formatEther(balance.value)).toFixed(4)} ETH` : '0 ETH'}
-            </p>
+            <p className="text-2xl font-bold">0 ETH</p>
             <p className="text-xs text-muted-foreground">
               Across all deployed contracts
             </p>
           </div>
         </div>
 
+        {/* Active Contracts */}
         <div className="group relative overflow-hidden rounded-lg bg-[#0f1729] p-6 transition-colors">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
           <div className="relative space-y-2">
             <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Wallet className="h-4 w-4" />
+              <Shield className="h-4 w-4" />
               Active Contracts
             </div>
             <p className="text-2xl font-bold">0</p>
@@ -90,6 +109,7 @@ export function DashboardWidget() {
           </div>
         </div>
 
+        {/* Recent Transactions */}
         <div className="group relative overflow-hidden rounded-lg bg-[#0f1729] p-6 transition-colors">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
           <div className="relative space-y-2">
@@ -100,20 +120,6 @@ export function DashboardWidget() {
             <p className="text-2xl font-bold">0</p>
             <p className="text-xs text-muted-foreground">
               In the last 24 hours
-            </p>
-          </div>
-        </div>
-
-        <div className="group relative overflow-hidden rounded-lg bg-[#0f1729] p-6 transition-colors">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
-          <div className="relative space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Shield className="h-4 w-4" />
-              Security Score
-            </div>
-            <p className="text-2xl font-bold">100%</p>
-            <p className="text-xs text-muted-foreground">
-              All contracts are secure
             </p>
           </div>
         </div>

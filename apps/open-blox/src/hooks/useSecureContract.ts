@@ -1,5 +1,5 @@
 import { usePublicClient, useWalletClient } from 'wagmi'
-import { Address, parseAbi, createPublicClient, http } from 'viem'
+import { Address, parseAbi } from 'viem'
 import type { SecureContractInfo, SecurityOperationEvent } from '../lib/types'
 
 // Define the ABI inline since we can't import the JSON directly
@@ -42,54 +42,30 @@ export function useSecureContract() {
     }
 
     try {
-      // Create a custom client for your remote network
-      const customClient = createPublicClient({
-        transport: http('https://remote-ganache-1.tailb0865.ts.net'),
-        // Add any necessary chain configuration
-        chain: {
-          id: 1337, // Your local chain ID
-          name: 'Remote Ganache',
-          network: 'ganache',
-          nativeCurrency: {
-            decimals: 18,
-            name: 'Ethereum',
-            symbol: 'ETH',
-          },
-          rpcUrls: {
-            default: {
-              http: ['https://remote-ganache-1.tailb0865.ts.net'],
-            },
-            public: {
-              http: ['https://remote-ganache-1.tailb0865.ts.net'],
-            },
-          },
-        },
-      })
-
-      // Verify contract exists using custom client
-      const isContract = await customClient.getBytecode({ address })
+      // Verify contract exists using public client
+      const isContract = await publicClient.getBytecode({ address })
       if (!isContract) {
         throw new Error('Address is not a contract')
       }
 
-      // Fetch contract details using custom client
+      // Fetch contract details using public client
       const [owner, broadcaster, recoveryAddress, timeLockPeriodInDays] = await Promise.all([
-        customClient.readContract({
+        publicClient.readContract({
           address,
           abi: SecureOwnableABI,
           functionName: 'owner'
         }).catch(() => { throw new Error('Failed to read owner') }),
-        customClient.readContract({
+        publicClient.readContract({
           address,
           abi: SecureOwnableABI,
           functionName: 'getBroadcaster'
         }).catch(() => { throw new Error('Failed to read broadcaster') }),
-        customClient.readContract({
+        publicClient.readContract({
           address,
           abi: SecureOwnableABI,
           functionName: 'getRecoveryAddress'
         }).catch(() => { throw new Error('Failed to read recovery address') }),
-        customClient.readContract({
+        publicClient.readContract({
           address,
           abi: SecureOwnableABI,
           functionName: 'getTimeLockPeriodInDays'
@@ -97,7 +73,7 @@ export function useSecureContract() {
       ]) as [Address, Address, Address, number]
 
       // Get operation history with error handling
-      const history = await customClient.readContract({
+      const history = await publicClient.readContract({
         address,
         abi: SecureOwnableABI,
         functionName: 'getOperationHistory'
