@@ -20,7 +20,7 @@ export function Navbar() {
           <ThemeToggle />
         </div>
       </div>
-      <nav className="container flex h-16 items-center justify-between">
+      <nav className="container flex h-16 items-center">
         {/* Logo & Desktop Navigation */}
         <div className="flex items-center gap-6">
           <a
@@ -49,6 +49,12 @@ export function Navbar() {
                 </a>
                 <a
                   className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
+                  href="/security-center"
+                >
+                  Security Center
+                </a>
+                <a
+                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
                   href="/broadcaster"
                 >
                   Broadcaster
@@ -64,27 +70,29 @@ export function Navbar() {
               Docs
             </a>
           </div>
-          <div className="flex items-center gap-4">
-            <a
-              href="https://github.com/particlecs-com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden md:flex rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground glow-primary"
-            >
-              <Github className="h-5 w-5" />
-            </a>
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="rounded-lg p-2 hover:bg-accent md:hidden hover-lift"
-            >
-              {isMobileMenuOpen ? (
-                <X className="h-6 w-6" />
-              ) : (
-                <Menu className="h-6 w-6" />
-              )}
-            </button>
-          </div>
-        </div>     
+        </div>
+
+        {/* Right side icons */}
+        <div className="ml-auto flex items-center gap-4">
+          <a
+            href="https://github.com/particlecs-com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden md:flex rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground glow-primary"
+          >
+            <Github className="h-5 w-5" />
+          </a>
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="rounded-lg p-2 hover:bg-accent md:hidden hover-lift"
+          >
+            {isMobileMenuOpen ? (
+              <X className="h-6 w-6" />
+            ) : (
+              <Menu className="h-6 w-6" />
+            )}
+          </button>
+        </div>
       </nav>
 
       {/* Mobile Menu */}
@@ -112,6 +120,13 @@ export function Navbar() {
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
                     Dashboard
+                  </a>
+                  <a
+                    className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
+                    href="/security-center"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Security Center
                   </a>
                   <a
                     className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
