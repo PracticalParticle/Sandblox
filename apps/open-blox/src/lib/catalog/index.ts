@@ -1,26 +1,58 @@
 import { BloxCatalog, BloxContract, BloxMetadata } from './types'
 
-const BLOX_PATH = '/src/blox'
+// Use Vite's glob import to get all .blox.json files
+const bloxMetadataFiles = import.meta.glob('/src/blox/**/*.blox.json', { eager: true })
+
+// Map to store folder names by contract ID
+const contractFolderMap = new Map<string, string>()
+
+async function getContractIdsFromBloxFolder(): Promise<string[]> {
+  const contractIds: string[] = []
+  
+  // Process all .blox.json files
+  for (const [path, module] of Object.entries(bloxMetadataFiles)) {
+    try {
+      const metadata = module as BloxMetadata
+      if (metadata.id) {
+        // Extract folder name from path (e.g., /src/blox/SimpleVault/SimpleVault.blox.json -> SimpleVault)
+        const folderName = path.split('/').slice(-2)[0]
+        contractIds.push(metadata.id)
+        contractFolderMap.set(metadata.id, folderName)
+      }
+    } catch (error) {
+      console.error(`Error processing metadata from ${path}:`, error)
+    }
+  }
+  
+  return contractIds
+}
 
 async function loadBloxMetadata(contractId: string): Promise<BloxMetadata> {
-  try {
-    const response = await fetch(`${BLOX_PATH}/${contractId}/${contractId}.blox.json`)
-    if (!response.ok) {
-      throw new Error(`Failed to load metadata for contract ${contractId}`)
-    }
-    return response.json()
-  } catch (error) {
-    console.error(`Error loading metadata for ${contractId}:`, error)
-    throw error
+  const folderName = contractFolderMap.get(contractId)
+  if (!folderName) {
+    throw new Error(`No folder found for contract ${contractId}`)
   }
+
+  // Get the metadata directly from the glob import
+  const metadataPath = `/src/blox/${folderName}/${folderName}.blox.json`
+  const metadata = bloxMetadataFiles[metadataPath] as BloxMetadata
+  if (!metadata) {
+    throw new Error(`Failed to load metadata for contract ${contractId}`)
+  }
+  return metadata
 }
 
 async function loadContractFiles(contractId: string): Promise<BloxContract['files']> {
+  const folderName = contractFolderMap.get(contractId)
+  if (!folderName) {
+    throw new Error(`No folder found for contract ${contractId}`)
+  }
+
   return {
-    metadata: `${BLOX_PATH}/${contractId}/${contractId}.blox.json`,
-    sol: `${BLOX_PATH}/${contractId}/${contractId}.sol`,
-    abi: `${BLOX_PATH}/${contractId}/${contractId}.abi.json`,
-    component: `${BLOX_PATH}/${contractId}/${contractId}.tsx`
+    metadata: `/src/blox/${folderName}/${folderName}.blox.json`,
+    sol: `/src/blox/${folderName}/${folderName}.sol`,
+    abi: `/src/blox/${folderName}/${folderName}.abi.json`,
+    component: `/src/blox/${folderName}/${folderName}.tsx`
   }
 }
 
@@ -32,11 +64,7 @@ export async function loadCatalog(): Promise<BloxCatalog> {
   }
 
   try {
-    // For now, we'll use a known list of contracts from the community folder
-    // In a production environment, this would be dynamically loaded from the server
-    const contractIds = [
-      'SimpleVault'
-    ]
+    const contractIds = await getContractIdsFromBloxFolder()
     
     const contracts = await Promise.all(
       contractIds.map(async (id) => {
