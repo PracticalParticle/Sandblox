@@ -1,25 +1,18 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from './ui/button'
-import { ImportContractDialog } from './ImportContractDialog'
-import { ContractInfoDialog } from './ContractInfoDialog'
 import { useAccount, useBalance, useChainId, usePublicClient } from 'wagmi'
 import { formatEther } from 'viem'
 import { BarChart3, Clock, Wallet, Shield, Wifi, WifiOff } from 'lucide-react'
-import type { ContractInfo } from '../lib/verification'
 import { localDevnet } from '../config/chains'
 import { Alert, AlertDescription } from './ui/alert'
 
 export function DashboardWidget() {
   const navigate = useNavigate()
-  const [showImportDialog, setShowImportDialog] = useState(false)
-  const [showContractInfoDialog, setShowContractInfoDialog] = useState(false)
-  const [importedAddress, setImportedAddress] = useState('')
-  
   const { address, isConnected } = useAccount()
   const chainId = useChainId()
   const publicClient = usePublicClient()
-  const { data: balance, isError: balanceError, error, isLoading } = useBalance({
+  const { data: balance, isError: balanceError, error, isLoading: balanceLoading } = useBalance({
     address,
     chainId: localDevnet.id,
     unit: 'ether'
@@ -56,25 +49,13 @@ export function DashboardWidget() {
     if (!isConnected) {
       return <span className="text-muted-foreground">Not connected</span>
     }
-    if (isLoading) {
+    if (balanceLoading) {
       return <span className="text-muted-foreground">Loading...</span>
     }
     if (balance) {
       return `${parseFloat(formatEther(balance.value)).toFixed(2)} ${balance.symbol}`
     }
     return '0 ETH'
-  }
-
-  const handleImport = (address: string) => {
-    setImportedAddress(address)
-    setShowImportDialog(false)
-    setShowContractInfoDialog(true)
-  }
-
-  const handleContractInfoContinue = (contractInfo: ContractInfo) => {
-    setShowContractInfoDialog(false)
-    // TODO: Handle the imported contract (e.g., add to list, navigate to details, etc.)
-    console.log('Contract imported:', contractInfo)
   }
 
   return (
@@ -107,14 +88,6 @@ export function DashboardWidget() {
           </p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" onClick={() => setShowImportDialog(true)} disabled={!isCorrectNetwork}>
-            <svg className="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            Import Contract
-          </Button>
           <Button onClick={() => navigate('/blox-contracts')} disabled={!isCorrectNetwork}>
             <svg className="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19" />
@@ -189,19 +162,6 @@ export function DashboardWidget() {
           </div>
         </div>
       </div>
-
-      <ImportContractDialog
-        open={showImportDialog}
-        onOpenChange={setShowImportDialog}
-        onImport={handleImport}
-      />
-
-      <ContractInfoDialog
-        address={importedAddress}
-        open={showContractInfoDialog}
-        onOpenChange={setShowContractInfoDialog}
-        onContinue={handleContractInfoContinue}
-      />
     </div>
   )
 } 

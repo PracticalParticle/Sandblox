@@ -15,14 +15,16 @@ import {
   Plus,
   Download,
   Loader2,
+  PackageX,
 } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { ImportContractDialog } from '../components/ImportContractDialog'
-import { ContractInfoDialog } from '../components/ContractInfoDialog'
 import { DashboardWidget } from '../components/DashboardWidget'
-import type { ContractInfo } from '../lib/verification'
 import { Card } from '../components/ui/card'
 import { Alert, AlertDescription } from '../components/ui/alert'
+import { toast } from '../components/ui/use-toast'
+import { useSecureContract } from '@/hooks/useSecureContract'
+import { Address } from 'viem'
 
 // Update the initial contracts data with the correct type
 const DEPLOYED_CONTRACTS: Array<{
@@ -89,11 +91,10 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-const DeployedContract = ({ contract }: DeployedContractProps) => {
+const DeployedContract = ({ contract, onUnload }: DeployedContractProps & { onUnload?: (address: string) => void }) => {
   const [error, setError] = useState<Error | null>(null);
   const navigate = useNavigate();
   
-  // Add handler for preview navigation
   const handlePreviewClick = () => {
     navigate(`/preview/${contract.id}`);
   };
@@ -138,13 +139,26 @@ const DeployedContract = ({ contract }: DeployedContractProps) => {
           <h3 className="text-lg font-semibold">{contract.name}</h3>
           <p className="text-sm text-muted-foreground">{contract.address}</p>
         </div>
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={handlePreviewClick}
-        >
-          Preview
-        </Button>
+        <div className="flex gap-2">
+          {onUnload && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onUnload(contract.address)}
+              className="text-muted-foreground hover:text-muted-foreground/80 hover:bg-muted/50"
+            >
+              <PackageX className="h-4 w-4 mr-2" aria-hidden="true" />
+              Unload
+            </Button>
+          )}
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={handlePreviewClick}
+          >
+            Preview
+          </Button>
+        </div>
       </div>
       <ErrorBoundary>
         <div className="relative rounded-lg">
@@ -176,8 +190,9 @@ export function Dashboard() {
   const { isConnected } = useAccount()
   const navigate = useNavigate()
   const [showImportDialog, setShowImportDialog] = useState(false)
-  const [showContractInfoDialog, setShowContractInfoDialog] = useState(false)
-  const [importedAddress, setImportedAddress] = useState('')
+  const [loadingContracts, setLoadingContracts] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const { validateAndLoadContract } = useSecureContract()
 
   useEffect(() => {
     if (!isConnected) {
@@ -185,25 +200,30 @@ export function Dashboard() {
     }
   }, [isConnected, navigate])
 
-  const handleImportContract = (address: string) => {
-    setImportedAddress(address)
+  const handleImportContract = async (address: string) => {
     setShowImportDialog(false)
-    setShowContractInfoDialog(true)
+    setLoadingContracts(true)
+    setError(null)
+    
+    try {
+      await validateAndLoadContract(address as Address)
+      toast({
+        title: "Contract validated",
+        description: "The contract has been validated successfully.",
+        variant: "default"
+      })
+    } catch (error) {
+      console.error('Error validating contract:', error)
+      setError(error instanceof Error ? error.message : 'Failed to validate contract')
+      toast({
+        title: "Validation failed",
+        description: error instanceof Error ? error.message : 'Failed to validate contract',
+        variant: "destructive"
+      })
+    } finally {
+      setLoadingContracts(false)
+    }
   }
-
-  const handleContractInfoContinue = (contractInfo: ContractInfo) => {
-    setShowContractInfoDialog(false)
-    // TODO: Handle the imported contract (e.g., add to list, navigate to details, etc.)
-    console.log('Contract imported:', contractInfo)
-  }
-
-  // Load imported contracts from local storage
-  const importedContracts: Array<{
-    id: string;
-    name: string;
-    address: string;
-    type: string;
-  }> = JSON.parse(localStorage.getItem('secureContracts') || '[]') || [];
 
   return (
     <div className="container py-8">
@@ -213,8 +233,16 @@ export function Dashboard() {
         animate="show"
         className="flex flex-col space-y-8"
       >
-        {/* Use DashboardWidget for header and stats */}
         <DashboardWidget />
+
+        {error && (
+          <motion.div variants={item} role="alert">
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" aria-hidden="true" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          </motion.div>
+        )}
 
         {/* Contracts Section */}
         <motion.div variants={item} className="rounded-lg border bg-card">
@@ -222,15 +250,15 @@ export function Dashboard() {
             <h2 className="text-xl font-bold text-left">Contracts</h2>
           </div>
           <div className="p-4">
-            {DEPLOYED_CONTRACTS.length === 0 && importedContracts.length === 0 ? (
+            {DEPLOYED_CONTRACTS.length === 0 ? (
               <div className="flex flex-col items-center gap-4 py-8 text-center">
                 <div className="rounded-full bg-primary/10 p-3">
                   <Wallet className="h-6 w-6 text-primary" />
                 </div>
                 <div className="space-y-2">
-                  <h3 className="font-medium">No Contracts Deployed or Imported</h3>
+                  <h3 className="font-medium">No Contracts Deployed</h3>
                   <p className="text-sm text-muted-foreground">
-                    Get started by deploying or importing your first smart contract.
+                    Get started by deploying your first smart contract.
                   </p>
                 </div>
                 <button
@@ -246,55 +274,8 @@ export function Dashboard() {
                 {DEPLOYED_CONTRACTS.map((contract) => (
                   <DeployedContract key={contract.id} contract={contract} />
                 ))}
-           
               </div>
             )}
-          </div>
-        </motion.div>
-
-        {/* Activity Section */}
-        <motion.div variants={item} className="rounded-lg border bg-card">
-          <div className="border-b p-4">
-            <h2 className="text-xl font-bold text-left">Recent Activity</h2>
-          </div>
-          <div className="divide-y">
-            <div className="flex items-center gap-4 p-4">
-              <div className="rounded-full bg-yellow-500/10 p-2">
-                <AlertCircle className="h-4 w-4 text-yellow-500" />
-              </div>
-              <div className="flex-1">
-                <p className="font-medium text-left">Contract Deployment Initiated</p>
-                <p className="text-sm text-muted-foreground text-left">
-                  SimpleVault contract deployment started
-                </p>
-              </div>
-              <p className="text-sm text-muted-foreground">2 mins ago</p>
-            </div>
-            <div className="flex items-center gap-4 p-4">
-              <div className="rounded-full bg-green-500/10 p-2">
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-              </div>
-              <div className="flex-1">
-                <p className="font-medium text-left">Transaction Confirmed</p>
-                <p className="text-sm text-muted-foreground text-left">
-                  0.1 ETH transferred successfully
-                </p>
-              </div>
-              <p className="text-sm text-muted-foreground">5 mins ago</p>
-              
-            </div>
-            <div className="flex items-center gap-4 p-4">
-              <div className="rounded-full bg-red-500/10 p-2">
-                <XCircle className="h-4 w-4 text-red-500" />
-              </div>
-              <div className="flex-1">
-                <p className="font-medium text-left">Transaction Failed</p>
-                <p className="text-sm text-muted-foreground text-left">
-                  Insufficient gas for contract deployment
-                </p>
-              </div>
-              <p className="text-sm text-muted-foreground">10 mins ago</p>
-            </div>
           </div>
         </motion.div>
 
@@ -302,13 +283,6 @@ export function Dashboard() {
           open={showImportDialog}
           onOpenChange={setShowImportDialog}
           onImport={handleImportContract}
-        />
-
-        <ContractInfoDialog
-          address={importedAddress}
-          open={showContractInfoDialog}
-          onOpenChange={setShowContractInfoDialog}
-          onContinue={handleContractInfoContinue}
         />
       </motion.div>
     </div>
