@@ -5,7 +5,8 @@ import {
   Chain,
   parseAbi,
   Abi,
-  encodeFunctionData
+  encodeFunctionData,
+  decodeAbiParameters
 } from 'viem';
 import SimpleVaultABIJson from './SimpleVault.abi.json';
 import SecureOwnable from '../../../contracts/core/SecureOwnable/SecureOwnable';
@@ -13,11 +14,34 @@ import {
   TransactionOptions,
   TransactionResult,
   TxRecord,
-  MetaTransaction
+  MetaTransaction,
+  SecurityOperationType,
+  TxStatus as CoreTxStatus
 } from '../../../contracts/core/iCore';
 
 // Parse and type the ABI
 const SimpleVaultABI = SimpleVaultABIJson as Abi;
+
+/**
+ * Transaction status types
+ */
+export enum TxStatus {
+  PENDING = "pending",
+  READY = "ready",
+  COMPLETED = "completed",
+  CANCELLED = "cancelled"
+}
+
+/**
+ * Transaction record with extended information
+ */
+export interface VaultTxRecord extends Omit<TxRecord, 'status'> {
+  status: TxStatus;
+  amount: bigint;
+  to: Address;
+  token?: Address;
+  type: "ETH" | "TOKEN";
+}
 
 /**
  * @title SimpleVault
@@ -26,8 +50,8 @@ const SimpleVaultABI = SimpleVaultABIJson as Abi;
  */
 class SimpleVault extends SecureOwnable {
   // Constants for operation types
-  static readonly WITHDRAW_ETH = "WITHDRAW_ETH";
-  static readonly WITHDRAW_TOKEN = "WITHDRAW_TOKEN";
+  static readonly WITHDRAW_ETH = "WITHDRAW_ETH" as SecurityOperationType;
+  static readonly WITHDRAW_TOKEN = "WITHDRAW_TOKEN" as SecurityOperationType;
 
   /**
    * @notice Creates a new SimpleVault instance
@@ -264,6 +288,93 @@ class SimpleVault extends SecureOwnable {
     return {
       hash,
       wait: () => this.client.waitForTransactionReceipt({ hash })
+    };
+  }
+
+  /**
+   * @notice Gets all pending transactions for the vault
+   * @return Array of transaction records with status
+   */
+  async getPendingTransactions(): Promise<VaultTxRecord[]> {
+    const operations = await this.getOperationHistory();
+    const currentTime = Math.floor(Date.now() / 1000);
+    
+    return Promise.all(operations.map(async (op: TxRecord) => {
+      let status = TxStatus.PENDING;
+      if (op.status === CoreTxStatus.COMPLETED) {
+        status = TxStatus.COMPLETED;
+      } else if (op.status === CoreTxStatus.CANCELLED) {
+        status = TxStatus.CANCELLED;
+      } else if (currentTime >= op.releaseTime) {
+        status = TxStatus.READY;
+      }
+
+      // Decode the transaction parameters from the execution options
+      const executionOptions = decodeAbiParameters(
+        [{ type: 'bytes4' }, { type: 'bytes' }],
+        op.executionOptions as `0x${string}`
+      )[1];
+
+      const [to, amount] = decodeAbiParameters(
+        [{ type: 'address' }, { type: 'uint256' }],
+        executionOptions
+      ) as [Address, bigint];
+      
+      return {
+        ...op,
+        status,
+        amount,
+        to,
+        type: op.operationType === SimpleVault.WITHDRAW_ETH ? "ETH" : "TOKEN",
+        token: op.operationType === SimpleVault.WITHDRAW_TOKEN ? (decodeAbiParameters(
+          [{ type: 'address' }],
+          executionOptions
+        )[0] as Address) : undefined
+      };
+    }));
+  }
+
+  /**
+   * @notice Gets a specific transaction's details
+   * @param txId Transaction ID
+   * @return Transaction record with status
+   */
+  async getTransaction(txId: number): Promise<VaultTxRecord> {
+    const tx = await this.getOperation(txId);
+    if (!tx) throw new Error("Transaction not found");
+
+    const currentTime = Math.floor(Date.now() / 1000);
+    let status = TxStatus.PENDING;
+    
+    if (tx.status === CoreTxStatus.COMPLETED) {
+      status = TxStatus.COMPLETED;
+    } else if (tx.status === CoreTxStatus.CANCELLED) {
+      status = TxStatus.CANCELLED;
+    } else if (currentTime >= tx.releaseTime) {
+      status = TxStatus.READY;
+    }
+
+    // Decode the transaction parameters from the execution options
+    const executionOptions = decodeAbiParameters(
+      [{ type: 'bytes4' }, { type: 'bytes' }],
+      tx.executionOptions as `0x${string}`
+    )[1];
+
+    const [to, amount] = decodeAbiParameters(
+      [{ type: 'address' }, { type: 'uint256' }],
+      executionOptions
+    ) as [Address, bigint];
+
+    return {
+      ...tx,
+      status,
+      amount,
+      to,
+      type: tx.operationType === SimpleVault.WITHDRAW_ETH ? "ETH" : "TOKEN",
+      token: tx.operationType === SimpleVault.WITHDRAW_TOKEN ? (decodeAbiParameters(
+        [{ type: 'address' }],
+        executionOptions
+      )[0] as Address) : undefined
     };
   }
 }
