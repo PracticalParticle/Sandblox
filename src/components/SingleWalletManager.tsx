@@ -9,7 +9,6 @@ import { WalletConnectError, ErrorCodes, isUserRejectionError } from '@/lib/erro
 import { validateSession, validateWalletSession, type ValidWalletSession } from '@/lib/schemas';
 import { encryptData, decryptData, generateSecretKey } from '@/lib/crypto';
 import { CHAINS, type Chain } from '@/lib/utils';
-import { UniversalProvider } from '@walletconnect/universal-provider';
 
 // Define minimal provider interface for what we actually use
 interface MinimalProvider {
@@ -128,8 +127,8 @@ export function SingleWalletManagerProvider({
   const connect = async (): Promise<void> => {
     if (isConnecting) return;
 
+    const abortController = new AbortController();
     let handleVisibilityChange: (() => void) | undefined;
-    let uriTimeout: ReturnType<typeof setTimeout> | undefined;
     const providerPool = ProviderPool.getInstance();
 
     try {
@@ -164,19 +163,27 @@ export function SingleWalletManagerProvider({
             onClose: () => {
               isModalClosed = true;
               setIsConnecting(false);
+              abortController.abort('Modal closed by user');
               // Clean up on modal close
               if (providerRef.current) {
                 void providerRef.current.disconnect().catch(console.error);
               }
               localStorage.removeItem('walletconnect');
             }
-          }) as unknown) as () => void; // Proper type assertion chain
+          }) as unknown) as () => void;
           modalCleanupRef.current = cleanup;
+
+          // Add abort signal listener to close modal if aborted externally
+          abortController.signal.addEventListener('abort', () => {
+            modal.closeModal();
+            cleanup();
+          });
         }, 100);
       });
 
       handleVisibilityChange = () => {
         if (document.hidden) {
+          abortController.abort('Page hidden');
           modal.closeModal();
           setIsConnecting(false);
           void provider.disconnect().catch(console.error);
@@ -185,8 +192,8 @@ export function SingleWalletManagerProvider({
       };
       document.addEventListener('visibilitychange', handleVisibilityChange);
 
-      // Connect using the provider directly
-      const rawSession = await (provider as any).connect({
+      // Connect using the provider directly with timeout
+      const connectionPromise = (provider as any).connect({
         namespaces: {
           eip155: {
             methods: [
@@ -199,21 +206,34 @@ export function SingleWalletManagerProvider({
             events: ['chainChanged', 'accountsChanged']
           }
         }
-      }).catch((error: unknown) => {
-        if (isModalClosed) {
-          throw new WalletConnectError(
-            'Connection cancelled by user',
-            ErrorCodes.USER_REJECTED
-          );
-        }
-        throw error;
       });
+
+      // Race between connection, abort signal, and timeout
+      const rawSession = await Promise.race([
+        connectionPromise,
+        new Promise((_, reject) => {
+          abortController.signal.addEventListener('abort', () => {
+            reject(new WalletConnectError(
+              'Connection cancelled by user',
+              ErrorCodes.USER_REJECTED
+            ));
+          });
+        }),
+        new Promise((_, reject) => {
+          setTimeout(() => {
+            reject(new WalletConnectError(
+              'Connection timeout',
+              ErrorCodes.TIMEOUT
+            ));
+          }, 180000); // 3 minute timeout
+        })
+      ]);
 
       if (handleVisibilityChange) {
         document.removeEventListener('visibilitychange', handleVisibilityChange);
       }
 
-      if (isModalClosed) {
+      if (isModalClosed || abortController.signal.aborted) {
         return;
       }
 
@@ -264,9 +284,6 @@ export function SingleWalletManagerProvider({
       setIsConnecting(false);
       if (handleVisibilityChange) {
         document.removeEventListener('visibilitychange', handleVisibilityChange);
-      }
-      if (uriTimeout) {
-        clearTimeout(uriTimeout);
       }
     }
   };
