@@ -16,45 +16,10 @@ import {
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
 import { Alert, AlertDescription } from '../components/ui/alert'
-import { Address, parseAbi } from 'viem'
-import { usePublicClient, useWalletClient } from 'wagmi'
-import { useChain } from '../hooks/useChain'
+import { Address } from 'viem'
+import { useSecureContract } from '@/hooks/useSecureContract'
 import { useToast } from '../components/ui/use-toast'
-import type { SecureContractInfo, SecurityOperationEvent } from '../lib/types'
-
-// Define the ABI inline since we can't import the JSON directly
-const SecureOwnableABI = parseAbi([
-  // View functions
-  'function owner() view returns (address)',
-  'function getBroadcaster() view returns (address)',
-  'function getRecoveryAddress() view returns (address)',
-  'function getTimeLockPeriodInDays() view returns (uint256)',
-  'function getOperationHistory() view returns (tuple(string operationType, uint8 status, uint256 timestamp, string oldValue, string newValue, uint256 releaseTime)[])',
-  'function isOperationTypeSupported(bytes32 operationType) view returns (bool)',
-  
-  // Constants
-  'function OWNERSHIP_UPDATE() view returns (bytes32)',
-  'function BROADCASTER_UPDATE() view returns (bytes32)',
-  'function RECOVERY_UPDATE() view returns (bytes32)',
-  'function TIMELOCK_UPDATE() view returns (bytes32)',
-  
-  // Write functions
-  'function transferOwnershipRequest() returns (tuple(uint256 txId, address requester, address target, bytes32 operationType, uint8 executionType, bytes executionOptions, uint256 value, uint256 gasLimit, uint256 timestamp, uint256 releaseTime, uint8 status))',
-  'function transferOwnershipDelayedApproval(uint256 txId) returns (tuple(uint256 txId, address requester, address target, bytes32 operationType, uint8 executionType, bytes executionOptions, uint256 value, uint256 gasLimit, uint256 timestamp, uint256 releaseTime, uint8 status))',
-  'function transferOwnershipCancellation(uint256 txId) returns (tuple(uint256 txId, address requester, address target, bytes32 operationType, uint8 executionType, bytes executionOptions, uint256 value, uint256 gasLimit, uint256 timestamp, uint256 releaseTime, uint8 status))',
-  'function updateBroadcasterRequest(address newBroadcaster) returns (tuple(uint256 txId, address requester, address target, bytes32 operationType, uint8 executionType, bytes executionOptions, uint256 value, uint256 gasLimit, uint256 timestamp, uint256 releaseTime, uint8 status))',
-  'function updateBroadcasterDelayedApproval(uint256 txId) returns (tuple(uint256 txId, address requester, address target, bytes32 operationType, uint8 executionType, bytes executionOptions, uint256 value, uint256 gasLimit, uint256 timestamp, uint256 releaseTime, uint8 status))',
-  'function updateBroadcasterCancellation(uint256 txId) returns (tuple(uint256 txId, address requester, address target, bytes32 operationType, uint8 executionType, bytes executionOptions, uint256 value, uint256 gasLimit, uint256 timestamp, uint256 releaseTime, uint8 status))'
-])
-
-interface OperationRecord {
-  operationType: string;
-  status: number;
-  timestamp: number;
-  oldValue?: string;
-  newValue?: string;
-  releaseTime: number;
-}
+import type { SecureContractInfo } from '@/lib/types'
 
 const container = {
   hidden: { opacity: 0 },
@@ -78,9 +43,7 @@ export function SecurityDetails() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [contractInfo, setContractInfo] = useState<SecureContractInfo | null>(null)
-  const publicClient = usePublicClient()
-  const { data: walletClient } = useWalletClient()
-  const chain = useChain()
+  const { validateAndLoadContract } = useSecureContract()
   const { toast } = useToast()
 
   useEffect(() => {
@@ -94,73 +57,25 @@ export function SecurityDetails() {
       return
     }
 
+    // Validate address format before attempting to load
+    if (!address.match(/^0x[a-fA-F0-9]{40}$/)) {
+      setError('Invalid contract address format')
+      setLoading(false)
+      return
+    }
+
     loadContractInfo()
   }, [isConnected, address])
 
   const loadContractInfo = async () => {
-    if (!address || !publicClient) return
+    if (!address) return
 
     setLoading(true)
     setError(null)
 
     try {
-      // Fetch contract details using publicClient directly
-      const [owner, broadcaster, recoveryAddress, timeLockPeriodInDays] = await Promise.all([
-        publicClient.readContract({
-          address: address as Address,
-          abi: SecureOwnableABI,
-          functionName: 'owner'
-        }),
-        publicClient.readContract({
-          address: address as Address,
-          abi: SecureOwnableABI,
-          functionName: 'getBroadcaster'
-        }),
-        publicClient.readContract({
-          address: address as Address,
-          abi: SecureOwnableABI,
-          functionName: 'getRecoveryAddress'
-        }),
-        publicClient.readContract({
-          address: address as Address,
-          abi: SecureOwnableABI,
-          functionName: 'getTimeLockPeriodInDays'
-        })
-      ]) as [Address, Address, Address, number]
-
-      // Get operation history
-      const history = await publicClient.readContract({
-        address: address as Address,
-        abi: SecureOwnableABI,
-        functionName: 'getOperationHistory'
-      }) as OperationRecord[]
-      
-      // Process history into events
-      const events: SecurityOperationEvent[] = history.map((op: OperationRecord) => ({
-        type: op.operationType === 'OWNERSHIP_UPDATE' ? 'ownership' :
-              op.operationType === 'BROADCASTER_UPDATE' ? 'broadcaster' :
-              op.operationType === 'RECOVERY_UPDATE' ? 'recovery' : 'timelock',
-        status: op.status === 0 ? 'pending' :
-                op.status === 1 ? 'completed' : 'cancelled',
-        timestamp: op.timestamp,
-        description: `${op.operationType.replace('_', ' ')} operation`,
-        details: {
-          oldValue: op.oldValue,
-          newValue: op.newValue,
-          remainingTime: op.releaseTime > Date.now() / 1000 ? 
-            Math.floor(op.releaseTime - Date.now() / 1000) : 0
-        }
-      }))
-
-      setContractInfo({
-        address: address as Address,
-        owner,
-        broadcaster,
-        recoveryAddress,
-        timeLockPeriodInDays,
-        pendingOperations: events.filter(e => e.status === 'pending'),
-        recentEvents: events.filter(e => e.status !== 'pending')
-      })
+      const info = await validateAndLoadContract(address as Address)
+      setContractInfo(info)
     } catch (error) {
       console.error('Error loading contract:', error)
       setError('Failed to load contract details. Please ensure this is a valid SecureOwnable contract.')
@@ -172,6 +87,66 @@ export function SecurityDetails() {
     }
     
     setLoading(false)
+  }
+
+  if (!address || error) {
+    return (
+      <div className="container py-8">
+        <motion.div variants={container} initial="hidden" animate="show">
+          <motion.div variants={item}>
+            <Button
+              variant="ghost"
+              onClick={() => navigate('/security-center')}
+              className="mb-4"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Security Center
+            </Button>
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+          </motion.div>
+        </motion.div>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="container py-8">
+        <motion.div variants={container} initial="hidden" animate="show">
+          <motion.div variants={item} className="flex items-center justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </motion.div>
+        </motion.div>
+      </div>
+    )
+  }
+
+  if (!contractInfo) {
+    return (
+      <div className="container py-8">
+        <motion.div variants={container} initial="hidden" animate="show">
+          <motion.div variants={item}>
+            <Button
+              variant="ghost"
+              onClick={() => navigate('/security-center')}
+              className="mb-4"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Security Center
+            </Button>
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>Contract not found or not a valid SecureOwnable contract.</AlertDescription>
+            </Alert>
+          </motion.div>
+        </motion.div>
+      </div>
+    )
   }
 
   return (
@@ -203,128 +178,111 @@ export function SecurityDetails() {
           </div>
         </motion.div>
 
-        {error && (
-          <motion.div variants={item}>
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          </motion.div>
-        )}
-
-        {loading ? (
-          <motion.div variants={item} className="flex items-center justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </motion.div>
-        ) : contractInfo ? (
-          <>
-            {/* Contract Info */}
-            <motion.div variants={item} className="grid gap-6">
-              <Card className="p-6">
-                <h2 className="text-xl font-bold mb-4">Contract Information</h2>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Owner</p>
-                      <p className="font-medium">{contractInfo.owner}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Broadcaster</p>
-                      <p className="font-medium">{contractInfo.broadcaster}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Recovery Address</p>
-                      <p className="font-medium">{contractInfo.recoveryAddress}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Timelock Period</p>
-                      <p className="font-medium">{contractInfo.timeLockPeriodInDays} days</p>
-                    </div>
-                  </div>
+        {/* Contract Info */}
+        <motion.div variants={item} className="grid gap-6">
+          <Card className="p-6">
+            <h2 className="text-xl font-bold mb-4">Contract Information</h2>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Owner</p>
+                  <p className="font-medium">{contractInfo.owner}</p>
                 </div>
-              </Card>
+                <div>
+                  <p className="text-sm text-muted-foreground">Broadcaster</p>
+                  <p className="font-medium">{contractInfo.broadcaster}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Recovery Address</p>
+                  <p className="font-medium">{contractInfo.recoveryAddress}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Timelock Period</p>
+                  <p className="font-medium">{contractInfo.timeLockPeriodInDays} days</p>
+                </div>
+              </div>
+            </div>
+          </Card>
 
-              {/* Pending Operations */}
-              <Card className="p-6">
-                <h2 className="text-xl font-bold mb-4">Pending Operations</h2>
-                <div className="space-y-4">
-                  {contractInfo.pendingOperations && contractInfo.pendingOperations.length > 0 ? (
-                    contractInfo.pendingOperations.map((op, index) => (
-                      <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="flex items-center gap-4">
-                          <div className="rounded-full bg-yellow-500/10 p-2">
-                            <AlertCircle className="h-4 w-4 text-yellow-500" />
-                          </div>
-                          <div>
-                            <p className="font-medium">{op.description}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {op.details?.remainingTime
-                                ? `${Math.floor(op.details.remainingTime / 86400)} days remaining`
-                                : 'Ready for approval'}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm">
-                            Approve
-                          </Button>
-                          <Button variant="outline" size="sm">
-                            Cancel
-                          </Button>
-                        </div>
+          {/* Pending Operations */}
+          <Card className="p-6">
+            <h2 className="text-xl font-bold mb-4">Pending Operations</h2>
+            <div className="space-y-4">
+              {contractInfo.pendingOperations && contractInfo.pendingOperations.length > 0 ? (
+                contractInfo.pendingOperations.map((op, index) => (
+                  <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center gap-4">
+                      <div className="rounded-full bg-yellow-500/10 p-2">
+                        <AlertCircle className="h-4 w-4 text-yellow-500" />
                       </div>
-                    ))
-                  ) : (
-                    <p className="text-center text-muted-foreground py-4">
-                      No pending operations
-                    </p>
-                  )}
-                </div>
-              </Card>
-
-              {/* Operation History */}
-              <Card className="p-6">
-                <h2 className="text-xl font-bold mb-4">Operation History</h2>
-                <div className="space-y-4">
-                  {contractInfo.recentEvents && contractInfo.recentEvents.length > 0 ? (
-                    contractInfo.recentEvents.map((event, index) => (
-                      <div key={index} className="flex items-center gap-4 p-4 border rounded-lg">
-                        <div className={`rounded-full p-2 ${
-                          event.status === 'completed' ? 'bg-green-500/10' :
-                          event.status === 'pending' ? 'bg-yellow-500/10' :
-                          'bg-red-500/10'
-                        }`}>
-                          {event.status === 'completed' ? (
-                            <CheckCircle2 className="h-4 w-4 text-green-500" />
-                          ) : event.status === 'pending' ? (
-                            <AlertCircle className="h-4 w-4 text-yellow-500" />
-                          ) : (
-                            <XCircle className="h-4 w-4 text-red-500" />
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <p className="font-medium">{event.description}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {event.status === 'completed'
-                              ? `${event.type.charAt(0).toUpperCase() + event.type.slice(1)} updated successfully`
-                              : `${event.type.charAt(0).toUpperCase() + event.type.slice(1)} operation cancelled`}
-                          </p>
-                        </div>
+                      <div>
+                        <p className="font-medium">{op.description}</p>
                         <p className="text-sm text-muted-foreground">
-                          {new Date(event.timestamp * 1000).toLocaleString()}
+                          {op.details?.remainingTime
+                            ? `${Math.floor(op.details.remainingTime / 86400)} days remaining`
+                            : 'Ready for approval'}
                         </p>
                       </div>
-                    ))
-                  ) : (
-                    <p className="text-center text-muted-foreground py-4">
-                      No operation history
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm">
+                        Approve
+                      </Button>
+                      <Button variant="outline" size="sm">
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-center text-muted-foreground py-4">
+                  No pending operations
+                </p>
+              )}
+            </div>
+          </Card>
+
+          {/* Operation History */}
+          <Card className="p-6">
+            <h2 className="text-xl font-bold mb-4">Operation History</h2>
+            <div className="space-y-4">
+              {contractInfo.recentEvents && contractInfo.recentEvents.length > 0 ? (
+                contractInfo.recentEvents.map((event, index) => (
+                  <div key={index} className="flex items-center gap-4 p-4 border rounded-lg">
+                    <div className={`rounded-full p-2 ${
+                      event.status === 'completed' ? 'bg-green-500/10' :
+                      event.status === 'pending' ? 'bg-yellow-500/10' :
+                      'bg-red-500/10'
+                    }`}>
+                      {event.status === 'completed' ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      ) : event.status === 'pending' ? (
+                        <AlertCircle className="h-4 w-4 text-yellow-500" />
+                      ) : (
+                        <XCircle className="h-4 w-4 text-red-500" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium">{event.description}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {event.status === 'completed'
+                          ? `${event.type.charAt(0).toUpperCase() + event.type.slice(1)} updated successfully`
+                          : `${event.type.charAt(0).toUpperCase() + event.type.slice(1)} operation cancelled`}
+                      </p>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {new Date(event.timestamp * 1000).toLocaleString()}
                     </p>
-                  )}
-                </div>
-              </Card>
-            </motion.div>
-          </>
-        ) : null}
+                  </div>
+                ))
+              ) : (
+                <p className="text-center text-muted-foreground py-4">
+                  No operation history
+                </p>
+              )}
+            </div>
+          </Card>
+        </motion.div>
       </motion.div>
     </div>
   )
