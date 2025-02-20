@@ -1,10 +1,10 @@
 import { BloxCatalog, BloxContract, BloxMetadata } from './types'
 
-const COMMUNITY_CONTRACTS_PATH = '/contracts/community'
+const BLOX_PATH = '/src/blox'
 
 async function loadBloxMetadata(contractId: string): Promise<BloxMetadata> {
   try {
-    const response = await fetch(`${COMMUNITY_CONTRACTS_PATH}/${contractId}/${contractId}.blox.json`)
+    const response = await fetch(`${BLOX_PATH}/${contractId}/${contractId}.blox.json`)
     if (!response.ok) {
       throw new Error(`Failed to load metadata for contract ${contractId}`)
     }
@@ -17,10 +17,10 @@ async function loadBloxMetadata(contractId: string): Promise<BloxMetadata> {
 
 async function loadContractFiles(contractId: string): Promise<BloxContract['files']> {
   return {
-    metadata: `${COMMUNITY_CONTRACTS_PATH}/${contractId}/${contractId}.blox.json`,
-    sol: `${COMMUNITY_CONTRACTS_PATH}/${contractId}/${contractId}.sol`,
-    abi: `${COMMUNITY_CONTRACTS_PATH}/${contractId}/${contractId}.abi.json`,
-    component: `${COMMUNITY_CONTRACTS_PATH}/${contractId}/${contractId}.tsx`
+    metadata: `${BLOX_PATH}/${contractId}/${contractId}.blox.json`,
+    sol: `${BLOX_PATH}/${contractId}/${contractId}.sol`,
+    abi: `${BLOX_PATH}/${contractId}/${contractId}.abi.json`,
+    component: `${BLOX_PATH}/${contractId}/${contractId}.tsx`
   }
 }
 

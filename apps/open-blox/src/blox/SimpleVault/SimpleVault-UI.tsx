@@ -8,9 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
-import { Skeleton } from "@/components/ui/skeleton";
 import SimpleVault from "./SimpleVault";
 import { useChain } from "@/hooks/useChain";
 
@@ -186,20 +184,6 @@ export default function SimpleVaultUI({ contractAddress }: SimpleVaultUIProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
-            {/* Balance Display */}
-            <div className="grid gap-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Vault Balance</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {ethBalance ? `${formatEther(ethBalance)} ETH` : <Skeleton className="h-8 w-32" />}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
             {/* Withdrawal Interface */}
             <Tabs defaultValue="withdraw" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
@@ -232,12 +216,14 @@ export default function SimpleVaultUI({ contractAddress }: SimpleVaultUIProps) {
                   </CardHeader>
                   <CardContent>
                     {pendingTxs.length === 0 ? (
-                      <Alert>
-                        <AlertTitle>No Pending Transactions</AlertTitle>
-                        <AlertDescription>
-                          There are currently no pending withdrawal requests
-                        </AlertDescription>
-                      </Alert>
+                      <Card className="bg-muted">
+                        <CardContent className="pt-6">
+                          <h3 className="font-semibold">No Pending Transactions</h3>
+                          <p className="text-sm text-muted-foreground">
+                            There are currently no pending withdrawal requests
+                          </p>
+                        </CardContent>
+                      </Card>
                     ) : (
                       <div className="space-y-4">
                         {pendingTxs.map((tx) => (
@@ -275,6 +261,22 @@ export default function SimpleVaultUI({ contractAddress }: SimpleVaultUIProps) {
                 </Card>
               </TabsContent>
             </Tabs>
+
+            {/* Balance Display */}
+            <div className="grid gap-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Vault Balance</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {ethBalance ? `${formatEther(ethBalance)} ETH` : (
+                      <div className="h-8 w-32 bg-muted animate-pulse rounded" />
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </CardContent>
       </Card>
