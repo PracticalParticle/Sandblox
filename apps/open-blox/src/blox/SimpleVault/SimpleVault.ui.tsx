@@ -179,18 +179,37 @@ const PendingTransaction = ({ tx, onApprove, onCancel, isLoading }: PendingTrans
 
 interface SimpleVaultUIProps {
   contractAddress: Address;
+  _mock?: {
+    account: { address: Address; isConnected: boolean };
+    publicClient: any;
+    walletClient: { data: any };
+    chain: any;
+    initialData?: {
+      ethBalance: bigint;
+      pendingTransactions: any[];
+    };
+  };
 }
 
-export default function SimpleVaultUI({ contractAddress }: SimpleVaultUIProps) {
-  const { address } = useAccount();
-  const publicClient = usePublicClient() as PublicClient;
-  const { data: walletClient } = useWalletClient();
-  const { chain } = useChain();
+export default function SimpleVaultUI({ contractAddress, _mock }: SimpleVaultUIProps) {
+  // Use mock data in preview mode, real data otherwise
+  const { address, isConnected } = _mock?.account || useAccount();
+  const publicClient = _mock?.publicClient || usePublicClient();
+  const { data: walletClient } = _mock?.walletClient || useWalletClient();
+  const chain = _mock?.chain || useChain();
   const { toast } = useToast();
   
-  const [ethBalance, setEthBalance] = useState<bigint>(BigInt(0));
+  const [ethBalance, setEthBalance] = useState<bigint>(_mock?.initialData?.ethBalance || BigInt(0));
   const [pendingTxs, setPendingTxs] = useAtom(pendingTxsAtom);
   const [loadingState, setLoadingState] = useAtom(loadingStateAtom);
+
+  // Initialize with mock data if available
+  useEffect(() => {
+    if (_mock?.initialData) {
+      setEthBalance(_mock.initialData.ethBalance);
+      setPendingTxs(_mock.initialData.pendingTransactions);
+    }
+  }, [_mock?.initialData, setPendingTxs]);
 
   const vault = React.useMemo(() => new SimpleVault(publicClient, walletClient, contractAddress, chain), [
     publicClient,
@@ -199,8 +218,10 @@ export default function SimpleVaultUI({ contractAddress }: SimpleVaultUIProps) {
     chain
   ]);
 
-  // Fetch balances and pending transactions
+  // Fetch balances and pending transactions only if not in preview mode
   const fetchVaultData = React.useCallback(async () => {
+    if (_mock) return; // Skip fetching in preview mode
+    
     try {
       setLoadingState((prev: LoadingState) => ({ ...prev, ethBalance: true }));
       const [balance, transactions] = await Promise.all([
@@ -220,13 +241,15 @@ export default function SimpleVaultUI({ contractAddress }: SimpleVaultUIProps) {
     } finally {
       setLoadingState((prev: LoadingState) => ({ ...prev, ethBalance: false }));
     }
-  }, [vault, setLoadingState, setEthBalance, setPendingTxs, toast]);
+  }, [vault, setLoadingState, setEthBalance, setPendingTxs, toast, _mock]);
 
   useEffect(() => {
-    fetchVaultData();
-    const interval = setInterval(fetchVaultData, 10000);
-    return () => clearInterval(interval);
-  }, [fetchVaultData]);
+    if (!_mock) { // Only set up polling if not in preview mode
+      fetchVaultData();
+      const interval = setInterval(fetchVaultData, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [fetchVaultData, _mock]);
 
   const handleEthWithdrawal = async (to: Address, amount: bigint) => {
     if (!address) return;
