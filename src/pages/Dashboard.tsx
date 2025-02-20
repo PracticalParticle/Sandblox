@@ -90,22 +90,7 @@ const DeployedContract = ({ contract, onUnload }: DeployedContractProps & { onUn
       });
   });
 
-  if (error) {
-    return (
-      <Card className="p-4">
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold">{contract.name}</h3>
-          <p className="text-sm text-muted-foreground">{contract.address}</p>
-        </div>
-        <Alert variant="destructive">
-          <AlertDescription>
-            {error.message}
-          </AlertDescription>
-        </Alert>
-      </Card>
-    );
-  }
-
+  // Always render the card with header and controls
   return (
     <Card className="p-4">
       <div className="mb-4 flex justify-between items-center">
@@ -134,28 +119,41 @@ const DeployedContract = ({ contract, onUnload }: DeployedContractProps & { onUn
           </Button>
         </div>
       </div>
-      <ErrorBoundary>
-        <div className="relative rounded-lg">
-          <Suspense fallback={
-            <div className="flex items-center justify-center h-[400px]">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          }>
-            <ContractUI 
-              contractAddress={contract.address as `0x${string}`}
-              contractInfo={{
-                address: contract.address as `0x${string}`,
-                type: contract.type,
-                name: contract.name,
-                category: 'Storage',
-                description: 'Contract imported from address',
-                bloxId: contract.type
-              }}
-              dashboardMode={true}
-            />
-          </Suspense>
-        </div>
-      </ErrorBoundary>
+
+      {/* Show error message if there is one */}
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>
+            {error.message}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Only render UI component if there is no error */}
+      {!error && (
+        <ErrorBoundary>
+          <div className="relative rounded-lg">
+            <Suspense fallback={
+              <div className="flex items-center justify-center h-[400px]">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            }>
+              <ContractUI 
+                contractAddress={contract.address as `0x${string}`}
+                contractInfo={{
+                  address: contract.address as `0x${string}`,
+                  type: contract.type,
+                  name: contract.name,
+                  category: 'Storage',
+                  description: 'Contract imported from address',
+                  bloxId: contract.type
+                }}
+                dashboardMode={true}
+              />
+            </Suspense>
+          </div>
+        </ErrorBoundary>
+      )}
     </Card>
   );
 };
