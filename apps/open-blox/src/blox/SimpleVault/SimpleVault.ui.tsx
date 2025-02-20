@@ -18,6 +18,7 @@ import { useChain } from "@/hooks/useChain";
 import { atom, useAtom } from "jotai";
 import { AlertCircle, CheckCircle2, Clock, XCircle } from "lucide-react";
 import { cn } from "@/lib/ui-utils";
+import { useNavigate } from "react-router-dom";
 
 // State atoms following .cursorrules state management guidelines
 const pendingTxsAtom = atom<VaultTxRecord[]>([]);
@@ -189,15 +190,16 @@ interface SimpleVaultUIProps {
       pendingTransactions: any[];
     };
   };
+  dashboardMode?: boolean;
 }
 
-export default function SimpleVaultUI({ contractAddress, _mock }: SimpleVaultUIProps) {
-  // Use mock data in preview mode, real data otherwise
+export default function SimpleVaultUI({ contractAddress, _mock, dashboardMode = false }: SimpleVaultUIProps) {
   const { address, isConnected } = _mock?.account || useAccount();
   const publicClient = _mock?.publicClient || usePublicClient();
   const { data: walletClient } = _mock?.walletClient || useWalletClient();
   const chain = _mock?.chain || useChain();
   const { toast } = useToast();
+  const navigate = useNavigate();
   
   const [ethBalance, setEthBalance] = useState<bigint>(_mock?.initialData?.ethBalance || BigInt(0));
   const [pendingTxs, setPendingTxs] = useAtom(pendingTxsAtom);
@@ -328,7 +330,7 @@ export default function SimpleVaultUI({ contractAddress, _mock }: SimpleVaultUIP
   };
 
   return (
-    <div className="container mx-auto p-4 max-w-3xl">
+    <div className={dashboardMode ? "p-0" : "container mx-auto p-4 max-w-3xl"}>
       <Card>
         <CardHeader>
           <CardTitle>Simple Vault</CardTitle>
@@ -352,64 +354,92 @@ export default function SimpleVaultUI({ contractAddress, _mock }: SimpleVaultUIP
               </CardContent>
             </Card>
 
-            {/* Withdrawal Interface */}
-            <Tabs defaultValue="withdraw" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="withdraw">New Withdrawal</TabsTrigger>
-                <TabsTrigger value="pending">Pending Transactions</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="withdraw">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Request Withdrawal</CardTitle>
-                    <CardDescription>
-                      Withdrawals are subject to a time-lock period for security
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <WithdrawalForm
-                      onSubmit={handleEthWithdrawal}
-                      isLoading={loadingState.withdrawal}
-                      type="ETH"
-                      maxAmount={ethBalance}
-                    />
-                  </CardContent>
-                </Card>
-              </TabsContent>
+            {!dashboardMode ? (
+              <Tabs defaultValue="withdraw" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="withdraw">New Withdrawal</TabsTrigger>
+                  <TabsTrigger value="pending">Pending Transactions</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="withdraw">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Request Withdrawal</CardTitle>
+                      <CardDescription>
+                        Withdrawals are subject to a time-lock period for security
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <WithdrawalForm
+                        onSubmit={handleEthWithdrawal}
+                        isLoading={loadingState.withdrawal}
+                        type="ETH"
+                        maxAmount={ethBalance}
+                      />
+                    </CardContent>
+                  </Card>
+                </TabsContent>
 
-              <TabsContent value="pending">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Pending Withdrawals</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {pendingTxs.length === 0 ? (
-                        <Card className="bg-muted">
-                          <CardContent className="pt-6">
-                            <h3 className="font-semibold">No Pending Transactions</h3>
-                            <p className="text-sm text-muted-foreground">
-                              There are currently no pending withdrawal requests
-                            </p>
-                          </CardContent>
-                        </Card>
-                      ) : (
-                        pendingTxs.map((tx: VaultTxRecord) => (
-                          <PendingTransaction
-                            key={tx.txId}
-                            tx={tx}
-                            onApprove={handleApproveWithdrawal}
-                            onCancel={handleCancelWithdrawal}
-                            isLoading={loadingState.approval || loadingState.cancellation}
-                          />
-                        ))
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
+                <TabsContent value="pending">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Pending Withdrawals</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {pendingTxs.length === 0 ? (
+                          <Card className="bg-muted">
+                            <CardContent className="pt-6">
+                              <h3 className="font-semibold">No Pending Transactions</h3>
+                              <p className="text-sm text-muted-foreground">
+                                There are currently no pending withdrawal requests
+                              </p>
+                            </CardContent>
+                          </Card>
+                        ) : (
+                          pendingTxs.map((tx) => (
+                            <PendingTransaction
+                              key={tx.txId}
+                              tx={tx}
+                              onApprove={handleApproveWithdrawal}
+                              onCancel={handleCancelWithdrawal}
+                              isLoading={loadingState.approval || loadingState.cancellation}
+                            />
+                          ))
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
+            ) : (
+              /* Dashboard mode: Show simplified view */
+              pendingTxs.length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="font-medium">Pending Transactions</h3>
+                  <div className="space-y-2">
+                    {pendingTxs.slice(0, 2).map((tx) => (
+                      <PendingTransaction
+                        key={tx.txId}
+                        tx={tx}
+                        onApprove={handleApproveWithdrawal}
+                        onCancel={handleCancelWithdrawal}
+                        isLoading={loadingState.approval || loadingState.cancellation}
+                      />
+                    ))}
+                    {pendingTxs.length > 2 && (
+                      <Button
+                        variant="link"
+                        className="w-full"
+                        onClick={() => navigate(`/contracts/${contractAddress}`)}
+                      >
+                        View All Transactions
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )
+            )}
           </div>
         </CardContent>
       </Card>

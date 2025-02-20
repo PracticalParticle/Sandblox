@@ -1,6 +1,7 @@
 import { useAccount } from 'wagmi'
 import { useNavigate } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
+import React from 'react'
 import { motion } from 'framer-motion'
 import {
   BarChart3,
@@ -13,11 +14,22 @@ import {
   XCircle,
   Plus,
   Download,
+  Loader2,
 } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { ImportContractDialog } from '../components/ImportContractDialog'
 import { ContractInfoDialog } from '../components/ContractInfoDialog'
 import type { ContractInfo } from '../lib/verification'
+import { Card } from '../components/ui/card'
+import { Alert, AlertDescription } from '../components/ui/alert'
+
+// We'll replace this with real data from your contract management system later
+const DEPLOYED_CONTRACTS: Array<{
+  id: string;
+  name: string;
+  address: string;
+  type: string;
+}> = [];
 
 const container = {
   hidden: { opacity: 0 },
@@ -33,6 +45,91 @@ const item = {
   hidden: { opacity: 0, y: 20 },
   show: { opacity: 1, y: 0 },
 }
+
+interface DeployedContractProps {
+  contract: {
+    id: string;
+    name: string;
+    address: string;
+    type: string;
+  }
+}
+
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Alert variant="destructive">
+          <AlertDescription>
+            Failed to load contract UI. Please try refreshing the page.
+          </AlertDescription>
+        </Alert>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+const DeployedContract = ({ contract }: DeployedContractProps) => {
+  const [error, setError] = useState<Error | null>(null);
+  
+  // Dynamically import the UI component for this contract type
+  const ContractUI = lazy(() => 
+    import(`../blox/${contract.type}/${contract.type}.ui`)
+      .catch(err => {
+        setError(err);
+        return { default: () => null };
+      })
+  );
+
+  if (error) {
+    return (
+      <Card className="p-4">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold">{contract.name}</h3>
+          <p className="text-sm text-muted-foreground">{contract.address}</p>
+        </div>
+        <Alert variant="destructive">
+          <AlertDescription>
+            Failed to load contract UI: {error.message}
+          </AlertDescription>
+        </Alert>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-4">
+      <ErrorBoundary>
+        <div className="relative rounded-lg">
+          <Suspense fallback={
+            <div className="flex items-center justify-center h-[400px]">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          }>
+            <ContractUI 
+              contractAddress={contract.address as `0x${string}`}
+              dashboardMode={true}
+            />
+          </Suspense>
+        </div>
+      </ErrorBoundary>
+    </Card>
+  );
+};
 
 export function Dashboard() {
   const { isConnected } = useAccount()
@@ -157,24 +254,32 @@ export function Dashboard() {
             <h2 className="text-xl font-bold text-left">Deployed Contracts</h2>
           </div>
           <div className="p-4">
-            <div className="flex flex-col items-center gap-4 py-8 text-center">
-              <div className="rounded-full bg-primary/10 p-3">
-                <Wallet className="h-6 w-6 text-primary" />
+            {DEPLOYED_CONTRACTS.length === 0 ? (
+              <div className="flex flex-col items-center gap-4 py-8 text-center">
+                <div className="rounded-full bg-primary/10 p-3">
+                  <Wallet className="h-6 w-6 text-primary" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-medium">No Contracts Deployed</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Get started by deploying your first smart contract.
+                  </p>
+                </div>
+                <button
+                  onClick={() => navigate('/blox-contracts')}
+                  className="btn"
+                >
+                  Browse Contracts
+                  <ArrowRight className="h-4 w-4" />
+                </button>
               </div>
-              <div className="space-y-2">
-                <h3 className="font-medium">No Contracts Deployed</h3>
-                <p className="text-sm text-muted-foreground">
-                  Get started by deploying your first smart contract.
-                </p>
+            ) : (
+              <div className="grid gap-6">
+                {DEPLOYED_CONTRACTS.map((contract) => (
+                  <DeployedContract key={contract.id} contract={contract} />
+                ))}
               </div>
-              <button
-                onClick={() => navigate('/blox-contracts')}
-                className="btn"
-              >
-                Browse Contracts
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            </div>
+            )}
           </div>
         </motion.div>
 
