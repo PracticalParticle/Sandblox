@@ -1,14 +1,13 @@
 import { useParams, Link } from 'react-router-dom'
 import { useAccount } from 'wagmi'
 import { useState, useEffect } from 'react'
-import { Loader2, ChevronDown, ChevronUp, Eye, X } from 'lucide-react'
+import { Loader2, ChevronDown, ChevronUp, Eye } from 'lucide-react'
 import { getContractDetails, getContractCode } from '../lib/catalog'
 import type { BloxContract } from '../lib/catalog/types'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { DeploymentDialog } from '../components/DeploymentDialog'
 import { Button } from '../components/ui/button'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card'
 
 // Custom dark theme that matches our UI
 const codeTheme = {
@@ -105,7 +104,7 @@ export function ContractDetails() {
           <div className="flex justify-between items-center">
             <h1 className="text-3xl font-bold tracking-tight">{contract.name}</h1>
             <Link
-              to={`/preview/${contract.name}`}
+              to={`/preview/${contract.id}`}
               className="inline-flex"
             >
               <Button

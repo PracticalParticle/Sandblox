@@ -240,7 +240,12 @@ export function SingleWalletManagerProvider({
         description: "Wallet connected successfully!",
       });
     } catch (error) {
-      console.error('Connection failed:', error);
+      console.error('Error during connection:', error);
+      toast({
+        title: "Connection Error",
+        description: "An error occurred while trying to connect to the wallet.",
+        variant: "destructive"
+      });
       modal.closeModal();
       
       // Clean up on error

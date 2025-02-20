@@ -69,12 +69,7 @@ export function Navbar() {
             >
               Docs
             </a>
-          </div>
-        </div>
-
-        {/* Right side icons */}
-        <div className="ml-auto flex items-center gap-4">
-          <a
+            <a
             href="https://github.com/particlecs-com"
             target="_blank"
             rel="noopener noreferrer"
@@ -82,6 +77,12 @@ export function Navbar() {
           >
             <Github className="h-5 w-5" />
           </a>
+          </div>
+        </div>
+
+        {/* Right side icons */}
+        <div className="ml-auto flex items-center gap-4">
+          
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             className="rounded-lg p-2 hover:bg-accent md:hidden hover-lift"
