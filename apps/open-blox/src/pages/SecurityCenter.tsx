@@ -1,6 +1,6 @@
 import { useAccount } from 'wagmi'
 import { useNavigate } from 'react-router-dom'
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   Shield,
@@ -10,52 +10,17 @@ import {
   Download,
   Loader2,
   AlertCircle,
-  CheckCircle2,
-  XCircle,
   ArrowRight,
 } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { ImportContractDialog } from '../components/ImportContractDialog'
 import { Card } from '../components/ui/card'
 import { Alert, AlertDescription } from '../components/ui/alert'
-import { Address, parseAbi } from 'viem'
+import { Address } from 'viem'
 import { usePublicClient } from 'wagmi'
 import { useToast } from '../components/ui/use-toast'
-import type { SecureContractInfo, SecurityOperationEvent } from '../lib/types'
-
-// Define the ABI inline since we can't import the JSON directly
-const SecureOwnableABI = parseAbi([
-  // View functions
-  'function owner() view returns (address)',
-  'function getBroadcaster() view returns (address)',
-  'function getRecoveryAddress() view returns (address)',
-  'function getTimeLockPeriodInDays() view returns (uint256)',
-  'function getOperationHistory() view returns ((string,uint8,uint256,string,string,uint256)[])',
-  'function isOperationTypeSupported(bytes32 operationType) view returns (bool)',
-  
-  // Constants
-  'function OWNERSHIP_UPDATE() view returns (bytes32)',
-  'function BROADCASTER_UPDATE() view returns (bytes32)',
-  'function RECOVERY_UPDATE() view returns (bytes32)',
-  'function TIMELOCK_UPDATE() view returns (bytes32)',
-  
-  // Write functions
-  'function transferOwnershipRequest() returns ((uint256,address,address,bytes32,uint8,bytes,uint256,uint256,uint256,uint256,uint8))',
-  'function transferOwnershipDelayedApproval(uint256 txId) returns ((uint256,address,address,bytes32,uint8,bytes,uint256,uint256,uint256,uint256,uint8))',
-  'function transferOwnershipCancellation(uint256 txId) returns ((uint256,address,address,bytes32,uint8,bytes,uint256,uint256,uint256,uint256,uint8))',
-  'function updateBroadcasterRequest(address newBroadcaster) returns ((uint256,address,address,bytes32,uint8,bytes,uint256,uint256,uint256,uint256,uint8))',
-  'function updateBroadcasterDelayedApproval(uint256 txId) returns ((uint256,address,address,bytes32,uint8,bytes,uint256,uint256,uint256,uint256,uint8))',
-  'function updateBroadcasterCancellation(uint256 txId) returns ((uint256,address,address,bytes32,uint8,bytes,uint256,uint256,uint256,uint256,uint8))'
-])
-
-interface OperationRecord {
-  operationType: string;
-  status: number;
-  timestamp: number;
-  oldValue?: string;
-  newValue?: string;
-  releaseTime: number;
-}
+import { useSecureContract } from '@/hooks/useSecureContract'
+import type { SecureContractInfo } from '@/lib/types'
 
 const container = {
   hidden: { opacity: 0 },
@@ -73,7 +38,7 @@ const item = {
 }
 
 // Lazy-loaded contract details component
-const ContractDetails = ({ contract, onManage }: { contract: SecureContractInfo, onManage: (address: string) => void }) => (
+const ContractCard = ({ contract, onManage }: { contract: SecureContractInfo, onManage: (address: string) => void }) => (
   <Card className="p-6" role="listitem">
     <div className="flex items-start justify-between">
       <div>
@@ -105,42 +70,6 @@ const ContractDetails = ({ contract, onManage }: { contract: SecureContractInfo,
   </Card>
 )
 
-// Lazy-loaded security events component
-const SecurityEvents = ({ event, address }: { event: SecurityOperationEvent, address: string }) => (
-  <div key={`${address}`} className="flex items-center gap-4 p-4" role="article">
-    <div className={`rounded-full p-2 ${
-      event.status === 'completed' ? 'bg-green-500/10' :
-      event.status === 'pending' ? 'bg-yellow-500/10' :
-      'bg-red-500/10'
-    }`}>
-      {event.status === 'completed' ? (
-        <CheckCircle2 className={`h-4 w-4 ${
-          event.status === 'completed' ? 'text-green-500' :
-          event.status === 'pending' ? 'text-yellow-500' :
-          'text-red-500'
-        }`} aria-hidden="true" />
-      ) : event.status === 'pending' ? (
-        <AlertCircle className="h-4 w-4 text-yellow-500" aria-hidden="true" />
-      ) : (
-        <XCircle className="h-4 w-4 text-red-500" aria-hidden="true" />
-      )}
-    </div>
-    <div className="flex-1">
-      <p className="font-medium text-left" tabIndex={0}>{event.description}</p>
-      <p className="text-sm text-muted-foreground text-left" tabIndex={0}>
-        {event.status === 'pending' && event.details?.remainingTime
-          ? `Pending timelock period: ${Math.floor(event.details.remainingTime / 86400)} days remaining`
-          : event.status === 'completed'
-          ? `${event.type.charAt(0).toUpperCase() + event.type.slice(1)} updated successfully`
-          : `${event.type.charAt(0).toUpperCase() + event.type.slice(1)} operation cancelled`}
-      </p>
-    </div>
-    <p className="text-sm text-muted-foreground" tabIndex={0}>
-      {new Date(event.timestamp * 1000).toLocaleString()}
-    </p>
-  </div>
-)
-
 export function SecurityCenter(): JSX.Element {
   const { isConnected } = useAccount()
   const navigate = useNavigate()
@@ -150,6 +79,7 @@ export function SecurityCenter(): JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const publicClient = usePublicClient()
   const { toast } = useToast()
+  const { validateAndLoadContract } = useSecureContract()
 
   useEffect(() => {
     if (!isConnected) {
@@ -163,70 +93,8 @@ export function SecurityCenter(): JSX.Element {
     setError(null)
     
     try {
-      if (!publicClient) {
-        throw new Error('No public client available')
-      }
-
-      // Validate address format and network
-      if (!address.match(/^0x[a-fA-F0-9]{40}$/)) {
-        throw new Error('Invalid contract address format')
-      }
-
-      // Verify contract exists and has required interface
-      const isContract = await publicClient.getBytecode({ address: address as Address })
-      if (!isContract) {
-        throw new Error('Address is not a contract')
-      }
-
-      // Fetch contract details using publicClient directly with error handling
-      const [owner, broadcaster, recoveryAddress, timeLockPeriodInDays] = await Promise.all([
-        publicClient.readContract({
-          address: address as Address,
-          abi: SecureOwnableABI,
-          functionName: 'owner'
-        }).catch(() => { throw new Error('Failed to read owner') }),
-        publicClient.readContract({
-          address: address as Address,
-          abi: SecureOwnableABI,
-          functionName: 'getBroadcaster'
-        }).catch(() => { throw new Error('Failed to read broadcaster') }),
-        publicClient.readContract({
-          address: address as Address,
-          abi: SecureOwnableABI,
-          functionName: 'getRecoveryAddress'
-        }).catch(() => { throw new Error('Failed to read recovery address') }),
-        publicClient.readContract({
-          address: address as Address,
-          abi: SecureOwnableABI,
-          functionName: 'getTimeLockPeriodInDays'
-        }).catch(() => { throw new Error('Failed to read timelock period') }).then(value => Number(value))
-      ]) as [Address, Address, Address, number]
-
-      // Get operation history with error handling
-      const history = await publicClient.readContract({
-        address: address as Address,
-        abi: SecureOwnableABI,
-        functionName: 'getOperationHistory'
-      }).catch(() => { throw new Error('Failed to read operation history') }) as unknown as [string, number, bigint, string, string, bigint][]
+      const contractInfo = await validateAndLoadContract(address as Address)
       
-      // Process history into events
-      const events: SecurityOperationEvent[] = history.map((op) => ({
-        type: op[0] === 'OWNERSHIP_UPDATE' ? 'ownership' :
-              op[0] === 'BROADCASTER_UPDATE' ? 'broadcaster' :
-              op[0] === 'RECOVERY_UPDATE' ? 'recovery' : 'timelock',
-        status: op[1] === 0 ? 'pending' :
-                op[1] === 1 ? 'completed' : 'cancelled',
-        timestamp: Number(op[2]),
-        description: `${op[0].replace('_', ' ')} operation`,
-        details: {
-          oldValue: op[3],
-          newValue: op[4],
-          remainingTime: Number(op[5]) > Date.now() / 1000 ? 
-            Math.floor(Number(op[5]) - Date.now() / 1000) : 0
-        }
-      }))
-
-      // Add to list if not already present
       setSecureContracts(prev => {
         if (prev.some(c => c.address === address)) {
           toast({
@@ -243,15 +111,7 @@ export function SecurityCenter(): JSX.Element {
           variant: "default"
         })
         
-        return [...prev, {
-          address: address as Address,
-          owner,
-          broadcaster,
-          recoveryAddress,
-          timeLockPeriodInDays,
-          pendingOperations: events.filter(e => e.status === 'pending'),
-          recentEvents: events.filter(e => e.status !== 'pending').slice(0, 5)
-        }]
+        return [...prev, contractInfo]
       })
     } catch (error) {
       console.error('Error importing contract:', error)
@@ -374,46 +234,14 @@ export function SecurityCenter(): JSX.Element {
               </div>
               <div className="p-4">
                 <div className="grid gap-6" role="list">
-                  <Suspense fallback={
-                    <div className="flex items-center justify-center py-8" role="status" aria-label="Loading contracts">
-                      <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
-                      <span className="sr-only">Loading contracts...</span>
-                    </div>
-                  }>
-                    {secureContracts.map((contract) => (
-                      <ContractDetails 
-                        key={contract.address} 
-                        contract={contract} 
-                        onManage={(address) => navigate(`/security-center/${address}`)}
-                      />
-                    ))}
-                  </Suspense>
+                  {secureContracts.map((contract) => (
+                    <ContractCard 
+                      key={contract.address} 
+                      contract={contract} 
+                      onManage={(address) => navigate(`/security-center/${address}`)}
+                    />
+                  ))}
                 </div>
-              </div>
-            </motion.div>
-
-            {/* Recent Security Events */}
-            <motion.div variants={item} className="rounded-lg border bg-card" role="region" aria-label="Recent Security Events">
-              <div className="border-b p-4">
-                <h2 className="text-xl font-bold text-left" tabIndex={0}>Recent Security Events</h2>
-              </div>
-              <div className="divide-y" role="log">
-                <Suspense fallback={
-                  <div className="flex items-center justify-center py-8" role="status" aria-label="Loading events">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
-                    <span className="sr-only">Loading events...</span>
-                  </div>
-                }>
-                  {secureContracts.flatMap(contract => 
-                    (contract.recentEvents || []).map((event, index) => (
-                      <SecurityEvents 
-                        key={`${contract.address}-${index}`} 
-                        event={event} 
-                        address={contract.address} 
-                      />
-                    ))
-                  )}
-                </Suspense>
               </div>
             </motion.div>
           </>
