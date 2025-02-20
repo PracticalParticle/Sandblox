@@ -74,7 +74,11 @@ export function SecurityCenter(): JSX.Element {
   const { isConnected } = useAccount()
   const navigate = useNavigate()
   const [showImportDialog, setShowImportDialog] = useState<boolean>(false)
-  const [secureContracts, setSecureContracts] = useState<SecureContractInfo[]>([])
+  const [secureContracts, setSecureContracts] = useState<SecureContractInfo[]>(() => {
+    // Load contracts from local storage on initial render
+    const storedContracts = localStorage.getItem('secureContracts')
+    return storedContracts ? JSON.parse(storedContracts) : []
+  })
   const [loadingContracts, setLoadingContracts] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const publicClient = usePublicClient()
@@ -86,6 +90,11 @@ export function SecurityCenter(): JSX.Element {
       navigate('/')
     }
   }, [isConnected, navigate])
+
+  useEffect(() => {
+    // Save contracts to local storage whenever they change
+    localStorage.setItem('secureContracts', JSON.stringify(secureContracts))
+  }, [secureContracts])
 
   const handleImportContract = async (address: string): Promise<void> => {
     setShowImportDialog(false)
