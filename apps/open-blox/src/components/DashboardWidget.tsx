@@ -4,7 +4,7 @@ import { ImportContractDialog } from './ImportContractDialog'
 import { ContractInfoDialog } from './ContractInfoDialog'
 import type { ContractInfo } from '../lib/verification'
 
-export function Dashboard() {
+export function DashboardWidget() {
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [showContractInfoDialog, setShowContractInfoDialog] = useState(false)
   const [importedAddress, setImportedAddress] = useState('')
