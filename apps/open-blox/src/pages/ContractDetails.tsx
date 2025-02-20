@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom'
 import { useAccount } from 'wagmi'
 import { useState, useEffect } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, ChevronDown, ChevronUp } from 'lucide-react'
 import { getContractDetails, getContractCode } from '../lib/catalog'
 import type { BloxContract } from '../lib/catalog/types'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -34,6 +34,7 @@ export function ContractDetails() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showDeployDialog, setShowDeployDialog] = useState(false)
+  const [isCodeExpanded, setIsCodeExpanded] = useState(false)
 
   useEffect(() => {
     if (contractId) {
@@ -153,9 +154,25 @@ export function ContractDetails() {
                 >
                   Copy Code
                 </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsCodeExpanded(!isCodeExpanded)}
+                >
+                  {isCodeExpanded ? (
+                    <ChevronUp className="h-4 w-4 mr-1" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 mr-1" />
+                  )}
+                  {isCodeExpanded ? 'Collapse' : 'Expand'}
+                </Button>
               </div>
             </div>
-            <div className="p-4 overflow-x-auto">
+            <div 
+              className={`p-4 overflow-x-auto transition-all duration-200 ease-in-out ${
+                isCodeExpanded ? '' : 'max-h-[360px]'
+              }`}
+            >
               <SyntaxHighlighter
                 language="solidity"
                 style={codeTheme}
@@ -163,6 +180,7 @@ export function ContractDetails() {
                   background: 'transparent',
                   margin: 0,
                   padding: 0,
+                  height: '100%',
                 }}
                 showLineNumbers
                 wrapLongLines={false}
@@ -170,6 +188,9 @@ export function ContractDetails() {
                 {contractCode}
               </SyntaxHighlighter>
             </div>
+            {!isCodeExpanded && (
+              <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-card to-transparent pointer-events-none" />
+            )}
           </div>
         </div>
 
