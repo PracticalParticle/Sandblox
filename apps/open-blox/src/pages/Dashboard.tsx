@@ -178,6 +178,16 @@ export function Dashboard(): JSX.Element {
   const { isConnected } = useAccount()
   const navigate = useNavigate()
   const { toast } = useToast()
+  const [contracts, setContracts] = useState<Array<{
+    id: string;
+    name: string;
+    address: string;
+    type: string;
+  }>>(() => {
+    // Load contracts from localStorage on initial render
+    const storedContracts = localStorage.getItem('dashboardContracts')
+    return storedContracts ? JSON.parse(storedContracts) : []
+  })
 
   useEffect(() => {
     if (!isConnected) {
@@ -185,20 +195,63 @@ export function Dashboard(): JSX.Element {
     }
   }, [isConnected, navigate])
 
-  const handleImportSuccess = (contractInfo: any) => {
-    toast({
-      title: "Contract imported successfully",
-      description: "The contract has been imported and is ready to use.",
-      variant: "default"
+  // Save contracts to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('dashboardContracts', JSON.stringify(contracts))
+  }, [contracts])
+
+  const handleUnloadContract = (address: string) => {
+    setContracts(prev => {
+      const filtered = prev.filter(c => c.address !== address)
+      toast({
+        title: "Contract unloaded",
+        description: "The contract has been removed from the dashboard.",
+        variant: "default"
+      })
+      return filtered
     })
-    // You can add additional logic here if needed
+  }
+
+  const handleImportSuccess = (contractInfo: any) => {
+    setContracts(prev => {
+      // Check if contract already exists
+      if (prev.some(c => c.address === contractInfo.address)) {
+        toast({
+          title: "Contract already imported",
+          description: "This contract has already been imported to the dashboard.",
+          variant: "default"
+        })
+        return prev
+      }
+
+      // Create new contract entry
+      const newContract = {
+        id: contractInfo.address,
+        name: contractInfo.name || 'Imported Contract',
+        address: contractInfo.address,
+        type: 'simple-vault' // Default to simple-vault for now
+      }
+
+      toast({
+        title: "Contract imported successfully",
+        description: "The contract has been imported and is ready to use.",
+        variant: "default"
+      })
+
+      return [...prev, newContract]
+    })
   }
 
   return (
     <div className="mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex flex-col space-y-8">
+      <motion.div
+        variants={container}
+        initial="hidden"
+        animate="show"
+        className="flex flex-col space-y-8"
+      >
         {/* Header */}
-        <div className="flex items-center justify-start">
+        <motion.div variants={item} className="flex items-center justify-start">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-left">Dashboard</h1>
             <p className="mt-2 text-muted-foreground">
@@ -211,27 +264,46 @@ export function Dashboard(): JSX.Element {
               onImportSuccess={handleImportSuccess}
             />
           </div>
-        </div>
+        </motion.div>
 
-        {/* No Contracts Message */}
-        <div className="flex flex-col items-center gap-4 py-8 text-center">
-          <div className="rounded-full bg-primary/10 p-3">
-            <Shield className="h-6 w-6 text-primary" />
+        {/* Contracts Section */}
+        <motion.div variants={item} className="rounded-lg border bg-card">
+          <div className="border-b p-4">
+            <h2 className="text-xl font-bold text-left">Contracts</h2>
           </div>
-          <div className="space-y-2">
-            <h3 className="font-medium">No Contracts Deployed</h3>
-            <p className="text-sm text-muted-foreground">
-              Import your first contract to get started.
-            </p>
+          <div className="p-4">
+            {contracts.length > 0 ? (
+              <div className="grid gap-6">
+                {contracts.map((contract) => (
+                  <DeployedContract
+                    key={contract.address}
+                    contract={contract}
+                    onUnload={handleUnloadContract}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-4 py-8 text-center">
+                <div className="rounded-full bg-primary/10 p-3">
+                  <Shield className="h-6 w-6 text-primary" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-medium">No Contracts Deployed</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Import your first contract to get started.
+                  </p>
+                </div>
+                <ImportContract
+                  buttonVariant="default"
+                  buttonIcon="arrow"
+                  buttonText="Import your first contract"
+                  onImportSuccess={handleImportSuccess}
+                />
+              </div>
+            )}
           </div>
-          <ImportContract
-            buttonVariant="default"
-            buttonIcon="arrow"
-            buttonText="Import your first contract"
-            onImportSuccess={handleImportSuccess}
-          />
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     </div>
   )
 } 
