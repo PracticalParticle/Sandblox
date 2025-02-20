@@ -9,6 +9,15 @@ import { WalletConnectError, ErrorCodes, isUserRejectionError } from '@/lib/erro
 import { validateSession, validateWalletSession, type ValidWalletSession } from '@/lib/schemas';
 import { encryptData, decryptData, generateSecretKey } from '@/lib/crypto';
 import { CHAINS, type Chain } from '@/lib/utils';
+import { UniversalProvider } from '@walletconnect/universal-provider';
+
+// Define minimal provider interface for what we actually use
+interface MinimalProvider {
+  connect(args: any): Promise<any>;
+  disconnect(): Promise<void>;
+  on(event: string, callback: (data: any) => void): void;
+  request(args: any): Promise<any>;
+}
 
 // Constants
 const SESSION_TIMEOUT = 15 * 60 * 1000; // 15 minutes
@@ -56,10 +65,10 @@ export function SingleWalletManagerProvider({
     icons: [`${window.location.origin}/logo.png`]
   }
 }: SingleWalletManagerProviderProps) {
-  const [modal, setModal] = useState<WalletConnectModal>();
   const [session, setSession] = useState<ValidWalletSession>();
   const [isConnecting, setIsConnecting] = useState(false);
   const modalCleanupRef = useRef<(() => void) | null>(null);
+  const providerRef = useRef<MinimalProvider | null>(null);
 
   // Initialize WalletConnect Modal
   useEffect(() => {
@@ -87,8 +96,6 @@ export function SingleWalletManagerProvider({
         '--wcm-font-family': '-apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu'
       }
     });
-
-    setModal(newModal);
 
     return () => {
       if (modalCleanupRef.current) {
@@ -119,7 +126,7 @@ export function SingleWalletManagerProvider({
   }, [session]);
 
   const connect = async (): Promise<void> => {
-    if (isConnecting || !modal) return;
+    if (isConnecting) return;
 
     let handleVisibilityChange: (() => void) | undefined;
     let uriTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -128,44 +135,27 @@ export function SingleWalletManagerProvider({
     try {
       setIsConnecting(true);
       
-      // Clear any existing sessions and close modal
+      // Clear any existing sessions
       localStorage.removeItem('walletconnect');
       if (modalCleanupRef.current) {
         modalCleanupRef.current();
       }
-      modal.closeModal();
       
-      // Get fresh provider instance
-      const provider = await providerPool.getProvider(projectId, metadata);
+      // Get fresh provider and modal instances
+      const { provider: wcProvider, modal } = await providerPool.getProvider(projectId, metadata, allowedChainIds);
+      const provider = wcProvider as unknown as MinimalProvider;
+      providerRef.current = provider;
       
-      let uri: string | undefined;
       let isModalClosed = false;
-      let hasDisplayedUri = false;
       
-      // Set timeout for URI generation
-      uriTimeout = setTimeout(() => {
-        if (!hasDisplayedUri) {
-          throw new WalletConnectError(
-            'Connection timed out - please try again',
-            ErrorCodes.CONNECTION_FAILED
-          );
-        }
-      }, providerPool.getConnectionTimeout());
-      
-      provider.on('display_uri', (displayUri: string) => {
-        console.log('Got URI:', displayUri);
-        if (uriTimeout) {
-          clearTimeout(uriTimeout);
-        }
+      // Set up provider event listeners
+      provider.on('display_uri', (uri: string) => {
+        console.log('Got URI:', uri);
         
-        hasDisplayedUri = true;
-        uri = displayUri;
-        
-        // Ensure modal is closed and cleaned up before reopening
+        // Ensure any existing modal is closed and cleaned up
         if (modalCleanupRef.current) {
           modalCleanupRef.current();
         }
-        modal.closeModal();
 
         // Small delay to ensure modal state is reset
         setTimeout(() => {
@@ -175,10 +165,12 @@ export function SingleWalletManagerProvider({
               isModalClosed = true;
               setIsConnecting(false);
               // Clean up on modal close
-              void provider.disconnect().catch(console.error);
+              if (providerRef.current) {
+                void providerRef.current.disconnect().catch(console.error);
+              }
               localStorage.removeItem('walletconnect');
             }
-          }) as unknown) as () => void;
+          }) as unknown) as () => void; // Proper type assertion chain
           modalCleanupRef.current = cleanup;
         }, 100);
       });
@@ -193,7 +185,8 @@ export function SingleWalletManagerProvider({
       };
       document.addEventListener('visibilitychange', handleVisibilityChange);
 
-      const rawSession = await provider.connect({
+      // Connect using the provider directly
+      const rawSession = await (provider as any).connect({
         namespaces: {
           eip155: {
             methods: [
@@ -206,7 +199,7 @@ export function SingleWalletManagerProvider({
             events: ['chainChanged', 'accountsChanged']
           }
         }
-      }).catch(error => {
+      }).catch((error: unknown) => {
         if (isModalClosed) {
           throw new WalletConnectError(
             'Connection cancelled by user',
@@ -254,12 +247,6 @@ export function SingleWalletManagerProvider({
       });
     } catch (error) {
       console.error('Error during connection:', error);
-      toast({
-        title: "Connection Error",
-        description: "An error occurred while trying to connect to the wallet.",
-        variant: "destructive"
-      });
-      modal.closeModal();
       
       // Clean up on error
       localStorage.removeItem('walletconnect');
@@ -288,11 +275,10 @@ export function SingleWalletManagerProvider({
     if (!session) return;
     
     try {
-      const providerPool = ProviderPool.getInstance();
-      const provider = await providerPool.getProvider(projectId, metadata);
+      if (providerRef.current) {
+        await providerRef.current.disconnect().catch(console.error);
+      }
       
-      // Disconnect and clean up
-      await provider.disconnect().catch(console.error);
       localStorage.removeItem(STORAGE_KEY);
       localStorage.removeItem('walletconnect');
       setSession(undefined);
@@ -317,6 +303,10 @@ export function SingleWalletManagerProvider({
       throw new WalletConnectError('No active session', ErrorCodes.SESSION_INVALID);
     }
 
+    if (!providerRef.current) {
+      throw new WalletConnectError('No active provider', ErrorCodes.PROVIDER_ERROR);
+    }
+
     const updatedSession = { ...session, lastActivity: Date.now() };
     setSession(updatedSession);
     
@@ -325,10 +315,7 @@ export function SingleWalletManagerProvider({
     localStorage.setItem(STORAGE_KEY, encryptedSession);
 
     try {
-      const providerPool = ProviderPool.getInstance();
-      const provider = await providerPool.getProvider(projectId, metadata);
-      
-      const result = await provider.request({
+      const result = await providerRef.current.request({
         method,
         params
       });
@@ -377,7 +364,8 @@ export function SingleWalletManagerProvider({
         }
 
         const providerPool = ProviderPool.getInstance();
-        const provider = await providerPool.getProvider(projectId, metadata);
+        const { provider: wcProvider } = await providerPool.getProvider(projectId, metadata);
+        const provider = wcProvider as unknown as MinimalProvider;
 
         await provider.connect({
           namespaces: {

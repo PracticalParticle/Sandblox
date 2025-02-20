@@ -1,7 +1,17 @@
 import { WalletConnectModal } from '@walletconnect/modal';
+import { UniversalProvider } from '@walletconnect/universal-provider';
 import { WalletConnectError, ErrorCodes } from './errors';
+import type { Chain } from '@/lib/utils';
 
-interface ModalSession {
+type WCProvider = {
+  connect(args: any): Promise<any>;
+  disconnect(): Promise<void>;
+  request(args: any): Promise<any>;
+  on(event: string, callback: (data: any) => void): void;
+};
+
+interface WalletSession {
+  provider: WCProvider;
   modal: WalletConnectModal;
   lastUsed: number;
   isConnected: boolean;
@@ -9,7 +19,7 @@ interface ModalSession {
 
 export class ProviderPool {
   private static instance: ProviderPool;
-  private modals: Map<string, ModalSession> = new Map();
+  private sessions: Map<string, WalletSession> = new Map();
   private maxIdleTime = 5 * 60 * 1000; // 5 minutes
   private connectionTimeout = 30 * 1000; // 30 seconds
 
@@ -25,27 +35,32 @@ export class ProviderPool {
     return ProviderPool.instance;
   }
 
-  public async getProvider(projectId: string, metadata: any): Promise<WalletConnectModal> {
+  public async getProvider(
+    projectId: string, 
+    metadata: any,
+    chains: Chain[] = [1]
+  ): Promise<{ provider: WCProvider; modal: WalletConnectModal }> {
     try {
-      // Always clear WalletConnect session storage before getting a new modal
+      // Always clear WalletConnect session storage before getting a new provider
       localStorage.removeItem('walletconnect');
       
-      // Remove any existing modal for this project
-      await this.removeModal(projectId);
+      // Remove any existing session for this project
+      await this.removeSession(projectId);
 
-      // Create new modal
-      const modal = await this.createModal(projectId, metadata);
+      // Create new provider and modal
+      const { provider, modal } = await this.createSession(projectId, metadata, chains);
 
-      this.modals.set(projectId, {
+      this.sessions.set(projectId, {
+        provider,
         modal,
         lastUsed: Date.now(),
         isConnected: false
       });
 
-      return modal;
+      return { provider, modal };
     } catch (error) {
       // Ensure cleanup on error
-      await this.removeModal(projectId);
+      await this.removeSession(projectId);
       throw new WalletConnectError(
         'Failed to initialize WalletConnect',
         ErrorCodes.PROVIDER_ERROR,
@@ -54,17 +69,26 @@ export class ProviderPool {
     }
   }
 
-  private async createModal(
+  private async createSession(
     projectId: string,
-    metadata: any
-  ): Promise<WalletConnectModal> {
+    metadata: any,
+    chains: Chain[]
+  ): Promise<{ provider: WCProvider; modal: WalletConnectModal }> {
     try {
+      // Initialize provider first
+      const provider = await UniversalProvider.init({
+        projectId,
+        metadata,
+        logger: 'error'
+      }) as unknown as WCProvider;
+
+      // Then initialize modal
       const modal = new WalletConnectModal({
         projectId,
         themeMode: 'dark',
         explorerRecommendedWalletIds: undefined,
         explorerExcludedWalletIds: undefined,
-        chains: ['eip155:1'], // Default to Ethereum mainnet
+        chains: chains.map(id => `eip155:${id}`),
         mobileWallets: [],
         desktopWallets: [],
         walletImages: {},
@@ -84,35 +108,29 @@ export class ProviderPool {
         }
       });
 
-      this.modals.set(projectId, {
-        modal,
-        lastUsed: Date.now(),
-        isConnected: false
-      });
-
-      return modal;
+      return { provider, modal };
     } catch (error) {
       throw new WalletConnectError(
-        'Failed to initialize WalletConnect modal',
+        'Failed to initialize WalletConnect session',
         ErrorCodes.PROVIDER_ERROR,
         error
       );
     }
   }
 
-  private async removeModal(projectId: string): Promise<void> {
-    const session = this.modals.get(projectId);
+  private async removeSession(projectId: string): Promise<void> {
+    const session = this.sessions.get(projectId);
     if (session) {
       try {
-        const modal = session.modal;
+        const { provider, modal } = session;
+        if (session.isConnected) {
+          await provider.disconnect().catch(console.error);
+        }
         modal.closeModal();
-        
-        // Clear WalletConnect session storage
         localStorage.removeItem('walletconnect');
-        
-        this.modals.delete(projectId);
+        this.sessions.delete(projectId);
       } catch (error) {
-        console.error('Error removing modal:', error);
+        console.error('Error removing session:', error);
       }
     }
   }
@@ -121,25 +139,25 @@ export class ProviderPool {
     const now = Date.now();
     const idsToRemove: string[] = [];
 
-    this.modals.forEach((session, id) => {
+    this.sessions.forEach((session, id) => {
       if (!session.isConnected && now - session.lastUsed > this.maxIdleTime) {
         idsToRemove.push(id);
       }
     });
 
     for (const id of idsToRemove) {
-      await this.removeModal(id);
+      await this.removeSession(id);
     }
   }
 
   public async disconnectAll(): Promise<void> {
-    const sessions = Array.from(this.modals.entries());
+    const sessions = Array.from(this.sessions.entries());
     for (const [id] of sessions) {
-      await this.removeModal(id);
+      await this.removeSession(id);
     }
   }
 
   public getConnectionTimeout(): number {
     return this.connectionTimeout;
   }
-} 
+}
