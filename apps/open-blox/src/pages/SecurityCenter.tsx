@@ -11,6 +11,7 @@ import {
   Loader2,
   AlertCircle,
   ArrowRight,
+  PackageX,
 } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { ImportContractDialog } from '../components/ImportContractDialog'
@@ -38,7 +39,15 @@ const item = {
 }
 
 // Lazy-loaded contract details component
-const ContractCard = ({ contract, onManage }: { contract: SecureContractInfo, onManage: (address: string) => void }) => (
+const ContractCard = ({ 
+  contract, 
+  onManage, 
+  onUnload 
+}: { 
+  contract: SecureContractInfo, 
+  onManage: (address: string) => void,
+  onUnload: (address: string) => void 
+}) => (
   <Card className="p-6" role="listitem">
     <div className="flex items-start justify-between">
       <div>
@@ -58,14 +67,25 @@ const ContractCard = ({ contract, onManage }: { contract: SecureContractInfo, on
           )}
         </div>
       </div>
-      <Button 
-        variant="outline" 
-        onClick={() => onManage(contract.address)}
-        aria-label={`Manage security for contract ${contract.address}`}
-      >
-        Manage Security
-        <ArrowRight className="h-4 w-4 ml-2" aria-hidden="true" />
-      </Button>
+      <div className="flex flex-col gap-2">
+        <Button 
+          variant="outline" 
+          onClick={() => onManage(contract.address)}
+          aria-label={`Manage security for contract ${contract.address}`}
+        >
+          Manage Security
+          <ArrowRight className="h-4 w-4 ml-2" aria-hidden="true" />
+        </Button>
+        <Button
+          variant="ghost"
+          onClick={() => onUnload(contract.address)}
+          aria-label={`Unload contract ${contract.address}`}
+          className="text-muted-foreground hover:text-muted-foreground/80 hover:bg-muted/50"
+        >
+          <PackageX className="h-4 w-4 mr-2" aria-hidden="true" />
+          Unload
+        </Button>
+      </div>
     </div>
   </Card>
 )
@@ -95,6 +115,18 @@ export function SecurityCenter(): JSX.Element {
     // Save contracts to local storage whenever they change
     localStorage.setItem('secureContracts', JSON.stringify(secureContracts))
   }, [secureContracts])
+
+  const handleUnloadContract = (address: string): void => {
+    setSecureContracts(prev => {
+      const filtered = prev.filter(c => c.address !== address)
+      toast({
+        title: "Contract unloaded",
+        description: "The contract has been removed from the Security Center.",
+        variant: "default"
+      })
+      return filtered
+    })
+  }
 
   const handleImportContract = async (address: string): Promise<void> => {
     setShowImportDialog(false)
@@ -248,6 +280,7 @@ export function SecurityCenter(): JSX.Element {
                       key={contract.address} 
                       contract={contract} 
                       onManage={(address) => navigate(`/security-center/${address}`)}
+                      onUnload={handleUnloadContract}
                     />
                   ))}
                 </div>
