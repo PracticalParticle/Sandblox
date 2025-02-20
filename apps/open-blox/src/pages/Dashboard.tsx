@@ -26,19 +26,6 @@ import { toast } from '../components/ui/use-toast'
 import { useSecureContract } from '@/hooks/useSecureContract'
 import { Address } from 'viem'
 
-// Update the initial contracts data with the correct type
-const DEPLOYED_CONTRACTS: Array<{
-  id: string;
-  name: string;
-  address: string;
-  type: string;
-}> = [{
-  id: 'simple-vault',
-  name: 'Simple Vault',
-  address: '0xe73F9B85b3a040F9AD6422C1Ea4864C2Db0c2cdD',
-  type: 'simple-vault'
-}];
-
 const container = {
   hidden: { opacity: 0 },
   show: {
@@ -250,32 +237,24 @@ export function Dashboard() {
             <h2 className="text-xl font-bold text-left">Contracts</h2>
           </div>
           <div className="p-4">
-            {DEPLOYED_CONTRACTS.length === 0 ? (
-              <div className="flex flex-col items-center gap-4 py-8 text-center">
-                <div className="rounded-full bg-primary/10 p-3">
-                  <Wallet className="h-6 w-6 text-primary" />
-                </div>
-                <div className="space-y-2">
-                  <h3 className="font-medium">No Contracts Deployed</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Get started by deploying your first smart contract.
-                  </p>
-                </div>
-                <button
-                  onClick={() => navigate('/blox-contracts')}
-                  className="btn"
-                >
-                  Browse Contracts
-                  <ArrowRight className="h-4 w-4" />
-                </button>
+            <div className="flex flex-col items-center gap-4 py-8 text-center">
+              <div className="rounded-full bg-primary/10 p-3">
+                <Wallet className="h-6 w-6 text-primary" />
               </div>
-            ) : (
-              <div className="grid gap-6">
-                {DEPLOYED_CONTRACTS.map((contract) => (
-                  <DeployedContract key={contract.id} contract={contract} />
-                ))}
+              <div className="space-y-2">
+                <h3 className="font-medium">No Contracts Deployed</h3>
+                <p className="text-sm text-muted-foreground">
+                  Get started by deploying your first smart contract.
+                </p>
               </div>
-            )}
+              <button
+                onClick={() => navigate('/blox-contracts')}
+                className="btn"
+              >
+                Browse Contracts
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </motion.div>
 
