@@ -187,10 +187,10 @@ export function SecurityCenter(): JSX.Element {
             <Button
               variant="outline"
               onClick={() => setShowImportDialog(true)}
-              aria-label="Import SecureOwnable Contract"
+              aria-label="Import Contract"
             >
               <Download className="mr-2 h-4 w-4" aria-hidden="true" />
-              Import SecureOwnable Contract
+              Import Contract
             </Button>
           </div>
         </motion.div>
