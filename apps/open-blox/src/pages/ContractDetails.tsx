@@ -1,13 +1,14 @@
 import { useParams, Link } from 'react-router-dom'
 import { useAccount } from 'wagmi'
 import { useState, useEffect } from 'react'
-import { Loader2, ChevronDown, ChevronUp } from 'lucide-react'
+import { Loader2, ChevronDown, ChevronUp, Eye, X } from 'lucide-react'
 import { getContractDetails, getContractCode } from '../lib/catalog'
 import type { BloxContract } from '../lib/catalog/types'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { DeploymentDialog } from '../components/DeploymentDialog'
 import { Button } from '../components/ui/button'
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card'
 
 // Custom dark theme that matches our UI
 const codeTheme = {
@@ -101,7 +102,22 @@ export function ContractDetails() {
           >
             ← Back to Blox Contracts
           </Link>
-          <h1 className="text-3xl font-bold tracking-tight">{contract.name}</h1>
+          <div className="flex justify-between items-center">
+            <h1 className="text-3xl font-bold tracking-tight">{contract.name}</h1>
+            <Link
+              to={`/preview/${contract.name}`}
+              className="inline-flex"
+            >
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <Eye className="h-4 w-4" />
+                Preview Blox
+              </Button>
+            </Link>
+          </div>
           <div className="space-x-2">
             <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
               {contract.category}
