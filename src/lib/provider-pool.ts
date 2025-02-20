@@ -1,15 +1,15 @@
-import UniversalProvider from '@walletconnect/universal-provider';
+import { WalletConnectModal } from '@walletconnect/modal';
 import { WalletConnectError, ErrorCodes } from './errors';
 
-interface PooledProvider {
-  provider: InstanceType<typeof UniversalProvider>;
+interface ModalSession {
+  modal: WalletConnectModal;
   lastUsed: number;
   isConnected: boolean;
 }
 
 export class ProviderPool {
   private static instance: ProviderPool;
-  private providers: Map<string, PooledProvider> = new Map();
+  private modals: Map<string, ModalSession> = new Map();
   private maxIdleTime = 5 * 60 * 1000; // 5 minutes
   private connectionTimeout = 30 * 1000; // 30 seconds
 
@@ -25,153 +25,94 @@ export class ProviderPool {
     return ProviderPool.instance;
   }
 
-  public async getProvider(projectId: string, metadata: any): Promise<InstanceType<typeof UniversalProvider>> {
+  public async getProvider(projectId: string, metadata: any): Promise<WalletConnectModal> {
     try {
-      // Always clear WalletConnect session storage before getting a provider
+      // Always clear WalletConnect session storage before getting a new modal
       localStorage.removeItem('walletconnect');
       
-      // Remove any existing provider for this project
-      await this.removeProvider(projectId);
+      // Remove any existing modal for this project
+      await this.removeModal(projectId);
 
-      // Create new provider
-      const provider = await this.createProvider(projectId, metadata);
+      // Create new modal
+      const modal = await this.createModal(projectId, metadata);
 
-      // Set up event listeners with proper cleanup
-      const connectHandler = () => {
-        const pooled = this.providers.get(projectId);
-        if (pooled) {
-          pooled.isConnected = true;
-          pooled.lastUsed = Date.now();
-        }
-      };
-
-      const disconnectHandler = () => {
-        const pooled = this.providers.get(projectId);
-        if (pooled) {
-          pooled.isConnected = false;
-          // Clean up on disconnect
-          void this.removeProvider(projectId);
-        }
-      };
-
-      provider.on('connect', connectHandler);
-      provider.on('disconnect', disconnectHandler);
-
-      // Set up session expiry handler
-      provider.on('session_expire', () => {
-        void this.removeProvider(projectId);
-      });
-
-      // Set up error handler
-      provider.on('error', (error: Error) => {
-        console.error('Provider error:', error);
-        void this.removeProvider(projectId);
-      });
-
-      this.providers.set(projectId, {
-        provider,
+      this.modals.set(projectId, {
+        modal,
         lastUsed: Date.now(),
         isConnected: false
       });
 
-      return provider;
+      return modal;
     } catch (error) {
       // Ensure cleanup on error
-      await this.removeProvider(projectId);
+      await this.removeModal(projectId);
       throw new WalletConnectError(
-        'Failed to initialize provider',
+        'Failed to initialize WalletConnect',
         ErrorCodes.PROVIDER_ERROR,
         error
       );
     }
   }
 
-  private async createProvider(
+  private async createModal(
     projectId: string,
     metadata: any
-  ): Promise<InstanceType<typeof UniversalProvider>> {
+  ): Promise<WalletConnectModal> {
     try {
-      const provider = await UniversalProvider.init({
+      const modal = new WalletConnectModal({
         projectId,
-        metadata,
-        relayUrl: "wss://relay.walletconnect.com",
-        logger: 'error'
-      });
-
-      // Set up event listeners with proper cleanup
-      const connectHandler = () => {
-        const pooled = this.providers.get(projectId);
-        if (pooled) {
-          pooled.isConnected = true;
-          pooled.lastUsed = Date.now();
+        themeMode: 'dark',
+        explorerRecommendedWalletIds: undefined,
+        explorerExcludedWalletIds: undefined,
+        chains: ['eip155:1'], // Default to Ethereum mainnet
+        mobileWallets: [],
+        desktopWallets: [],
+        walletImages: {},
+        themeVariables: {
+          '--wcm-z-index': '9999',
+          '--wcm-accent-color': '#3b82f6',
+          '--wcm-accent-fill-color': '#3b82f6',
+          '--wcm-background-color': '#1a1b1f',
+          '--wcm-background-border-radius': '24px',
+          '--wcm-container-border-radius': '24px',
+          '--wcm-wallet-icon-border-radius': '12px',
+          '--wcm-input-border-radius': '12px',
+          '--wcm-button-border-radius': '12px',
+          '--wcm-notification-border-radius': '12px',
+          '--wcm-secondary-button-border-radius': '12px',
+          '--wcm-font-family': '-apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu'
         }
-      };
-
-      const disconnectHandler = () => {
-        const pooled = this.providers.get(projectId);
-        if (pooled) {
-          pooled.isConnected = false;
-          // Clean up on disconnect
-          void this.removeProvider(projectId);
-        }
-      };
-
-      provider.on('connect', connectHandler);
-      provider.on('disconnect', disconnectHandler);
-
-      // Set up session expiry handler
-      provider.on('session_expire', () => {
-        void this.removeProvider(projectId);
       });
 
-      // Set up error handler
-      provider.on('error', (error: Error) => {
-        console.error('Provider error:', error);
-        void this.removeProvider(projectId);
-      });
-
-      this.providers.set(projectId, {
-        provider,
+      this.modals.set(projectId, {
+        modal,
         lastUsed: Date.now(),
         isConnected: false
       });
 
-      return provider;
+      return modal;
     } catch (error) {
       throw new WalletConnectError(
-        'Failed to initialize provider',
+        'Failed to initialize WalletConnect modal',
         ErrorCodes.PROVIDER_ERROR,
         error
       );
     }
   }
 
-  private async removeProvider(projectId: string): Promise<void> {
-    const pooled = this.providers.get(projectId);
-    if (pooled) {
+  private async removeModal(projectId: string): Promise<void> {
+    const session = this.modals.get(projectId);
+    if (session) {
       try {
-        const provider = pooled.provider;
+        const modal = session.modal;
+        modal.closeModal();
         
-        // Remove all event listeners
-        provider.removeListener('connect', () => {});
-        provider.removeListener('disconnect', () => {});
-        provider.removeListener('session_expire', () => {});
-        provider.removeListener('error', () => {});
-        
-        // Disconnect if connected
-        if (pooled.isConnected) {
-          await provider.disconnect().catch(console.error);
-        }
-
-        // Reset the provider's internal state
-        (provider as any).walletConnectProvider = undefined;
-
         // Clear WalletConnect session storage
         localStorage.removeItem('walletconnect');
         
-        this.providers.delete(projectId);
+        this.modals.delete(projectId);
       } catch (error) {
-        console.error('Error removing provider:', error);
+        console.error('Error removing modal:', error);
       }
     }
   }
@@ -180,21 +121,21 @@ export class ProviderPool {
     const now = Date.now();
     const idsToRemove: string[] = [];
 
-    this.providers.forEach((pooled, id) => {
-      if (!pooled.isConnected && now - pooled.lastUsed > this.maxIdleTime) {
+    this.modals.forEach((session, id) => {
+      if (!session.isConnected && now - session.lastUsed > this.maxIdleTime) {
         idsToRemove.push(id);
       }
     });
 
     for (const id of idsToRemove) {
-      await this.removeProvider(id);
+      await this.removeModal(id);
     }
   }
 
   public async disconnectAll(): Promise<void> {
-    const providers = Array.from(this.providers.entries());
-    for (const [id] of providers) {
-      await this.removeProvider(id);
+    const sessions = Array.from(this.modals.entries());
+    for (const [id] of sessions) {
+      await this.removeModal(id);
     }
   }
 

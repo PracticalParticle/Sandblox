@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import * as React from "react";
 import { WalletConnectModal } from '@walletconnect/modal';
 import { Button } from "./ui/button";
@@ -59,18 +59,19 @@ export function SingleWalletManagerProvider({
   const [modal, setModal] = useState<WalletConnectModal>();
   const [session, setSession] = useState<ValidWalletSession>();
   const [isConnecting, setIsConnecting] = useState(false);
+  const modalCleanupRef = useRef<(() => void) | null>(null);
 
   // Initialize WalletConnect Modal
   useEffect(() => {
-    const modal = new WalletConnectModal({
+    const newModal = new WalletConnectModal({
       projectId,
       themeMode: 'dark',
-      explorerRecommendedWalletIds: undefined, // Show all wallets
-      explorerExcludedWalletIds: undefined, // Don't exclude any wallets
-      chains: allowedChainIds.map(id => `eip155:${id}`), // Explicitly set supported chains
-      mobileWallets: [], // Let WalletConnect handle mobile wallet list
-      desktopWallets: [], // Let WalletConnect handle desktop wallet list
-      walletImages: {}, // Let WalletConnect handle wallet images
+      explorerRecommendedWalletIds: undefined,
+      explorerExcludedWalletIds: undefined,
+      chains: allowedChainIds.map(id => `eip155:${id}`),
+      mobileWallets: [],
+      desktopWallets: [],
+      walletImages: {},
       themeVariables: {
         '--wcm-z-index': '9999',
         '--wcm-accent-color': '#3b82f6',
@@ -86,10 +87,14 @@ export function SingleWalletManagerProvider({
         '--wcm-font-family': '-apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu'
       }
     });
-    setModal(modal);
+
+    setModal(newModal);
 
     return () => {
-      modal.closeModal();
+      if (modalCleanupRef.current) {
+        modalCleanupRef.current();
+      }
+      newModal.closeModal();
     };
   }, [projectId, allowedChainIds]);
 
@@ -125,6 +130,9 @@ export function SingleWalletManagerProvider({
       
       // Clear any existing sessions and close modal
       localStorage.removeItem('walletconnect');
+      if (modalCleanupRef.current) {
+        modalCleanupRef.current();
+      }
       modal.closeModal();
       
       // Get fresh provider instance
@@ -153,10 +161,15 @@ export function SingleWalletManagerProvider({
         hasDisplayedUri = true;
         uri = displayUri;
         
-        // Ensure modal is closed before reopening
+        // Ensure modal is closed and cleaned up before reopening
+        if (modalCleanupRef.current) {
+          modalCleanupRef.current();
+        }
         modal.closeModal();
+
+        // Small delay to ensure modal state is reset
         setTimeout(() => {
-          modal.openModal({ 
+          const cleanup = (modal.openModal({ 
             uri,
             onClose: () => {
               isModalClosed = true;
@@ -165,8 +178,9 @@ export function SingleWalletManagerProvider({
               void provider.disconnect().catch(console.error);
               localStorage.removeItem('walletconnect');
             }
-          });
-        }, 100); // Small delay to ensure modal is fully closed
+          }) as unknown) as () => void;
+          modalCleanupRef.current = cleanup;
+        }, 100);
       });
 
       handleVisibilityChange = () => {
