@@ -22,4 +22,13 @@ export interface SecureContractInfo {
   timeLockPeriodInDays: number;
   pendingOperations?: SecurityOperationEvent[];
   recentEvents?: SecurityOperationEvent[];
+}
+
+export interface ContractInfo {
+  address: Address;
+  type: 'secure-ownable' | 'unknown';
+  name?: string;
+  description?: string;
+  category?: string;
+  bloxId?: string;
 } 

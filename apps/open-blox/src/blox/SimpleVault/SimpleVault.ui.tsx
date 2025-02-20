@@ -19,6 +19,7 @@ import { atom, useAtom } from "jotai";
 import { AlertCircle, CheckCircle2, Clock, XCircle } from "lucide-react";
 import { cn } from "@/lib/ui-utils";
 import { useNavigate } from "react-router-dom";
+import { ContractInfo } from "@/lib/verification/index";
 
 // State atoms following .cursorrules state management guidelines
 const pendingTxsAtom = atom<VaultTxRecord[]>([]);
@@ -180,6 +181,7 @@ const PendingTransaction = ({ tx, onApprove, onCancel, isLoading }: PendingTrans
 
 interface SimpleVaultUIProps {
   contractAddress: Address;
+  contractInfo: ContractInfo;
   _mock?: {
     account: { address: Address; isConnected: boolean };
     publicClient: any;

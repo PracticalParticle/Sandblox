@@ -7,11 +7,15 @@ export function BloxPreview() {
   
   // Dynamically import the preview component using contractId
   const PreviewComponent = lazy(() => {
-    return import(`../blox/${contractId}/${contractId}.preview`)
+    // Map contract type to component path
+    const componentPath = {
+      'simple-vault': 'SimpleVault'
+    }[contractId || ''] || 'SimpleVault';
+    
+    return import(`../blox/${componentPath}/${componentPath}.preview.tsx`)
       .catch((error) => {
         console.error(`Failed to load preview for ${contractId}:`, error);
-        // Fallback to a mock component if the import fails
-        return import('../blox/SimpleVault/SimpleVault.preview');
+        throw error;
       });
   });
 

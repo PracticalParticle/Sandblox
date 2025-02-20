@@ -377,6 +377,15 @@ class SimpleVault extends SecureOwnable {
       )[0] as Address) : undefined
     };
   }
+
+  async getOperationHistory(): Promise<TxRecord[]> {
+    const result = await this.client.readContract({
+      address: this.contractAddress,
+      abi: SimpleVaultABI,
+      functionName: 'getOperationHistory'
+    }) as TxRecord[];
+    return result;
+  }
 }
 
 export default SimpleVault;
