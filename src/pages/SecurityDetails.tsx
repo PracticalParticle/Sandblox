@@ -137,6 +137,83 @@ function RecoveryWalletContent({
   )
 }
 
+function BroadcasterWalletContent({ 
+  contractInfo, 
+  onSuccess,
+  onClose 
+}: { 
+  contractInfo: SecureContractInfo | null,
+  onSuccess: () => void,
+  onClose: () => void
+}) {
+  const { session, isConnecting, connect, disconnect } = useSingleWallet()
+  const [isBroadcasterWalletConnected, setIsBroadcasterWalletConnected] = useState(false)
+
+  useEffect(() => {
+    if (session && contractInfo) {
+      setIsBroadcasterWalletConnected(
+        session.account.toLowerCase() === contractInfo.broadcaster.toLowerCase()
+      )
+    } else {
+      setIsBroadcasterWalletConnected(false)
+    }
+  }, [session, contractInfo])
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center space-x-2">
+        <div className="flex-1">
+          {session ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm font-medium">Connected Wallet</span>
+                  <span className="text-xs text-muted-foreground">
+                    {formatAddress(session.account)}
+                  </span>
+                </div>
+                <Button
+                  onClick={() => void disconnect()}
+                  variant="ghost"
+                  size="sm"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              {!isBroadcasterWalletConnected && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Connected wallet does not match the broadcaster address. Please connect the correct wallet.
+                  </AlertDescription>
+                </Alert>
+              )}
+              {isBroadcasterWalletConnected && (
+                <Alert>
+                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  <AlertDescription className="text-green-500">
+                    Broadcaster wallet connected successfully!
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          ) : (
+            <Button
+              onClick={() => void connect()}
+              disabled={isConnecting}
+              className="w-full"
+              variant="outline"
+            >
+              <Wallet className="mr-2 h-4 w-4" />
+              {isConnecting ? 'Connecting...' : 'Connect Broadcaster Wallet'}
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function SecurityDetails() {
   const { address } = useParams<{ address: string }>()
   const { isConnected } = useAccount()
@@ -554,11 +631,14 @@ export function SecurityDetails() {
             <div className="space-y-4">
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button>Update Broadcaster</Button>
+                  <Button className="flex items-center gap-2">
+                    <Wallet className="h-4 w-4" />
+                    Request Broadcaster Update
+                  </Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Update Broadcaster</DialogTitle>
+                    <DialogTitle>Request Broadcaster Update</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4">
                     <Input
@@ -566,9 +646,34 @@ export function SecurityDetails() {
                       value={newBroadcasterAddress}
                       onChange={(e) => setNewBroadcasterAddress(e.target.value)}
                     />
-                    <Button onClick={() => handleUpdateBroadcasterRequest(newBroadcasterAddress)}>
-                      Submit Request
-                    </Button>
+                    <div className="p-2 bg-muted rounded-lg">
+                      <p className="text-sm font-medium">Current Broadcaster Address:</p>
+                      <code className="text-xs">{contractInfo.broadcaster}</code>
+                    </div>
+                    <SingleWalletManagerProvider
+                      projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
+                      autoConnect={false}
+                      metadata={{
+                        name: 'OpenBlox Broadcaster',
+                        description: 'OpenBlox Broadcaster Wallet Connection',
+                        url: window.location.origin,
+                        icons: ['https://avatars.githubusercontent.com/u/37784886']
+                      }}
+                    >
+                      <BroadcasterWalletContent 
+                        contractInfo={contractInfo}
+                        onSuccess={() => handleUpdateBroadcasterRequest(newBroadcasterAddress)}
+                        onClose={() => {}}
+                      />
+                    </SingleWalletManagerProvider>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => {}}>
+                        Cancel
+                      </Button>
+                      <Button onClick={() => handleUpdateBroadcasterRequest(newBroadcasterAddress)}>
+                        Submit Request
+                      </Button>
+                    </DialogFooter>
                   </div>
                 </DialogContent>
               </Dialog>
