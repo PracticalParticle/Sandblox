@@ -7,14 +7,21 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle2,
-  XCircle
+  XCircle,
+  Key,
+  Radio,
+  Clock,
+  Shield
 } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
 import { Alert, AlertDescription } from '../components/ui/alert'
 import { useSecureContract } from '@/hooks/useSecureContract'
 import { useToast } from '../components/ui/use-toast'
+import { Input } from '../components/ui/input'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog'
 import type { SecureContractInfo } from '@/lib/types'
+import { Address } from 'viem'
 
 const container = {
   hidden: { opacity: 0 },
@@ -40,6 +47,13 @@ export function SecurityDetails() {
   const [contractInfo, setContractInfo] = useState<SecureContractInfo | null>(null)
   const { validateAndLoadContract } = useSecureContract()
   const { toast } = useToast()
+
+  // State for input fields
+  const [newOwnerAddress, setNewOwnerAddress] = useState('')
+  const [newBroadcasterAddress, setNewBroadcasterAddress] = useState('')
+  const [newRecoveryAddress, setNewRecoveryAddress] = useState('')
+  const [newTimeLockPeriod, setNewTimeLockPeriod] = useState('')
+  const [selectedTxId, setSelectedTxId] = useState('')
 
   useEffect(() => {
     if (!isConnected) {
@@ -82,6 +96,135 @@ export function SecurityDetails() {
     }
     
     setLoading(false)
+  }
+
+  // Action handlers
+  const handleTransferOwnershipRequest = async () => {
+    try {
+      // Implementation
+      toast({
+        title: "Request submitted",
+        description: "Transfer ownership request has been submitted.",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to submit transfer ownership request.",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleTransferOwnershipApproval = async (txId: string) => {
+    try {
+      // Implementation
+      toast({
+        title: "Approval submitted",
+        description: "Transfer ownership approval has been submitted.",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to approve transfer ownership.",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleTransferOwnershipCancellation = async (txId: string) => {
+    try {
+      // Implementation
+      toast({
+        title: "Cancellation submitted",
+        description: "Transfer ownership cancellation has been submitted.",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to cancel transfer ownership.",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleUpdateBroadcasterRequest = async (newBroadcaster: string) => {
+    try {
+      // Implementation
+      toast({
+        title: "Request submitted",
+        description: "Broadcaster update request has been submitted.",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to submit broadcaster update request.",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleUpdateBroadcasterApproval = async (txId: string) => {
+    try {
+      // Implementation
+      toast({
+        title: "Approval submitted",
+        description: "Broadcaster update approval has been submitted.",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to approve broadcaster update.",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleUpdateBroadcasterCancellation = async (txId: string) => {
+    try {
+      // Implementation
+      toast({
+        title: "Cancellation submitted",
+        description: "Broadcaster update cancellation has been submitted.",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to cancel broadcaster update.",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleUpdateRecoveryRequest = async (newRecovery: string) => {
+    try {
+      // Implementation
+      toast({
+        title: "Request submitted",
+        description: "Recovery address update request has been submitted.",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to submit recovery address update request.",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleUpdateTimeLockRequest = async (newPeriod: string) => {
+    try {
+      // Implementation
+      toast({
+        title: "Request submitted",
+        description: "Time lock period update request has been submitted.",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to submit time lock period update request.",
+        variant: "destructive"
+      })
+    }
   }
 
   if (!address || error) {
@@ -196,6 +339,153 @@ export function SecurityDetails() {
                   <p className="font-medium">{contractInfo.timeLockPeriodInDays} days</p>
                 </div>
               </div>
+            </div>
+          </Card>
+
+          {/* Ownership Management */}
+          <Card className="p-6">
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <Key className="h-5 w-5" />
+              Ownership Management
+            </h2>
+            <div className="space-y-4">
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button>Request Ownership Transfer</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Request Ownership Transfer</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <Input
+                      placeholder="New Owner Address"
+                      value={newOwnerAddress}
+                      onChange={(e) => setNewOwnerAddress(e.target.value)}
+                    />
+                    <Button onClick={() => handleTransferOwnershipRequest()}>Submit Request</Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Transaction ID"
+                  value={selectedTxId}
+                  onChange={(e) => setSelectedTxId(e.target.value)}
+                />
+                <Button onClick={() => handleTransferOwnershipApproval(selectedTxId)}>
+                  Approve Transfer
+                </Button>
+                <Button variant="destructive" onClick={() => handleTransferOwnershipCancellation(selectedTxId)}>
+                  Cancel Transfer
+                </Button>
+              </div>
+            </div>
+          </Card>
+
+          {/* Broadcaster Management */}
+          <Card className="p-6">
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <Radio className="h-5 w-5" />
+              Broadcaster Management
+            </h2>
+            <div className="space-y-4">
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button>Update Broadcaster</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Update Broadcaster</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <Input
+                      placeholder="New Broadcaster Address"
+                      value={newBroadcasterAddress}
+                      onChange={(e) => setNewBroadcasterAddress(e.target.value)}
+                    />
+                    <Button onClick={() => handleUpdateBroadcasterRequest(newBroadcasterAddress)}>
+                      Submit Request
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Transaction ID"
+                  value={selectedTxId}
+                  onChange={(e) => setSelectedTxId(e.target.value)}
+                />
+                <Button onClick={() => handleUpdateBroadcasterApproval(selectedTxId)}>
+                  Approve Update
+                </Button>
+                <Button variant="destructive" onClick={() => handleUpdateBroadcasterCancellation(selectedTxId)}>
+                  Cancel Update
+                </Button>
+              </div>
+            </div>
+          </Card>
+
+          {/* Recovery Management */}
+          <Card className="p-6">
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              Recovery Management
+            </h2>
+            <div className="space-y-4">
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button>Update Recovery Address</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Update Recovery Address</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <Input
+                      placeholder="New Recovery Address"
+                      value={newRecoveryAddress}
+                      onChange={(e) => setNewRecoveryAddress(e.target.value)}
+                    />
+                    <Button onClick={() => handleUpdateRecoveryRequest(newRecoveryAddress)}>
+                      Submit Request
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </Card>
+
+          {/* TimeLock Management */}
+          <Card className="p-6">
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              TimeLock Management
+            </h2>
+            <div className="space-y-4">
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button>Update TimeLock Period</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Update TimeLock Period</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <Input
+                      type="number"
+                      placeholder="New TimeLock Period (days)"
+                      value={newTimeLockPeriod}
+                      onChange={(e) => setNewTimeLockPeriod(e.target.value)}
+                    />
+                    <Button onClick={() => handleUpdateTimeLockRequest(newTimeLockPeriod)}>
+                      Submit Request
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           </Card>
 
