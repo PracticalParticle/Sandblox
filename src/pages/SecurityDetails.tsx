@@ -36,6 +36,30 @@ import {
 } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
 
+// Define enums since we can't import them
+enum TxStatus {
+  PENDING = 'PENDING',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED'
+}
+
+enum SecurityOperationType {
+  TRANSFER_OWNERSHIP = 'TRANSFER_OWNERSHIP',
+  UPDATE_BROADCASTER = 'UPDATE_BROADCASTER',
+  UPDATE_RECOVERY = 'UPDATE_RECOVERY',
+  UPDATE_TIMELOCK = 'UPDATE_TIMELOCK'
+}
+
+// Define TxRecord type
+interface TxRecord {
+  txId: number
+  operationType: SecurityOperationType
+  description: string
+  status: TxStatus
+  releaseTime: number
+  timestamp: number
+}
+
 const container = {
   hidden: { opacity: 0 },
   show: {
@@ -302,6 +326,9 @@ export function SecurityDetails() {
   const { session, connect, disconnect } = useSingleWallet()
   const [isRecoveryWalletConnected, setIsRecoveryWalletConnected] = useState(false)
   const [showConnectRecoveryDialog, setShowConnectRecoveryDialog] = useState(false)
+  const [showBroadcasterApproveDialog, setShowBroadcasterApproveDialog] = useState(false)
+  const [showBroadcasterCancelDialog, setShowBroadcasterCancelDialog] = useState(false)
+  const [operationHistory, setOperationHistory] = useState<TxRecord[]>([])
 
   useEffect(() => {
     if (!isConnected) {
@@ -314,7 +341,6 @@ export function SecurityDetails() {
       return
     }
 
-    // Validate address format before attempting to load
     if (!address.match(/^0x[a-fA-F0-9]{40}$/)) {
       setError('Invalid contract address format')
       setLoading(false)
@@ -322,6 +348,7 @@ export function SecurityDetails() {
     }
 
     loadContractInfo()
+    loadOperationHistory()
   }, [isConnected, address])
 
   useEffect(() => {
@@ -356,6 +383,34 @@ export function SecurityDetails() {
     setLoading(false)
   }
 
+  const loadOperationHistory = async () => {
+    if (!contractInfo) return;
+    try {
+      // Mock data for now since getOperationHistory doesn't exist
+      const history: TxRecord[] = [
+        {
+          txId: 1,
+          operationType: SecurityOperationType.TRANSFER_OWNERSHIP,
+          description: "Transfer ownership to 0x123...",
+          status: TxStatus.PENDING,
+          releaseTime: Math.floor(Date.now() / 1000) + 86400, // 1 day from now
+          timestamp: Math.floor(Date.now() / 1000)
+        },
+        {
+          txId: 2,
+          operationType: SecurityOperationType.UPDATE_BROADCASTER,
+          description: "Update broadcaster to 0x456...",
+          status: TxStatus.COMPLETED,
+          releaseTime: Math.floor(Date.now() / 1000) - 86400, // 1 day ago
+          timestamp: Math.floor(Date.now() / 1000) - 86400
+        }
+      ];
+      setOperationHistory(history);
+    } catch (error) {
+      console.error('Error loading operation history:', error);
+    }
+  }
+
   // Action handlers
   const handleTransferOwnershipRequest = async () => {
     if (!contractInfo) return
@@ -387,7 +442,7 @@ export function SecurityDetails() {
     }
   }
 
-  const handleTransferOwnershipApproval = async (txId: string) => {
+  const handleTransferOwnershipApproval = async (txId: number) => {
     try {
       // Implementation
       toast({
@@ -403,7 +458,7 @@ export function SecurityDetails() {
     }
   }
 
-  const handleTransferOwnershipCancellation = async (txId: string) => {
+  const handleTransferOwnershipCancellation = async (txId: number) => {
     try {
       // Implementation
       toast({
@@ -435,7 +490,7 @@ export function SecurityDetails() {
     }
   }
 
-  const handleUpdateBroadcasterApproval = async (txId: string) => {
+  const handleUpdateBroadcasterApproval = async (txId: number) => {
     try {
       // Implementation
       toast({
@@ -451,7 +506,7 @@ export function SecurityDetails() {
     }
   }
 
-  const handleUpdateBroadcasterCancellation = async (txId: string) => {
+  const handleUpdateBroadcasterCancellation = async (txId: number) => {
     try {
       // Implementation
       toast({
@@ -747,8 +802,15 @@ export function SecurityDetails() {
                       >
                         <BroadcasterWalletContent 
                           contractInfo={contractInfo}
-                          onSuccess={() => handleUpdateBroadcasterRequest(newBroadcasterAddress)}
-                          onClose={() => {}}
+                          onSuccess={() => {
+                            handleUpdateBroadcasterRequest(newBroadcasterAddress)
+                            setShowBroadcasterApproveDialog(false)
+                            setShowBroadcasterCancelDialog(false)
+                          }}
+                          onClose={() => {
+                            setShowBroadcasterApproveDialog(false)
+                            setShowBroadcasterCancelDialog(false)
+                          }}
                         />
                       </SingleWalletManagerProvider>
                     </div>
@@ -811,8 +873,15 @@ export function SecurityDetails() {
                       >
                         <BroadcasterWalletContent 
                           contractInfo={contractInfo}
-                          onSuccess={() => handleUpdateRecoveryRequest(newRecoveryAddress)}
-                          onClose={() => {}}
+                          onSuccess={() => {
+                            handleUpdateRecoveryRequest(newRecoveryAddress)
+                            setShowBroadcasterApproveDialog(false)
+                            setShowBroadcasterCancelDialog(false)
+                          }}
+                          onClose={() => {
+                            setShowBroadcasterApproveDialog(false)
+                            setShowBroadcasterCancelDialog(false)
+                          }}
                         />
                       </SingleWalletManagerProvider>
                     </div>
@@ -910,32 +979,170 @@ export function SecurityDetails() {
           <Card className="p-6">
             <h2 className="text-xl font-bold mb-4">Pending Operations</h2>
             <div className="space-y-4">
-              {contractInfo.pendingOperations && contractInfo.pendingOperations.length > 0 ? (
-                contractInfo.pendingOperations.map((op, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center gap-4">
-                      <div className="rounded-full bg-yellow-500/10 p-2">
-                        <AlertCircle className="h-4 w-4 text-yellow-500" />
+              {operationHistory.filter(op => op.status === TxStatus.PENDING).length > 0 ? (
+                operationHistory
+                  .filter(op => op.status === TxStatus.PENDING)
+                  .map((op, index) => (
+                    <div key={op.txId} className="flex flex-col gap-4 p-4 border rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="rounded-full bg-yellow-500/10 p-2">
+                            <AlertCircle className="h-4 w-4 text-yellow-500" />
+                          </div>
+                          <div>
+                            <p className="font-medium">{op.description}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {op.releaseTime > Math.floor(Date.now() / 1000)
+                                ? `${Math.floor((op.releaseTime - Math.floor(Date.now() / 1000)) / 86400)} days remaining`
+                                : 'Ready for approval'}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium">{op.description}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {op.details?.remainingTime
-                            ? `${Math.floor(op.details.remainingTime / 86400)} days remaining`
-                            : 'Ready for approval'}
-                        </p>
+                      <div className="space-y-3">
+                        {/* Temporal Option */}
+                        <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                          <div className="flex items-center gap-2">
+                            <Timer className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <p className="font-medium">Temporal Security</p>
+                              <p className="text-sm text-muted-foreground">Valid after timelock period</p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              disabled={op.releaseTime > Math.floor(Date.now() / 1000)}
+                              onClick={() => {
+                                switch (op.operationType) {
+                                  case SecurityOperationType.TRANSFER_OWNERSHIP:
+                                    void handleTransferOwnershipApproval(op.txId);
+                                    break;
+                                  case SecurityOperationType.UPDATE_BROADCASTER:
+                                    void handleUpdateBroadcasterApproval(op.txId);
+                                    break;
+                                }
+                              }}
+                            >
+                              Approve
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              disabled={op.releaseTime > Math.floor(Date.now() / 1000)}
+                              onClick={() => {
+                                switch (op.operationType) {
+                                  case SecurityOperationType.TRANSFER_OWNERSHIP:
+                                    void handleTransferOwnershipCancellation(op.txId);
+                                    break;
+                                  case SecurityOperationType.UPDATE_BROADCASTER:
+                                    void handleUpdateBroadcasterCancellation(op.txId);
+                                    break;
+                                }
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                        {/* Meta Tx Option */}
+                        <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                          <div className="flex items-center gap-2">
+                            <Network className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <p className="font-medium">Meta Transaction</p>
+                              <p className="text-sm text-muted-foreground">Requires broadcaster wallet</p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Dialog open={showBroadcasterApproveDialog} onOpenChange={setShowBroadcasterApproveDialog}>
+                              <DialogTrigger asChild>
+                                <Button variant="outline" size="sm">
+                                  Approve
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="sm:max-w-md">
+                                <DialogHeader>
+                                  <DialogTitle>Approve via Meta Transaction</DialogTitle>
+                                  <DialogDescription>
+                                    Connect the broadcaster wallet to approve this operation.
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <SingleWalletManagerProvider
+                                  projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
+                                  autoConnect={false}
+                                  metadata={{
+                                    name: 'OpenBlox Broadcaster',
+                                    description: 'OpenBlox Broadcaster Wallet Connection',
+                                    url: window.location.origin,
+                                    icons: ['https://avatars.githubusercontent.com/u/37784886']
+                                  }}
+                                >
+                                  <BroadcasterWalletContent 
+                                    contractInfo={contractInfo}
+                                    onSuccess={() => {
+                                      switch (op.operationType) {
+                                        case SecurityOperationType.TRANSFER_OWNERSHIP:
+                                          void handleTransferOwnershipApproval(op.txId);
+                                          break;
+                                        case SecurityOperationType.UPDATE_BROADCASTER:
+                                          void handleUpdateBroadcasterApproval(op.txId);
+                                          break;
+                                      }
+                                      setShowBroadcasterApproveDialog(false);
+                                    }}
+                                    onClose={() => setShowBroadcasterApproveDialog(false)}
+                                  />
+                                </SingleWalletManagerProvider>
+                              </DialogContent>
+                            </Dialog>
+                            <Dialog open={showBroadcasterCancelDialog} onOpenChange={setShowBroadcasterCancelDialog}>
+                              <DialogTrigger asChild>
+                                <Button variant="outline" size="sm">
+                                  Cancel
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="sm:max-w-md">
+                                <DialogHeader>
+                                  <DialogTitle>Cancel via Meta Transaction</DialogTitle>
+                                  <DialogDescription>
+                                    Connect the broadcaster wallet to cancel this operation.
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <SingleWalletManagerProvider
+                                  projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
+                                  autoConnect={false}
+                                  metadata={{
+                                    name: 'OpenBlox Broadcaster',
+                                    description: 'OpenBlox Broadcaster Wallet Connection',
+                                    url: window.location.origin,
+                                    icons: ['https://avatars.githubusercontent.com/u/37784886']
+                                  }}
+                                >
+                                  <BroadcasterWalletContent 
+                                    contractInfo={contractInfo}
+                                    onSuccess={() => {
+                                      switch (op.operationType) {
+                                        case SecurityOperationType.TRANSFER_OWNERSHIP:
+                                          void handleTransferOwnershipCancellation(op.txId);
+                                          break;
+                                        case SecurityOperationType.UPDATE_BROADCASTER:
+                                          void handleUpdateBroadcasterCancellation(op.txId);
+                                          break;
+                                      }
+                                      setShowBroadcasterCancelDialog(false);
+                                    }}
+                                    onClose={() => setShowBroadcasterCancelDialog(false)}
+                                  />
+                                </SingleWalletManagerProvider>
+                              </DialogContent>
+                            </Dialog>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
-                        Approve
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                ))
+                  ))
               ) : (
                 <p className="text-center text-muted-foreground py-4">
                   No pending operations
@@ -948,17 +1155,17 @@ export function SecurityDetails() {
           <Card className="p-6">
             <h2 className="text-xl font-bold mb-4">Operation History</h2>
             <div className="space-y-4">
-              {contractInfo.recentEvents && contractInfo.recentEvents.length > 0 ? (
-                contractInfo.recentEvents.map((event, index) => (
-                  <div key={index} className="flex items-center gap-4 p-4 border rounded-lg">
+              {operationHistory.length > 0 ? (
+                operationHistory.map((event) => (
+                  <div key={event.txId} className="flex items-center gap-4 p-4 border rounded-lg">
                     <div className={`rounded-full p-2 ${
-                      event.status === 'completed' ? 'bg-green-500/10' :
-                      event.status === 'pending' ? 'bg-yellow-500/10' :
+                      event.status === TxStatus.COMPLETED ? 'bg-green-500/10' :
+                      event.status === TxStatus.PENDING ? 'bg-yellow-500/10' :
                       'bg-red-500/10'
                     }`}>
-                      {event.status === 'completed' ? (
+                      {event.status === TxStatus.COMPLETED ? (
                         <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      ) : event.status === 'pending' ? (
+                      ) : event.status === TxStatus.PENDING ? (
                         <AlertCircle className="h-4 w-4 text-yellow-500" />
                       ) : (
                         <XCircle className="h-4 w-4 text-red-500" />
@@ -967,9 +1174,11 @@ export function SecurityDetails() {
                     <div className="flex-1">
                       <p className="font-medium">{event.description}</p>
                       <p className="text-sm text-muted-foreground">
-                        {event.status === 'completed'
-                          ? `${event.type.charAt(0).toUpperCase() + event.type.slice(1)} updated successfully`
-                          : `${event.type.charAt(0).toUpperCase() + event.type.slice(1)} operation cancelled`}
+                        {event.status === TxStatus.COMPLETED
+                          ? `${event.operationType} updated successfully`
+                          : event.status === TxStatus.PENDING
+                          ? `${event.operationType} pending approval`
+                          : `${event.operationType} operation cancelled`}
                       </p>
                     </div>
                     <p className="text-sm text-muted-foreground">
