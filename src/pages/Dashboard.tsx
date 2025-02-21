@@ -196,15 +196,6 @@ const DeployedContract = ({
           </p>
         </div>
       )}
-
-      {/* Show detected info when type is known */}
-      {contract.type !== 'unknown' && (
-        <div className="flex flex-col items-center justify-center h-[200px] rounded-lg border-2 border-dashed border-muted-foreground/20">
-          <p className="text-muted-foreground text-sm">
-            Contract type detected. Click "Enter Blox" to interact with the contract.
-          </p>
-        </div>
-      )}
     </Card>
   );
 };
