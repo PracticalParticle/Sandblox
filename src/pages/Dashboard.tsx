@@ -7,14 +7,22 @@ import {
   Shield,
   Loader2,
   PackageX,
-  Wand2
+  Wand2,
+  ChevronDown
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '../components/ui/card'
 import { Alert, AlertDescription } from '../components/ui/alert'
 import { useToast } from '@/components/ui/use-toast'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../components/ui/dropdown-menu"
 import { ImportContract } from '../components/ImportContract'
 import { identifyContract } from '../lib/verification'
+import { getAllContracts } from '../lib/catalog'
 import type { SecureContractInfo } from '@/lib/types'
 
 const container = {
@@ -75,19 +83,32 @@ const DeployedContract = ({
   contract, 
   onUnload,
   onDetectType,
-  isDetecting 
-}: DeployedContractProps & { onUnload?: (address: string) => void }) => {
+  isDetecting,
+  onTypeChange 
+}: DeployedContractProps & { 
+  onUnload?: (address: string) => void,
+  onTypeChange: (address: string, type: string, name: string) => void 
+}) => {
   const navigate = useNavigate();
+  const [availableTypes, setAvailableTypes] = useState<Array<{id: string, name: string}>>([]);
   
+  useEffect(() => {
+    // Load available contract types from catalog
+    getAllContracts().then(contracts => {
+      setAvailableTypes(contracts.map(c => ({
+        id: c.id,
+        name: c.name || c.id
+      })));
+    });
+  }, []);
+
   const handlePreviewClick = () => {
     navigate(`/preview/${contract.id}`);
   };
 
-  // Dynamically import the UI component for this contract type
-  const ContractUI = lazy(() => {
-    const componentPath = contract.type || 'unknown';
-    return import(`../blox/${componentPath}/${componentPath}.ui.tsx`);
-  });
+  const handleEnterBlox = () => {
+    navigate(`/blox/${contract.type}/${contract.address}`);
+  };
 
   return (
     <Card className="p-4">
@@ -101,19 +122,39 @@ const DeployedContract = ({
         </div>
         <div className="flex gap-2">
           {contract.type === 'unknown' && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onDetectType(contract.address)}
-              disabled={isDetecting}
-            >
-              {isDetecting ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
-              ) : (
-                <Wand2 className="h-4 w-4 mr-2" aria-hidden="true" />
-              )}
-              Auto Detect
-            </Button>
+            <>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    Select Type
+                    <ChevronDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  {availableTypes.map((type) => (
+                    <DropdownMenuItem
+                      key={type.id}
+                      onClick={() => onTypeChange(contract.address, type.id, type.name)}
+                    >
+                      {type.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onDetectType(contract.address)}
+                disabled={isDetecting}
+              >
+                {isDetecting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Wand2 className="h-4 w-4 mr-2" aria-hidden="true" />
+                )}
+                Auto Detect
+              </Button>
+            </>
           )}
           {onUnload && (
             <Button
@@ -127,46 +168,40 @@ const DeployedContract = ({
             </Button>
           )}
           {contract.type !== 'unknown' && (
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handlePreviewClick}
-            >
-              Preview
-            </Button>
+            <>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={handlePreviewClick}
+              >
+                Preview
+              </Button>
+              <Button 
+                variant="default" 
+                size="sm"
+                onClick={handleEnterBlox}
+              >
+                Enter Blox
+              </Button>
+            </>
           )}
         </div>
       </div>
-
-      {/* Only render UI component if contract type is detected */}
-      {contract.type !== 'unknown' && (
-        <div className="relative rounded-lg">
-          <Suspense fallback={
-            <div className="flex items-center justify-center h-[400px]">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          }>
-            <ContractUI 
-              contractAddress={contract.address as `0x${string}`}
-              contractInfo={{
-                address: contract.address as `0x${string}`,
-                type: contract.type,
-                name: contract.name,
-                category: 'Storage',
-                description: 'Contract imported from address',
-                bloxId: contract.type
-              }}
-              dashboardMode={true}
-            />
-          </Suspense>
-        </div>
-      )}
 
       {/* Show placeholder when type is unknown */}
       {contract.type === 'unknown' && (
         <div className="flex flex-col items-center justify-center h-[200px] rounded-lg border-2 border-dashed border-muted-foreground/20">
           <p className="text-muted-foreground text-sm">
-            Click "Auto Detect" to identify the contract type and load its interface
+            Click "Auto Detect" to identify the contract type or select it manually
+          </p>
+        </div>
+      )}
+
+      {/* Show detected info when type is known */}
+      {contract.type !== 'unknown' && (
+        <div className="flex flex-col items-center justify-center h-[200px] rounded-lg border-2 border-dashed border-muted-foreground/20">
+          <p className="text-muted-foreground text-sm">
+            Contract type detected. Click "Enter Blox" to interact with the contract.
           </p>
         </div>
       )}
@@ -275,6 +310,22 @@ export function Dashboard(): JSX.Element {
     }
   }
 
+  const handleTypeChange = (address: string, type: string, name: string) => {
+    setContracts(prev => 
+      prev.map(contract => 
+        contract.address === address 
+          ? { ...contract, type, name }
+          : contract
+      )
+    )
+    
+    toast({
+      title: "Contract type updated",
+      description: `Contract type manually set to: ${name}`,
+      variant: "default"
+    })
+  }
+
   return (
     <div className="mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 py-8">
       <motion.div
@@ -315,6 +366,7 @@ export function Dashboard(): JSX.Element {
                     contract={contract}
                     onUnload={handleUnloadContract}
                     onDetectType={handleDetectType}
+                    onTypeChange={handleTypeChange}
                     isDetecting={isDetecting}
                   />
                 ))}
