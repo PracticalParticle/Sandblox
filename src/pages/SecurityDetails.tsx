@@ -591,65 +591,51 @@ export function SecurityDetails() {
             </div>
           </Card>
 
-          {/* Ownership Management */}
-          <Card className="p-6">
-            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-              <Key className="h-5 w-5" />
-              Ownership Management
-            </h2>
-            <div className="space-y-4">
+          {/* Management Tiles */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Ownership Management */}
+            <Card className="p-4">
+              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <Key className="h-4 w-4" />
+                Ownership
+              </h2>
               <Button 
                 onClick={handleTransferOwnershipRequest}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 w-full"
+                size="sm"
               >
                 <Wallet className="h-4 w-4" />
-                Request Ownership Transfer
+                Request Transfer
               </Button>
+            </Card>
 
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Transaction ID"
-                  value={selectedTxId}
-                  onChange={(e) => setSelectedTxId(e.target.value)}
-                />
-                <Button onClick={() => handleTransferOwnershipApproval(selectedTxId)}>
-                  Approve Transfer
-                </Button>
-                <Button variant="destructive" onClick={() => handleTransferOwnershipCancellation(selectedTxId)}>
-                  Cancel Transfer
-                </Button>
-              </div>
-            </div>
-          </Card>
-
-          {/* Broadcaster Management */}
-          <Card className="p-6">
-            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-              <Radio className="h-5 w-5" />
-              Broadcaster Management
-            </h2>
-            <div className="space-y-4">
+            {/* Broadcaster Management */}
+            <Card className="p-4">
+              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <Radio className="h-4 w-4" />
+                Broadcaster
+              </h2>
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button className="flex items-center gap-2">
+                  <Button className="flex items-center gap-2 w-full" size="sm">
                     <Wallet className="h-4 w-4" />
-                    Request Broadcaster Update
+                    Request Update
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader className="space-y-3">
                     <DialogTitle>Request Broadcaster Update</DialogTitle>
+                    <div className="p-2 bg-muted rounded-lg text-sm">
+                      <p className="font-medium">Current Broadcaster:</p>
+                      <code className="text-xs">{contractInfo.broadcaster}</code>
+                    </div>
                   </DialogHeader>
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <Input
                       placeholder="New Broadcaster Address"
                       value={newBroadcasterAddress}
                       onChange={(e) => setNewBroadcasterAddress(e.target.value)}
                     />
-                    <div className="p-2 bg-muted rounded-lg">
-                      <p className="text-sm font-medium">Current Broadcaster Address:</p>
-                      <code className="text-xs">{contractInfo.broadcaster}</code>
-                    </div>
                     <SingleWalletManagerProvider
                       projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
                       autoConnect={false}
@@ -666,94 +652,86 @@ export function SecurityDetails() {
                         onClose={() => {}}
                       />
                     </SingleWalletManagerProvider>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </Card>
+
+            {/* Recovery Management */}
+            <Card className="p-4">
+              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <Shield className="h-4 w-4" />
+                Recovery
+              </h2>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button className="flex items-center gap-2 w-full" size="sm">
+                    <Key className="h-4 w-4" />
+                    Request Update
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader className="space-y-3">
+                    <DialogTitle>Request Recovery Update</DialogTitle>
+                    <div className="p-2 bg-muted rounded-lg text-sm">
+                      <p className="font-medium">Current Recovery Address:</p>
+                      <code className="text-xs">{contractInfo.recoveryAddress}</code>
+                    </div>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <Input
+                      placeholder="New Recovery Address"
+                      value={newRecoveryAddress}
+                      onChange={(e) => setNewRecoveryAddress(e.target.value)}
+                    />
                     <DialogFooter>
-                      <Button variant="outline" onClick={() => {}}>
-                        Cancel
-                      </Button>
-                      <Button onClick={() => handleUpdateBroadcasterRequest(newBroadcasterAddress)}>
+                      <Button onClick={() => handleUpdateRecoveryRequest(newRecoveryAddress)}>
                         Submit Request
                       </Button>
                     </DialogFooter>
                   </div>
                 </DialogContent>
               </Dialog>
+            </Card>
 
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Transaction ID"
-                  value={selectedTxId}
-                  onChange={(e) => setSelectedTxId(e.target.value)}
-                />
-                <Button onClick={() => handleUpdateBroadcasterApproval(selectedTxId)}>
-                  Approve Update
-                </Button>
-                <Button variant="destructive" onClick={() => handleUpdateBroadcasterCancellation(selectedTxId)}>
-                  Cancel Update
-                </Button>
-              </div>
-            </div>
-          </Card>
-
-          {/* Recovery Management */}
-          <Card className="p-6">
-            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-              <Shield className="h-5 w-5" />
-              Recovery Management
-            </h2>
-            <div className="space-y-4">
+            {/* TimeLock Management */}
+            <Card className="p-4">
+              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                TimeLock
+              </h2>
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button>Update Recovery Address</Button>
+                  <Button className="flex items-center gap-2 w-full" size="sm">
+                    <Clock className="h-4 w-4" />
+                    Request Update
+                  </Button>
                 </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Update Recovery Address</DialogTitle>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader className="space-y-3">
+                    <DialogTitle>Request TimeLock Update</DialogTitle>
+                    <div className="p-2 bg-muted rounded-lg text-sm">
+                      <p className="font-medium">Current TimeLock Period:</p>
+                      <p className="text-xs">{contractInfo.timeLockPeriodInDays} days</p>
+                    </div>
                   </DialogHeader>
-                  <div className="space-y-4">
-                    <Input
-                      placeholder="New Recovery Address"
-                      value={newRecoveryAddress}
-                      onChange={(e) => setNewRecoveryAddress(e.target.value)}
-                    />
-                    <Button onClick={() => handleUpdateRecoveryRequest(newRecoveryAddress)}>
-                      Submit Request
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </Card>
-
-          {/* TimeLock Management */}
-          <Card className="p-6">
-            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              TimeLock Management
-            </h2>
-            <div className="space-y-4">
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button>Update TimeLock Period</Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Update TimeLock Period</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <Input
                       type="number"
                       placeholder="New TimeLock Period (days)"
                       value={newTimeLockPeriod}
                       onChange={(e) => setNewTimeLockPeriod(e.target.value)}
                     />
-                    <Button onClick={() => handleUpdateTimeLockRequest(newTimeLockPeriod)}>
-                      Submit Request
-                    </Button>
+                    <DialogFooter>
+                      <Button onClick={() => handleUpdateTimeLockRequest(newTimeLockPeriod)}>
+                        Submit Request
+                      </Button>
+                    </DialogFooter>
                   </div>
                 </DialogContent>
               </Dialog>
-            </div>
-          </Card>
+            </Card>
+          </div>
 
           {/* Pending Operations */}
           <Card className="p-6">
