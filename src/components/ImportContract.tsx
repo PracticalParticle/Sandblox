@@ -5,9 +5,10 @@ import { ImportContractDialog } from './ImportContractDialog'
 import { useToast } from './ui/use-toast'
 import { useSecureContract } from '@/hooks/useSecureContract'
 import { Address } from 'viem'
+import type { SecureContractInfo } from '@/lib/types'
 
 interface ImportContractProps {
-  onImportSuccess?: (contractInfo: any) => void
+  onImportSuccess?: (contractInfo: SecureContractInfo) => void
   buttonVariant?: 'default' | 'outline' | 'ghost'
   buttonText?: string
   buttonIcon?: 'download' | 'arrow'
@@ -31,20 +32,25 @@ export function ImportContract({
     setLoadingContracts(true)
     
     try {
+      // Validate and load the SecureOwnable contract
       const contractInfo = await validateAndLoadContract(address as Address)
       
+      // Show success toast with contract details
       toast({
-        title: "Contract validated",
-        description: "The contract has been validated successfully.",
+        title: "Contract validated successfully",
+        description: `Imported SecureOwnable contract at ${address.slice(0, 6)}...${address.slice(-4)}`,
         variant: "default"
       })
 
+      // Pass the validated contract info to the parent component
       onImportSuccess?.(contractInfo)
     } catch (error) {
       console.error('Error validating contract:', error)
+      
+      // Show detailed error message to help users understand validation failures
       toast({
-        title: "Validation failed",
-        description: error instanceof Error ? error.message : 'Failed to validate contract',
+        title: "Contract validation failed",
+        description: error instanceof Error ? error.message : 'Failed to validate SecureOwnable contract',
         variant: "destructive"
       })
     } finally {

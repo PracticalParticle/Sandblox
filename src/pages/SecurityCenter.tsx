@@ -129,12 +129,6 @@ export default function SecurityCenter() {
         return prev
       }
       
-      toast({
-        title: "Contract imported successfully",
-        description: "The SecureOwnable contract has been imported to the Security Center.",
-        variant: "default"
-      })
-      
       return [...prev, contractInfo]
     })
   }
@@ -159,6 +153,8 @@ export default function SecurityCenter() {
             <ImportContract
               buttonVariant="outline"
               onImportSuccess={handleImportSuccess}
+              buttonText="Import Contract"
+              buttonIcon="download"
             />
           </div>
         </motion.div>
@@ -271,6 +267,8 @@ export default function SecurityCenter() {
             <ImportContract
               buttonVariant="outline"
               onImportSuccess={handleImportSuccess}
+              buttonText="Import SecureOwnable Contract"
+              buttonIcon="download"
             />
           </motion.div>
         )}

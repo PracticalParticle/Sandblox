@@ -6,7 +6,8 @@ import { motion } from 'framer-motion'
 import {
   Shield,
   Loader2,
-  PackageX
+  PackageX,
+  Wand2
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '../components/ui/card'
@@ -14,6 +15,7 @@ import { Alert, AlertDescription } from '../components/ui/alert'
 import { useToast } from '@/components/ui/use-toast'
 import { ImportContract } from '../components/ImportContract'
 import { identifyContract } from '../lib/verification'
+import type { SecureContractInfo } from '@/lib/types'
 
 const container = {
   hidden: { opacity: 0 },
@@ -37,6 +39,8 @@ interface DeployedContractProps {
     address: string;
     type: string;
   }
+  onDetectType: (address: string) => Promise<void>
+  isDetecting: boolean
 }
 
 class ErrorBoundary extends React.Component<
@@ -67,7 +71,12 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-const DeployedContract = ({ contract, onUnload }: DeployedContractProps & { onUnload?: (address: string) => void }) => {
+const DeployedContract = ({ 
+  contract, 
+  onUnload,
+  onDetectType,
+  isDetecting 
+}: DeployedContractProps & { onUnload?: (address: string) => void }) => {
   const [error, setError] = useState<Error | null>(null);
   const navigate = useNavigate();
   
@@ -77,28 +86,36 @@ const DeployedContract = ({ contract, onUnload }: DeployedContractProps & { onUn
 
   // Dynamically import the UI component for this contract type
   const ContractUI = lazy(() => {
-    // Map contract type to component path
     const componentPath = contract.type || 'unknown';
-    
-    console.log(`Loading UI component for contract type: ${componentPath}`);
-    
-    return import(`../blox/${componentPath}/${componentPath}.ui.tsx`)
-      .catch(err => {
-        console.error(`Failed to load contract UI for type ${componentPath}:`, err);
-        setError(new Error(`Failed to load contract UI: ${err.message}`));
-        return { default: () => null };
-      });
+    return import(`../blox/${componentPath}/${componentPath}.ui.tsx`);
   });
 
-  // Always render the card with header and controls
   return (
     <Card className="p-4">
       <div className="mb-4 flex justify-between items-center">
         <div>
           <h3 className="text-lg font-semibold">{contract.name}</h3>
           <p className="text-sm text-muted-foreground">{contract.address}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Type: {contract.type === 'unknown' ? 'Not detected' : contract.type}
+          </p>
         </div>
         <div className="flex gap-2">
+          {contract.type === 'unknown' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onDetectType(contract.address)}
+              disabled={isDetecting}
+            >
+              {isDetecting ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
+              ) : (
+                <Wand2 className="h-4 w-4 mr-2" aria-hidden="true" />
+              )}
+              Auto Detect
+            </Button>
+          )}
           {onUnload && (
             <Button
               variant="ghost"
@@ -162,6 +179,7 @@ export function Dashboard(): JSX.Element {
   const { isConnected } = useAccount()
   const navigate = useNavigate()
   const { toast } = useToast()
+  const [isDetecting, setIsDetecting] = useState(false)
   const [contracts, setContracts] = useState<Array<{
     id: string;
     name: string;
@@ -194,50 +212,67 @@ export function Dashboard(): JSX.Element {
     })
   }
 
-  const handleImportSuccess = async (contractInfo: any) => {
-    try {
-      // First validate it's a SecureOwnable contract
-      if (!contractInfo.owner || !contractInfo.broadcaster || !contractInfo.recoveryAddress) {
-        throw new Error('Invalid contract type')
-      }
-
-      // Then identify the specific contract type
-      const identifiedContract = await identifyContract(contractInfo.address)
-      
-      setContracts(prev => {
-        // Check if contract already exists
-        if (prev.some(c => c.address === contractInfo.address)) {
-          toast({
-            title: "Contract already imported",
-            description: "This contract has already been imported to the dashboard.",
-            variant: "default"
-          })
-          return prev
-        }
-
-        // Create new contract entry with identified type
-        const newContract = {
-          id: contractInfo.address,
-          name: identifiedContract.name || 'Imported Contract',
-          address: contractInfo.address,
-          type: identifiedContract.bloxId || 'unknown'
-        }
-
+  const handleImportSuccess = (contractInfo: SecureContractInfo) => {
+    setContracts(prev => {
+      // Check if contract already exists
+      if (prev.some(c => c.address === contractInfo.address)) {
         toast({
-          title: "Contract imported successfully",
-          description: "The contract has been imported and is ready to use.",
+          title: "Contract already imported",
+          description: "This contract has already been imported to the dashboard.",
           variant: "default"
         })
+        return prev
+      }
 
-        return [...prev, newContract]
+      // Create new contract entry with unknown type initially
+      const newContract = {
+        id: contractInfo.address,
+        name: 'Imported Contract',
+        address: contractInfo.address,
+        type: 'unknown'
+      }
+
+      toast({
+        title: "Contract imported successfully",
+        description: "The contract has been imported. Click 'Auto Detect' to identify its type.",
+        variant: "default"
+      })
+
+      return [...prev, newContract]
+    })
+  }
+
+  const handleDetectType = async (address: string) => {
+    setIsDetecting(true)
+    try {
+      const identifiedContract = await identifyContract(address)
+      
+      setContracts(prev => 
+        prev.map(contract => 
+          contract.address === address 
+            ? {
+                ...contract,
+                name: identifiedContract.name || contract.name,
+                type: identifiedContract.bloxId || 'unknown'
+              }
+            : contract
+        )
+      )
+
+      toast({
+        title: "Contract type detected",
+        description: `Identified as: ${identifiedContract.name || 'Unknown type'}`,
+        variant: "default"
       })
     } catch (error) {
-      console.error('Error processing contract:', error)
+      console.error('Error identifying contract type:', error)
       toast({
-        title: "Import failed",
-        description: "Failed to process contract information.",
+        title: "Detection failed",
+        description: "Failed to identify contract type. Please try again.",
         variant: "destructive"
       })
+    } finally {
+      setIsDetecting(false)
     }
   }
 
@@ -261,6 +296,8 @@ export function Dashboard(): JSX.Element {
             <ImportContract
               buttonVariant="outline"
               onImportSuccess={handleImportSuccess}
+              buttonText="Import Contract"
+              buttonIcon="download"
             />
           </div>
         </motion.div>
@@ -278,6 +315,8 @@ export function Dashboard(): JSX.Element {
                     key={contract.address}
                     contract={contract}
                     onUnload={handleUnloadContract}
+                    onDetectType={handleDetectType}
+                    isDetecting={isDetecting}
                   />
                 ))}
               </div>
