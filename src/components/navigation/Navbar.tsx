@@ -53,12 +53,6 @@ export function Navbar() {
                 >
                   Security Center
                 </a>
-                <a
-                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
-                  href="/broadcaster"
-                >
-                  Broadcaster
-                </a>
               </>
             )}
             <a
@@ -128,13 +122,6 @@ export function Navbar() {
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
                     Security Center
-                  </a>
-                  <a
-                    className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
-                    href="/broadcaster"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    Broadcaster
                   </a>
                 </>
               )}

@@ -9,7 +9,6 @@ import { Home } from './pages/Home'
 import { Dashboard } from './pages/Dashboard'
 import { BloxContracts } from './pages/BloxContracts'
 import { ContractDetails } from './pages/ContractDetails'
-import { Broadcaster } from './pages/Broadcaster'
 import SecurityCenter from './pages/SecurityCenter'
 import { SecurityDetails } from './pages/SecurityDetails'
 import { Navbar } from './components/navigation/Navbar'
@@ -29,7 +28,6 @@ export default function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/blox-contracts" element={<BloxContracts />} />
               <Route path="/contracts/:contractId" element={<ContractDetails />} />
-              <Route path="/broadcaster" element={<Broadcaster />} />
               <Route path="/security-center" element={<SecurityCenter />} />
               <Route path="/security-center/:address" element={<SecurityDetails />} />
               <Route path="/preview/:contractId" element={<BloxPreview />} />
