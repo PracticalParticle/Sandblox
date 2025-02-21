@@ -26,7 +26,6 @@ interface Message {
 const BloxMiniApp: React.FC = () => {
   const { type, address } = useParams<{ type: string; address: string }>();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [isToolsOpen, setIsToolsOpen] = useState(false);
   const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -196,20 +195,11 @@ const BloxMiniApp: React.FC = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex">
-        {/* Left Sidebar - Tools Panel */}
+        {/* Left Sidebar */}
         <Card className="w-64 border-r m-4 rounded-lg shadow-lg">
-          <Collapsible open={isToolsOpen} onOpenChange={setIsToolsOpen}>
-            <CollapsibleTrigger className="w-full">
-              <div className="p-4">
-                <h2 className="text-lg font-semibold">Tools</h2>
-              </div>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <ScrollArea className="h-[calc(100vh-12rem)] p-4">
-                {/* Add tools and controls here */}
-              </ScrollArea>
-            </CollapsibleContent>
-          </Collapsible>
+          <div className="h-full">
+            {/* Empty for now */}
+          </div>
         </Card>
 
         {/* Main Workspace */}
