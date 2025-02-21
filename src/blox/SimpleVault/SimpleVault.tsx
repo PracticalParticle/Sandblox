@@ -4,7 +4,8 @@ import {
   WalletClient,
   Chain,
   Abi,
-  decodeAbiParameters
+  decodeAbiParameters,
+  parseAbiParameters
 } from 'viem';
 import SimpleVaultABIJson from './SimpleVault.abi.json';
 import SecureOwnable from '../../../contracts/core/SecureOwnable/SecureOwnable';
@@ -41,7 +42,6 @@ export default class SimpleVault extends SecureOwnable {
   protected walletClient: WalletClient | undefined;
   protected address: Address;
   protected chain: Chain;
-  private contract: any; // TODO: Add proper type
 
   // Constants for operation types
   static readonly WITHDRAW_ETH = "WITHDRAW_ETH" as SecurityOperationType;
@@ -65,20 +65,8 @@ export default class SimpleVault extends SecureOwnable {
     this.walletClient = walletClient;
     this.address = address;
     this.chain = chain;
-    this.contract = {
-      read: {
-        getPendingTransactions: async () => {
-          // Implementation
-          return [];
-        }
-      }
-    };
   }
 
-  /**
-   * @notice Gets the ETH balance of the vault
-   * @return The ETH balance in wei
-   */
   async getEthBalance(): Promise<bigint> {
     const result = await this.client.readContract({
       address: this.contractAddress,
@@ -99,8 +87,8 @@ export default class SimpleVault extends SecureOwnable {
       abi: SimpleVaultABI,
       functionName: 'getTokenBalance',
       args: [token]
-    });
-    return result as bigint;
+    }) as bigint;
+    return result;
   }
 
   /**
@@ -302,15 +290,20 @@ export default class SimpleVault extends SecureOwnable {
    * @return Array of transaction records with status
    */
   async getPendingTransactions(): Promise<VaultTxRecord[]> {
-    const pendingTxs = await this.contract.read.getPendingTransactions()
-    return pendingTxs.map((tx: any) => ({
-      txId: Number(tx.txId),
-      to: tx.to,
-      amount: tx.amount,
-      type: tx.type,
-      releaseTime: Number(tx.releaseTime),
-      status: tx.status
-    }))
+    const operations = await this.getOperationHistory();
+    const pendingOps = operations.filter(op => op.status === TxStatus.PENDING);
+    const vaultTxs: VaultTxRecord[] = [];
+
+    for (const op of pendingOps) {
+      try {
+        const tx = await this.getTransaction(op.txId);
+        vaultTxs.push(tx);
+      } catch (error) {
+        console.error(`Failed to decode transaction ${op.txId}:`, error);
+      }
+    }
+
+    return vaultTxs;
   }
 
   /**
@@ -327,12 +320,12 @@ export default class SimpleVault extends SecureOwnable {
     
     // Decode the transaction parameters from the execution options
     const executionOptions = decodeAbiParameters(
-      [{ type: 'bytes4' }, { type: 'bytes' }],
+      parseAbiParameters('bytes4, bytes'),
       tx.executionOptions as `0x${string}`
     )[1];
 
     const [to, amount] = decodeAbiParameters(
-      [{ type: 'address' }, { type: 'uint256' }],
+      parseAbiParameters('address, uint256'),
       executionOptions
     ) as [Address, bigint];
 
@@ -343,7 +336,7 @@ export default class SimpleVault extends SecureOwnable {
       to,
       type: tx.operationType === SimpleVault.WITHDRAW_ETH ? "ETH" : "TOKEN",
       token: tx.operationType === SimpleVault.WITHDRAW_TOKEN ? (decodeAbiParameters(
-        [{ type: 'address' }],
+        parseAbiParameters('address'),
         executionOptions
       )[0] as Address) : undefined
     };
