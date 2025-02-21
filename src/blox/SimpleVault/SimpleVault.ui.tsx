@@ -16,7 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import SimpleVault, { VaultTxRecord } from "./SimpleVault";
 import { useChain } from "@/hooks/useChain";
 import { atom, useAtom, Provider as JotaiProvider } from "jotai";
-import { AlertCircle, CheckCircle2, Clock, XCircle, Loader2, Wallet, Coins, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, XCircle, Loader2, Wallet, Coins, X, Shield, Info } from "lucide-react";
 import { TxStatus, IERC20 } from "../../../contracts/core/iCore";
 import { useNavigate } from "react-router-dom";
 import { ContractInfo } from "@/lib/verification/index";
@@ -28,6 +28,7 @@ import { injected } from "wagmi/connectors";
 import { TokenList } from "./components/TokenList";
 import { AddTokenDialog } from "./components/AddTokenDialog";
 import type { TokenMetadata, TokenState, TokenBalanceState } from "./components/TokenList";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // State atoms following .cursorrules state management guidelines
 const pendingTxsAtom = atom<VaultTxRecord[]>([]);
@@ -753,9 +754,23 @@ function SimpleVaultUIContent({
       <div className={dashboardMode ? "p-0" : "container mx-auto p-4"}>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <div>
-              <CardTitle>Simple Vault</CardTitle>
-              <CardDescription>Secure storage for ETH and tokens with time-locked withdrawals</CardDescription>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <Shield className="h-4 w-4 text-primary" />
+              </div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold">Simple Vault</h2>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <Info className="h-4 w-4 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Secure storage for ETH and tokens with time-locked withdrawals</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
             </div>
             <Button
               variant="outline"
