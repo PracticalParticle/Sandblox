@@ -103,7 +103,7 @@ const DeployedContract = ({
   }, []);
 
   const handlePreviewClick = () => {
-    navigate(`/preview/${contract.id}`);
+    navigate(`/preview/${contract.type}`);
   };
 
   const handleEnterBlox = () => {
