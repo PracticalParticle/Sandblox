@@ -25,29 +25,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { mainnet } from "viem/chains";
 import { http } from "viem";
 import { injected } from "wagmi/connectors";
+import { TokenList } from "./components/TokenList";
+import { AddTokenDialog } from "./components/AddTokenDialog";
+import type { TokenMetadata, TokenState, TokenBalanceState } from "./components/TokenList";
 
 // State atoms following .cursorrules state management guidelines
 const pendingTxsAtom = atom<VaultTxRecord[]>([]);
 const vaultInstanceAtom = atom<SimpleVault | null>(null);
-
-interface TokenMetadata {
-  name: string;
-  symbol: string;
-  decimals: number;
-  logo?: string;
-  website?: string;
-}
-
-interface TokenState {
-  balance: bigint;
-  metadata?: TokenMetadata;
-  loading: boolean;
-  error?: string;
-}
-
-interface TokenBalanceState {
-  [key: string]: TokenState;
-}
 
 interface LoadingState {
   ethBalance: boolean;
@@ -437,8 +421,8 @@ function SimpleVaultUIContent({
     if (!vault || _mock) return;
     
     try {
-      setLoadingState(prev => ({ ...prev, tokenBalance: true }));
-      setTokenBalances(prev => ({
+      setLoadingState((prev: LoadingState) => ({ ...prev, tokenBalance: true }));
+      setTokenBalances((prev: TokenBalanceState) => ({
         ...prev,
         [tokenAddress]: { ...prev[tokenAddress], loading: true }
       }));
@@ -448,7 +432,7 @@ function SimpleVaultUIContent({
         vault.getTokenMetadata(tokenAddress)
       ]);
 
-      setTokenBalances(prev => ({
+      setTokenBalances((prev: TokenBalanceState) => ({
         ...prev,
         [tokenAddress]: {
           balance,
@@ -459,7 +443,7 @@ function SimpleVaultUIContent({
       setError(null);
     } catch (err: any) {
       console.error("Failed to fetch token data:", err);
-      setTokenBalances(prev => ({
+      setTokenBalances((prev: TokenBalanceState) => ({
         ...prev,
         [tokenAddress]: {
           ...prev[tokenAddress],
@@ -468,7 +452,7 @@ function SimpleVaultUIContent({
         }
       }));
     } finally {
-      setLoadingState(prev => ({ ...prev, tokenBalance: false }));
+      setLoadingState((prev: LoadingState) => ({ ...prev, tokenBalance: false }));
     }
   }, [vault, setLoadingState, setTokenBalances, _mock]);
 
@@ -694,16 +678,28 @@ function SimpleVaultUIContent({
               {/* Balance Display */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Vault Balance</CardTitle>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Vault Balance</CardTitle>
+                      <CardDescription>Track your ETH and token balances</CardDescription>
+                    </div>
+                    <AddTokenDialog
+                      onAddToken={async (address) => {
+                        await fetchTokenBalance(address);
+                        toast({
+                          title: "Token Added",
+                          description: "The token has been added to your tracking list",
+                        });
+                      }}
+                      isLoading={loadingState.tokenBalance}
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  {loadingState.ethBalance ? (
-                    <Skeleton className="h-8 w-32" />
-                  ) : (
-                    <div className="text-2xl font-bold">
-                      {formatEther(ethBalance)} ETH
-                    </div>
-                  )}
+                  <TokenList
+                    ethBalance={ethBalance}
+                    tokenBalances={tokenBalances}
+                  />
                 </CardContent>
               </Card>
 
