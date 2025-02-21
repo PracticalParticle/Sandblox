@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useState, useEffect } from "react";
-import { useAccount, usePublicClient, useWalletClient } from "wagmi";
+import { useAccount, usePublicClient, useWalletClient, Config, createConfig } from "wagmi";
 import { Address, formatEther, parseEther, formatUnits, parseUnits } from "viem";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,14 +15,20 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import SimpleVault, { VaultTxRecord } from "./SimpleVault";
 import { useChain } from "@/hooks/useChain";
-import { atom, useAtom } from "jotai";
-import { AlertCircle, CheckCircle2, Clock, XCircle } from "lucide-react";
+import { atom, useAtom, Provider as JotaiProvider } from "jotai";
+import { AlertCircle, CheckCircle2, Clock, XCircle, Loader2 } from "lucide-react";
 import { TxStatus } from "../../../contracts/core/iCore";
 import { useNavigate } from "react-router-dom";
 import { ContractInfo } from "@/lib/verification/index";
+import { WagmiProvider } from "wagmi";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { mainnet } from "viem/chains";
+import { http } from "viem";
+import { injected } from "wagmi/connectors";
 
 // State atoms following .cursorrules state management guidelines
 const pendingTxsAtom = atom<VaultTxRecord[]>([]);
+const vaultInstanceAtom = atom<SimpleVault | null>(null);
 
 interface LoadingState {
   ethBalance: boolean;
@@ -30,6 +36,7 @@ interface LoadingState {
   withdrawal: boolean;
   approval: boolean;
   cancellation: boolean;
+  initialization: boolean;
 }
 
 const loadingStateAtom = atom<LoadingState>({
@@ -38,6 +45,7 @@ const loadingStateAtom = atom<LoadingState>({
   withdrawal: false,
   approval: false,
   cancellation: false,
+  initialization: true,
 });
 
 interface WithdrawalFormProps {
@@ -182,6 +190,7 @@ const PendingTransaction = ({ tx, onApprove, onCancel, isLoading }: PendingTrans
 interface SimpleVaultUIProps {
   contractAddress: Address;
   contractInfo: ContractInfo;
+  onError?: (error: Error) => void;
   _mock?: {
     account: { address: Address; isConnected: boolean };
     publicClient: any;
@@ -195,8 +204,14 @@ interface SimpleVaultUIProps {
   dashboardMode?: boolean;
 }
 
-export default function SimpleVaultUI({ contractAddress, _mock, dashboardMode = false }: SimpleVaultUIProps) {
-  const { address } = _mock?.account || useAccount();
+function SimpleVaultUIContent({ 
+  contractAddress, 
+  contractInfo, 
+  onError,
+  _mock, 
+  dashboardMode = false 
+}: SimpleVaultUIProps) {
+  const { address, isConnected } = _mock?.account || useAccount();
   const publicClient = _mock?.publicClient || usePublicClient();
   const { data: walletClient } = _mock?.walletClient || useWalletClient();
   const chain = _mock?.chain || useChain();
@@ -206,6 +221,33 @@ export default function SimpleVaultUI({ contractAddress, _mock, dashboardMode = 
   const [ethBalance, setEthBalance] = useState<bigint>(_mock?.initialData?.ethBalance || BigInt(0));
   const [pendingTxs, setPendingTxs] = useAtom(pendingTxsAtom);
   const [loadingState, setLoadingState] = useAtom(loadingStateAtom);
+  const [vault, setVault] = useAtom(vaultInstanceAtom);
+  const [error, setError] = useState<string | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
+
+  // Initialize vault instance
+  useEffect(() => {
+    const initializeVault = async () => {
+      if (!publicClient || !chain) return;
+      
+      try {
+        setLoadingState(prev => ({ ...prev, initialization: true }));
+        const vaultInstance = new SimpleVault(publicClient, walletClient, contractAddress, chain);
+        setVault(vaultInstance);
+        setError(null);
+        setAutoRefresh(true);
+      } catch (err: any) {
+        console.error("Failed to initialize vault:", err);
+        setError("Failed to initialize vault contract");
+        setAutoRefresh(false);
+        onError?.(new Error("Failed to initialize vault contract"));
+      } finally {
+        setLoadingState(prev => ({ ...prev, initialization: false }));
+      }
+    };
+
+    initializeVault();
+  }, [publicClient, walletClient, contractAddress, chain, setVault, onError]);
 
   // Initialize with mock data if available
   useEffect(() => {
@@ -215,19 +257,13 @@ export default function SimpleVaultUI({ contractAddress, _mock, dashboardMode = 
     }
   }, [_mock?.initialData, setPendingTxs]);
 
-  const vault = React.useMemo(() => new SimpleVault(publicClient, walletClient, contractAddress, chain), [
-    publicClient,
-    walletClient,
-    contractAddress,
-    chain
-  ]);
-
-  // Fetch balances and pending transactions only if not in preview mode
+  // Fetch balances and pending transactions
   const fetchVaultData = React.useCallback(async () => {
-    if (_mock) return; // Skip fetching in preview mode
+    if (!vault || _mock) return;
     
     try {
-      setLoadingState((prev: LoadingState) => ({ ...prev, ethBalance: true }));
+      setLoadingState(prev => ({ ...prev, ethBalance: true }));
+      
       const [balance, transactions] = await Promise.all([
         vault.getEthBalance(),
         vault.getPendingTransactions()
@@ -235,28 +271,28 @@ export default function SimpleVaultUI({ contractAddress, _mock, dashboardMode = 
       
       setEthBalance(balance);
       setPendingTxs(transactions);
-    } catch (error) {
-      console.error("Failed to fetch vault data:", error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch vault data. Please try again.",
-        variant: "destructive",
-      });
+      setError(null);
+      setAutoRefresh(true);
+    } catch (err: any) {
+      console.error("Failed to fetch vault data:", err);
+      setError("Failed to fetch vault data");
+      setAutoRefresh(false);
+      onError?.(new Error("Failed to fetch vault data"));
     } finally {
-      setLoadingState((prev: LoadingState) => ({ ...prev, ethBalance: false }));
+      setLoadingState(prev => ({ ...prev, ethBalance: false }));
     }
-  }, [vault, setLoadingState, setEthBalance, setPendingTxs, toast, _mock]);
+  }, [vault, setLoadingState, setEthBalance, setPendingTxs, _mock, onError]);
 
   useEffect(() => {
-    if (!_mock) { // Only set up polling if not in preview mode
+    if (!_mock && vault && autoRefresh) {
       fetchVaultData();
       const interval = setInterval(fetchVaultData, 10000);
       return () => clearInterval(interval);
     }
-  }, [fetchVaultData, _mock]);
+  }, [fetchVaultData, vault, _mock, autoRefresh]);
 
   const handleEthWithdrawal = async (to: Address, amount: bigint) => {
-    if (!address) return;
+    if (!address || !vault) return;
     
     setLoadingState((prev: LoadingState) => ({ ...prev, withdrawal: true }));
     try {
@@ -271,8 +307,9 @@ export default function SimpleVaultUI({ contractAddress, _mock, dashboardMode = 
         title: "Transaction Confirmed",
         description: "Your withdrawal request has been confirmed.",
       });
-      fetchVaultData();
+      await fetchVaultData();
     } catch (error: any) {
+      onError?.(error);
       toast({
         title: "Error",
         description: error.message,
@@ -284,7 +321,7 @@ export default function SimpleVaultUI({ contractAddress, _mock, dashboardMode = 
   };
 
   const handleApproveWithdrawal = async (txId: number) => {
-    if (!address) return;
+    if (!address || !vault) return;
     
     setLoadingState((prev: LoadingState) => ({ ...prev, approval: true }));
     try {
@@ -295,8 +332,9 @@ export default function SimpleVaultUI({ contractAddress, _mock, dashboardMode = 
       });
       
       await tx.wait();
-      fetchVaultData();
+      await fetchVaultData();
     } catch (error: any) {
+      onError?.(error);
       toast({
         title: "Error",
         description: error.message,
@@ -308,7 +346,7 @@ export default function SimpleVaultUI({ contractAddress, _mock, dashboardMode = 
   };
 
   const handleCancelWithdrawal = async (txId: number) => {
-    if (!address) return;
+    if (!address || !vault) return;
     
     setLoadingState((prev: LoadingState) => ({ ...prev, cancellation: true }));
     try {
@@ -319,8 +357,9 @@ export default function SimpleVaultUI({ contractAddress, _mock, dashboardMode = 
       });
       
       await tx.wait();
-      fetchVaultData();
+      await fetchVaultData();
     } catch (error: any) {
+      onError?.(error);
       toast({
         title: "Error",
         description: error.message,
@@ -331,120 +370,216 @@ export default function SimpleVaultUI({ contractAddress, _mock, dashboardMode = 
     }
   };
 
+  // Connection state check
+  if (!isConnected && !_mock) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Not Connected</AlertTitle>
+          <AlertDescription>
+            Please connect your wallet to interact with the vault.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  // Loading state
+  if (loadingState.initialization) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-sm text-muted-foreground">Initializing vault...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state with refresh button
+  if (error) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center gap-4">
+        <Alert variant="destructive" className="max-w-md">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+        <Button 
+          variant="outline" 
+          onClick={() => {
+            setLoadingState(prev => ({ ...prev, initialization: true }));
+            fetchVaultData();
+          }}
+          disabled={loadingState.initialization}
+        >
+          {loadingState.initialization ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Retrying...
+            </>
+          ) : (
+            'Retry Connection'
+          )}
+        </Button>
+      </div>
+    );
+  }
+
   return (
-    <div className={dashboardMode ? "p-0" : "container mx-auto p-4 max-w-3xl"}>
-      <Card>
-        <CardHeader>
-          <CardTitle>Simple Vault</CardTitle>
-          <CardDescription>Secure storage for ETH and tokens with time-locked withdrawals</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-6">
-            {/* Balance Display */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Vault Balance</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loadingState.ethBalance ? (
-                  <Skeleton className="h-8 w-32" />
-                ) : (
-                  <div className="text-2xl font-bold">
-                    {formatEther(ethBalance)} ETH
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+    <div className="h-full overflow-auto">
+      <div className={dashboardMode ? "p-0" : "container mx-auto p-4"}>
+        <Card>
+          <CardHeader>
+            <CardTitle>Simple Vault</CardTitle>
+            <CardDescription>Secure storage for ETH and tokens with time-locked withdrawals</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {/* Balance Display */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Vault Balance</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {loadingState.ethBalance ? (
+                    <Skeleton className="h-8 w-32" />
+                  ) : (
+                    <div className="text-2xl font-bold">
+                      {formatEther(ethBalance)} ETH
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
-            {!dashboardMode ? (
-              <Tabs defaultValue="withdraw" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="withdraw">New Withdrawal</TabsTrigger>
-                  <TabsTrigger value="pending">Pending Transactions</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="withdraw">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Request Withdrawal</CardTitle>
-                      <CardDescription>
-                        Withdrawals are subject to a time-lock period for security
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <WithdrawalForm
-                        onSubmit={handleEthWithdrawal}
-                        isLoading={loadingState.withdrawal}
-                        type="ETH"
-                        maxAmount={ethBalance}
-                      />
-                    </CardContent>
-                  </Card>
-                </TabsContent>
+              {!dashboardMode ? (
+                <Tabs defaultValue="withdraw" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="withdraw">New Withdrawal</TabsTrigger>
+                    <TabsTrigger value="pending">Pending Transactions</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="withdraw">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Request Withdrawal</CardTitle>
+                        <CardDescription>
+                          Withdrawals are subject to a time-lock period for security
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <WithdrawalForm
+                          onSubmit={handleEthWithdrawal}
+                          isLoading={loadingState.withdrawal}
+                          type="ETH"
+                          maxAmount={ethBalance}
+                        />
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
 
-                <TabsContent value="pending">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Pending Withdrawals</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        {pendingTxs.length === 0 ? (
-                          <Card className="bg-muted">
-                            <CardContent className="pt-6">
-                              <h3 className="font-semibold">No Pending Transactions</h3>
-                              <p className="text-sm text-muted-foreground">
-                                There are currently no pending withdrawal requests
-                              </p>
-                            </CardContent>
-                          </Card>
-                        ) : (
-                          pendingTxs.map((tx) => (
-                            <PendingTransaction
-                              key={tx.txId}
-                              tx={tx}
-                              onApprove={handleApproveWithdrawal}
-                              onCancel={handleCancelWithdrawal}
-                              isLoading={loadingState.approval || loadingState.cancellation}
-                            />
-                          ))
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
-            ) : (
-              /* Dashboard mode: Show simplified view */
-              pendingTxs.length > 0 && (
-                <div className="space-y-4">
-                  <h3 className="font-medium">Pending Transactions</h3>
-                  <div className="space-y-2">
-                    {pendingTxs.slice(0, 2).map((tx) => (
-                      <PendingTransaction
-                        key={tx.txId}
-                        tx={tx}
-                        onApprove={handleApproveWithdrawal}
-                        onCancel={handleCancelWithdrawal}
-                        isLoading={loadingState.approval || loadingState.cancellation}
-                      />
-                    ))}
-                    {pendingTxs.length > 2 && (
-                      <Button
-                        variant="link"
-                        className="w-full"
-                        onClick={() => navigate(`/contracts/${contractAddress}`)}
-                      >
-                        View All Transactions
-                      </Button>
-                    )}
+                  <TabsContent value="pending">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Pending Withdrawals</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          {pendingTxs.length === 0 ? (
+                            <Card className="bg-muted">
+                              <CardContent className="pt-6">
+                                <h3 className="font-semibold">No Pending Transactions</h3>
+                                <p className="text-sm text-muted-foreground">
+                                  There are currently no pending withdrawal requests
+                                </p>
+                              </CardContent>
+                            </Card>
+                          ) : (
+                            pendingTxs.map((tx) => (
+                              <PendingTransaction
+                                key={tx.txId}
+                                tx={tx}
+                                onApprove={handleApproveWithdrawal}
+                                onCancel={handleCancelWithdrawal}
+                                isLoading={loadingState.approval || loadingState.cancellation}
+                              />
+                            ))
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                </Tabs>
+              ) : (
+                /* Dashboard mode: Show simplified view */
+                pendingTxs.length > 0 && (
+                  <div className="space-y-4">
+                    <h3 className="font-medium">Pending Transactions</h3>
+                    <div className="space-y-2">
+                      {pendingTxs.slice(0, 2).map((tx) => (
+                        <PendingTransaction
+                          key={tx.txId}
+                          tx={tx}
+                          onApprove={handleApproveWithdrawal}
+                          onCancel={handleCancelWithdrawal}
+                          isLoading={loadingState.approval || loadingState.cancellation}
+                        />
+                      ))}
+                      {pendingTxs.length > 2 && (
+                        <Button
+                          variant="link"
+                          className="w-full"
+                          onClick={() => navigate(`/contracts/${contractAddress}`)}
+                        >
+                          View All Transactions
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )
-            )}
-          </div>
-        </CardContent>
-      </Card>
+                )
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
+  );
+}
+
+// Create a new QueryClient instance
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+      refetchOnWindowFocus: false
+    }
+  }
+});
+
+// Main export with proper providers
+export default function SimpleVaultUI(props: SimpleVaultUIProps) {
+  // If using mock data, render without providers
+  if (props._mock) {
+    return <SimpleVaultUIContent {...props} />;
+  }
+
+  // Create a properly configured Wagmi config
+  const config = createConfig({
+    chains: [mainnet],
+    connectors: [injected()],
+    transports: {
+      [mainnet.id]: http()
+    }
+  });
+
+  return (
+    <WagmiProvider config={config}>
+      <QueryClientProvider client={queryClient}>
+        <JotaiProvider>
+          <SimpleVaultUIContent {...props} />
+        </JotaiProvider>
+      </QueryClientProvider>
+    </WagmiProvider>
   );
 }
