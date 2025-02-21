@@ -1,9 +1,73 @@
-import React from 'react';
+import { useState } from 'react';
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { useParams } from 'react-router-dom';
+import SimpleVaultUI from '../blox/SimpleVault/SimpleVault.ui';
+import { Address } from 'viem';
+import { AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
+interface Message {
+  type: 'error' | 'warning' | 'info' | 'success';
+  title: string;
+  description: string;
+  timestamp: Date;
+}
 
 const BloxMiniApp: React.FC = () => {
+  const { type, address } = useParams<{ type: string; address: string }>();
+  const [messages, setMessages] = useState<Message[]>([]);
+
+  // Function to add messages that can be called from child components
+  const addMessage = (message: Omit<Message, 'timestamp'>) => {
+    setMessages(prev => [{
+      ...message,
+      timestamp: new Date()
+    }, ...prev]);
+  };
+
+  // Render the appropriate Blox UI based on type
+  const renderBloxUI = () => {
+    if (!type || !address) {
+      return (
+        <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
+          <p className="text-gray-500">No Blox selected</p>
+        </div>
+      );
+    }
+
+    switch (type) {
+      case 'simple-vault':
+        return (
+          <SimpleVaultUI 
+            contractAddress={address as Address}
+            contractInfo={{
+              address: address as Address,
+              type: 'simple-vault',
+              name: 'Simple Vault',
+              category: 'Storage',
+              description: 'A secure vault contract for storing and managing assets with basic access controls.',
+              bloxId: 'simple-vault'
+            }}
+            onError={(error) => {
+              addMessage({
+                type: 'error',
+                title: 'Operation Failed',
+                description: error.message || 'Failed to perform operation'
+              });
+            }}
+          />
+        );
+      default:
+        return (
+          <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
+            <p className="text-gray-500">Unknown Blox type: {type}</p>
+          </div>
+        );
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen">
       {/* Header */}
@@ -30,35 +94,61 @@ const BloxMiniApp: React.FC = () => {
         <div className="flex-1 p-4">
           <Card className="h-full rounded-lg shadow-lg">
             <div className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Workspace</h2>
+              <h2 className="text-xl font-semibold mb-4">
+                {type ? `${type.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}` : 'Workspace'}
+                {address && <span className="text-sm text-gray-500 ml-2">({address})</span>}
+              </h2>
               <Separator className="my-4" />
               <div className="grid grid-cols-1 gap-4">
-                {/* Add blox workspace components here */}
-                <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
-                  <p className="text-gray-500">Blox UI will be displayed here</p>
-                </div>
+                {renderBloxUI()}
               </div>
             </div>
           </Card>
         </div>
 
-        {/* Right Sidebar - Properties Panel */}
+        {/* Right Sidebar - Properties & Messages */}
         <Card className="w-72 border-l m-4 rounded-lg shadow-lg">
-          <div className="p-4">
-            <h2 className="text-lg font-semibold mb-4">Properties</h2>
-            <ScrollArea className="h-[calc(100vh-12rem)]">
-              {/* Add properties panel content here */}
-            </ScrollArea>
+          <div className="flex flex-col h-full">
+            {/* Properties Section */}
+            <div className="p-4 border-b">
+              <h2 className="text-lg font-semibold mb-4">Properties</h2>
+              <ScrollArea className="h-[calc(50vh-8rem)]">
+                {/* Add properties panel content here */}
+              </ScrollArea>
+            </div>
+
+            {/* Messages Section */}
+            <div className="p-4 flex-1">
+              <h2 className="text-lg font-semibold mb-4">Messages</h2>
+              <ScrollArea className="h-[calc(50vh-8rem)]">
+                <div className="space-y-2">
+                  {messages.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No messages to display
+                    </p>
+                  ) : (
+                    messages.map((message, index) => (
+                      <Alert 
+                        key={index} 
+                        variant={message.type === 'error' ? 'destructive' : 'default'}
+                        className="text-sm"
+                      >
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle className="text-xs">{message.title}</AlertTitle>
+                        <AlertDescription className="text-xs mt-1">
+                          {message.description}
+                          <div className="text-[10px] mt-1 opacity-70">
+                            {message.timestamp.toLocaleTimeString()}
+                          </div>
+                        </AlertDescription>
+                      </Alert>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
           </div>
         </Card>
-      </div>
-
-      {/* Footer Status Bar */}
-      <div className="border-t p-2 bg-gray-50">
-        <div className="flex items-center justify-between text-sm text-gray-600">
-          <div>Status: Ready</div>
-          <div>Blox Version: 1.0.0</div>
-        </div>
       </div>
     </div>
   );

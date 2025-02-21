@@ -32,7 +32,7 @@ export default function App() {
               <Route path="/security-center" element={<SecurityCenter />} />
               <Route path="/security-center/:address" element={<SecurityDetails />} />
               <Route path="/preview/:contractId" element={<BloxPreview />} />
-              <Route path="/blox-mini" element={<BloxMiniApp />} />
+              <Route path="/blox/:type/:address" element={<BloxMiniApp />} />
             </Routes>
           </div>
         </main>
