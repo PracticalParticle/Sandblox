@@ -352,4 +352,41 @@ export default class SimpleVault extends SecureOwnable {
     }) as TxRecord[];
     return result;
   }
+
+  /**
+   * @notice Gets the token metadata
+   * @param token The token contract address
+   * @return The token metadata including name, symbol, and decimals
+   */
+  async getTokenMetadata(token: Address): Promise<{
+    name: string;
+    symbol: string;
+    decimals: number;
+  }> {
+    const [name, symbol, decimals] = await Promise.all([
+      this.client.readContract({
+        address: token,
+        abi: [
+          { inputs: [], name: 'name', outputs: [{ type: 'string' }], stateMutability: 'view', type: 'function' },
+        ],
+        functionName: 'name'
+      }) as Promise<string>,
+      this.client.readContract({
+        address: token,
+        abi: [
+          { inputs: [], name: 'symbol', outputs: [{ type: 'string' }], stateMutability: 'view', type: 'function' },
+        ],
+        functionName: 'symbol'
+      }) as Promise<string>,
+      this.client.readContract({
+        address: token,
+        abi: [
+          { inputs: [], name: 'decimals', outputs: [{ type: 'uint8' }], stateMutability: 'view', type: 'function' },
+        ],
+        functionName: 'decimals'
+      }) as Promise<number>
+    ]);
+
+    return { name, symbol, decimals };
+  }
 }

@@ -17,7 +17,7 @@ import SimpleVault, { VaultTxRecord } from "./SimpleVault";
 import { useChain } from "@/hooks/useChain";
 import { atom, useAtom, Provider as JotaiProvider } from "jotai";
 import { AlertCircle, CheckCircle2, Clock, XCircle, Loader2 } from "lucide-react";
-import { TxStatus } from "../../../contracts/core/iCore";
+import { TxStatus, IERC20 } from "../../../contracts/core/iCore";
 import { useNavigate } from "react-router-dom";
 import { ContractInfo } from "@/lib/verification/index";
 import { WagmiProvider } from "wagmi";
@@ -29,6 +29,25 @@ import { injected } from "wagmi/connectors";
 // State atoms following .cursorrules state management guidelines
 const pendingTxsAtom = atom<VaultTxRecord[]>([]);
 const vaultInstanceAtom = atom<SimpleVault | null>(null);
+
+interface TokenMetadata {
+  name: string;
+  symbol: string;
+  decimals: number;
+  logo?: string;
+  website?: string;
+}
+
+interface TokenState {
+  balance: bigint;
+  metadata?: TokenMetadata;
+  loading: boolean;
+  error?: string;
+}
+
+interface TokenBalanceState {
+  [key: string]: TokenState;
+}
 
 interface LoadingState {
   ethBalance: boolean;
@@ -48,10 +67,6 @@ const loadingStateAtom = atom<LoadingState>({
   initialization: true,
 });
 
-interface TokenBalanceState {
-  [key: string]: bigint;
-}
-
 const tokenBalanceAtom = atom<TokenBalanceState>({});
 
 interface WithdrawalFormProps {
@@ -67,10 +82,14 @@ const WithdrawalForm = ({ onSubmit, isLoading, maxAmount, onTokenSelect }: Withd
   const [error, setError] = useState<string>("");
   const [tokenType, setTokenType] = useState<"ETH" | "TOKEN">("ETH");
   const [tokenAddress, setTokenAddress] = useState<string>("");
+  const [tokenBalances] = useAtom(tokenBalanceAtom);
 
   useEffect(() => {
     onTokenSelect?.(tokenType === "TOKEN" ? tokenAddress as Address : undefined);
   }, [tokenType, tokenAddress, onTokenSelect]);
+
+  const selectedToken = tokenType === "TOKEN" ? tokenBalances[tokenAddress] : undefined;
+  const tokenDecimals = selectedToken?.metadata?.decimals ?? 18;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -82,7 +101,10 @@ const WithdrawalForm = ({ onSubmit, isLoading, maxAmount, onTokenSelect }: Withd
         throw new Error("Invalid token address");
       }
 
-      const parsedAmount = tokenType === "ETH" ? parseEther(amount) : parseUnits(amount, 18);
+      const parsedAmount = tokenType === "ETH" 
+        ? parseEther(amount) 
+        : parseUnits(amount, tokenDecimals);
+
       if (parsedAmount > maxAmount) {
         throw new Error("Amount exceeds balance");
       }
@@ -132,17 +154,56 @@ const WithdrawalForm = ({ onSubmit, isLoading, maxAmount, onTokenSelect }: Withd
       </div>
 
       {tokenType === "TOKEN" && (
-        <div className="space-y-2">
-          <Label htmlFor="tokenAddress">Token Address</Label>
-          <Input
-            id="tokenAddress"
-            placeholder="0x..."
-            value={tokenAddress}
-            onChange={(e) => setTokenAddress(e.target.value)}
-            required
-            pattern="^0x[a-fA-F0-9]{40}$"
-            aria-label="Token address input"
-          />
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="tokenAddress">Token Address</Label>
+            <Input
+              id="tokenAddress"
+              placeholder="0x..."
+              value={tokenAddress}
+              onChange={(e) => setTokenAddress(e.target.value)}
+              required
+              pattern="^0x[a-fA-F0-9]{40}$"
+              aria-label="Token address input"
+            />
+          </div>
+
+          {selectedToken && (
+            <Card className="bg-muted">
+              <CardContent className="pt-4">
+                {selectedToken.loading ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                ) : selectedToken.error ? (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>{selectedToken.error}</AlertDescription>
+                  </Alert>
+                ) : selectedToken.metadata ? (
+                  <div className="space-y-1">
+                    <p className="font-medium">{selectedToken.metadata.name}</p>
+                    <p className="text-sm text-muted-foreground">Symbol: {selectedToken.metadata.symbol}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Decimals: {selectedToken.metadata.decimals}
+                    </p>
+                    {selectedToken.metadata.website && (
+                      <a
+                        href={selectedToken.metadata.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-primary hover:underline"
+                      >
+                        Visit Website
+                      </a>
+                    )}
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 
@@ -160,7 +221,9 @@ const WithdrawalForm = ({ onSubmit, isLoading, maxAmount, onTokenSelect }: Withd
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="amount">Amount ({tokenType})</Label>
+        <Label htmlFor="amount">
+          Amount ({tokenType === "ETH" ? "ETH" : selectedToken?.metadata?.symbol || "Tokens"})
+        </Label>
         <Input
           id="amount"
           type="number"
@@ -173,7 +236,10 @@ const WithdrawalForm = ({ onSubmit, isLoading, maxAmount, onTokenSelect }: Withd
           aria-label={`${tokenType} amount input`}
         />
         <p className="text-sm text-muted-foreground">
-          Available: {tokenType === "ETH" ? formatEther(maxAmount) : formatUnits(maxAmount, 18)} {tokenType}
+          Available: {tokenType === "ETH" 
+            ? formatEther(maxAmount) 
+            : formatUnits(maxAmount, tokenDecimals)
+          } {tokenType === "ETH" ? "ETH" : selectedToken?.metadata?.symbol || "Tokens"}
         </p>
       </div>
 
@@ -186,7 +252,9 @@ const WithdrawalForm = ({ onSubmit, isLoading, maxAmount, onTokenSelect }: Withd
       )}
 
       <Button type="submit" disabled={isLoading} className="w-full">
-        {isLoading ? "Processing..." : `Request ${tokenType} Withdrawal`}
+        {isLoading ? "Processing..." : `Request ${
+          tokenType === "ETH" ? "ETH" : selectedToken?.metadata?.symbol || "Token"
+        } Withdrawal`}
       </Button>
     </form>
   );
@@ -370,12 +438,35 @@ function SimpleVaultUIContent({
     
     try {
       setLoadingState(prev => ({ ...prev, tokenBalance: true }));
-      const balance = await vault.getTokenBalance(tokenAddress);
-      setTokenBalances(prev => ({ ...prev, [tokenAddress]: balance }));
+      setTokenBalances(prev => ({
+        ...prev,
+        [tokenAddress]: { ...prev[tokenAddress], loading: true }
+      }));
+
+      const [balance, metadata] = await Promise.all([
+        vault.getTokenBalance(tokenAddress),
+        vault.getTokenMetadata(tokenAddress)
+      ]);
+
+      setTokenBalances(prev => ({
+        ...prev,
+        [tokenAddress]: {
+          balance,
+          metadata,
+          loading: false
+        }
+      }));
       setError(null);
     } catch (err: any) {
-      console.error("Failed to fetch token balance:", err);
-      // Don't set error state for token balance fetch failure
+      console.error("Failed to fetch token data:", err);
+      setTokenBalances(prev => ({
+        ...prev,
+        [tokenAddress]: {
+          ...prev[tokenAddress],
+          loading: false,
+          error: err.message
+        }
+      }));
     } finally {
       setLoadingState(prev => ({ ...prev, tokenBalance: false }));
     }
@@ -510,7 +601,7 @@ function SimpleVaultUIContent({
       <WithdrawalForm
         onSubmit={handleWithdrawal}
         isLoading={loadingState.withdrawal}
-        maxAmount={selectedToken ? (tokenBalances[selectedToken] || BigInt(0)) : ethBalance}
+        maxAmount={selectedToken ? (tokenBalances[selectedToken]?.balance || BigInt(0)) : ethBalance}
         onTokenSelect={setSelectedToken}
       />
     );

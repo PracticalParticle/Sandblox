@@ -1,6 +1,28 @@
 import { Address, Hash, TransactionReceipt } from 'viem';
 
 /**
+ * Interface for ERC20 Token standard
+ */
+export interface IERC20 {
+  // Read-only functions
+  name(): Promise<string>;
+  symbol(): Promise<string>;
+  decimals(): Promise<number>;
+  totalSupply(): Promise<bigint>;
+  balanceOf(account: Address): Promise<bigint>;
+  allowance(owner: Address, spender: Address): Promise<bigint>;
+  
+  // State-changing functions
+  transfer(recipient: Address, amount: bigint): Promise<TransactionResult>;
+  approve(spender: Address, amount: bigint): Promise<TransactionResult>;
+  transferFrom(sender: Address, recipient: Address, amount: bigint): Promise<TransactionResult>;
+  
+  // Optional metadata
+  logo?: string;
+  website?: string;
+}
+
+/**
  * Represents the result of a blockchain transaction, providing both immediate hash
  * and the ability to wait for confirmation
  */
