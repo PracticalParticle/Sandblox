@@ -5,7 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { useParams } from 'react-router-dom';
 import SimpleVaultUI from '../blox/SimpleVault/SimpleVault.ui';
 import { Address } from 'viem';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Info, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface Message {
@@ -117,23 +117,30 @@ const BloxMiniApp: React.FC = () => {
               </ScrollArea>
             </div>
 
-            {/* Messages Section */}
+            {/* Notifications Section */}
             <div className="p-4 flex-1">
-              <h2 className="text-lg font-semibold mb-4">Messages</h2>
+              <h2 className="text-lg font-semibold mb-4">Notifications</h2>
               <ScrollArea className="h-[calc(50vh-8rem)]">
                 <div className="space-y-2">
                   {messages.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-4">
-                      No messages to display
+                      No notifications to display
                     </p>
                   ) : (
                     messages.map((message, index) => (
                       <Alert 
                         key={index} 
                         variant={message.type === 'error' ? 'destructive' : 'default'}
-                        className="text-sm"
+                        className={`text-sm ${
+                          message.type === 'warning' ? 'border-yellow-500 text-yellow-700' :
+                          message.type === 'success' ? 'border-green-500 text-green-700' :
+                          message.type === 'info' ? 'border-blue-500 text-blue-700' : ''
+                        }`}
                       >
-                        <AlertCircle className="h-4 w-4" />
+                        {message.type === 'error' && <AlertCircle className="h-4 w-4" />}
+                        {message.type === 'warning' && <AlertTriangle className="h-4 w-4" />}
+                        {message.type === 'info' && <Info className="h-4 w-4" />}
+                        {message.type === 'success' && <CheckCircle className="h-4 w-4" />}
                         <AlertTitle className="text-xs">{message.title}</AlertTitle>
                         <AlertDescription className="text-xs mt-1">
                           {message.description}
