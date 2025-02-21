@@ -13,11 +13,13 @@ import {
   Clock,
   Shield,
   Wallet,
-  X
+  X,
+  Timer,
+  Network
 } from 'lucide-react'
-import { Button } from '../components/ui/button'
-import { Card } from '../components/ui/card'
-import { Alert, AlertDescription } from '../components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useSecureContract } from '@/hooks/useSecureContract'
 import { useToast } from '../components/ui/use-toast'
 import { Input } from '../components/ui/input'
@@ -26,6 +28,13 @@ import type { SecureContractInfo } from '@/lib/types'
 import { Address } from 'viem'
 import { SingleWalletManagerProvider, useSingleWallet } from '@/components/SingleWalletManager'
 import { formatAddress } from '@/lib/utils'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { Badge } from "@/components/ui/badge"
 
 const container = {
   hidden: { opacity: 0 },
@@ -115,23 +124,82 @@ function RecoveryWalletContent({
           )}
         </div>
       </div>
+    </div>
+  )
+}
 
-      <div className="flex justify-between">
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={onClose}
-        >
-          Close
-        </Button>
-        {isRecoveryWalletConnected && (
-          <Button
-            onClick={onSuccess}
-            className="ml-auto"
-          >
-            Continue with Transfer Request
-          </Button>
-        )}
+function TimeLockWalletContent({ 
+  contractInfo, 
+  onSuccess,
+  onClose 
+}: { 
+  contractInfo: SecureContractInfo | null,
+  onSuccess: () => void,
+  onClose: () => void
+}) {
+  const { session, isConnecting, connect, disconnect } = useSingleWallet()
+  const [isOwnerWalletConnected, setIsOwnerWalletConnected] = useState(false)
+
+  useEffect(() => {
+    if (session && contractInfo) {
+      setIsOwnerWalletConnected(
+        session.account.toLowerCase() === contractInfo.owner.toLowerCase()
+      )
+    } else {
+      setIsOwnerWalletConnected(false)
+    }
+  }, [session, contractInfo])
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center space-x-2">
+        <div className="flex-1">
+          {session ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm font-medium">Connected Wallet</span>
+                  <span className="text-xs text-muted-foreground">
+                    {formatAddress(session.account)}
+                  </span>
+                </div>
+                <Button
+                  onClick={() => void disconnect()}
+                  variant="ghost"
+                  size="sm"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              {!isOwnerWalletConnected && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Connected wallet does not match the owner address. Please connect the correct wallet.
+                  </AlertDescription>
+                </Alert>
+              )}
+              {isOwnerWalletConnected && (
+                <Alert>
+                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  <AlertDescription className="text-green-500">
+                    Owner wallet connected successfully!
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          ) : (
+            <Button
+              onClick={() => void connect()}
+              disabled={isConnecting}
+              className="w-full"
+              variant="outline"
+            >
+              <Wallet className="mr-2 h-4 w-4" />
+              {isConnecting ? 'Connecting...' : 'Connect Owner Wallet'}
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -594,142 +662,247 @@ export function SecurityDetails() {
           {/* Management Tiles */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Ownership Management */}
-            <Card className="p-4">
-              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                <Key className="h-4 w-4" />
-                Ownership
-              </h2>
-              <Button 
-                onClick={handleTransferOwnershipRequest}
-                className="flex items-center gap-2 w-full"
-                size="sm"
-              >
-                <Wallet className="h-4 w-4" />
-                Request Transfer
-              </Button>
+            <Card className="relative">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Ownership</CardTitle>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Badge variant="secondary" className="flex items-center gap-1">
+                          <Timer className="h-3 w-3" />
+                          <span>Temporal</span>
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Two-phase temporal security</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Button 
+                  onClick={handleTransferOwnershipRequest}
+                  className="flex items-center gap-2 w-full"
+                  size="sm"
+                >
+                  <Wallet className="h-4 w-4" />
+                  Request Transfer
+                </Button>
+              </CardContent>
             </Card>
 
             {/* Broadcaster Management */}
-            <Card className="p-4">
-              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                <Radio className="h-4 w-4" />
-                Broadcaster
-              </h2>
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button className="flex items-center gap-2 w-full" size="sm">
-                    <Wallet className="h-4 w-4" />
-                    Request Update
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-md">
-                  <DialogHeader className="space-y-3">
-                    <DialogTitle>Request Broadcaster Update</DialogTitle>
-                    <div className="p-2 bg-muted rounded-lg text-sm">
-                      <p className="font-medium">Current Broadcaster:</p>
-                      <code className="text-xs">{contractInfo.broadcaster}</code>
-                    </div>
-                  </DialogHeader>
-                  <div className="space-y-3">
-                    <Input
-                      placeholder="New Broadcaster Address"
-                      value={newBroadcasterAddress}
-                      onChange={(e) => setNewBroadcasterAddress(e.target.value)}
-                    />
-                    <SingleWalletManagerProvider
-                      projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
-                      autoConnect={false}
-                      metadata={{
-                        name: 'OpenBlox Broadcaster',
-                        description: 'OpenBlox Broadcaster Wallet Connection',
-                        url: window.location.origin,
-                        icons: ['https://avatars.githubusercontent.com/u/37784886']
-                      }}
-                    >
-                      <BroadcasterWalletContent 
-                        contractInfo={contractInfo}
-                        onSuccess={() => handleUpdateBroadcasterRequest(newBroadcasterAddress)}
-                        onClose={() => {}}
+            <Card className="relative">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Broadcaster</CardTitle>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Badge variant="secondary" className="flex items-center gap-1">
+                          <Timer className="h-3 w-3" />
+                          <span>Temporal</span>
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Two-phase temporal security</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="flex items-center gap-2 w-full" size="sm">
+                      <Wallet className="h-4 w-4" />
+                      Request Update
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader className="space-y-3">
+                      <DialogTitle>Request Broadcaster Update</DialogTitle>
+                      <div className="p-2 bg-muted rounded-lg text-sm">
+                        <p className="font-medium">Current Broadcaster:</p>
+                        <code className="text-xs">{contractInfo.broadcaster}</code>
+                      </div>
+                    </DialogHeader>
+                    <div className="space-y-3">
+                      <Input
+                        placeholder="New Broadcaster Address"
+                        value={newBroadcasterAddress}
+                        onChange={(e) => setNewBroadcasterAddress(e.target.value)}
                       />
-                    </SingleWalletManagerProvider>
-                  </div>
-                </DialogContent>
-              </Dialog>
+                      <SingleWalletManagerProvider
+                        projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
+                        autoConnect={false}
+                        metadata={{
+                          name: 'OpenBlox Broadcaster',
+                          description: 'OpenBlox Broadcaster Wallet Connection',
+                          url: window.location.origin,
+                          icons: ['https://avatars.githubusercontent.com/u/37784886']
+                        }}
+                      >
+                        <BroadcasterWalletContent 
+                          contractInfo={contractInfo}
+                          onSuccess={() => handleUpdateBroadcasterRequest(newBroadcasterAddress)}
+                          onClose={() => {}}
+                        />
+                      </SingleWalletManagerProvider>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </CardContent>
             </Card>
 
             {/* Recovery Management */}
-            <Card className="p-4">
-              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                <Shield className="h-4 w-4" />
-                Recovery
-              </h2>
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button className="flex items-center gap-2 w-full" size="sm">
-                    <Key className="h-4 w-4" />
-                    Request Update
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-md">
-                  <DialogHeader className="space-y-3">
-                    <DialogTitle>Request Recovery Update</DialogTitle>
-                    <div className="p-2 bg-muted rounded-lg text-sm">
-                      <p className="font-medium">Current Recovery Address:</p>
-                      <code className="text-xs">{contractInfo.recoveryAddress}</code>
+            <Card className="relative">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Recovery</CardTitle>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Badge variant="secondary" className="flex items-center gap-1">
+                          <Network className="h-3 w-3" />
+                          <span>Meta Tx</span>
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Single-phase meta tx security</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="flex items-center gap-2 w-full" size="sm">
+                      <Key className="h-4 w-4" />
+                      Update
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader className="space-y-3">
+                      <DialogTitle>Update Recovery Address</DialogTitle>
+                      <div className="p-2 bg-muted rounded-lg text-sm">
+                        <p className="font-medium">Current Recovery Address:</p>
+                        <code className="text-xs">{contractInfo.recoveryAddress}</code>
+                      </div>
+                    </DialogHeader>
+                    <div className="space-y-3">
+                      <Input
+                        placeholder="New Recovery Address"
+                        value={newRecoveryAddress}
+                        onChange={(e) => setNewRecoveryAddress(e.target.value)}
+                      />
+                      <SingleWalletManagerProvider
+                        projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
+                        autoConnect={false}
+                        metadata={{
+                          name: 'OpenBlox Broadcaster',
+                          description: 'OpenBlox Broadcaster Wallet Connection',
+                          url: window.location.origin,
+                          icons: ['https://avatars.githubusercontent.com/u/37784886']
+                        }}
+                      >
+                        <BroadcasterWalletContent 
+                          contractInfo={contractInfo}
+                          onSuccess={() => handleUpdateRecoveryRequest(newRecoveryAddress)}
+                          onClose={() => {}}
+                        />
+                      </SingleWalletManagerProvider>
                     </div>
-                  </DialogHeader>
-                  <div className="space-y-3">
-                    <Input
-                      placeholder="New Recovery Address"
-                      value={newRecoveryAddress}
-                      onChange={(e) => setNewRecoveryAddress(e.target.value)}
-                    />
-                    <DialogFooter>
-                      <Button onClick={() => handleUpdateRecoveryRequest(newRecoveryAddress)}>
-                        Submit Request
-                      </Button>
-                    </DialogFooter>
-                  </div>
-                </DialogContent>
-              </Dialog>
+                  </DialogContent>
+                </Dialog>
+              </CardContent>
             </Card>
 
             {/* TimeLock Management */}
-            <Card className="p-4">
-              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                TimeLock
-              </h2>
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button className="flex items-center gap-2 w-full" size="sm">
-                    <Clock className="h-4 w-4" />
-                    Request Update
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-md">
-                  <DialogHeader className="space-y-3">
-                    <DialogTitle>Request TimeLock Update</DialogTitle>
-                    <div className="p-2 bg-muted rounded-lg text-sm">
-                      <p className="font-medium">Current TimeLock Period:</p>
-                      <p className="text-xs">{contractInfo.timeLockPeriodInDays} days</p>
+            <Card className="relative">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>TimeLock</CardTitle>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Badge variant="secondary" className="flex items-center gap-1">
+                          <Network className="h-3 w-3" />
+                          <span>Meta Tx</span>
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Single-phase meta tx security</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="flex items-center gap-2 w-full" size="sm">
+                      <Clock className="h-4 w-4" />
+                      Update
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader className="space-y-3">
+                      <DialogTitle>Update TimeLock Period</DialogTitle>
+                      <div className="p-2 bg-muted rounded-lg text-sm">
+                        <p className="font-medium">Current TimeLock Period:</p>
+                        <p className="text-xs">{contractInfo.timeLockPeriodInDays} days</p>
+                      </div>
+                      <DialogDescription>
+                        Enter a new time lock period between 1 and 30 days.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <Input
+                          type="number"
+                          min="1"
+                          max="30"
+                          placeholder="New TimeLock Period (1-30 days)"
+                          value={newTimeLockPeriod}
+                          onChange={(e) => {
+                            const value = parseInt(e.target.value);
+                            if (!isNaN(value) && value > 0 && value <= 30) {
+                              setNewTimeLockPeriod(e.target.value);
+                            }
+                          }}
+                        />
+                        {newTimeLockPeriod && (parseInt(newTimeLockPeriod) <= 0 || parseInt(newTimeLockPeriod) > 30) && (
+                          <p className="text-sm text-destructive">Time lock period must be between 1 and 30 days</p>
+                        )}
+                      </div>
+                      <SingleWalletManagerProvider
+                        projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
+                        autoConnect={false}
+                        metadata={{
+                          name: 'OpenBlox Broadcaster',
+                          description: 'OpenBlox Broadcaster Wallet Connection',
+                          url: window.location.origin,
+                          icons: ['https://avatars.githubusercontent.com/u/37784886']
+                        }}
+                      >
+                        <BroadcasterWalletContent 
+                          contractInfo={contractInfo}
+                          onSuccess={() => {
+                            if (parseInt(newTimeLockPeriod) > 0 && parseInt(newTimeLockPeriod) <= 30) {
+                              handleUpdateTimeLockRequest(newTimeLockPeriod);
+                            }
+                          }}
+                          onClose={() => {}}
+                        />
+                      </SingleWalletManagerProvider>
                     </div>
-                  </DialogHeader>
-                  <div className="space-y-3">
-                    <Input
-                      type="number"
-                      placeholder="New TimeLock Period (days)"
-                      value={newTimeLockPeriod}
-                      onChange={(e) => setNewTimeLockPeriod(e.target.value)}
-                    />
-                    <DialogFooter>
-                      <Button onClick={() => handleUpdateTimeLockRequest(newTimeLockPeriod)}>
-                        Submit Request
-                      </Button>
-                    </DialogFooter>
-                  </div>
-                </DialogContent>
-              </Dialog>
+                  </DialogContent>
+                </Dialog>
+              </CardContent>
             </Card>
           </div>
 
