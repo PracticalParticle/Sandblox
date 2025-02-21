@@ -12,7 +12,8 @@ import {
   Radio,
   Clock,
   Shield,
-  Wallet
+  Wallet,
+  X
 } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
@@ -23,7 +24,8 @@ import { Input } from '../components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '../components/ui/dialog'
 import type { SecureContractInfo } from '@/lib/types'
 import { Address } from 'viem'
-import { useSingleWallet, WalletConnectButton } from '@/components/SingleWalletManager'
+import { SingleWalletManagerProvider, useSingleWallet } from '@/components/SingleWalletManager'
+import { formatAddress } from '@/lib/utils'
 
 const container = {
   hidden: { opacity: 0 },
@@ -38,6 +40,101 @@ const container = {
 const item = {
   hidden: { opacity: 0, y: 20 },
   show: { opacity: 1, y: 0 },
+}
+
+function RecoveryWalletContent({ 
+  contractInfo, 
+  onSuccess,
+  onClose 
+}: { 
+  contractInfo: SecureContractInfo | null,
+  onSuccess: () => void,
+  onClose: () => void
+}) {
+  const { session, isConnecting, connect, disconnect } = useSingleWallet()
+  const [isRecoveryWalletConnected, setIsRecoveryWalletConnected] = useState(false)
+
+  useEffect(() => {
+    if (session && contractInfo) {
+      setIsRecoveryWalletConnected(
+        session.account.toLowerCase() === contractInfo.recoveryAddress.toLowerCase()
+      )
+    } else {
+      setIsRecoveryWalletConnected(false)
+    }
+  }, [session, contractInfo])
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center space-x-2">
+        <div className="flex-1">
+          {session ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm font-medium">Connected Wallet</span>
+                  <span className="text-xs text-muted-foreground">
+                    {formatAddress(session.account)}
+                  </span>
+                </div>
+                <Button
+                  onClick={() => void disconnect()}
+                  variant="ghost"
+                  size="sm"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              {!isRecoveryWalletConnected && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Connected wallet does not match the recovery address. Please connect the correct wallet.
+                  </AlertDescription>
+                </Alert>
+              )}
+              {isRecoveryWalletConnected && (
+                <Alert>
+                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  <AlertDescription className="text-green-500">
+                    Recovery wallet connected successfully!
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          ) : (
+            <Button
+              onClick={() => void connect()}
+              disabled={isConnecting}
+              className="w-full"
+              variant="outline"
+            >
+              <Wallet className="mr-2 h-4 w-4" />
+              {isConnecting ? 'Connecting...' : 'Connect Recovery Wallet'}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex justify-between">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={onClose}
+        >
+          Close
+        </Button>
+        {isRecoveryWalletConnected && (
+          <Button
+            onClick={onSuccess}
+            className="ml-auto"
+          >
+            Continue with Transfer Request
+          </Button>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export function SecurityDetails() {
@@ -258,18 +355,10 @@ export function SecurityDetails() {
   }
 
   const RecoveryWalletDialog = () => {
-    const handleWalletConnection = async () => {
-      try {
-        await connect();
-      } catch (error) {
-        console.error('Wallet connection error:', error);
-        toast({
-          title: "Connection Failed",
-          description: "Failed to connect wallet. Please try again.",
-          variant: "destructive"
-        });
-      }
-    };
+    const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID;
+    if (!projectId) {
+      throw new Error('Missing VITE_WALLET_CONNECT_PROJECT_ID environment variable');
+    }
 
     return (
       <Dialog open={showConnectRecoveryDialog} onOpenChange={setShowConnectRecoveryDialog}>
@@ -286,76 +375,29 @@ export function SecurityDetails() {
               )}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center space-x-2">
-              <div className="flex-1 text-center">
-                {session ? (
-                  <div className="space-y-4">
-                    <div className="p-4 bg-muted rounded-lg">
-                      <p className="text-sm font-medium">Connected Wallet:</p>
-                      <code className="text-xs">{session.account}</code>
-                    </div>
-                    {!isRecoveryWalletConnected && (
-                      <div className="flex flex-col gap-2">
-                        <Alert variant="destructive">
-                          <AlertCircle className="h-4 w-4" />
-                          <AlertDescription>
-                            Connected wallet does not match the recovery address. Please connect the correct wallet.
-                          </AlertDescription>
-                        </Alert>
-                        <Button 
-                          variant="outline" 
-                          onClick={disconnect}
-                          className="w-full"
-                        >
-                          Disconnect Wallet
-                        </Button>
-                      </div>
-                    )}
-                    {isRecoveryWalletConnected && (
-                      <div className="flex flex-col gap-2">
-                        <Alert>
-                          <CheckCircle2 className="h-4 w-4 text-green-500" />
-                          <AlertDescription className="text-green-500">
-                            Recovery wallet connected successfully!
-                          </AlertDescription>
-                        </Alert>
-                        <Button 
-                          onClick={() => {
-                            setShowConnectRecoveryDialog(false);
-                            handleTransferOwnershipRequest();
-                          }}
-                          className="w-full"
-                        >
-                          Continue with Transfer Request
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <Button 
-                    onClick={handleWalletConnection}
-                    className="w-full"
-                  >
-                    Connect Recovery Wallet
-                  </Button>
-                )}
-              </div>
-            </div>
-          </div>
-          <DialogFooter className="sm:justify-start">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setShowConnectRecoveryDialog(false)}
-            >
-              Close
-            </Button>
-          </DialogFooter>
+          <SingleWalletManagerProvider
+            projectId={projectId}
+            autoConnect={false}
+            metadata={{
+              name: 'OpenBlox Recovery',
+              description: 'OpenBlox Recovery Wallet Connection',
+              url: window.location.origin,
+              icons: ['https://avatars.githubusercontent.com/u/37784886']
+            }}
+          >
+            <RecoveryWalletContent 
+              contractInfo={contractInfo}
+              onSuccess={() => {
+                setShowConnectRecoveryDialog(false)
+                handleTransferOwnershipRequest()
+              }}
+              onClose={() => setShowConnectRecoveryDialog(false)}
+            />
+          </SingleWalletManagerProvider>
         </DialogContent>
       </Dialog>
-    );
-  };
+    )
+  }
 
   if (!address || error) {
     return (
