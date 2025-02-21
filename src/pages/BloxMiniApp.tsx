@@ -72,7 +72,7 @@ const BloxMiniApp: React.FC = () => {
     <div className="flex flex-col h-screen">
       {/* Header */}
       <div className="flex items-center justify-between p-6 border-b">
-        <h1 className="text-2xl font-bold">Blox Mini Playground</h1>
+        <h1 className="text-2xl font-bold">Blox Mini App</h1>
         <div className="flex items-center space-x-4">
           {/* Add header controls here */}
         </div>
