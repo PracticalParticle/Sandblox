@@ -223,7 +223,6 @@ function SimpleVaultUIContent({
   const [loadingState, setLoadingState] = useAtom(loadingStateAtom);
   const [vault, setVault] = useAtom(vaultInstanceAtom);
   const [error, setError] = useState<string | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
 
   // Initialize vault instance
   useEffect(() => {
@@ -235,11 +234,9 @@ function SimpleVaultUIContent({
         const vaultInstance = new SimpleVault(publicClient, walletClient, contractAddress, chain);
         setVault(vaultInstance);
         setError(null);
-        setAutoRefresh(true);
       } catch (err: any) {
         console.error("Failed to initialize vault:", err);
         setError("Failed to initialize vault contract");
-        setAutoRefresh(false);
         onError?.(new Error("Failed to initialize vault contract"));
       } finally {
         setLoadingState(prev => ({ ...prev, initialization: false }));
@@ -272,11 +269,9 @@ function SimpleVaultUIContent({
       setEthBalance(balance);
       setPendingTxs(transactions);
       setError(null);
-      setAutoRefresh(true);
     } catch (err: any) {
       console.error("Failed to fetch vault data:", err);
       setError("Failed to fetch vault data");
-      setAutoRefresh(false);
       onError?.(new Error("Failed to fetch vault data"));
     } finally {
       setLoadingState(prev => ({ ...prev, ethBalance: false }));
@@ -284,12 +279,10 @@ function SimpleVaultUIContent({
   }, [vault, setLoadingState, setEthBalance, setPendingTxs, _mock, onError]);
 
   useEffect(() => {
-    if (!_mock && vault && autoRefresh) {
+    if (!_mock && vault) {
       fetchVaultData();
-      const interval = setInterval(fetchVaultData, 10000);
-      return () => clearInterval(interval);
     }
-  }, [fetchVaultData, vault, _mock, autoRefresh]);
+  }, [fetchVaultData, vault, _mock]);
 
   const handleEthWithdrawal = async (to: Address, amount: bigint) => {
     if (!address || !vault) return;
@@ -431,9 +424,26 @@ function SimpleVaultUIContent({
     <div className="h-full overflow-auto">
       <div className={dashboardMode ? "p-0" : "container mx-auto p-4"}>
         <Card>
-          <CardHeader>
-            <CardTitle>Simple Vault</CardTitle>
-            <CardDescription>Secure storage for ETH and tokens with time-locked withdrawals</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle>Simple Vault</CardTitle>
+              <CardDescription>Secure storage for ETH and tokens with time-locked withdrawals</CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchVaultData}
+              disabled={loadingState.ethBalance}
+            >
+              {loadingState.ethBalance ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Refreshing...
+                </>
+              ) : (
+                'Refresh'
+              )}
+            </Button>
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
