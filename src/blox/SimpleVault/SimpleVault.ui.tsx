@@ -278,12 +278,6 @@ function SimpleVaultUIContent({
     }
   }, [vault, setLoadingState, setEthBalance, setPendingTxs, _mock, onError]);
 
-  useEffect(() => {
-    if (!_mock && vault) {
-      fetchVaultData();
-    }
-  }, [fetchVaultData, vault, _mock]);
-
   const handleEthWithdrawal = async (to: Address, amount: bigint) => {
     if (!address || !vault) return;
     
@@ -403,7 +397,22 @@ function SimpleVaultUIContent({
           variant="outline" 
           onClick={() => {
             setLoadingState(prev => ({ ...prev, initialization: true }));
-            fetchVaultData();
+            // Only reinitialize the vault, don't fetch data
+            const initializeVault = async () => {
+              if (!publicClient || !chain) return;
+              try {
+                const vaultInstance = new SimpleVault(publicClient, walletClient, contractAddress, chain);
+                setVault(vaultInstance);
+                setError(null);
+              } catch (err: any) {
+                console.error("Failed to initialize vault:", err);
+                setError("Failed to initialize vault contract");
+                onError?.(new Error("Failed to initialize vault contract"));
+              } finally {
+                setLoadingState(prev => ({ ...prev, initialization: false }));
+              }
+            };
+            initializeVault();
           }}
           disabled={loadingState.initialization}
         >
@@ -433,7 +442,7 @@ function SimpleVaultUIContent({
               variant="outline"
               size="sm"
               onClick={fetchVaultData}
-              disabled={loadingState.ethBalance}
+              disabled={loadingState.ethBalance || !vault}
             >
               {loadingState.ethBalance ? (
                 <>
