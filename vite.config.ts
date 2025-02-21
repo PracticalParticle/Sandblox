@@ -52,7 +52,8 @@ export default defineConfig({
           https://eth-mainnet.g.alchemy.com 
           https://eth-sepolia.g.alchemy.com 
           https://explorer-api.walletconnect.com 
-          https://remote-ganache-1.tailb0865.ts.net;
+          https://remote-ganache-1.tailb0865.ts.net
+          https://*.merkle.io;
         font-src 'self' data: https://fonts.googleapis.com https://rsms.me;
         img-src 'self' data: https: blob;
         media-src 'self' blob:;
