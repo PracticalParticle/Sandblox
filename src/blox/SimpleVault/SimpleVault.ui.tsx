@@ -775,34 +775,6 @@ function SimpleVaultUIContent({
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              {/* Balance Display */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>Vault Balance</CardTitle>
-                      <CardDescription>Track your ETH and token balances</CardDescription>
-                    </div>
-                    <AddTokenDialog
-                      onAddToken={async (address) => {
-                        await fetchTokenBalance(address);
-                        toast({
-                          title: "Token Added",
-                          description: "The token has been added to your tracking list",
-                        });
-                      }}
-                      isLoading={loadingState.tokenBalance}
-                    />
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <TokenList
-                    ethBalance={ethBalance}
-                    tokenBalances={tokenBalances}
-                  />
-                </CardContent>
-              </Card>
-
               {!dashboardMode ? (
                 <Tabs defaultValue="withdraw" className="w-full">
                   <TabsList className="grid w-full grid-cols-2">
