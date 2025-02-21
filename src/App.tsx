@@ -14,6 +14,7 @@ import { SecurityDetails } from './pages/SecurityDetails'
 import { Navbar } from './components/navigation/Navbar'
 import { Footer } from './components/navigation/Footer'
 import { BloxPreview } from './pages/BloxPreview'
+import BloxMiniApp from './pages/BloxMiniApp'
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
               <Route path="/security-center" element={<SecurityCenter />} />
               <Route path="/security-center/:address" element={<SecurityDetails />} />
               <Route path="/preview/:contractId" element={<BloxPreview />} />
+              <Route path="/blox-mini" element={<BloxMiniApp />} />
             </Routes>
           </div>
         </main>
