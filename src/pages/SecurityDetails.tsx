@@ -567,13 +567,13 @@ export function SecurityDetails() {
             <DialogTitle>Connect Recovery Wallet</DialogTitle>
             <DialogDescription>
               Please connect the recovery wallet to proceed with the ownership transfer request.
-              {contractInfo && (
-                <div className="mt-2 p-2 bg-muted rounded-lg">
-                  <p className="text-sm font-medium">Recovery Address:</p>
-                  <code className="text-xs">{contractInfo.recoveryAddress}</code>
-                </div>
-              )}
             </DialogDescription>
+            {contractInfo && (
+              <div className="mt-2 p-2 bg-muted rounded-lg">
+                <p className="text-sm font-medium">Recovery Address:</p>
+                <code className="text-xs">{contractInfo.recoveryAddress}</code>
+              </div>
+            )}
           </DialogHeader>
           <SingleWalletManagerProvider
             projectId={projectId}
