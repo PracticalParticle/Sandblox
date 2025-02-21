@@ -11,7 +11,8 @@ import {
   Key,
   Radio,
   Clock,
-  Shield
+  Shield,
+  Wallet
 } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
@@ -19,9 +20,10 @@ import { Alert, AlertDescription } from '../components/ui/alert'
 import { useSecureContract } from '@/hooks/useSecureContract'
 import { useToast } from '../components/ui/use-toast'
 import { Input } from '../components/ui/input'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '../components/ui/dialog'
 import type { SecureContractInfo } from '@/lib/types'
 import { Address } from 'viem'
+import { useSingleWallet, WalletConnectButton } from '@/components/SingleWalletManager'
 
 const container = {
   hidden: { opacity: 0 },
@@ -55,6 +57,10 @@ export function SecurityDetails() {
   const [newTimeLockPeriod, setNewTimeLockPeriod] = useState('')
   const [selectedTxId, setSelectedTxId] = useState('')
 
+  const { session, connect, disconnect } = useSingleWallet()
+  const [isRecoveryWalletConnected, setIsRecoveryWalletConnected] = useState(false)
+  const [showConnectRecoveryDialog, setShowConnectRecoveryDialog] = useState(false)
+
   useEffect(() => {
     if (!isConnected) {
       navigate('/')
@@ -75,6 +81,16 @@ export function SecurityDetails() {
 
     loadContractInfo()
   }, [isConnected, address])
+
+  useEffect(() => {
+    if (session && contractInfo) {
+      setIsRecoveryWalletConnected(
+        session.account.toLowerCase() === contractInfo.recoveryAddress.toLowerCase()
+      )
+    } else {
+      setIsRecoveryWalletConnected(false)
+    }
+  }, [session, contractInfo])
 
   const loadContractInfo = async () => {
     if (!address) return
@@ -100,8 +116,22 @@ export function SecurityDetails() {
 
   // Action handlers
   const handleTransferOwnershipRequest = async () => {
+    if (!contractInfo) return
+
     try {
-      // Implementation
+      if (!session) {
+        setShowConnectRecoveryDialog(true)
+        return
+      }
+
+      if (!isRecoveryWalletConnected) {
+        // If wrong wallet is connected, disconnect it first
+        await disconnect()
+        setShowConnectRecoveryDialog(true)
+        return
+      }
+
+      // Implementation with connected recovery wallet
       toast({
         title: "Request submitted",
         description: "Transfer ownership request has been submitted.",
@@ -227,6 +257,106 @@ export function SecurityDetails() {
     }
   }
 
+  const RecoveryWalletDialog = () => {
+    const handleWalletConnection = async () => {
+      try {
+        await connect();
+      } catch (error) {
+        console.error('Wallet connection error:', error);
+        toast({
+          title: "Connection Failed",
+          description: "Failed to connect wallet. Please try again.",
+          variant: "destructive"
+        });
+      }
+    };
+
+    return (
+      <Dialog open={showConnectRecoveryDialog} onOpenChange={setShowConnectRecoveryDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Connect Recovery Wallet</DialogTitle>
+            <DialogDescription>
+              Please connect the recovery wallet to proceed with the ownership transfer request.
+              {contractInfo && (
+                <div className="mt-2 p-2 bg-muted rounded-lg">
+                  <p className="text-sm font-medium">Recovery Address:</p>
+                  <code className="text-xs">{contractInfo.recoveryAddress}</code>
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center space-x-2">
+              <div className="flex-1 text-center">
+                {session ? (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-muted rounded-lg">
+                      <p className="text-sm font-medium">Connected Wallet:</p>
+                      <code className="text-xs">{session.account}</code>
+                    </div>
+                    {!isRecoveryWalletConnected && (
+                      <div className="flex flex-col gap-2">
+                        <Alert variant="destructive">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertDescription>
+                            Connected wallet does not match the recovery address. Please connect the correct wallet.
+                          </AlertDescription>
+                        </Alert>
+                        <Button 
+                          variant="outline" 
+                          onClick={disconnect}
+                          className="w-full"
+                        >
+                          Disconnect Wallet
+                        </Button>
+                      </div>
+                    )}
+                    {isRecoveryWalletConnected && (
+                      <div className="flex flex-col gap-2">
+                        <Alert>
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          <AlertDescription className="text-green-500">
+                            Recovery wallet connected successfully!
+                          </AlertDescription>
+                        </Alert>
+                        <Button 
+                          onClick={() => {
+                            setShowConnectRecoveryDialog(false);
+                            handleTransferOwnershipRequest();
+                          }}
+                          className="w-full"
+                        >
+                          Continue with Transfer Request
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <Button 
+                    onClick={handleWalletConnection}
+                    className="w-full"
+                  >
+                    Connect Recovery Wallet
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="sm:justify-start">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setShowConnectRecoveryDialog(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
   if (!address || error) {
     return (
       <div className="container py-8">
@@ -349,24 +479,13 @@ export function SecurityDetails() {
               Ownership Management
             </h2>
             <div className="space-y-4">
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button>Request Ownership Transfer</Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Request Ownership Transfer</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <Input
-                      placeholder="New Owner Address"
-                      value={newOwnerAddress}
-                      onChange={(e) => setNewOwnerAddress(e.target.value)}
-                    />
-                    <Button onClick={() => handleTransferOwnershipRequest()}>Submit Request</Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
+              <Button 
+                onClick={handleTransferOwnershipRequest}
+                className="flex items-center gap-2"
+              >
+                <Wallet className="h-4 w-4" />
+                Request Ownership Transfer
+              </Button>
 
               <div className="flex gap-2">
                 <Input
@@ -568,6 +687,9 @@ export function SecurityDetails() {
             </div>
           </Card>
         </motion.div>
+
+        {/* Recovery Wallet Connection Dialog */}
+        <RecoveryWalletDialog />
       </motion.div>
     </div>
   )
