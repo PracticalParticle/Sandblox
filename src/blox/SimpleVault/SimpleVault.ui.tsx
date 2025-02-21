@@ -224,7 +224,7 @@ function SimpleVaultUIContent({
   const [vault, setVault] = useAtom(vaultInstanceAtom);
   const [error, setError] = useState<string | null>(null);
 
-  // Initialize vault instance
+  // Initialize vault instance and fetch data once
   useEffect(() => {
     const initializeVault = async () => {
       if (!publicClient || !chain) return;
@@ -234,6 +234,23 @@ function SimpleVaultUIContent({
         const vaultInstance = new SimpleVault(publicClient, walletClient, contractAddress, chain);
         setVault(vaultInstance);
         setError(null);
+
+        // Fetch data once after successful initialization
+        if (!_mock) {
+          try {
+            const [balance, transactions] = await Promise.all([
+              vaultInstance.getEthBalance(),
+              vaultInstance.getPendingTransactions()
+            ]);
+            
+            setEthBalance(balance);
+            setPendingTxs(transactions);
+          } catch (err: any) {
+            console.error("Failed to fetch initial vault data:", err);
+            // Don't set error state for initial fetch failure
+            // User can retry using the refresh button
+          }
+        }
       } catch (err: any) {
         console.error("Failed to initialize vault:", err);
         setError("Failed to initialize vault contract");
@@ -244,7 +261,7 @@ function SimpleVaultUIContent({
     };
 
     initializeVault();
-  }, [publicClient, walletClient, contractAddress, chain, setVault, onError]);
+  }, [publicClient, walletClient, contractAddress, chain, setVault, onError, _mock, setEthBalance, setPendingTxs]);
 
   // Initialize with mock data if available
   useEffect(() => {
@@ -254,7 +271,7 @@ function SimpleVaultUIContent({
     }
   }, [_mock?.initialData, setPendingTxs]);
 
-  // Fetch balances and pending transactions
+  // Fetch balances and pending transactions (now only called via refresh button)
   const fetchVaultData = React.useCallback(async () => {
     if (!vault || _mock) return;
     
