@@ -302,6 +302,291 @@ const PendingTransaction = ({ tx, onApprove, onCancel, isLoading }: PendingTrans
   );
 };
 
+interface DepositFormProps {
+  onSubmit: (amount: bigint, token?: Address) => Promise<void>;
+  isLoading: boolean;
+}
+
+const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
+  const [amount, setAmount] = useState<string>("");
+  const [error, setError] = useState<string>("");
+  const [selectedTokenAddress, setSelectedTokenAddress] = useState<string>("ETH");
+  const [tokenBalances] = useAtom(tokenBalanceAtom);
+  const [approvalState, setApprovalState] = useState<{
+    isApproved: boolean;
+    isApproving: boolean;
+    error?: string;
+  }>({
+    isApproved: false,
+    isApproving: false
+  });
+  const { data: walletClient } = useWalletClient();
+  const { address } = useAccount();
+  const { toast } = useToast();
+
+  const selectedToken = selectedTokenAddress === "ETH" ? undefined : tokenBalances[selectedTokenAddress];
+  const tokenDecimals = selectedToken?.metadata?.decimals ?? 18;
+
+  // Reset approval state when token changes
+  useEffect(() => {
+    setApprovalState({
+      isApproved: false,
+      isApproving: false
+    });
+  }, [selectedTokenAddress]);
+
+  const checkAllowance = async (token: Address, amount: bigint, spender: Address) => {
+    try {
+      if (!address) throw new Error("No wallet connected");
+      
+      const allowance = await walletClient?.readContract({
+        address: token,
+        abi: [
+          {
+            inputs: [
+              { name: 'owner', type: 'address' },
+              { name: 'spender', type: 'address' }
+            ],
+            name: 'allowance',
+            outputs: [{ type: 'uint256' }],
+            stateMutability: 'view',
+            type: 'function'
+          }
+        ],
+        functionName: 'allowance',
+        args: [address, spender]
+      }) as bigint;
+
+      return allowance >= amount;
+    } catch (error) {
+      console.error('Error checking allowance:', error);
+      return false;
+    }
+  };
+
+  const handleApprove = async (token: Address, amount: bigint, spender: Address) => {
+    if (!walletClient || !address) {
+      throw new Error("Wallet not connected");
+    }
+
+    setApprovalState(prev => ({ ...prev, isApproving: true, error: undefined }));
+    try {
+      const hash = await walletClient.writeContract({
+        address: token,
+        abi: [
+          {
+            inputs: [
+              { name: 'spender', type: 'address' },
+              { name: 'amount', type: 'uint256' }
+            ],
+            name: 'approve',
+            outputs: [{ type: 'bool' }],
+            stateMutability: 'nonpayable',
+            type: 'function'
+          }
+        ],
+        functionName: 'approve',
+        args: [spender, amount]
+      });
+
+      toast({
+        title: "Approval Initiated",
+        description: `Transaction hash: ${hash}`,
+      });
+
+      const receipt = await walletClient.waitForTransactionReceipt({ hash });
+      
+      if (receipt.status === 'success') {
+        setApprovalState(prev => ({ ...prev, isApproved: true }));
+        toast({
+          title: "Approval Confirmed",
+          description: "Token approval successful",
+        });
+      } else {
+        throw new Error("Approval transaction failed");
+      }
+    } catch (error: any) {
+      setApprovalState(prev => ({ 
+        ...prev, 
+        error: error.message || "Failed to approve token"
+      }));
+      toast({
+        title: "Approval Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setApprovalState(prev => ({ ...prev, isApproving: false }));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError("");
+    
+    try {
+      const parsedAmount = selectedTokenAddress === "ETH" 
+        ? parseEther(amount) 
+        : parseUnits(amount, tokenDecimals);
+
+      // For ERC20 tokens, check and handle approval
+      if (selectedTokenAddress !== "ETH") {
+        const isApproved = await checkAllowance(
+          selectedTokenAddress as Address,
+          parsedAmount,
+          address as Address
+        );
+
+        if (!isApproved) {
+          await handleApprove(
+            selectedTokenAddress as Address,
+            parsedAmount,
+            address as Address
+          );
+          // Return early if approval failed
+          if (!approvalState.isApproved) return;
+        }
+      }
+
+      await onSubmit(
+        parsedAmount,
+        selectedTokenAddress === "ETH" ? undefined : selectedTokenAddress as Address
+      );
+      setAmount("");
+      setApprovalState({ isApproved: false, isApproving: false });
+    } catch (error: any) {
+      setError(error.message);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="tokenSelect">Select Token</Label>
+        <Select
+          value={selectedTokenAddress}
+          onValueChange={setSelectedTokenAddress}
+        >
+          <SelectTrigger>
+            <SelectValue>
+              <div className="flex items-center gap-2">
+                {selectedTokenAddress === "ETH" ? (
+                  <>
+                    <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Wallet className="h-3 w-3 text-primary" />
+                    </div>
+                    <span>ETH</span>
+                  </>
+                ) : tokenBalances[selectedTokenAddress]?.metadata ? (
+                  <>
+                    <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
+                      {tokenBalances[selectedTokenAddress].metadata?.logo ? (
+                        <img 
+                          src={tokenBalances[selectedTokenAddress].metadata.logo} 
+                          alt={tokenBalances[selectedTokenAddress].metadata.symbol} 
+                          className="w-5 h-5 rounded-full"
+                        />
+                      ) : (
+                        <Coins className="h-3 w-3 text-primary" />
+                      )}
+                    </div>
+                    <span>{tokenBalances[selectedTokenAddress].metadata.symbol}</span>
+                  </>
+                ) : (
+                  "Select a token"
+                )}
+              </div>
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {/* ETH Option */}
+            <SelectItem value="ETH">
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Wallet className="h-3 w-3 text-primary" />
+                </div>
+                <span>ETH</span>
+              </div>
+            </SelectItem>
+            
+            {/* ERC20 Token Options */}
+            {Object.entries(tokenBalances).map(([address, token]) => (
+              <SelectItem key={address} value={address}>
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
+                    {token.metadata?.logo ? (
+                      <img 
+                        src={token.metadata.logo} 
+                        alt={token.metadata.symbol} 
+                        className="w-5 h-5 rounded-full"
+                      />
+                    ) : (
+                      <Coins className="h-3 w-3 text-primary" />
+                    )}
+                  </div>
+                  <span>{token.metadata?.symbol || 'Unknown Token'}</span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="amount">
+          Amount ({selectedTokenAddress === "ETH" ? "ETH" : selectedToken?.metadata?.symbol || "Tokens"})
+        </Label>
+        <Input
+          id="amount"
+          type="number"
+          step="any"
+          min="0"
+          placeholder="0.0"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          required
+          aria-label={`${selectedTokenAddress === "ETH" ? "ETH" : "Token"} amount input`}
+        />
+      </div>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {approvalState.error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Approval Error</AlertTitle>
+          <AlertDescription>{approvalState.error}</AlertDescription>
+        </Alert>
+      )}
+
+      <Button 
+        type="submit" 
+        disabled={isLoading || approvalState.isApproving} 
+        className="w-full"
+      >
+        {isLoading || approvalState.isApproving ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            {approvalState.isApproving ? "Approving..." : "Processing..."}
+          </>
+        ) : selectedTokenAddress === "ETH" ? (
+          "Deposit ETH"
+        ) : approvalState.isApproved ? (
+          `Deposit ${selectedToken?.metadata?.symbol || "Token"}`
+        ) : (
+          `Approve ${selectedToken?.metadata?.symbol || "Token"}`
+        )}
+      </Button>
+    </form>
+  );
+};
+
 interface SimpleVaultUIProps {
   contractAddress: Address;
   contractInfo: ContractInfo;
@@ -568,6 +853,41 @@ function SimpleVaultUIContent({
     }
   };
 
+  const handleDeposit = async (amount: bigint, token?: Address) => {
+    if (!address || !vault) return;
+    
+    setLoadingState((prev: LoadingState) => ({ ...prev, withdrawal: true }));
+    try {
+      const tx = token 
+        ? await vault.depositToken(token, amount, { from: address })
+        : await vault.depositEth(amount, { from: address });
+
+      toast({
+        title: "Deposit Initiated",
+        description: `Transaction hash: ${tx.hash}`,
+      });
+      
+      await tx.wait();
+      toast({
+        title: "Deposit Confirmed",
+        description: "Your deposit has been confirmed.",
+      });
+      await fetchVaultData();
+      if (token) {
+        await fetchTokenBalance(token);
+      }
+    } catch (error: any) {
+      onError?.(error);
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingState((prev: LoadingState) => ({ ...prev, withdrawal: false }));
+    }
+  };
+
   const WithdrawalFormWrapper = () => {
     const [selectedToken, setSelectedToken] = useState<Address | undefined>(undefined);
 
@@ -784,12 +1104,30 @@ function SimpleVaultUIContent({
           <CardContent>
             <div className="space-y-6">
               {!dashboardMode ? (
-                <Tabs defaultValue="withdraw" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="withdraw">New Withdrawal</TabsTrigger>
-                    <TabsTrigger value="pending">Pending Transactions</TabsTrigger>
+                <Tabs defaultValue="deposit" className="w-full">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="deposit">Deposit</TabsTrigger>
+                    <TabsTrigger value="withdraw">Withdraw</TabsTrigger>
+                    <TabsTrigger value="pending">Pending</TabsTrigger>
                   </TabsList>
                   
+                  <TabsContent value="deposit">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Deposit</CardTitle>
+                        <CardDescription>
+                          Deposit ETH or tokens into your vault
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <DepositForm
+                          onSubmit={handleDeposit}
+                          isLoading={loadingState.withdrawal}
+                        />
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
                   <TabsContent value="withdraw">
                     <Card>
                       <CardHeader>

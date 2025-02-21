@@ -389,4 +389,87 @@ export default class SimpleVault extends SecureOwnable {
 
     return { name, symbol, decimals };
   }
+
+  /**
+   * @notice Deposit ETH into the vault
+   * @param amount Amount of ETH to deposit in wei
+   * @param options Transaction options
+   * @return TransactionResult containing hash and wait function
+   */
+  async depositEth(
+    amount: bigint,
+    options: TransactionOptions = {}
+  ): Promise<TransactionResult> {
+    if (!this.walletClient) throw new Error("WalletClient required for write operations");
+    if (!options.from) throw new Error("Sender address required");
+
+    const hash = await this.walletClient.writeContract({
+      chain: this.chain,
+      address: this.contractAddress,
+      abi: SimpleVaultABI,
+      functionName: 'deposit',
+      value: amount,
+      account: options.from
+    });
+
+    return {
+      hash,
+      wait: () => this.client.waitForTransactionReceipt({ hash })
+    };
+  }
+
+  /**
+   * @notice Deposit ERC20 tokens into the vault
+   * @param token Token contract address
+   * @param amount Amount of tokens to deposit
+   * @param options Transaction options
+   * @return TransactionResult containing hash and wait function
+   */
+  async depositToken(
+    token: Address,
+    amount: bigint,
+    options: TransactionOptions = {}
+  ): Promise<TransactionResult> {
+    if (!this.walletClient) throw new Error("WalletClient required for write operations");
+    if (!options.from) throw new Error("Sender address required");
+
+    // First approve the vault to spend tokens
+    const approvalHash = await this.walletClient.writeContract({
+      chain: this.chain,
+      address: token,
+      abi: [
+        {
+          inputs: [
+            { name: 'spender', type: 'address' },
+            { name: 'amount', type: 'uint256' }
+          ],
+          name: 'approve',
+          outputs: [{ type: 'bool' }],
+          stateMutability: 'nonpayable',
+          type: 'function'
+        }
+      ],
+      functionName: 'approve',
+      args: [this.contractAddress, amount],
+      account: options.from
+    });
+
+    // Wait for approval to be mined
+    await this.client.waitForTransactionReceipt({ hash: approvalHash });
+
+    // Now deposit the tokens
+    const hash = await this.walletClient.writeContract({
+      chain: this.chain,
+      address: this.contractAddress,
+      abi: SimpleVaultABI,
+      functionName: 'depositToken',
+      args: [token, amount],
+      account: options.from
+    });
+
+    return {
+      hash,
+      wait: () => this.client.waitForTransactionReceipt({ hash })
+    };
+  }
 }
