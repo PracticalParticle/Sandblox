@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useParams } from 'react-router-dom';
-import SimpleVaultUI from '../blox/SimpleVault/SimpleVault.ui';
 import { Address } from 'viem';
 import { AlertCircle, Info, AlertTriangle, CheckCircle, Shield, Timer, Network, Wallet, Key, Clock, Radio as RadioIcon, Copy } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -13,6 +12,9 @@ import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/comp
 import { useSecureContract } from '@/hooks/useSecureContract';
 import type { SecureContractInfo } from '@/lib/types';
 import { Button } from "@/components/ui/button";
+import { getContractDetails } from '@/lib/catalog';
+import type { BloxContract } from '@/lib/catalog/types';
+import { initializeUIComponents, getUIComponent, type BloxUIProps } from '@/lib/catalog/bloxUIComponents';
 
 interface Message {
   type: 'error' | 'warning' | 'info' | 'success';
@@ -30,19 +32,48 @@ const BloxMiniApp: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [contractInfo, setContractInfo] = useState<SecureContractInfo | null>(null);
+  const [bloxContract, setBloxContract] = useState<BloxContract | null>(null);
+  const [uiInitialized, setUiInitialized] = useState(false);
   const { validateAndLoadContract } = useSecureContract();
 
-  // Load contract info
+  // Initialize UI components on mount
   useEffect(() => {
-    if (!address) return;
+    const init = async () => {
+      try {
+        await initializeUIComponents();
+        setUiInitialized(true);
+      } catch (error) {
+        console.error('Failed to initialize UI components:', error);
+        setError('Failed to initialize UI components');
+        addMessage({
+          type: 'error',
+          title: 'Initialization Failed',
+          description: 'Failed to initialize UI components'
+        });
+      }
+    };
+    init();
+  }, []);
+
+  // Load contract info and blox details
+  useEffect(() => {
+    if (!address || !type || !uiInitialized) return;
 
     const loadContractInfo = async () => {
       setLoading(true);
       setError(null);
 
       try {
+        // Load secure contract info
         const info = await validateAndLoadContract(address as `0x${string}`);
         setContractInfo(info);
+
+        // Load blox contract details from catalog
+        const bloxDetails = await getContractDetails(type);
+        if (!bloxDetails) {
+          throw new Error(`Unknown Blox type: ${type}`);
+        }
+        setBloxContract(bloxDetails);
       } catch (error) {
         console.error('Error loading contract:', error);
         setError('Failed to load contract details. Please ensure this is a valid SecureOwnable contract.');
@@ -51,13 +82,13 @@ const BloxMiniApp: React.FC = () => {
           title: 'Loading Failed',
           description: 'Failed to load contract details. Please ensure this is a valid SecureOwnable contract.'
         });
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
     };
 
     loadContractInfo();
-  }, [address]);
+  }, [address, type, uiInitialized]);
 
   // Function to add messages that can be called from child components
   const addMessage = (message: Omit<Message, 'timestamp'>) => {
@@ -82,6 +113,14 @@ const BloxMiniApp: React.FC = () => {
 
   // Render the appropriate Blox UI based on type
   const renderBloxUI = () => {
+    if (!uiInitialized) {
+      return (
+        <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
+          <p className="text-gray-500">Initializing UI components...</p>
+        </div>
+      );
+    }
+
     if (!type || !address) {
       return (
         <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
@@ -90,35 +129,59 @@ const BloxMiniApp: React.FC = () => {
       );
     }
 
-    switch (type) {
-      case 'simple-vault':
-        return (
-          <SimpleVaultUI 
-            contractAddress={address as Address}
-            contractInfo={{
-              address: address as Address,
-              type: 'simple-vault',
-              name: 'Simple Vault',
-              category: 'Storage',
-              description: 'A secure vault contract for storing and managing assets with basic access controls.',
-              bloxId: 'simple-vault'
-            }}
-            onError={(error) => {
-              addMessage({
-                type: 'error',
-                title: 'Operation Failed',
-                description: error.message || 'Failed to perform operation'
-              });
-            }}
-          />
-        );
-      default:
-        return (
-          <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
-            <p className="text-gray-500">Unknown Blox type: {type}</p>
-          </div>
-        );
+    if (loading) {
+      return (
+        <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
+          <p className="text-gray-500">Loading...</p>
+        </div>
+      );
     }
+
+    if (error || !bloxContract) {
+      return (
+        <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
+          <p className="text-gray-500">{error || `Unknown Blox type: ${type}`}</p>
+        </div>
+      );
+    }
+
+    // Get the dynamic UI component
+    const BloxUI = getUIComponent(bloxContract.id);
+    if (!BloxUI) {
+      return (
+        <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
+          <p className="text-gray-500">UI component not found for type: {type}</p>
+        </div>
+      );
+    }
+
+    // Render the dynamic component
+    return (
+      <Suspense fallback={
+        <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
+          <p className="text-gray-500">Loading UI component...</p>
+        </div>
+      }>
+        <BloxUI 
+          contractAddress={address as `0x${string}`}
+          contractInfo={{
+            address: address as `0x${string}`,
+            type: bloxContract.id,
+            name: bloxContract.name,
+            category: bloxContract.category,
+            description: bloxContract.description,
+            bloxId: bloxContract.id
+          }}
+          onError={(error) => {
+            addMessage({
+              type: 'error',
+              title: 'Operation Failed',
+              description: error.message || 'Failed to perform operation'
+            });
+          }}
+        />
+      </Suspense>
+    );
   };
 
   return (
