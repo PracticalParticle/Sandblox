@@ -29,6 +29,7 @@ import { TokenList } from "./components/TokenList";
 import { AddTokenDialog } from "./components/AddTokenDialog";
 import type { TokenMetadata, TokenState, TokenBalanceState } from "./components/TokenList";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // State atoms following .cursorrules state management guidelines
 const pendingTxsAtom = atom<VaultTxRecord[]>([]);
@@ -65,15 +66,14 @@ const WithdrawalForm = ({ onSubmit, isLoading, maxAmount, onTokenSelect }: Withd
   const [to, setTo] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
   const [error, setError] = useState<string>("");
-  const [tokenType, setTokenType] = useState<"ETH" | "TOKEN">("ETH");
-  const [tokenAddress, setTokenAddress] = useState<string>("");
+  const [selectedTokenAddress, setSelectedTokenAddress] = useState<string>("ETH");
   const [tokenBalances] = useAtom(tokenBalanceAtom);
 
   useEffect(() => {
-    onTokenSelect?.(tokenType === "TOKEN" ? tokenAddress as Address : undefined);
-  }, [tokenType, tokenAddress, onTokenSelect]);
+    onTokenSelect?.(selectedTokenAddress === "ETH" ? undefined : selectedTokenAddress as Address);
+  }, [selectedTokenAddress, onTokenSelect]);
 
-  const selectedToken = tokenType === "TOKEN" ? tokenBalances[tokenAddress] : undefined;
+  const selectedToken = selectedTokenAddress === "ETH" ? undefined : tokenBalances[selectedTokenAddress];
   const tokenDecimals = selectedToken?.metadata?.decimals ?? 18;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -81,12 +81,7 @@ const WithdrawalForm = ({ onSubmit, isLoading, maxAmount, onTokenSelect }: Withd
     setError("");
     
     try {
-      // Validate token address if token type is TOKEN
-      if (tokenType === "TOKEN" && !tokenAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
-        throw new Error("Invalid token address");
-      }
-
-      const parsedAmount = tokenType === "ETH" 
+      const parsedAmount = selectedTokenAddress === "ETH" 
         ? parseEther(amount) 
         : parseUnits(amount, tokenDecimals);
 
@@ -97,12 +92,11 @@ const WithdrawalForm = ({ onSubmit, isLoading, maxAmount, onTokenSelect }: Withd
       await onSubmit(
         to as Address, 
         parsedAmount, 
-        tokenType === "TOKEN" ? tokenAddress as Address : undefined
+        selectedTokenAddress === "ETH" ? undefined : selectedTokenAddress as Address
       );
       setTo("");
       setAmount("");
-      setTokenAddress("");
-      setTokenType("ETH");
+      setSelectedTokenAddress("ETH");
     } catch (error: any) {
       setError(error.message);
     }
@@ -111,86 +105,85 @@ const WithdrawalForm = ({ onSubmit, isLoading, maxAmount, onTokenSelect }: Withd
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="tokenType">Token Type</Label>
-        <div className="flex space-x-4">
-          <div className="flex items-center space-x-2">
-            <input
-              type="radio"
-              id="eth"
-              value="ETH"
-              checked={tokenType === "ETH"}
-              onChange={(e) => setTokenType(e.target.value as "ETH" | "TOKEN")}
-              className="h-4 w-4"
-            />
-            <Label htmlFor="eth">ETH</Label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <input
-              type="radio"
-              id="token"
-              value="TOKEN"
-              checked={tokenType === "TOKEN"}
-              onChange={(e) => setTokenType(e.target.value as "ETH" | "TOKEN")}
-              className="h-4 w-4"
-            />
-            <Label htmlFor="token">ERC20 Token</Label>
-          </div>
-        </div>
-      </div>
-
-      {tokenType === "TOKEN" && (
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="tokenAddress">Token Address</Label>
-            <Input
-              id="tokenAddress"
-              placeholder="0x..."
-              value={tokenAddress}
-              onChange={(e) => setTokenAddress(e.target.value)}
-              required
-              pattern="^0x[a-fA-F0-9]{40}$"
-              aria-label="Token address input"
-            />
-          </div>
-
-          {selectedToken && (
-            <Card className="bg-muted">
-              <CardContent className="pt-4">
-                {selectedToken.loading ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-4 w-16" />
-                  </div>
-                ) : selectedToken.error ? (
-                  <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Error</AlertTitle>
-                    <AlertDescription>{selectedToken.error}</AlertDescription>
-                  </Alert>
-                ) : selectedToken.metadata ? (
-                  <div className="space-y-1">
-                    <p className="font-medium">{selectedToken.metadata.name}</p>
-                    <p className="text-sm text-muted-foreground">Symbol: {selectedToken.metadata.symbol}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Decimals: {selectedToken.metadata.decimals}
-                    </p>
-                    {selectedToken.metadata.website && (
-                      <a
-                        href={selectedToken.metadata.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-primary hover:underline"
-                      >
-                        Visit Website
-                      </a>
+        <Label htmlFor="tokenSelect">Select Token</Label>
+        <Select
+          value={selectedTokenAddress}
+          onValueChange={setSelectedTokenAddress}
+        >
+          <SelectTrigger>
+            <SelectValue>
+              <div className="flex items-center gap-2">
+                {selectedTokenAddress === "ETH" ? (
+                  <>
+                    <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Wallet className="h-3 w-3 text-primary" />
+                    </div>
+                    <span>ETH</span>
+                  </>
+                ) : tokenBalances[selectedTokenAddress]?.metadata ? (
+                  <>
+                    <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
+                      {tokenBalances[selectedTokenAddress].metadata?.logo ? (
+                        <img 
+                          src={tokenBalances[selectedTokenAddress].metadata.logo} 
+                          alt={tokenBalances[selectedTokenAddress].metadata.symbol} 
+                          className="w-5 h-5 rounded-full"
+                        />
+                      ) : (
+                        <Coins className="h-3 w-3 text-primary" />
+                      )}
+                    </div>
+                    <span>{tokenBalances[selectedTokenAddress].metadata.symbol}</span>
+                  </>
+                ) : (
+                  "Select a token"
+                )}
+              </div>
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {/* ETH Option */}
+            <SelectItem value="ETH">
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Wallet className="h-3 w-3 text-primary" />
+                </div>
+                <span>ETH</span>
+                <span className="ml-auto text-muted-foreground">
+                  {formatEther(maxAmount)}
+                </span>
+              </div>
+            </SelectItem>
+            
+            {/* ERC20 Token Options */}
+            {Object.entries(tokenBalances).map(([address, token]) => (
+              <SelectItem key={address} value={address}>
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
+                    {token.metadata?.logo ? (
+                      <img 
+                        src={token.metadata.logo} 
+                        alt={token.metadata.symbol} 
+                        className="w-5 h-5 rounded-full"
+                      />
+                    ) : (
+                      <Coins className="h-3 w-3 text-primary" />
                     )}
                   </div>
-                ) : null}
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
+                  <span>{token.metadata?.symbol || 'Unknown Token'}</span>
+                  <span className="ml-auto text-muted-foreground">
+                    {token.loading ? (
+                      <Skeleton className="h-4 w-16" />
+                    ) : (
+                      formatUnits(token.balance || BigInt(0), token.metadata?.decimals || 18)
+                    )}
+                  </span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       <div className="space-y-2">
         <Label htmlFor="to">Recipient Address</Label>
@@ -207,7 +200,7 @@ const WithdrawalForm = ({ onSubmit, isLoading, maxAmount, onTokenSelect }: Withd
 
       <div className="space-y-2">
         <Label htmlFor="amount">
-          Amount ({tokenType === "ETH" ? "ETH" : selectedToken?.metadata?.symbol || "Tokens"})
+          Amount ({selectedTokenAddress === "ETH" ? "ETH" : selectedToken?.metadata?.symbol || "Tokens"})
         </Label>
         <Input
           id="amount"
@@ -218,13 +211,13 @@ const WithdrawalForm = ({ onSubmit, isLoading, maxAmount, onTokenSelect }: Withd
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           required
-          aria-label={`${tokenType} amount input`}
+          aria-label={`${selectedTokenAddress === "ETH" ? "ETH" : "Token"} amount input`}
         />
         <p className="text-sm text-muted-foreground">
-          Available: {tokenType === "ETH" 
+          Available: {selectedTokenAddress === "ETH" 
             ? formatEther(maxAmount) 
             : formatUnits(maxAmount, tokenDecimals)
-          } {tokenType === "ETH" ? "ETH" : selectedToken?.metadata?.symbol || "Tokens"}
+          } {selectedTokenAddress === "ETH" ? "ETH" : selectedToken?.metadata?.symbol || "Tokens"}
         </p>
       </div>
 
@@ -238,7 +231,7 @@ const WithdrawalForm = ({ onSubmit, isLoading, maxAmount, onTokenSelect }: Withd
 
       <Button type="submit" disabled={isLoading} className="w-full">
         {isLoading ? "Processing..." : `Request ${
-          tokenType === "ETH" ? "ETH" : selectedToken?.metadata?.symbol || "Token"
+          selectedTokenAddress === "ETH" ? "ETH" : selectedToken?.metadata?.symbol || "Token"
         } Withdrawal`}
       </Button>
     </form>
