@@ -374,21 +374,6 @@ function SimpleVaultUIContent({
     }
   };
 
-  // Connection state check
-  if (!isConnected && !_mock) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Not Connected</AlertTitle>
-          <AlertDescription>
-            Please connect your wallet to interact with the vault.
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
-
   // Loading state
   if (loadingState.initialization) {
     return (

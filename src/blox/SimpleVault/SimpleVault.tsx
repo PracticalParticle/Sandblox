@@ -72,8 +72,10 @@ export default class SimpleVault extends SecureOwnable {
       address: this.contractAddress,
       abi: SimpleVaultABI,
       functionName: 'getEthBalance'
-    });
-    return result as bigint;
+    }) as unknown;
+    
+    // Ensure we return a bigint, defaulting to 0n if the result is falsy
+    return result ? BigInt(result.toString()) : 0n;
   }
 
   /**
