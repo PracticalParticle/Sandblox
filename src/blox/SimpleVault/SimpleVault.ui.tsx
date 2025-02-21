@@ -16,7 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import SimpleVault, { VaultTxRecord } from "./SimpleVault";
 import { useChain } from "@/hooks/useChain";
 import { atom, useAtom, Provider as JotaiProvider } from "jotai";
-import { AlertCircle, CheckCircle2, Clock, XCircle, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, XCircle, Loader2, Wallet, Coins, X } from "lucide-react";
 import { TxStatus, IERC20 } from "../../../contracts/core/iCore";
 import { useNavigate } from "react-router-dom";
 import { ContractInfo } from "@/lib/verification/index";
@@ -323,6 +323,7 @@ interface SimpleVaultUIProps {
     };
   };
   dashboardMode?: boolean;
+  renderSidebar?: boolean;
 }
 
 function SimpleVaultUIContent({ 
@@ -330,7 +331,8 @@ function SimpleVaultUIContent({
   contractInfo, 
   onError,
   _mock, 
-  dashboardMode = false 
+  dashboardMode = false,
+  renderSidebar = false
 }: SimpleVaultUIProps): JSX.Element {
   const { address, isConnected } = _mock?.account || useAccount();
   const publicClient = _mock?.publicClient || usePublicClient();
@@ -590,6 +592,104 @@ function SimpleVaultUIContent({
       />
     );
   };
+
+  // Render sidebar content
+  if (renderSidebar) {
+    return (
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <h3 className="font-medium text-sm text-muted-foreground">NATIVE TOKEN</h3>
+          <Card className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Wallet className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <p className="font-medium">ETH</p>
+                  <p className="text-sm text-muted-foreground">
+                    {loadingState.ethBalance ? (
+                      <Skeleton className="h-4 w-20" />
+                    ) : (
+                      formatEther(ethBalance)
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="font-medium text-sm text-muted-foreground">ERC20 TOKENS</h3>
+            <AddTokenDialog
+              onAddToken={async (address) => {
+                await fetchTokenBalance(address);
+                toast({
+                  title: "Token Added",
+                  description: "The token has been added to your tracking list",
+                });
+              }}
+              isLoading={loadingState.tokenBalance}
+            />
+          </div>
+          <div className="space-y-2">
+            {Object.entries(tokenBalances).map(([tokenAddress, token]) => (
+              <Card key={tokenAddress} className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {token.metadata?.logo ? (
+                      <img 
+                        src={token.metadata.logo} 
+                        alt={token.metadata.symbol} 
+                        className="w-8 h-8 rounded-full"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Coins className="h-4 w-4 text-primary" />
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-medium">{token.metadata?.symbol || 'Unknown Token'}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {token.loading ? (
+                          <Skeleton className="h-4 w-20" />
+                        ) : token.error ? (
+                          <span className="text-destructive">Error loading balance</span>
+                        ) : (
+                          formatUnits(token.balance || BigInt(0), token.metadata?.decimals || 18)
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => {
+                      // TODO: Implement token removal
+                      toast({
+                        title: "Not Implemented",
+                        description: "Token removal coming soon",
+                      });
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </Card>
+            ))}
+            {Object.keys(tokenBalances).length === 0 && (
+              <div className="text-center py-4">
+                <p className="text-sm text-muted-foreground">No tokens added yet</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Loading state
   if (loadingState.initialization) {

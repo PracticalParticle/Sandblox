@@ -4,7 +4,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useParams } from 'react-router-dom';
 import { Address } from 'viem';
-import { AlertCircle, Info, AlertTriangle, CheckCircle, Shield, Timer, Network, Wallet, Key, Clock, Radio as RadioIcon, Copy } from 'lucide-react';
+import { AlertCircle, Info, AlertTriangle, CheckCircle, Shield, Timer, Network, Wallet, Key, Clock, Radio as RadioIcon, Copy, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,7 @@ import type { SecureContractInfo } from '@/lib/types';
 import { Button } from "@/components/ui/button";
 import { getContractDetails } from '@/lib/catalog';
 import type { BloxContract } from '@/lib/catalog/types';
-import { initializeUIComponents, getUIComponent, type BloxUIProps } from '@/lib/catalog/bloxUIComponents';
+import { initializeUIComponents, getUIComponent, type BloxUIProps, type BloxSidebarProps } from '@/lib/catalog/bloxUIComponents';
 
 interface Message {
   type: 'error' | 'warning' | 'info' | 'success';
@@ -34,6 +34,7 @@ const BloxMiniApp: React.FC = () => {
   const [bloxContract, setBloxContract] = useState<BloxContract | null>(null);
   const [uiInitialized, setUiInitialized] = useState(false);
   const { validateAndLoadContract } = useSecureContract();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   // Initialize UI components on mount
   useEffect(() => {
@@ -196,14 +197,69 @@ const BloxMiniApp: React.FC = () => {
       {/* Main Content */}
       <div className="flex-1 flex">
         {/* Left Sidebar */}
-        <Card className="w-64 border-r m-4 rounded-lg shadow-lg">
+        <Card className={`border-r m-4 rounded-lg shadow-lg transition-all duration-300 ${isSidebarOpen ? 'w-80' : 'w-0 opacity-0 m-0'}`}>
           <div className="h-full">
-            {/* Empty for now */}
+            <div className="p-4 border-b flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Blox Info</h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsSidebarOpen(false)}
+                className="h-8 w-8"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+            </div>
+            <ScrollArea className="h-[calc(100vh-12rem)] p-4">
+              {!loading && !error && bloxContract && (
+                <Suspense fallback={
+                  <div className="flex items-center justify-center py-4">
+                    <p className="text-sm text-muted-foreground">Loading sidebar...</p>
+                  </div>
+                }>
+                  {(() => {
+                    const BloxUI = getUIComponent(bloxContract.id);
+                    if (!BloxUI) return null;
+                    return (
+                      <BloxUI 
+                        contractAddress={address as `0x${string}`}
+                        contractInfo={{
+                          address: address as `0x${string}`,
+                          type: bloxContract.id,
+                          name: bloxContract.name,
+                          category: bloxContract.category,
+                          description: bloxContract.description,
+                          bloxId: bloxContract.id
+                        }}
+                        onError={(error: Error) => {
+                          addMessage({
+                            type: 'error',
+                            title: 'Operation Failed',
+                            description: error.message || 'Failed to perform operation'
+                          });
+                        }}
+                        renderSidebar
+                      />
+                    );
+                  })()}
+                </Suspense>
+              )}
+            </ScrollArea>
           </div>
         </Card>
 
         {/* Main Workspace */}
         <div className="flex-1 p-4">
+          {!isSidebarOpen && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setIsSidebarOpen(true)}
+              className="mb-4"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          )}
           <Card className="h-full rounded-lg shadow-lg">
             <div className="p-6">
               <h2 className="text-xl font-semibold mb-4">

@@ -16,6 +16,14 @@ export interface BloxUIProps {
   onError?: (error: Error) => void
   _mock?: any
   dashboardMode?: boolean
+  renderSidebar?: boolean
+}
+
+// Type for the sidebar component props
+export interface BloxSidebarProps {
+  contractAddress: `0x${string}`
+  contractInfo: BloxUIProps['contractInfo']
+  onError?: (error: Error) => void
 }
 
 // Type definition for the UI components map
