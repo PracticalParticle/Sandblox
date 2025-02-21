@@ -48,31 +48,54 @@ const loadingStateAtom = atom<LoadingState>({
   initialization: true,
 });
 
+interface TokenBalanceState {
+  [key: string]: bigint;
+}
+
+const tokenBalanceAtom = atom<TokenBalanceState>({});
+
 interface WithdrawalFormProps {
   onSubmit: (to: Address, amount: bigint, token?: Address) => Promise<void>;
   isLoading: boolean;
-  type: "ETH" | "TOKEN";
-  tokenAddress?: Address;
   maxAmount: bigint;
+  onTokenSelect?: (token: Address | undefined) => void;
 }
 
-const WithdrawalForm = ({ onSubmit, isLoading, type, tokenAddress, maxAmount }: WithdrawalFormProps) => {
+const WithdrawalForm = ({ onSubmit, isLoading, maxAmount, onTokenSelect }: WithdrawalFormProps) => {
   const [to, setTo] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
   const [error, setError] = useState<string>("");
+  const [tokenType, setTokenType] = useState<"ETH" | "TOKEN">("ETH");
+  const [tokenAddress, setTokenAddress] = useState<string>("");
+
+  useEffect(() => {
+    onTokenSelect?.(tokenType === "TOKEN" ? tokenAddress as Address : undefined);
+  }, [tokenType, tokenAddress, onTokenSelect]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
     
     try {
-      const parsedAmount = type === "ETH" ? parseEther(amount) : parseUnits(amount, 18);
+      // Validate token address if token type is TOKEN
+      if (tokenType === "TOKEN" && !tokenAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
+        throw new Error("Invalid token address");
+      }
+
+      const parsedAmount = tokenType === "ETH" ? parseEther(amount) : parseUnits(amount, 18);
       if (parsedAmount > maxAmount) {
         throw new Error("Amount exceeds balance");
       }
-      await onSubmit(to as Address, parsedAmount, tokenAddress);
+
+      await onSubmit(
+        to as Address, 
+        parsedAmount, 
+        tokenType === "TOKEN" ? tokenAddress as Address : undefined
+      );
       setTo("");
       setAmount("");
+      setTokenAddress("");
+      setTokenType("ETH");
     } catch (error: any) {
       setError(error.message);
     }
@@ -80,6 +103,49 @@ const WithdrawalForm = ({ onSubmit, isLoading, type, tokenAddress, maxAmount }: 
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="tokenType">Token Type</Label>
+        <div className="flex space-x-4">
+          <div className="flex items-center space-x-2">
+            <input
+              type="radio"
+              id="eth"
+              value="ETH"
+              checked={tokenType === "ETH"}
+              onChange={(e) => setTokenType(e.target.value as "ETH" | "TOKEN")}
+              className="h-4 w-4"
+            />
+            <Label htmlFor="eth">ETH</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <input
+              type="radio"
+              id="token"
+              value="TOKEN"
+              checked={tokenType === "TOKEN"}
+              onChange={(e) => setTokenType(e.target.value as "ETH" | "TOKEN")}
+              className="h-4 w-4"
+            />
+            <Label htmlFor="token">ERC20 Token</Label>
+          </div>
+        </div>
+      </div>
+
+      {tokenType === "TOKEN" && (
+        <div className="space-y-2">
+          <Label htmlFor="tokenAddress">Token Address</Label>
+          <Input
+            id="tokenAddress"
+            placeholder="0x..."
+            value={tokenAddress}
+            onChange={(e) => setTokenAddress(e.target.value)}
+            required
+            pattern="^0x[a-fA-F0-9]{40}$"
+            aria-label="Token address input"
+          />
+        </div>
+      )}
+
       <div className="space-y-2">
         <Label htmlFor="to">Recipient Address</Label>
         <Input
@@ -92,8 +158,9 @@ const WithdrawalForm = ({ onSubmit, isLoading, type, tokenAddress, maxAmount }: 
           aria-label="Recipient address input"
         />
       </div>
+
       <div className="space-y-2">
-        <Label htmlFor="amount">Amount ({type})</Label>
+        <Label htmlFor="amount">Amount ({tokenType})</Label>
         <Input
           id="amount"
           type="number"
@@ -103,12 +170,13 @@ const WithdrawalForm = ({ onSubmit, isLoading, type, tokenAddress, maxAmount }: 
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           required
-          aria-label={`${type} amount input`}
+          aria-label={`${tokenType} amount input`}
         />
         <p className="text-sm text-muted-foreground">
-          Available: {type === "ETH" ? formatEther(maxAmount) : formatUnits(maxAmount, 18)} {type}
+          Available: {tokenType === "ETH" ? formatEther(maxAmount) : formatUnits(maxAmount, 18)} {tokenType}
         </p>
       </div>
+
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -116,8 +184,9 @@ const WithdrawalForm = ({ onSubmit, isLoading, type, tokenAddress, maxAmount }: 
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
+
       <Button type="submit" disabled={isLoading} className="w-full">
-        {isLoading ? "Processing..." : `Request ${type} Withdrawal`}
+        {isLoading ? "Processing..." : `Request ${tokenType} Withdrawal`}
       </Button>
     </form>
   );
@@ -210,7 +279,7 @@ function SimpleVaultUIContent({
   onError,
   _mock, 
   dashboardMode = false 
-}: SimpleVaultUIProps) {
+}: SimpleVaultUIProps): JSX.Element {
   const { address, isConnected } = _mock?.account || useAccount();
   const publicClient = _mock?.publicClient || usePublicClient();
   const { data: walletClient } = _mock?.walletClient || useWalletClient();
@@ -219,6 +288,7 @@ function SimpleVaultUIContent({
   const navigate = useNavigate();
   
   const [ethBalance, setEthBalance] = useState<bigint>(_mock?.initialData?.ethBalance || BigInt(0));
+  const [tokenBalances, setTokenBalances] = useAtom(tokenBalanceAtom);
   const [pendingTxs, setPendingTxs] = useAtom(pendingTxsAtom);
   const [loadingState, setLoadingState] = useAtom(loadingStateAtom);
   const [vault, setVault] = useAtom(vaultInstanceAtom);
@@ -295,6 +365,22 @@ function SimpleVaultUIContent({
     }
   }, [vault, setLoadingState, setEthBalance, setPendingTxs, _mock, onError]);
 
+  const fetchTokenBalance = React.useCallback(async (tokenAddress: Address) => {
+    if (!vault || _mock) return;
+    
+    try {
+      setLoadingState(prev => ({ ...prev, tokenBalance: true }));
+      const balance = await vault.getTokenBalance(tokenAddress);
+      setTokenBalances(prev => ({ ...prev, [tokenAddress]: balance }));
+      setError(null);
+    } catch (err: any) {
+      console.error("Failed to fetch token balance:", err);
+      // Don't set error state for token balance fetch failure
+    } finally {
+      setLoadingState(prev => ({ ...prev, tokenBalance: false }));
+    }
+  }, [vault, setLoadingState, setTokenBalances, _mock]);
+
   const handleEthWithdrawal = async (to: Address, amount: bigint) => {
     if (!address || !vault) return;
     
@@ -321,6 +407,43 @@ function SimpleVaultUIContent({
       });
     } finally {
       setLoadingState((prev: LoadingState) => ({ ...prev, withdrawal: false }));
+    }
+  };
+
+  const handleTokenWithdrawal = async (to: Address, amount: bigint, token: Address) => {
+    if (!address || !vault) return;
+    
+    setLoadingState((prev: LoadingState) => ({ ...prev, withdrawal: true }));
+    try {
+      const tx = await vault.withdrawTokenRequest(token, to, amount, { from: address });
+      toast({
+        title: "Withdrawal Requested",
+        description: `Transaction hash: ${tx.hash}`,
+      });
+      
+      await tx.wait();
+      toast({
+        title: "Transaction Confirmed",
+        description: "Your withdrawal request has been confirmed.",
+      });
+      await fetchVaultData();
+    } catch (error: any) {
+      onError?.(error);
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingState((prev: LoadingState) => ({ ...prev, withdrawal: false }));
+    }
+  };
+
+  const handleWithdrawal = async (to: Address, amount: bigint, token?: Address) => {
+    if (token) {
+      await handleTokenWithdrawal(to, amount, token);
+    } else {
+      await handleEthWithdrawal(to, amount);
     }
   };
 
@@ -372,6 +495,25 @@ function SimpleVaultUIContent({
     } finally {
       setLoadingState((prev: LoadingState) => ({ ...prev, cancellation: false }));
     }
+  };
+
+  const WithdrawalFormWrapper = () => {
+    const [selectedToken, setSelectedToken] = useState<Address | undefined>(undefined);
+
+    useEffect(() => {
+      if (selectedToken) {
+        fetchTokenBalance(selectedToken);
+      }
+    }, [selectedToken, fetchTokenBalance]);
+
+    return (
+      <WithdrawalForm
+        onSubmit={handleWithdrawal}
+        isLoading={loadingState.withdrawal}
+        maxAmount={selectedToken ? (tokenBalances[selectedToken] || BigInt(0)) : ethBalance}
+        onTokenSelect={setSelectedToken}
+      />
+    );
   };
 
   // Loading state
@@ -490,12 +632,7 @@ function SimpleVaultUIContent({
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <WithdrawalForm
-                          onSubmit={handleEthWithdrawal}
-                          isLoading={loadingState.withdrawal}
-                          type="ETH"
-                          maxAmount={ethBalance}
-                        />
+                        <WithdrawalFormWrapper />
                       </CardContent>
                     </Card>
                   </TabsContent>
