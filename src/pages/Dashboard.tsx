@@ -77,7 +77,6 @@ const DeployedContract = ({
   onDetectType,
   isDetecting 
 }: DeployedContractProps & { onUnload?: (address: string) => void }) => {
-  const [error, setError] = useState<Error | null>(null);
   const navigate = useNavigate();
   
   const handlePreviewClick = () => {
@@ -127,49 +126,49 @@ const DeployedContract = ({
               Unload
             </Button>
           )}
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={handlePreviewClick}
-          >
-            Preview
-          </Button>
+          {contract.type !== 'unknown' && (
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handlePreviewClick}
+            >
+              Preview
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Show error message if there is one */}
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>
-            {error.message}
-          </AlertDescription>
-        </Alert>
+      {/* Only render UI component if contract type is detected */}
+      {contract.type !== 'unknown' && (
+        <div className="relative rounded-lg">
+          <Suspense fallback={
+            <div className="flex items-center justify-center h-[400px]">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          }>
+            <ContractUI 
+              contractAddress={contract.address as `0x${string}`}
+              contractInfo={{
+                address: contract.address as `0x${string}`,
+                type: contract.type,
+                name: contract.name,
+                category: 'Storage',
+                description: 'Contract imported from address',
+                bloxId: contract.type
+              }}
+              dashboardMode={true}
+            />
+          </Suspense>
+        </div>
       )}
 
-      {/* Only render UI component if there is no error */}
-      {!error && (
-        <ErrorBoundary>
-          <div className="relative rounded-lg">
-            <Suspense fallback={
-              <div className="flex items-center justify-center h-[400px]">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            }>
-              <ContractUI 
-                contractAddress={contract.address as `0x${string}`}
-                contractInfo={{
-                  address: contract.address as `0x${string}`,
-                  type: contract.type,
-                  name: contract.name,
-                  category: 'Storage',
-                  description: 'Contract imported from address',
-                  bloxId: contract.type
-                }}
-                dashboardMode={true}
-              />
-            </Suspense>
-          </div>
-        </ErrorBoundary>
+      {/* Show placeholder when type is unknown */}
+      {contract.type === 'unknown' && (
+        <div className="flex flex-col items-center justify-center h-[200px] rounded-lg border-2 border-dashed border-muted-foreground/20">
+          <p className="text-muted-foreground text-sm">
+            Click "Auto Detect" to identify the contract type and load its interface
+          </p>
+        </div>
       )}
     </Card>
   );
