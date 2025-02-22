@@ -52,6 +52,11 @@ const defaultNetworks = {
   }
 }
 
+const item = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0 }
+}
+
 export default function BlockchainDetails() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -158,18 +163,30 @@ export default function BlockchainDetails() {
             <h1 className="text-3xl font-bold tracking-tight">{network.name}</h1>
             <p className="text-muted-foreground">{network.description}</p>
           </div>
-          {network.isOfficial && (
-            <Badge variant="secondary" className="ml-auto gap-1">
-              <CheckCircle2 className="h-3 w-3" />
-              Official Support
-            </Badge>
-          )}
+          <Badge 
+            variant={network.isOfficial ? "secondary" : "outline"} 
+            className="ml-auto gap-1"
+          >
+            {network.isOfficial ? (
+              <>
+                <CheckCircle2 className="h-3 w-3" />
+                Official Support
+              </>
+            ) : (
+              <>
+                <Shield className="h-3 w-3" />
+                Unofficial Support
+              </>
+            )}
+          </Badge>
         </div>
 
         {/* Network Information */}
         <div className="grid gap-6 md:grid-cols-2">
           <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Network Details</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">Network Details</h2>
+            </div>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -251,20 +268,36 @@ export default function BlockchainDetails() {
           </Card>
         </div>
 
-        {/* Quick Actions */}
-        <Card className="p-6">
-          <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
-          <div className="flex flex-wrap gap-3">
-            <Button variant="outline" className="gap-2">
-              <LinkIcon className="h-4 w-4" />
-              Connect Wallet
-            </Button>
-            <Button variant="outline" className="gap-2">
-              <Globe className="h-4 w-4" />
-              View Explorer
-            </Button>
-          </div>
-        </Card>
+        {/* Security Infrastructure */}
+        <motion.div variants={item}>
+          <Card className="p-6">
+            <h2 className="text-xl font-semibold mb-4">Security Infrastructure</h2>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">MultiPhaseSecureOperation Library:</span>
+                </div>
+                {!network.isOfficial && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="gap-2"
+                    onClick={() => {
+                      toast({
+                        title: "Deployment Started",
+                        description: "Deploying MultiPhaseSecureOperation Library to the network..."
+                      })
+                    }}
+                  >
+                    <Shield className="h-4 w-4" />
+                    Deploy Library
+                  </Button>
+                )}
+              </div>
+            </div>
+          </Card>
+        </motion.div>
       </motion.div>
     </div>
   )

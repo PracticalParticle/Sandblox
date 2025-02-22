@@ -1,8 +1,7 @@
 import { useNavigate } from 'react-router-dom'
-import { ArrowRight, CheckCircle, Settings, Trash2 } from 'lucide-react'
+import { ArrowRight, Settings, Trash2, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,14 +43,14 @@ export function NetworkCard({ chain, isCustom = false, onEdit, onDelete }: Netwo
             <div className="rounded-lg bg-primary/10 p-2">
               {chain.icon}
             </div>
-            <div>
+            <div className="flex items-center gap-2">
               <h3 className="text-xl font-semibold">{chain.name}</h3>
-              {chain.isOfficial && (
-                <Badge variant="secondary" className="mt-1 gap-1">
-                  <CheckCircle className="h-3 w-3" />
-                  Official Support
-                </Badge>
-              )}
+              <CheckCircle2 
+                className={chain.isOfficial 
+                  ? "h-4 w-4 text-primary" 
+                  : "h-4 w-4 text-muted-foreground"
+                } 
+              />
             </div>
           </div>
           <p className="text-sm text-muted-foreground">{chain.description}</p>
@@ -102,11 +101,7 @@ export function NetworkCard({ chain, isCustom = false, onEdit, onDelete }: Netwo
               )}
             </DropdownMenuContent>
           </DropdownMenu>
-        ) : (
-          <Button variant="ghost" size="icon" className="rounded-full">
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-        )}
+        ) : null}
       </div>
     </Card>
   )

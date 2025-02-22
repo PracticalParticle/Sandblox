@@ -160,14 +160,15 @@ export default function Blockchains() {
         },
         rpcUrls: newNetwork.rpcUrls,
         chainId: newNetwork.chainId,
-        isPublic: newNetwork.type === 'public'
+        isPublic: newNetwork.type === 'public',
+        isOfficial: false // Set unofficial support for all new networks
       }
 
       setCustomNetworks(prev => [...prev, network])
       
       toast({
         title: "Network Added",
-        description: `${newNetwork.name} has been added to your ${newNetwork.type} networks.`
+        description: `${newNetwork.name} has been added to your ${newNetwork.type} networks with unofficial support.`
       })
       
       setIsAddNetworkOpen(false)
