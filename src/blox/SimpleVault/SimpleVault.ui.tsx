@@ -322,6 +322,7 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
   });
   const { data: walletClient } = useWalletClient();
   const { address } = useAccount();
+  const publicClient = usePublicClient();
   const { toast } = useToast();
 
   const selectedToken = selectedTokenAddress === "ETH" ? undefined : tokenBalances[selectedTokenAddress];
@@ -339,7 +340,7 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
     try {
       if (!address) throw new Error("No wallet connected");
       
-      const allowance = await walletClient?.readContract({
+      const allowance = await publicClient?.readContract({
         address: token,
         abi: [
           {
@@ -394,7 +395,9 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
         description: `Transaction hash: ${hash}`,
       });
 
-      const receipt = await walletClient.waitForTransactionReceipt({ hash });
+      if (!publicClient) throw new Error("No public client available");
+
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
       
       if (receipt.status === 'success') {
         setApprovalState(prev => ({ ...prev, isApproved: true }));
