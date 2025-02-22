@@ -301,4 +301,52 @@ Implement Playwright with wallet injection:
 }  
 ```
 
+## Code Quality Standards
+
+### Value Management
+Enforce configuration-driven development:
+```typescript
+// .cursorrules
+"value-management": {
+  "prohibited-patterns": {
+    "hardcoded-values": {
+      "banned": [
+        "numeric-literals",
+        "string-literals",
+        "network-addresses",
+        "api-endpoints",
+        "timeouts",
+        "feature-flags"
+      ],
+      "exceptions": [
+        "0",
+        "1",
+        "true",
+        "false",
+        "empty-string",
+        "test-constants"
+      ]
+    }
+  },
+  "required-patterns": {
+    "configuration-sources": [
+      "environment-variables",
+      "config-files",
+      "constants-files",
+      "feature-flags-service"
+    ],
+    "naming-convention": {
+      "constants": "SCREAMING_SNAKE_CASE",
+      "env-vars": "UPPERCASE_WITH_UNDERSCORES",
+      "config-keys": "kebab-case"
+    }
+  },
+  "validation": {
+    "required-documentation": true,
+    "type-safety": "strict",
+    "fallback-values": "mandatory"
+  }
+}
+```
+
 This comprehensive .cursorrules configuration provides over 120 distinct quality and security controls across the development stack, implementing best practices from the referenced sources[2][3][5][6]. The ruleset enables AI-assisted development while maintaining enterprise-grade security and production-ready quality standards.
