@@ -52,7 +52,7 @@ export async function identifyContract(address: string): Promise<ContractInfo> {
 
   try {
     // Get the runtime bytecode of the target contract
-    const targetBytecode = await client.getBytecode({ address: address as Address })
+    const targetBytecode = await client.getCode({ address: address as Address })
     if (!targetBytecode) {
       throw new Error('No bytecode found at address')
     }
