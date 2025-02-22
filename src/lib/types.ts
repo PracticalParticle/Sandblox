@@ -22,6 +22,8 @@ export interface SecureContractInfo {
   timeLockPeriodInDays: number;
   pendingOperations?: SecurityOperationEvent[];
   recentEvents?: SecurityOperationEvent[];
+  chainId: number;
+  chainName: string;
 }
 
 export interface ContractInfo {

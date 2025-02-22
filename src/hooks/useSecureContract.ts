@@ -1,6 +1,7 @@
-import { usePublicClient, useWalletClient } from 'wagmi'
+import { usePublicClient, useWalletClient, useChainId } from 'wagmi'
 import { Address, parseAbi } from 'viem'
 import type { SecureContractInfo, SecurityOperationEvent } from '../lib/types'
+import { getChainName, type Chain } from '@/lib/utils'
 
 // Define the ABI inline since we can't import the JSON directly
 const SecureOwnableABI = parseAbi([
@@ -30,6 +31,7 @@ const SecureOwnableABI = parseAbi([
 export function useSecureContract() {
   const publicClient = usePublicClient()
   const { data: walletClient } = useWalletClient()
+  const chainId = useChainId()
 
   const validateAndLoadContract = async (address: Address): Promise<SecureContractInfo> => {
     if (!publicClient) {
@@ -103,7 +105,9 @@ export function useSecureContract() {
         recoveryAddress,
         timeLockPeriodInDays,
         pendingOperations: events.filter(e => e.status === 'pending'),
-        recentEvents: events.filter(e => e.status !== 'pending').slice(0, 5)
+        recentEvents: events.filter(e => e.status !== 'pending').slice(0, 5),
+        chainId,
+        chainName: getChainName(chainId as Chain)
       }
     } catch (error) {
       console.error('Contract validation error:', error)
