@@ -391,41 +391,41 @@ export default class SimpleVault extends SecureOwnable {
   }
 
   /**
-   * @notice Deposit ETH into the vault
-   * @param amount Amount of ETH to deposit in wei
-   * @param options Transaction options
-   * @return TransactionResult containing hash and wait function
+   * @notice Check token allowance for the vault
+   * @param token Token contract address
+   * @param owner Address to check allowance for
+   * @return Current allowance amount
    */
-  async depositEth(
-    amount: bigint,
-    options: TransactionOptions = {}
-  ): Promise<TransactionResult> {
-    if (!this.walletClient) throw new Error("WalletClient required for write operations");
-    if (!options.from) throw new Error("Sender address required");
+  async getTokenAllowance(token: Address, owner: Address): Promise<bigint> {
+    const allowance = await this.publicClient.readContract({
+      address: token,
+      abi: [
+        {
+          inputs: [
+            { name: 'owner', type: 'address' },
+            { name: 'spender', type: 'address' }
+          ],
+          name: 'allowance',
+          outputs: [{ type: 'uint256' }],
+          stateMutability: 'view',
+          type: 'function'
+        }
+      ],
+      functionName: 'allowance',
+      args: [owner, this.address]
+    }) as bigint;
 
-    const hash = await this.walletClient.writeContract({
-      chain: this.chain,
-      address: this.address,
-      abi: SimpleVaultABI,
-      functionName: 'deposit',
-      value: amount,
-      account: options.from
-    });
-
-    return {
-      hash,
-      wait: () => this.publicClient.waitForTransactionReceipt({ hash })
-    };
+    return allowance;
   }
 
   /**
-   * @notice Deposit ERC20 tokens into the vault
+   * @notice Approve vault to spend tokens
    * @param token Token contract address
-   * @param amount Amount of tokens to deposit
+   * @param amount Amount to approve
    * @param options Transaction options
    * @return TransactionResult containing hash and wait function
    */
-  async depositToken(
+  async approveTokenAllowance(
     token: Address,
     amount: bigint,
     options: TransactionOptions = {}
@@ -433,8 +433,13 @@ export default class SimpleVault extends SecureOwnable {
     if (!this.walletClient) throw new Error("WalletClient required for write operations");
     if (!options.from) throw new Error("Sender address required");
 
-    // First approve the vault to spend tokens
-    const approvalHash = await this.walletClient.writeContract({
+    // First check current allowance to avoid unnecessary approvals
+    const currentAllowance = await this.getTokenAllowance(token, options.from);
+    if (currentAllowance >= amount) {
+      throw new Error("Allowance already sufficient");
+    }
+
+    const hash = await this.walletClient.writeContract({
       chain: this.chain,
       address: token,
       abi: [
@@ -454,16 +459,117 @@ export default class SimpleVault extends SecureOwnable {
       account: options.from
     });
 
-    // Wait for approval to be mined
-    await this.publicClient.waitForTransactionReceipt({ hash: approvalHash });
+    return {
+      hash,
+      wait: () => this.publicClient.waitForTransactionReceipt({ hash })
+    };
+  }
 
-    // Now deposit the tokens
+  /**
+   * @notice Revoke vault's permission to spend tokens
+   * @param token Token contract address
+   * @param options Transaction options
+   * @return TransactionResult containing hash and wait function
+   */
+  async revokeTokenAllowance(
+    token: Address,
+    options: TransactionOptions = {}
+  ): Promise<TransactionResult> {
+    if (!this.walletClient) throw new Error("WalletClient required for write operations");
+    if (!options.from) throw new Error("Sender address required");
+
+    // Check current allowance to avoid unnecessary transactions
+    const currentAllowance = await this.getTokenAllowance(token, options.from);
+    if (currentAllowance === BigInt(0)) {
+      throw new Error("Allowance already revoked");
+    }
+
     const hash = await this.walletClient.writeContract({
       chain: this.chain,
-      address: this.address,
-      abi: SimpleVaultABI,
-      functionName: 'depositToken',
-      args: [token, amount],
+      address: token,
+      abi: [
+        {
+          inputs: [
+            { name: 'spender', type: 'address' },
+            { name: 'amount', type: 'uint256' }
+          ],
+          name: 'approve',
+          outputs: [{ type: 'bool' }],
+          stateMutability: 'nonpayable',
+          type: 'function'
+        }
+      ],
+      functionName: 'approve',
+      args: [this.address, BigInt(0)],
+      account: options.from
+    });
+
+    return {
+      hash,
+      wait: () => this.publicClient.waitForTransactionReceipt({ hash })
+    };
+  }
+
+  /**
+   * @notice Deposit ETH into the vault using direct wallet transfer
+   * @param amount Amount of ETH to deposit in wei
+   * @param options Transaction options
+   * @return TransactionResult containing hash and wait function
+   */
+  async depositEth(
+    amount: bigint,
+    options: TransactionOptions = {}
+  ): Promise<TransactionResult> {
+    if (!this.walletClient) throw new Error("WalletClient required for write operations");
+    if (!options.from) throw new Error("Sender address required");
+
+    // Send ETH directly to the vault contract
+    const hash = await this.walletClient.sendTransaction({
+      chain: this.chain,
+      to: this.address,
+      value: amount,
+      account: options.from
+    });
+
+    return {
+      hash,
+      wait: () => this.publicClient.waitForTransactionReceipt({ hash })
+    };
+  }
+
+  /**
+   * @notice Deposit ERC20 tokens into the vault using safeTransfer
+   * @param token Token contract address
+   * @param amount Amount of tokens to deposit
+   * @param options Transaction options
+   * @return TransactionResult containing hash and wait function
+   */
+  async depositToken(
+    token: Address,
+    amount: bigint,
+    options: TransactionOptions = {}
+  ): Promise<TransactionResult> {
+    if (!this.walletClient) throw new Error("WalletClient required for write operations");
+    if (!options.from) throw new Error("Sender address required");
+
+    // Use safeTransfer to send tokens directly to the vault
+    const hash = await this.walletClient.writeContract({
+      chain: this.chain,
+      address: token,
+      abi: [
+        {
+          inputs: [
+            { name: 'to', type: 'address' },
+            { name: 'amount', type: 'uint256' }
+          ],
+          name: 'transfer',
+          outputs: [{ type: 'bool' }],
+          stateMutability: 'nonpayable',
+          type: 'function'
+        }
+      ],
+      functionName: 'transfer',
+      args: [this.address, amount],
       account: options.from
     });
 
