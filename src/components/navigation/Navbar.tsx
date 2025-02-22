@@ -1,9 +1,15 @@
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { useAccount } from 'wagmi'
-import { Menu, X, Github } from 'lucide-react'
+import { Menu, X, Github, ChevronDown } from 'lucide-react'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ThemeToggle } from '../ThemeToggle'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 export function Navbar() {
   const { isConnected } = useAccount()
@@ -33,28 +39,36 @@ export function Navbar() {
             <span className="hidden sm:inline-block bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent font-bold">OpenBlox</span>
           </a>
           <div className="hidden md:flex md:items-center md:gap-6">
-            <a
-              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
-              href="/blox-contracts"
-            >
-              Contracts
-            </a>
             {isConnected && (
-              <>
-                <a
-                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
-                  href="/dashboard"
-                >
-                  Dashboard
-                </a>
-                <a
-                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
-                  href="/security-center"
-                >
-                  Security Center
-                </a>
-              </>
+              <DropdownMenu>
+                <DropdownMenuTrigger className="flex items-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift">
+                  My Blox
+                  <ChevronDown className="h-4 w-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem asChild>
+                    <a href="/dashboard">Dashboard</a>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <a href="/security-center">Security Center</a>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
+            <DropdownMenu>
+              <DropdownMenuTrigger className="flex items-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift">
+                Explore
+                <ChevronDown className="h-4 w-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem asChild>
+                  <a href="/blox-contracts">Contracts</a>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <a href="/blockchains">Blockchains</a>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <a
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
               href="https://docs.particlecs.com"
@@ -100,24 +114,18 @@ export function Navbar() {
             className="border-t glass md:hidden"
           >
             <div className="container flex flex-col space-y-4 py-4">
-              <a
-                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
-                href="/blox-contracts"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                Contracts
-              </a>
               {isConnected && (
                 <>
+                  <div className="text-sm font-medium text-muted-foreground">My Blox</div>
                   <a
-                    className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
+                    className="pl-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
                     href="/dashboard"
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
                     Dashboard
                   </a>
                   <a
-                    className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
+                    className="pl-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
                     href="/security-center"
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
@@ -125,6 +133,21 @@ export function Navbar() {
                   </a>
                 </>
               )}
+              <div className="text-sm font-medium text-muted-foreground">Explore</div>
+              <a
+                className="pl-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
+                href="/blox-contracts"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                Contracts
+              </a>
+              <a
+                className="pl-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
+                href="/blockchains"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                Blockchains
+              </a>
               <a
                 className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
                 href="https://docs.particlecs.com"
