@@ -1,5 +1,5 @@
-import { type Address, type Hash, type Abi, type TransactionReceipt, encodeFunctionData, parseAbi } from 'viem'
-import { useWriteContract, useWatchContractEvent, useSimulateContract, usePublicClient } from 'wagmi'
+import { type Address, type Hash, type Abi } from 'viem'
+import { useWriteContract, useWatchContractEvent, useSimulateContract } from 'wagmi'
 import { useEffect, useState, useMemo } from 'react'
 
 // Enhanced interface for standalone deployment
@@ -86,7 +86,6 @@ export function useStandaloneDeployment(config: StandaloneDeploymentConfig): Dep
     optimizerRuns = 200 
   } = config
 
-  const publicClient = usePublicClient()
   const [compilationResult, setCompilationResult] = useState<CompilationResult | null>(null)
   const [compilationError, setCompilationError] = useState<Error | null>(null)
 
@@ -128,7 +127,7 @@ export function useStandaloneDeployment(config: StandaloneDeploymentConfig): Dep
           throw new Error('No contracts found in compilation output')
         }
 
-        const [contractName, contract] = Object.entries(contracts)[0] as [string, { abi: Abi; evm: { bytecode: { object: string } } }]
+        const [_, contract] = Object.entries(contracts)[0] as [string, { abi: Abi; evm: { bytecode: { object: string } } }]
         if (!contract) {
           throw new Error('No contract found in compilation output')
         }
