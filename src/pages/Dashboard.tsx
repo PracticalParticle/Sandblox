@@ -1,4 +1,4 @@
-import { useAccount } from 'wagmi'
+import { useAccount, useBalance } from 'wagmi'
 import { useNavigate } from 'react-router-dom'
 import { useState, useEffect, lazy, Suspense } from 'react'
 import React from 'react'
@@ -8,7 +8,11 @@ import {
   Loader2,
   PackageX,
   Wand2,
-  ChevronDown
+  ChevronDown,
+  Wallet,
+  CircuitBoard,
+  Activity,
+  CheckCircle2
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '../components/ui/card'
@@ -201,7 +205,10 @@ const DeployedContract = ({
 };
 
 export function Dashboard(): JSX.Element {
-  const { isConnected } = useAccount()
+  const { isConnected, address } = useAccount()
+  const { data: balanceData } = useBalance({
+    address: address,
+  })
   const navigate = useNavigate()
   const { toast } = useToast()
   const [isDetecting, setIsDetecting] = useState(false)
@@ -340,6 +347,71 @@ export function Dashboard(): JSX.Element {
               buttonText="Import Contract"
               buttonIcon="download"
             />
+          </div>
+        </motion.div>
+
+        {/* Stats Grid */}
+        <motion.div variants={item} className="grid gap-4 md:grid-cols-2 lg:grid-cols-4" role="region" aria-label="Dashboard Statistics">
+          <div className="group relative overflow-hidden rounded-lg border bg-card p-4 transition-colors hover:bg-card/80" role="status">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" aria-hidden="true" />
+            <div className="relative space-y-2">
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Wallet className="h-4 w-4" aria-hidden="true" />
+                Wallet Balance
+              </div>
+              <p className="text-2xl font-bold" tabIndex={0}>
+                {balanceData?.formatted ? `${Number(balanceData.formatted).toFixed(4)} ${balanceData.symbol}` : '0.0000 ETH'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Connected wallet balance
+              </p>
+            </div>
+          </div>
+
+          <div className="group relative overflow-hidden rounded-lg border bg-card p-4 transition-colors hover:bg-card/80" role="status">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" aria-hidden="true" />
+            <div className="relative space-y-2">
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <CircuitBoard className="h-4 w-4" aria-hidden="true" />
+                Active Contracts
+              </div>
+              <p className="text-2xl font-bold" tabIndex={0}>{contracts.length}</p>
+              <p className="text-xs text-muted-foreground">
+                Total imported contracts
+              </p>
+            </div>
+          </div>
+
+          <div className="group relative overflow-hidden rounded-lg border bg-card p-4 transition-colors hover:bg-card/80" role="status">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" aria-hidden="true" />
+            <div className="relative space-y-2">
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Activity className="h-4 w-4" aria-hidden="true" />
+                Detected Types
+              </div>
+              <p className="text-2xl font-bold" tabIndex={0}>
+                {contracts.filter(c => c.type !== 'unknown').length}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Contracts with detected types
+              </p>
+            </div>
+          </div>
+
+          <div className="group relative overflow-hidden rounded-lg border bg-card p-4 transition-colors hover:bg-card/80" role="status">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" aria-hidden="true" />
+            <div className="relative space-y-2">
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                Ready to Use
+              </div>
+              <p className="text-2xl font-bold" tabIndex={0}>
+                {contracts.filter(c => c.type !== 'unknown').length}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Contracts ready for interaction
+              </p>
+            </div>
           </div>
         </motion.div>
 
