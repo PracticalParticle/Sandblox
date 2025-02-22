@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useState, useEffect } from "react";
-import { useAccount, usePublicClient, useWalletClient, Config, createConfig } from "wagmi";
+import { useAccount, usePublicClient, useWalletClient, useBalance } from "wagmi";
 import { Address, formatEther, parseEther, formatUnits, parseUnits } from "viem";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,6 @@ import { AlertCircle, CheckCircle2, Clock, XCircle, Loader2, Wallet, Coins, X, S
 import { TxStatus, IERC20 } from "../../../contracts/core/iCore";
 import { useNavigate } from "react-router-dom";
 import { ContractInfo } from "@/lib/verification/index";
-import { WagmiProvider } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { mainnet } from "viem/chains";
 import { http } from "viem";
@@ -312,6 +311,11 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
   const [error, setError] = useState<string>("");
   const [selectedTokenAddress, setSelectedTokenAddress] = useState<string>("ETH");
   const [tokenBalances] = useAtom(tokenBalanceAtom);
+  const [walletBalances, setWalletBalances] = useState<{
+    tokens: Record<string, bigint>;
+  }>({
+    tokens: {}
+  });
   const [approvalState, setApprovalState] = useState<{
     isApproved: boolean;
     isApproving: boolean;
@@ -321,7 +325,10 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
     isApproving: false
   });
   const { data: walletClient } = useWalletClient();
-  const { address } = useAccount();
+  const { address, isConnected } = useAccount();
+  const { data: balanceData, isLoading: isBalanceLoading } = useBalance({
+    address: address,
+  });
   const publicClient = usePublicClient();
   const { toast } = useToast();
 
@@ -335,6 +342,52 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
       isApproving: false
     });
   }, [selectedTokenAddress]);
+
+  // Fetch wallet balances for tokens
+  useEffect(() => {
+    const fetchWalletBalances = async () => {
+      if (!address || !publicClient) return;
+
+      try {
+        // Get token balances for tracked tokens
+        const tokenBalancePromises = Object.entries(tokenBalances).map(async ([tokenAddress]) => {
+          try {
+            const balance = await publicClient.readContract({
+              address: tokenAddress as Address,
+              abi: [
+                {
+                  inputs: [{ name: 'account', type: 'address' }],
+                  name: 'balanceOf',
+                  outputs: [{ type: 'uint256' }],
+                  stateMutability: 'view',
+                  type: 'function'
+                }
+              ],
+              functionName: 'balanceOf',
+              args: [address]
+            }) as bigint;
+
+            return [tokenAddress, balance];
+          } catch (error) {
+            console.error(`Error fetching balance for token ${tokenAddress}:`, error);
+            return [tokenAddress, BigInt(0)];
+          }
+        });
+
+        const tokenBalanceResults = await Promise.all(tokenBalancePromises);
+        const newTokenBalances = Object.fromEntries(tokenBalanceResults);
+
+        setWalletBalances(prev => ({
+          ...prev,
+          tokens: newTokenBalances
+        }));
+      } catch (error) {
+        console.error('Error fetching wallet balances:', error);
+      }
+    };
+
+    fetchWalletBalances();
+  }, [address, publicClient, tokenBalances]);
 
   const checkAllowance = async (token: Address, amount: bigint, spender: Address) => {
     try {
@@ -428,9 +481,22 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
     setError("");
     
     try {
+      if (!isConnected) {
+        throw new Error("Please connect your wallet first");
+      }
+
       const parsedAmount = selectedTokenAddress === "ETH" 
         ? parseEther(amount) 
         : parseUnits(amount, tokenDecimals);
+
+      // Check wallet balance
+      const walletBalance = selectedTokenAddress === "ETH"
+        ? (balanceData ? parseEther(balanceData.formatted) : BigInt(0))
+        : walletBalances.tokens[selectedTokenAddress] || BigInt(0);
+
+      if (parsedAmount > walletBalance) {
+        throw new Error("Insufficient balance in wallet");
+      }
 
       // For ERC20 tokens, check and handle approval
       if (selectedTokenAddress !== "ETH") {
@@ -509,6 +575,15 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
                   <Wallet className="h-3 w-3 text-primary" />
                 </div>
                 <span>ETH</span>
+                <span className="ml-auto text-muted-foreground">
+                  {isBalanceLoading ? (
+                    <Skeleton className="h-4 w-16" />
+                  ) : balanceData ? (
+                    `${Number(balanceData.formatted).toFixed(4)} ${balanceData.symbol}`
+                  ) : (
+                    'Connect wallet'
+                  )}
+                </span>
               </div>
             </SelectItem>
             
@@ -528,6 +603,13 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
                     )}
                   </div>
                   <span>{token.metadata?.symbol || 'Unknown Token'}</span>
+                  <span className="ml-auto text-muted-foreground">
+                    {token.loading ? (
+                      <Skeleton className="h-4 w-16" />
+                    ) : (
+                      `${formatUnits(walletBalances.tokens[address] || BigInt(0), token.metadata?.decimals || 18)} available`
+                    )}
+                  </span>
                 </div>
               </SelectItem>
             ))}
@@ -550,7 +632,28 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
           required
           aria-label={`${selectedTokenAddress === "ETH" ? "ETH" : "Token"} amount input`}
         />
+        <div className="flex justify-between text-sm text-muted-foreground">
+          <span>Available in wallet: {
+            selectedTokenAddress === "ETH"
+              ? isBalanceLoading ? (
+                  <Skeleton className="h-4 w-16 inline-block" />
+                ) : balanceData ? (
+                  `${Number(balanceData.formatted).toFixed(4)} ${balanceData.symbol}`
+                ) : (
+                  'Connect wallet'
+                )
+              : `${formatUnits(walletBalances.tokens[selectedTokenAddress] || BigInt(0), tokenDecimals)} ${selectedToken?.metadata?.symbol || "Tokens"}`
+          }</span>
+        </div>
       </div>
+
+      {!isConnected && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Wallet not connected</AlertTitle>
+          <AlertDescription>Please connect your wallet to continue</AlertDescription>
+        </Alert>
+      )}
 
       {error && (
         <Alert variant="destructive">
@@ -570,7 +673,7 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
 
       <Button 
         type="submit" 
-        disabled={isLoading || approvalState.isApproving} 
+        disabled={isLoading || approvalState.isApproving || !amount || parseFloat(amount) <= 0 || !isConnected} 
         className="w-full"
       >
         {isLoading || approvalState.isApproving ? (
@@ -578,6 +681,8 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             {approvalState.isApproving ? "Approving..." : "Processing..."}
           </>
+        ) : !isConnected ? (
+          "Connect Wallet"
         ) : selectedTokenAddress === "ETH" ? (
           "Deposit ETH"
         ) : approvalState.isApproved ? (
@@ -1230,22 +1335,10 @@ export default function SimpleVaultUI(props: SimpleVaultUIProps) {
     return <SimpleVaultUIContent {...props} />;
   }
 
-  // Create a properly configured Wagmi config
-  const config = createConfig({
-    chains: [mainnet],
-    connectors: [injected()],
-    transports: {
-      [mainnet.id]: http()
-    }
-  });
-
+  // Use the parent provider context directly
   return (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
-        <JotaiProvider>
-          <SimpleVaultUIContent {...props} />
-        </JotaiProvider>
-      </QueryClientProvider>
-    </WagmiProvider>
+    <JotaiProvider>
+      <SimpleVaultUIContent {...props} />
+    </JotaiProvider>
   );
 }
