@@ -170,7 +170,9 @@ const BloxMiniApp: React.FC = () => {
             name: bloxContract.name,
             category: bloxContract.category,
             description: bloxContract.description,
-            bloxId: bloxContract.id
+            bloxId: bloxContract.id,
+            chainId: contractInfo?.chainId,
+            chainName: contractInfo?.chainName
           }}
           onError={(error) => {
             addMessage({
@@ -229,7 +231,9 @@ const BloxMiniApp: React.FC = () => {
                           name: bloxContract.name,
                           category: bloxContract.category,
                           description: bloxContract.description,
-                          bloxId: bloxContract.id
+                          bloxId: bloxContract.id,
+                          chainId: contractInfo?.chainId,
+                          chainName: contractInfo?.chainName
                         }}
                         onError={(error: Error) => {
                           addMessage({

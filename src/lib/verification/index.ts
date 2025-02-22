@@ -11,6 +11,8 @@ export interface ContractInfo {
   category?: string
   bloxId?: string
   isCustom?: boolean
+  chainId?: number
+  chainName?: string
 }
 
 let contractTypesCache: BloxContract[] | null = null

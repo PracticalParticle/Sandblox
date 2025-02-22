@@ -12,6 +12,8 @@ export interface BloxUIProps {
     category: string
     description: string
     bloxId: string
+    chainId?: number
+    chainName?: string
   }
   onError?: (error: Error) => void
   _mock?: any

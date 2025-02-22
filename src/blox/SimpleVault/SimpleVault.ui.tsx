@@ -728,6 +728,20 @@ function SimpleVaultUIContent({
   const { toast } = useToast();
   const navigate = useNavigate();
   
+  // Add chain validation
+  const isCorrectChain = chain?.id === contractInfo.chainId;
+  
+  // Show warning if on wrong chain
+  useEffect(() => {
+    if (!isCorrectChain && contractInfo.chainId && chain?.id) {
+      toast({
+        title: "Wrong Network",
+        description: `This vault was deployed on ${contractInfo.chainName}. Please switch to the correct network.`,
+        variant: "destructive",
+      });
+    }
+  }, [isCorrectChain, contractInfo.chainId, contractInfo.chainName, chain?.id]);
+
   const [ethBalance, setEthBalance] = useState<bigint>(_mock?.initialData?.ethBalance || BigInt(0));
   const [tokenBalances, setTokenBalances] = useAtom(tokenBalanceAtom);
   const [pendingTxs, setPendingTxs] = useAtom(pendingTxsAtom);
@@ -847,6 +861,14 @@ function SimpleVaultUIContent({
 
   const handleEthWithdrawal = async (to: Address, amount: bigint) => {
     if (!address || !vault) return;
+    if (!isCorrectChain) {
+      toast({
+        title: "Wrong Network",
+        description: `Please switch to ${contractInfo.chainName} to perform this operation.`,
+        variant: "destructive",
+      });
+      return;
+    }
     
     setLoadingState((prev: LoadingState) => ({ ...prev, withdrawal: true }));
     try {
@@ -876,6 +898,14 @@ function SimpleVaultUIContent({
 
   const handleTokenWithdrawal = async (to: Address, amount: bigint, token: Address) => {
     if (!address || !vault) return;
+    if (!isCorrectChain) {
+      toast({
+        title: "Wrong Network",
+        description: `Please switch to ${contractInfo.chainName} to perform this operation.`,
+        variant: "destructive",
+      });
+      return;
+    }
     
     setLoadingState((prev: LoadingState) => ({ ...prev, withdrawal: true }));
     try {
@@ -913,6 +943,14 @@ function SimpleVaultUIContent({
 
   const handleApproveWithdrawal = async (txId: number) => {
     if (!address || !vault) return;
+    if (!isCorrectChain) {
+      toast({
+        title: "Wrong Network",
+        description: `Please switch to ${contractInfo.chainName} to perform this operation.`,
+        variant: "destructive",
+      });
+      return;
+    }
     
     setLoadingState((prev: LoadingState) => ({ ...prev, approval: true }));
     try {
@@ -938,6 +976,14 @@ function SimpleVaultUIContent({
 
   const handleCancelWithdrawal = async (txId: number) => {
     if (!address || !vault) return;
+    if (!isCorrectChain) {
+      toast({
+        title: "Wrong Network",
+        description: `Please switch to ${contractInfo.chainName} to perform this operation.`,
+        variant: "destructive",
+      });
+      return;
+    }
     
     setLoadingState((prev: LoadingState) => ({ ...prev, cancellation: true }));
     try {
@@ -963,6 +1009,14 @@ function SimpleVaultUIContent({
 
   const handleDeposit = async (amount: bigint, token?: Address) => {
     if (!address || !vault) return;
+    if (!isCorrectChain) {
+      toast({
+        title: "Wrong Network",
+        description: `Please switch to ${contractInfo.chainName} to perform this operation.`,
+        variant: "destructive",
+      });
+      return;
+    }
     
     setLoadingState((prev: LoadingState) => ({ ...prev, withdrawal: true }));
     try {
@@ -1170,8 +1224,19 @@ function SimpleVaultUIContent({
     );
   }
 
+  // Add network warning to the UI
   return (
     <div className="h-full overflow-auto">
+      {!isCorrectChain && contractInfo.chainId && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Wrong Network</AlertTitle>
+          <AlertDescription>
+            This vault was deployed on {contractInfo.chainName}. Please switch to the correct network to perform operations.
+          </AlertDescription>
+        </Alert>
+      )}
+      
       <div className={dashboardMode ? "p-0" : "container mx-auto p-4"}>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
