@@ -50,6 +50,8 @@ interface DeployedContractProps {
     name: string;
     address: string;
     type: string;
+    chainId?: number;
+    chainName?: string;
   }
   onDetectType: (address: string) => Promise<void>
   isDetecting: boolean
@@ -120,9 +122,20 @@ const DeployedContract = ({
         <div>
           <h3 className="text-lg font-semibold">{contract.name}</h3>
           <p className="text-sm text-muted-foreground">{contract.address}</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Type: {contract.type === 'unknown' ? 'Not detected' : contract.type}
-          </p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-xs text-muted-foreground">
+              Type: {contract.type === 'unknown' ? 'Not detected' : contract.type}
+            </p>
+            {contract.chainName && (
+              <>
+                <span className="text-xs text-muted-foreground">•</span>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Activity className="h-3 w-3" />
+                  {contract.chainName}
+                </p>
+              </>
+            )}
+          </div>
         </div>
         <div className="flex gap-2">
           {contract.type === 'unknown' && (
@@ -217,6 +230,8 @@ export function Dashboard(): JSX.Element {
     name: string;
     address: string;
     type: string;
+    chainId?: number;
+    chainName?: string;
   }>>(() => {
     const storedContracts = localStorage.getItem('dashboardContracts')
     return storedContracts ? JSON.parse(storedContracts) : []
@@ -261,7 +276,9 @@ export function Dashboard(): JSX.Element {
         id: contractInfo.address,
         name: 'Imported Contract',
         address: contractInfo.address,
-        type: 'unknown'
+        type: 'unknown',
+        chainId: contractInfo.chainId,
+        chainName: contractInfo.chainName
       }
 
       toast({
@@ -285,7 +302,9 @@ export function Dashboard(): JSX.Element {
             ? {
                 ...contract,
                 name: identifiedContract.name || contract.name,
-                type: identifiedContract.bloxId || 'unknown'
+                type: identifiedContract.type || 'unknown',
+                chainId: contract.chainId,
+                chainName: contract.chainName
               }
             : contract
         )
@@ -312,7 +331,13 @@ export function Dashboard(): JSX.Element {
     setContracts(prev => 
       prev.map(contract => 
         contract.address === address 
-          ? { ...contract, type, name }
+          ? { 
+              ...contract,
+              type, 
+              name,
+              chainId: contract.chainId,
+              chainName: contract.chainName
+            }
           : contract
       )
     )

@@ -2,6 +2,7 @@ import { type Address, createPublicClient, http, decodeAbiParameters, keccak256,
 import { mainnet } from 'viem/chains'
 import { getAllContracts, getContractABI } from '../catalog'
 import type { BloxContract } from '../catalog/types'
+import { getChainName, type Chain } from '@/lib/utils'
 
 export interface ContractInfo {
   address: string
@@ -51,10 +52,14 @@ export async function identifyContract(address: string): Promise<ContractInfo> {
 
   try {
     // Get the runtime bytecode of the target contract
-    const targetBytecode = await client.getCode({ address: address as Address })
+    const targetBytecode = await client.getBytecode({ address: address as Address })
     if (!targetBytecode) {
       throw new Error('No bytecode found at address')
     }
+
+    // Get chain information
+    const chainId = await client.getChainId()
+    const chainName = getChainName(chainId as Chain)
 
     // Load all available contract types
     const contractTypes = await getContractTypes()
@@ -111,7 +116,9 @@ export async function identifyContract(address: string): Promise<ContractInfo> {
             category: contractType.category,
             description: contractType.description,
             bloxId: contractType.id,
-            isCustom: false
+            isCustom: false,
+            chainId,
+            chainName
           }
         }
       } catch (error) {
@@ -124,14 +131,18 @@ export async function identifyContract(address: string): Promise<ContractInfo> {
     return {
       address: address as Address,
       type: 'unknown',
-      isCustom: true
+      isCustom: true,
+      chainId,
+      chainName
     }
   } catch (error) {
     console.error('Error identifying contract:', error)
     return {
       address: address as Address,
       type: 'unknown',
-      isCustom: true
+      isCustom: true,
+      chainId: client.chain.id,
+      chainName: getChainName(client.chain.id as Chain)
     }
   }
 }

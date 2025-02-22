@@ -35,10 +35,15 @@ export function ImportContract({
       // Validate and load the SecureOwnable contract
       const contractInfo = await validateAndLoadContract(address as Address)
       
+      // Log contract info to verify chain data
+      console.log('Imported contract info:', contractInfo)
+      
       // Show success toast with contract details
       toast({
         title: "Contract validated successfully",
-        description: `Imported SecureOwnable contract at ${address.slice(0, 6)}...${address.slice(-4)}`,
+        description: `Imported SecureOwnable contract at ${address.slice(0, 6)}...${address.slice(-4)}${
+          contractInfo.chainName ? ` on ${contractInfo.chainName}` : ''
+        }`,
         variant: "default"
       })
 
