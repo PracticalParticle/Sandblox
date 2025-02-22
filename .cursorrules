@@ -156,6 +156,42 @@ Configure GitHub Actions with security hardening:
 }  
 ```
 
+### Git Commit Standards
+Enforce structured commit messages with:
+```typescript
+// .cursorrules
+"git-commit-format": {
+  "required-sections": {
+    "title": {
+      "max-length": 72,
+      "format": "<type>(<scope>): <description>",
+      "allowed-types": [
+        "feat", "fix", "docs", "style", 
+        "refactor", "perf", "test", "chore"
+      ]
+    },
+    "body": {
+      "required": true,
+      "format": [
+        "Problem:",
+        "Solution:",
+        "Notes:"
+      ],
+      "line-wrap": 80
+    },
+    "footer": {
+      "breaking-changes": "BREAKING CHANGE:",
+      "references": "Refs: #<issue-number>"
+    }
+  },
+  "auto-generate": {
+    "from-branch-name": true,
+    "from-changed-files": true,
+    "include-coauthors": true
+  }
+}
+```
+
 ## Web3 Interaction Patterns  
 
 ### Wallet Management System  
