@@ -2,9 +2,13 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react-swc';
 import path from 'path';
+import { solidityPlugin } from './src/lib/vite/solidity-plugin';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    solidityPlugin()
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -55,7 +59,7 @@ export default defineConfig({
           https://remote-ganache-1.tailb0865.ts.net
           https://*.merkle.io;
         font-src 'self' data: https://fonts.googleapis.com https://rsms.me;
-        img-src 'self' data: https: blob;
+        img-src 'self' data: https: blob:;
         media-src 'self' blob:;
         worker-src 'self' blob:;
         frame-src 'self' 

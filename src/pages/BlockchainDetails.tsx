@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
 import {
   Network,
   Shield,
@@ -10,13 +11,17 @@ import {
   Server,
   CheckCircle2,
   XCircle,
-  Copy
+  Copy,
+  Loader2
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
 import { useState, useEffect } from 'react'
+import { useStandaloneDeployment } from '@/lib/deployment/standalone'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 
 interface NetworkType {
   id: string;
@@ -32,6 +37,7 @@ interface NetworkType {
   rpcUrls: string[];
   chainId?: string;
   isPublic?: boolean;
+  libraryAddress?: string;
 }
 
 const defaultNetworks = {
@@ -61,8 +67,41 @@ export default function BlockchainDetails() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { toast } = useToast()
+  const { address } = useAccount()
+  const publicClient = usePublicClient()
+  const { data: walletClient } = useWalletClient()
   const [network, setNetwork] = useState<NetworkType | null>(null)
   const [rpcHealthStatus, setRpcHealthStatus] = useState<Record<string, boolean>>({})
+  const [isDeploying, setIsDeploying] = useState(false)
+  const [libraryAddress, setLibraryAddress] = useState<string>('')
+  const [librarySource, setLibrarySource] = useState<string>('')
+
+  useEffect(() => {
+    // Load the library source code
+    const loadLibrarySource = async () => {
+      try {
+        const response = await fetch('/contracts/core/library/MultiPhaseSecureOperation.sol');
+        if (!response.ok) throw new Error('Failed to fetch library source');
+        const text = await response.text();
+        setLibrarySource(text);
+      } catch (error) {
+        console.error('Error loading library source:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load library source code',
+          variant: 'destructive',
+        });
+      }
+    };
+
+    loadLibrarySource();
+  }, []);
+
+  const deployment = useStandaloneDeployment({
+    solidityCode: librarySource,
+    compilerVersion: '0.8.25',
+    constructorArgs: []
+  });
 
   useEffect(() => {
     // Load network data
@@ -134,6 +173,88 @@ export default function BlockchainDetails() {
       description: `${description} copied to clipboard`
     })
   }
+
+  const handleDeployLibrary = async () => {
+    if (!address) {
+      toast({
+        title: 'Error',
+        description: 'Please connect your wallet first',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!network?.chainId) {
+      toast({
+        title: 'Error',
+        description: 'Invalid network configuration',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!walletClient) {
+      toast({
+        title: 'Error',
+        description: 'Wallet not connected',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Check if we're on the right network
+    const chainId = parseInt(network.chainId);
+    if (!publicClient) {
+      toast({
+        title: 'Error',
+        description: 'Public client not initialized',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (publicClient.chain.id !== chainId) {
+      toast({
+        title: 'Error',
+        description: 'Please switch to the correct network in your wallet',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsDeploying(true);
+    try {
+      await deployment.deploy();
+      if (deployment.address) {
+        setLibraryAddress(deployment.address);
+        
+        // Update network with library address in localStorage
+        if (network) {
+          const saved = localStorage.getItem('customNetworks');
+          if (saved) {
+            const networks = JSON.parse(saved);
+            const updatedNetworks = networks.map((n: NetworkType) => 
+              n.id === network.id ? { ...n, libraryAddress: deployment.address } : n
+            );
+            localStorage.setItem('customNetworks', JSON.stringify(updatedNetworks));
+          }
+        }
+
+        toast({
+          title: 'Success',
+          description: 'Library deployed successfully',
+        });
+      }
+    } catch (error) {
+      console.error('Deployment error:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to deploy library. Please check console for details.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeploying(false);
+    }
+  };
 
   if (!network) {
     return (
@@ -277,21 +398,44 @@ export default function BlockchainDetails() {
                 <div className="flex items-center gap-2">
                   <Shield className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-medium">MultiPhaseSecureOperation Library:</span>
+                  {libraryAddress && (
+                    <div className="flex items-center gap-2 ml-2">
+                      <code className="text-sm bg-muted px-2 py-1 rounded">{libraryAddress}</code>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => copyToClipboard(libraryAddress, 'Library address')}
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                {!network.isOfficial && (
+                {!network?.isOfficial && !libraryAddress && (
                   <Button 
                     variant="outline" 
                     size="sm" 
                     className="gap-2"
-                    onClick={() => {
-                      toast({
-                        title: "Deployment Started",
-                        description: "Deploying MultiPhaseSecureOperation Library to the network..."
-                      })
-                    }}
+                    onClick={handleDeployLibrary}
+                    disabled={isDeploying || !librarySource}
                   >
-                    <Shield className="h-4 w-4" />
-                    Deploy Library
+                    {isDeploying ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Deploying...
+                      </>
+                    ) : !librarySource ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading Library...
+                      </>
+                    ) : (
+                      <>
+                        <Shield className="h-4 w-4" />
+                        Deploy Library
+                      </>
+                    )}
                   </Button>
                 )}
               </div>
