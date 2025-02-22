@@ -68,8 +68,8 @@ export default class SimpleVault extends SecureOwnable {
   }
 
   async getEthBalance(): Promise<bigint> {
-    const result = await this.client.readContract({
-      address: this.contractAddress,
+    const result = await this.publicClient.readContract({
+      address: this.address,
       abi: SimpleVaultABI,
       functionName: 'getEthBalance'
     }) as unknown;
@@ -84,8 +84,8 @@ export default class SimpleVault extends SecureOwnable {
    * @return The token balance
    */
   async getTokenBalance(token: Address): Promise<bigint> {
-    const result = await this.client.readContract({
-      address: this.contractAddress,
+    const result = await this.publicClient.readContract({
+      address: this.address,
       abi: SimpleVaultABI,
       functionName: 'getTokenBalance',
       args: [token]
@@ -118,7 +118,7 @@ export default class SimpleVault extends SecureOwnable {
 
     const hash = await this.walletClient.writeContract({
       chain: this.chain,
-      address: this.contractAddress,
+      address: this.address,
       abi: SimpleVaultABI,
       functionName: 'withdrawEthRequest',
       args: [to, amount],
@@ -128,7 +128,7 @@ export default class SimpleVault extends SecureOwnable {
 
     return {
       hash,
-      wait: () => this.client.waitForTransactionReceipt({ hash })
+      wait: () => this.publicClient.waitForTransactionReceipt({ hash })
     };
   }
 
@@ -159,7 +159,7 @@ export default class SimpleVault extends SecureOwnable {
 
     const hash = await this.walletClient.writeContract({
       chain: this.chain,
-      address: this.contractAddress,
+      address: this.address,
       abi: SimpleVaultABI,
       functionName: 'withdrawTokenRequest',
       args: [token, to, amount],
@@ -168,7 +168,7 @@ export default class SimpleVault extends SecureOwnable {
 
     return {
       hash,
-      wait: () => this.client.waitForTransactionReceipt({ hash })
+      wait: () => this.publicClient.waitForTransactionReceipt({ hash })
     };
   }
 
@@ -200,7 +200,7 @@ export default class SimpleVault extends SecureOwnable {
 
     const hash = await this.walletClient.writeContract({
       chain: this.chain,
-      address: this.contractAddress,
+      address: this.address,
       abi: SimpleVaultABI,
       functionName: 'approveWithdrawalAfterDelay',
       args: [txId],
@@ -209,7 +209,7 @@ export default class SimpleVault extends SecureOwnable {
 
     return {
       hash,
-      wait: () => this.client.waitForTransactionReceipt({ hash })
+      wait: () => this.publicClient.waitForTransactionReceipt({ hash })
     };
   }
 
@@ -242,7 +242,7 @@ export default class SimpleVault extends SecureOwnable {
 
     const hash = await this.walletClient.writeContract({
       chain: this.chain,
-      address: this.contractAddress,
+      address: this.address,
       abi: SimpleVaultABI,
       functionName: 'cancelWithdrawal',
       args: [txId],
@@ -251,7 +251,7 @@ export default class SimpleVault extends SecureOwnable {
 
     return {
       hash,
-      wait: () => this.client.waitForTransactionReceipt({ hash })
+      wait: () => this.publicClient.waitForTransactionReceipt({ hash })
     };
   }
 
@@ -274,7 +274,7 @@ export default class SimpleVault extends SecureOwnable {
 
     const hash = await this.walletClient.writeContract({
       chain: this.chain,
-      address: this.contractAddress,
+      address: this.address,
       abi: SimpleVaultABI,
       functionName: 'approveWithdrawalWithMetaTx',
       args: [metaTx],
@@ -283,7 +283,7 @@ export default class SimpleVault extends SecureOwnable {
 
     return {
       hash,
-      wait: () => this.client.waitForTransactionReceipt({ hash })
+      wait: () => this.publicClient.waitForTransactionReceipt({ hash })
     };
   }
 
@@ -345,8 +345,8 @@ export default class SimpleVault extends SecureOwnable {
   }
 
   async getOperationHistory(): Promise<TxRecord[]> {
-    const result = await this.client.readContract({
-      address: this.contractAddress,
+    const result = await this.publicClient.readContract({
+      address: this.address,
       abi: SimpleVaultABI,
       functionName: 'getOperationHistory'
     }) as TxRecord[];
@@ -364,21 +364,21 @@ export default class SimpleVault extends SecureOwnable {
     decimals: number;
   }> {
     const [name, symbol, decimals] = await Promise.all([
-      this.client.readContract({
+      this.publicClient.readContract({
         address: token,
         abi: [
           { inputs: [], name: 'name', outputs: [{ type: 'string' }], stateMutability: 'view', type: 'function' },
         ],
         functionName: 'name'
       }) as Promise<string>,
-      this.client.readContract({
+      this.publicClient.readContract({
         address: token,
         abi: [
           { inputs: [], name: 'symbol', outputs: [{ type: 'string' }], stateMutability: 'view', type: 'function' },
         ],
         functionName: 'symbol'
       }) as Promise<string>,
-      this.client.readContract({
+      this.publicClient.readContract({
         address: token,
         abi: [
           { inputs: [], name: 'decimals', outputs: [{ type: 'uint8' }], stateMutability: 'view', type: 'function' },
@@ -405,7 +405,7 @@ export default class SimpleVault extends SecureOwnable {
 
     const hash = await this.walletClient.writeContract({
       chain: this.chain,
-      address: this.contractAddress,
+      address: this.address,
       abi: SimpleVaultABI,
       functionName: 'deposit',
       value: amount,
@@ -414,7 +414,7 @@ export default class SimpleVault extends SecureOwnable {
 
     return {
       hash,
-      wait: () => this.client.waitForTransactionReceipt({ hash })
+      wait: () => this.publicClient.waitForTransactionReceipt({ hash })
     };
   }
 
@@ -450,17 +450,17 @@ export default class SimpleVault extends SecureOwnable {
         }
       ],
       functionName: 'approve',
-      args: [this.contractAddress, amount],
+      args: [this.address, amount],
       account: options.from
     });
 
     // Wait for approval to be mined
-    await this.client.waitForTransactionReceipt({ hash: approvalHash });
+    await this.publicClient.waitForTransactionReceipt({ hash: approvalHash });
 
     // Now deposit the tokens
     const hash = await this.walletClient.writeContract({
       chain: this.chain,
-      address: this.contractAddress,
+      address: this.address,
       abi: SimpleVaultABI,
       functionName: 'depositToken',
       args: [token, amount],
@@ -469,7 +469,7 @@ export default class SimpleVault extends SecureOwnable {
 
     return {
       hash,
-      wait: () => this.client.waitForTransactionReceipt({ hash })
+      wait: () => this.publicClient.waitForTransactionReceipt({ hash })
     };
   }
 }
