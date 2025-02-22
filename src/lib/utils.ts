@@ -78,4 +78,27 @@ export function getChainName(chainId: Chain): string {
 
 export function isTestnet(chainId: Chain): boolean {
   return chainId === CHAINS.SEPOLIA
+}
+
+/**
+ * Formats a bigint value to a human-readable number with the specified number of decimals
+ * @param value The bigint value to format
+ * @param decimals The number of decimals to use (default: 18 for ETH)
+ * @param displayDecimals The number of decimals to display (default: 4)
+ * @returns Formatted string with the specified number of decimals
+ */
+export function formatTokenBalance(value: bigint, decimals: number = 18, displayDecimals: number = 4): string {
+  if (value === BigInt(0)) return '0.0000';
+  
+  const divisor = BigInt(10) ** BigInt(decimals);
+  const beforeDecimal = value / divisor;
+  const afterDecimal = value % divisor;
+  
+  // Convert the remainder to a fixed number of decimals
+  const remainderStr = afterDecimal.toString().padStart(decimals, '0');
+  const significantDecimals = remainderStr.slice(0, displayDecimals);
+  
+  // Combine the parts and trim trailing zeros
+  const result = `${beforeDecimal.toString()}.${significantDecimals}`;
+  return result.replace(/\.?0+$/, '');
 } 

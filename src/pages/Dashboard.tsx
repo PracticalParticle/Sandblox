@@ -27,6 +27,7 @@ import {
 import { ImportContract } from '../components/ImportContract'
 import { identifyContract } from '../lib/verification'
 import { getAllContracts } from '../lib/catalog'
+import { formatTokenBalance } from '@/lib/utils'
 import type { SecureContractInfo } from '@/lib/types'
 
 const container = {
@@ -385,7 +386,7 @@ export function Dashboard(): JSX.Element {
                 Wallet Balance
               </div>
               <p className="text-2xl font-bold" tabIndex={0}>
-                {balanceData?.formatted ? `${Number(balanceData.formatted).toFixed(4)} ${balanceData.symbol}` : '0.0000 ETH'}
+                {balanceData ? `${formatTokenBalance(balanceData.value, balanceData.decimals)} ${balanceData.symbol}` : '0.0000 ETH'}
               </p>
               <p className="text-xs text-muted-foreground">
                 Connected wallet balance
