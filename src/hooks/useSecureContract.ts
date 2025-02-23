@@ -80,28 +80,36 @@ export function useSecureContract() {
       ]) as [Address, Address, Address, number]
 
       // Get operation history with error handling
-      const history = await publicClient.readContract({
-        address,
-        abi: SecureOwnableABI,
-        functionName: 'getOperationHistory'
-      }).catch(() => { throw new Error('Failed to read operation history') }) as unknown as [string, number, bigint, string, string, bigint][]
-      
-      // Process history into events
-      const events: SecurityOperationEvent[] = history.map((op) => ({
-        type: op[0] === 'OWNERSHIP_UPDATE' ? 'ownership' :
-              op[0] === 'BROADCASTER_UPDATE' ? 'broadcaster' :
-              op[0] === 'RECOVERY_UPDATE' ? 'recovery' : 'timelock',
-        status: op[1] === 0 ? 'pending' :
-                op[1] === 1 ? 'completed' : 'cancelled',
-        timestamp: Number(op[2]),
-        description: `${op[0].replace('_', ' ')} operation`,
-        details: {
-          oldValue: op[3],
-          newValue: op[4],
-          remainingTime: Number(op[5]) > Date.now() / 1000 ? 
-            Math.floor(Number(op[5]) - Date.now() / 1000) : 0
+      let events: SecurityOperationEvent[] = [];
+      try {
+        const history = await publicClient.readContract({
+          address,
+          abi: SecureOwnableABI,
+          functionName: 'getOperationHistory'
+        }) as unknown as [string, number, bigint, string, string, bigint][];
+        
+        // Process history into events if we have data
+        if (history && Array.isArray(history)) {
+          events = history.map((op) => ({
+            type: op[0] === 'OWNERSHIP_UPDATE' ? 'ownership' :
+                  op[0] === 'BROADCASTER_UPDATE' ? 'broadcaster' :
+                  op[0] === 'RECOVERY_UPDATE' ? 'recovery' : 'timelock',
+            status: op[1] === 0 ? 'pending' :
+                    op[1] === 1 ? 'completed' : 'cancelled',
+            timestamp: Number(op[2]),
+            description: `${op[0].replace('_', ' ')} operation`,
+            details: {
+              oldValue: op[3],
+              newValue: op[4],
+              remainingTime: Number(op[5]) > Date.now() / 1000 ? 
+                Math.floor(Number(op[5]) - Date.now() / 1000) : 0
+            }
+          }));
         }
-      }))
+      } catch (error) {
+        console.warn('Failed to read operation history:', error);
+        // Continue with empty events array rather than throwing
+      }
 
       return {
         address,

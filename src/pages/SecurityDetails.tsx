@@ -484,26 +484,33 @@ export function SecurityDetails() {
   }, [session, contractInfo])
 
   const loadContractInfo = async () => {
-    if (!address) return
+    if (!address) return;
 
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
 
     try {
-      const info = await validateAndLoadContract(address as `0x${string}`)
-      setContractInfo(info)
+      const info = await validateAndLoadContract(address as `0x${string}`);
+      if (!info) {
+        throw new Error('Contract info not found');
+      }
+      setContractInfo(info);
+      setError(null);
     } catch (error) {
-      console.error('Error loading contract:', error)
-      setError('Failed to load contract details. Please ensure this is a valid SecureOwnable contract.')
-      toast({
-        title: "Loading failed",
-        description: "Failed to load contract details. Please ensure this is a valid SecureOwnable contract.",
-        variant: "destructive"
-      })
+      console.error('Error loading contract:', error);
+      // Don't set error state if we're just reloading after a transaction
+      if (!contractInfo) {
+        setError('Failed to load contract details. Please ensure this is a valid SecureOwnable contract.');
+        toast({
+          title: "Loading failed",
+          description: "Failed to load contract details. Please ensure this is a valid SecureOwnable contract.",
+          variant: "destructive"
+        });
+      }
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false)
-  }
+  };
 
   const loadOperationHistory = async () => {
     if (!contractInfo) return;
@@ -598,22 +605,27 @@ export function SecurityDetails() {
 
   const handleUpdateBroadcasterRequest = async (newBroadcaster: string) => {
     try {
-      await updateBroadcaster(address as `0x${string}`, newBroadcaster as `0x${string}`)
+      await updateBroadcaster(address as `0x${string}`, newBroadcaster as `0x${string}`);
       
       toast({
         title: "Request submitted",
         description: "Broadcaster update request has been submitted.",
-      })
-      await loadContractInfo()
+      });
+
+      // Add a small delay before reloading contract info to allow transaction to be mined
+      setTimeout(async () => {
+        await loadContractInfo();
+      }, 2000);
+
     } catch (error) {
-      console.error('Error submitting broadcaster update request:', error)
+      console.error('Error submitting broadcaster update request:', error);
       toast({
         title: "Error",
         description: "Failed to submit broadcaster update request.",
         variant: "destructive"
-      })
+      });
     }
-  }
+  };
 
   const handleUpdateBroadcasterApproval = async (txId: number) => {
     try {
