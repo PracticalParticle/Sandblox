@@ -1286,10 +1286,10 @@ function SimpleVaultUIContent({
             <div className="space-y-6">
               {!dashboardMode ? (
                 <Tabs defaultValue="deposit" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="deposit">Deposit</TabsTrigger>
-                    <TabsTrigger value="withdraw">Withdraw</TabsTrigger>
-                    <TabsTrigger value="pending">Pending</TabsTrigger>
+                  <TabsList className="grid w-full grid-cols-3 bg-background p-1 rounded-lg">
+                    <TabsTrigger value="deposit" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">Deposit</TabsTrigger>
+                    <TabsTrigger value="withdraw" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">Withdraw</TabsTrigger>
+                    <TabsTrigger value="pending" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">Pending</TabsTrigger>
                   </TabsList>
                   
                   <TabsContent value="deposit">
