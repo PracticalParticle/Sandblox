@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { Button } from './ui/button'
 import { Download, ArrowRight, Loader2 } from 'lucide-react'
 import { ImportContractDialog } from './ImportContractDialog'
@@ -27,7 +27,7 @@ export function ImportContract({
   const { toast } = useToast()
   const { validateAndLoadContract } = useSecureContract()
 
-  const handleImportContract = async (address: string): Promise<void> => {
+  const handleImportContract = useCallback(async (address: string): Promise<void> => {
     setShowImportDialog(false)
     setLoadingContracts(true)
     
@@ -35,33 +35,34 @@ export function ImportContract({
       // Validate and load the SecureOwnable contract
       const contractInfo = await validateAndLoadContract(address as Address)
       
-      // Log contract info to verify chain data
-      console.log('Imported contract info:', contractInfo)
-      
-      // Show success toast with contract details
-      toast({
-        title: "Contract validated successfully",
-        description: `Imported SecureOwnable contract at ${address.slice(0, 6)}...${address.slice(-4)}${
-          contractInfo.chainName ? ` on ${contractInfo.chainName}` : ''
-        }`,
-        variant: "default"
-      })
-
-      // Pass the validated contract info to the parent component
+      // Pass the validated contract info to the parent component first
       onImportSuccess?.(contractInfo)
+
+      // Show success toast after state updates are complete
+      setTimeout(() => {
+        toast({
+          title: "Contract validated successfully",
+          description: `Imported SecureOwnable contract at ${address.slice(0, 6)}...${address.slice(-4)}${
+            contractInfo.chainName ? ` on ${contractInfo.chainName}` : ''
+          }`,
+          variant: "default"
+        })
+      }, 0)
     } catch (error) {
       console.error('Error validating contract:', error)
       
-      // Show detailed error message to help users understand validation failures
-      toast({
-        title: "Contract validation failed",
-        description: error instanceof Error ? error.message : 'Failed to validate SecureOwnable contract',
-        variant: "destructive"
-      })
+      // Show error toast after a tick
+      setTimeout(() => {
+        toast({
+          title: "Contract validation failed",
+          description: error instanceof Error ? error.message : 'Failed to validate SecureOwnable contract',
+          variant: "destructive"
+        })
+      }, 0)
     } finally {
       setLoadingContracts(false)
     }
-  }
+  }, [toast, validateAndLoadContract, onImportSuccess])
 
   const IconComponent = buttonIcon === 'download' ? Download : ArrowRight
   const iconPosition = buttonIcon === 'download' ? 'left' : 'right'

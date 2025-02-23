@@ -77,6 +77,14 @@ const item = {
   show: { opacity: 1, y: 0 },
 }
 
+// Add utility function for BigInt conversion
+const convertBigIntToNumber = (value: bigint | number): number => {
+  if (typeof value === 'bigint') {
+    return Number(value)
+  }
+  return value
+}
+
 function RecoveryWalletContent({ 
   contractInfo, 
   onSuccess,
@@ -436,7 +444,7 @@ export function SecurityDetails() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [contractInfo, setContractInfo] = useState<SecureContractInfo | null>(null)
-  const { validateAndLoadContract, updateBroadcaster } = useSecureContract()
+  const { validateAndLoadContract, updateBroadcaster, approveOperation, cancelOperation } = useSecureContract()
   const { toast } = useToast()
 
   // State for input fields
@@ -502,22 +510,37 @@ export function SecurityDetails() {
       const recentOps = info.recentEvents || [];
       const allEvents: SecurityOperationEvent[] = [...pendingOps, ...recentOps];
       
+      // Convert timeLockPeriodInDays to number first
+      const timeLockPeriodInDays = convertBigIntToNumber(info.timeLockPeriodInDays);
+      const timeLockPeriodInSeconds = timeLockPeriodInDays * 24 * 60 * 60;
+      
       const history: TxRecord[] = allEvents
         .filter((event): event is SecurityOperationEvent & { details: Required<SecurityOperationDetails> } => 
           event.details !== undefined &&
-          typeof event.details.oldValue === 'string' &&
-          typeof event.details.newValue === 'string' &&
-          typeof event.details.remainingTime === 'number'
+          typeof event.details.oldValue !== 'undefined' &&
+          typeof event.details.newValue !== 'undefined' &&
+          typeof event.details.remainingTime !== 'undefined'
         )
-        .map(event => ({
-          txId: parseInt(event.details.newValue) || Date.now(),
-          type: event.type as SecurityOperationType,
-          description: event.description,
-          status: event.status as TxStatus,
-          releaseTime: event.timestamp + (info.timeLockPeriodInDays * 24 * 60 * 60),
-          timestamp: event.timestamp,
-          details: event.details // Now we know this has all required fields
-        }));
+        .map(event => {
+          // Convert timestamp to number first
+          const timestamp = convertBigIntToNumber(event.timestamp);
+          
+          return {
+            txId: typeof event.details.newValue === 'bigint' ? 
+              Number(event.details.newValue) : 
+              parseInt(event.details.newValue.toString()) || Date.now(),
+            type: event.type as SecurityOperationType,
+            description: event.description,
+            status: event.status as TxStatus,
+            releaseTime: timestamp + timeLockPeriodInSeconds,
+            timestamp: timestamp,
+            details: {
+              oldValue: event.details.oldValue.toString(),
+              newValue: event.details.newValue.toString(),
+              remainingTime: convertBigIntToNumber(event.details.remainingTime)
+            }
+          };
+        });
 
       setOperationHistory(history);
       setError(null);
@@ -569,33 +592,35 @@ export function SecurityDetails() {
 
   const handleTransferOwnershipApproval = async (txId: number) => {
     try {
-      // Implementation
+      await approveOperation(address as `0x${string}`, txId, 'ownership');
       toast({
         title: "Approval submitted",
         description: "Transfer ownership approval has been submitted.",
-      })
+      });
+      await loadContractInfo();
     } catch (error) {
       toast({
         title: "Error",
         description: "Failed to approve transfer ownership.",
         variant: "destructive"
-      })
+      });
     }
   }
 
   const handleTransferOwnershipCancellation = async (txId: number) => {
     try {
-      // Implementation
+      await cancelOperation(address as `0x${string}`, txId, 'ownership');
       toast({
         title: "Cancellation submitted",
         description: "Transfer ownership cancellation has been submitted.",
-      })
+      });
+      await loadContractInfo();
     } catch (error) {
       toast({
         title: "Error",
         description: "Failed to cancel transfer ownership.",
         variant: "destructive"
-      })
+      });
     }
   }
 
@@ -625,33 +650,35 @@ export function SecurityDetails() {
 
   const handleUpdateBroadcasterApproval = async (txId: number) => {
     try {
-      // Implementation
+      await approveOperation(address as `0x${string}`, txId, 'broadcaster');
       toast({
         title: "Approval submitted",
         description: "Broadcaster update approval has been submitted.",
-      })
+      });
+      await loadContractInfo();
     } catch (error) {
       toast({
         title: "Error",
         description: "Failed to approve broadcaster update.",
         variant: "destructive"
-      })
+      });
     }
   }
 
   const handleUpdateBroadcasterCancellation = async (txId: number) => {
     try {
-      // Implementation
+      await cancelOperation(address as `0x${string}`, txId, 'broadcaster');
       toast({
         title: "Cancellation submitted",
         description: "Broadcaster update cancellation has been submitted.",
-      })
+      });
+      await loadContractInfo();
     } catch (error) {
       toast({
         title: "Error",
         description: "Failed to cancel broadcaster update.",
         variant: "destructive"
-      })
+      });
     }
   }
 

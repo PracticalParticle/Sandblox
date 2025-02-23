@@ -17,6 +17,31 @@ import { Alert, AlertDescription } from '../components/ui/alert'
 import { useToast } from '@/components/ui/use-toast'
 import type { SecureContractInfo } from '@/lib/types'
 
+// Utility function to recursively convert BigInt to string
+const convertBigIntToString = (obj: any): any => {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+
+  if (typeof obj === 'bigint') {
+    return obj.toString();
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(convertBigIntToString);
+  }
+
+  if (typeof obj === 'object') {
+    const converted: any = {};
+    for (const key in obj) {
+      converted[key] = convertBigIntToString(obj[key]);
+    }
+    return converted;
+  }
+
+  return obj;
+};
+
 const container = {
   hidden: { opacity: 0 },
   show: {
@@ -90,7 +115,14 @@ export default function SecurityCenter() {
   const [contracts, setContracts] = useState<SecureContractInfo[]>(() => {
     // Load contracts from local storage on initial render
     const storedContracts = localStorage.getItem('secureContracts')
-    return storedContracts ? JSON.parse(storedContracts) : []
+    if (!storedContracts) return []
+    
+    try {
+      return JSON.parse(storedContracts)
+    } catch (error) {
+      console.error('Error parsing stored contracts:', error)
+      return []
+    }
   })
   const [error] = useState<string | null>(null)
   const { toast } = useToast()
@@ -103,34 +135,43 @@ export default function SecurityCenter() {
 
   useEffect(() => {
     // Save contracts to local storage whenever they change
-    localStorage.setItem('secureContracts', JSON.stringify(contracts))
+    try {
+      const serializedContracts = convertBigIntToString(contracts)
+      localStorage.setItem('secureContracts', JSON.stringify(serializedContracts))
+    } catch (error) {
+      console.error('Error saving contracts to localStorage:', error)
+    }
   }, [contracts])
 
   const handleUnloadContract = (address: string): void => {
-    setContracts(prev => {
-      const filtered = prev.filter(c => c.address !== address)
+    const filtered = contracts.filter(c => c.address !== address)
+    setContracts(filtered)
+    
+    setTimeout(() => {
       toast({
         title: "Contract unloaded",
         description: "The contract has been removed from the Security Center.",
         variant: "default"
       })
-      return filtered
-    })
+    }, 0)
   }
 
   const handleImportSuccess = (contractInfo: SecureContractInfo) => {
-    setContracts(prev => {
-      if (prev.some(c => c.address === contractInfo.address)) {
+    // Check if contract already exists
+    if (contracts.some(c => c.address === contractInfo.address)) {
+      setTimeout(() => {
         toast({
           title: "Contract already imported",
           description: "This contract has already been imported to the Security Center.",
           variant: "default"
         })
-        return prev
-      }
-      
-      return [...prev, contractInfo]
-    })
+      }, 0)
+      return
+    }
+    
+    // Convert any BigInt values to strings before updating state
+    const serializedContractInfo = convertBigIntToString(contractInfo)
+    setContracts(prev => [...prev, serializedContractInfo])
   }
 
   return (
