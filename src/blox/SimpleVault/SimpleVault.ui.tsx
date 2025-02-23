@@ -583,15 +583,15 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
                   <Wallet className="h-3 w-3 text-primary" />
                 </div>
                 <span>ETH</span>
-                <span className="ml-auto text-muted-foreground">
+                <div className="text-sm text-muted-foreground">
                   {isBalanceLoading ? (
-                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-4 w-20" />
                   ) : balanceData ? (
                     `${Number(balanceData.formatted).toFixed(4)} ${balanceData.symbol}`
                   ) : (
                     'Connect wallet'
                   )}
-                </span>
+                </div>
               </div>
             </SelectItem>
             
@@ -611,13 +611,13 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
                     )}
                   </div>
                   <span>{token.metadata?.symbol || 'Unknown Token'}</span>
-                  <span className="ml-auto text-muted-foreground">
+                  <div className="text-sm text-muted-foreground">
                     {token.loading ? (
-                      <Skeleton className="h-4 w-16" />
+                      <Skeleton className="h-4 w-20" />
                     ) : (
                       `${formatUnits(walletBalances.tokens[address] || BigInt(0), token.metadata?.decimals || 18)} available`
                     )}
-                  </span>
+                  </div>
                 </div>
               </SelectItem>
             ))}
@@ -641,7 +641,7 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
           aria-label={`${selectedTokenAddress === "ETH" ? "ETH" : "Token"} amount input`}
         />
         <div className="flex justify-between text-sm text-muted-foreground">
-          <span>Available in wallet: {
+          <div>Available in wallet: {
             selectedTokenAddress === "ETH"
               ? isBalanceLoading ? (
                   <Skeleton className="h-4 w-16 inline-block" />
@@ -651,7 +651,7 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
                   'Connect wallet'
                 )
               : `${formatUnits(walletBalances.tokens[selectedTokenAddress] || BigInt(0), tokenDecimals)} ${selectedToken?.metadata?.symbol || "Tokens"}`
-          }</span>
+          }</div>
         </div>
       </div>
 
@@ -818,7 +818,6 @@ function SimpleVaultUIContent({
     }
   }, [_mock?.initialData, setPendingTxs]);
 
-  // Fetch balances and pending transactions (now only called via refresh button)
   const fetchVaultData = React.useCallback(async () => {
     if (!vault || _mock) return;
     
@@ -855,17 +854,23 @@ function SimpleVaultUIContent({
         }
       }));
 
+      // Get fresh balance and metadata
       const [balance, metadata] = await Promise.all([
         vault.getTokenBalance(tokenAddress),
-        vault.getTokenMetadata(tokenAddress)
+        // Only fetch metadata if we don't have it already
+        !tokenBalances[tokenAddress]?.metadata ? 
+          vault.getTokenMetadata(tokenAddress) : 
+          Promise.resolve(tokenBalances[tokenAddress].metadata)
       ]);
 
       setTokenBalances((prev: TokenBalanceState) => ({
         ...prev,
         [tokenAddress]: {
+          ...prev[tokenAddress],
           balance,
-          metadata,
-          loading: false
+          metadata: metadata || prev[tokenAddress]?.metadata,
+          loading: false,
+          error: undefined
         }
       }));
       setError(null);
@@ -882,7 +887,68 @@ function SimpleVaultUIContent({
     } finally {
       setLoadingState((prev: LoadingState) => ({ ...prev, tokenBalance: false }));
     }
-  }, [vault, setLoadingState, setTokenBalances, _mock]);
+  }, [vault, tokenBalances, setLoadingState, setTokenBalances, _mock]);
+
+  // Add effect to refresh token balances when vault is ready
+  useEffect(() => {
+    if (!vault || !tokenBalances || Object.keys(tokenBalances).length === 0) return;
+    
+    let mounted = true;
+    
+    // Refresh all token balances
+    const refreshTokens = async () => {
+      try {
+        // Fetch balances for all tracked tokens in parallel
+        const tokenUpdates = await Promise.all(
+          Object.keys(tokenBalances).map(async (tokenAddress) => {
+            try {
+              // Get fresh balance and metadata
+              const [balance, metadata] = await Promise.all([
+                vault.getTokenBalance(tokenAddress as Address),
+                // Only fetch metadata if we don't have it already
+                !tokenBalances[tokenAddress]?.metadata ? 
+                  vault.getTokenMetadata(tokenAddress as Address) : 
+                  Promise.resolve(tokenBalances[tokenAddress].metadata)
+              ]);
+
+              return [tokenAddress, {
+                balance,
+                metadata: metadata || tokenBalances[tokenAddress]?.metadata,
+                loading: false,
+                error: undefined
+              }];
+            } catch (error) {
+              console.error(`Failed to fetch data for token ${tokenAddress}:`, error);
+              return [tokenAddress, {
+                ...tokenBalances[tokenAddress],
+                loading: false,
+                error: error instanceof Error ? error.message : 'Failed to fetch token data'
+              }];
+            }
+          })
+        );
+
+        if (mounted) {
+          // Update all tokens at once to avoid multiple re-renders
+          setTokenBalances(prev => {
+            const updates = Object.fromEntries(tokenUpdates);
+            return {
+              ...prev,
+              ...updates
+            };
+          });
+        }
+      } catch (error) {
+        console.error('Failed to refresh token balances:', error);
+      }
+    };
+
+    refreshTokens();
+
+    return () => {
+      mounted = false;
+    };
+  }, [vault, tokenBalances]); // Only depend on vault and tokenBalances object reference
 
   const handleEthWithdrawal = async (to: Address, amount: bigint) => {
     if (!address || !vault) return;
@@ -1163,13 +1229,13 @@ function SimpleVaultUIContent({
                 </div>
                 <div>
                   <p className="font-medium">ETH</p>
-                  <p className="text-sm text-muted-foreground">
+                  <div className="text-sm text-muted-foreground">
                     {loadingState.ethBalance ? (
                       <Skeleton className="h-4 w-20" />
                     ) : (
                       formatEther(ethBalance)
                     )}
-                  </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1209,7 +1275,7 @@ function SimpleVaultUIContent({
                     )}
                     <div>
                       <p className="font-medium">{token.metadata?.symbol || 'Unknown Token'}</p>
-                      <p className="text-sm text-muted-foreground">
+                      <div className="text-sm text-muted-foreground">
                         {token.loading ? (
                           <Skeleton className="h-4 w-20" />
                         ) : token.error ? (
@@ -1217,7 +1283,7 @@ function SimpleVaultUIContent({
                         ) : (
                           formatUnits(token.balance || BigInt(0), token.metadata?.decimals || 18)
                         )}
-                      </p>
+                      </div>
                     </div>
                   </div>
                   <Button
