@@ -19,6 +19,11 @@ interface MinimalProvider {
   request(args: any): Promise<any>;
 }
 
+interface WalletConnectModalInterface {
+  openModal: (args: { uri: string; onClose: () => void }) => Promise<void>;
+  closeModal: () => void;
+}
+
 // Constants
 const SESSION_TIMEOUT = 15 * 60 * 1000; // 15 minutes
 const STORAGE_KEY = 'singleWalletSession';
@@ -67,7 +72,7 @@ export function SingleWalletManagerProvider({
 }: SingleWalletManagerProviderProps) {
   const [session, setSession] = useState<ValidWalletSession>();
   const [isConnecting, setIsConnecting] = useState(false);
-  const modalCleanupRef = useRef<(() => void) | null>(null);
+  const modalCleanupRef = useRef<(() => void) | undefined>(undefined);
   const providerRef = useRef<MinimalProvider | null>(null);
 
   // Initialize WalletConnect Modal
@@ -98,10 +103,18 @@ export function SingleWalletManagerProvider({
     });
 
     return () => {
-      if (modalCleanupRef.current) {
-        modalCleanupRef.current();
+      if (typeof modalCleanupRef.current === 'function') {
+        try {
+          modalCleanupRef.current();
+        } catch (error) {
+          console.error('Error during modal cleanup:', error);
+        }
       }
-      newModal.closeModal();
+      try {
+        newModal.closeModal();
+      } catch (error) {
+        console.error('Error closing modal:', error);
+      }
     };
   }, [projectId, allowedChainIds]);
 
@@ -158,34 +171,37 @@ export function SingleWalletManagerProvider({
         }
 
         // Small delay to ensure modal state is reset
-        setTimeout(() => {
-          const cleanup = (modal.openModal({ 
-            uri,
-            onClose: () => {
-              isModalClosed = true;
-              setIsConnecting(false);
-              abortController.abort('Modal closed by user');
-              // Clean up on modal close
-              if (providerRef.current) {
-                void providerRef.current.disconnect().catch(console.error);
+        setTimeout(async () => {
+          try {
+            await (modal as WalletConnectModalInterface).openModal({ 
+              uri,
+              onClose: () => {
+                isModalClosed = true;
+                setIsConnecting(false);
+                abortController.abort('Modal closed by user');
+                // Clean up on modal close
+                if (providerRef.current) {
+                  void providerRef.current.disconnect().catch(console.error);
+                }
+                localStorage.removeItem('walletconnect');
               }
-              localStorage.removeItem('walletconnect');
-            }
-          }) as unknown) as () => void;
-          modalCleanupRef.current = cleanup;
+            });
 
-          // Add abort signal listener to close modal if aborted externally
-          abortController.signal.addEventListener('abort', () => {
-            modal.closeModal();
-            cleanup();
-          });
+            // Add abort signal listener to close modal if aborted externally
+            abortController.signal.addEventListener('abort', () => {
+              (modal as WalletConnectModalInterface).closeModal();
+            });
+          } catch (error) {
+            console.error('Error opening modal:', error);
+            setIsConnecting(false);
+          }
         }, 100);
       });
 
       handleVisibilityChange = () => {
         if (document.hidden) {
           abortController.abort('Page hidden');
-          modal.closeModal();
+          (modal as WalletConnectModalInterface).closeModal();
           setIsConnecting(false);
           void provider.disconnect().catch(console.error);
           localStorage.removeItem('walletconnect');
@@ -238,7 +254,7 @@ export function SingleWalletManagerProvider({
         return;
       }
 
-      modal.closeModal();
+      (modal as WalletConnectModalInterface).closeModal();
 
       const validatedSession = validateSession(rawSession);
       const chainId = Number(validatedSession.namespaces.eip155.chains[0].split(':')[1]) as Chain;
