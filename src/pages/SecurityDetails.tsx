@@ -16,7 +16,10 @@ import {
   X,
   Timer,
   Network,
-  Copy
+  Copy,
+  History,
+  Hash,
+  ChevronDown
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -36,6 +39,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 
 // Define enums since we can't import them
 enum TxStatus {
@@ -84,6 +88,114 @@ const convertBigIntToNumber = (value: bigint | number): number => {
   }
   return value
 }
+
+// Enhanced formatting utilities
+const formatHexValue = (value: string): string => {
+  // Check if it's a hex string
+  if (value.startsWith('0x')) {
+    // If it's a small hex (likely an address), just format it
+    if (value.length <= 42) {
+      return formatAddress(value);
+    }
+    // For long hex strings, truncate with ellipsis
+    return `${value.slice(0, 6)}...${value.slice(-4)}`;
+  }
+  return value;
+};
+
+const formatTimeValue = (value: string | number): string => {
+  const numValue = typeof value === 'string' ? parseInt(value) : value;
+  if (isNaN(numValue)) return value.toString();
+  
+  if (numValue === 0) return '0 days';
+  if (numValue === 1) return '1 day';
+  return `${numValue} days`;
+};
+
+const formatValue = (value: string, type: SecurityOperationType): string => {
+  // Handle empty or invalid values
+  if (!value || value === '0x0' || value === '0x') return '-';
+
+  switch (type) {
+    case SecurityOperationType.OWNERSHIP_UPDATE:
+    case SecurityOperationType.BROADCASTER_UPDATE:
+    case SecurityOperationType.RECOVERY_UPDATE:
+      return formatHexValue(value);
+    case SecurityOperationType.TIMELOCK_UPDATE:
+      return formatTimeValue(value);
+    default:
+      return formatHexValue(value);
+  }
+};
+
+const getOperationTitle = (event: TxRecord): string => {
+  switch (event.type) {
+    case SecurityOperationType.OWNERSHIP_UPDATE:
+      return 'Ownership Transfer';
+    case SecurityOperationType.BROADCASTER_UPDATE:
+      return 'Broadcaster Update';
+    case SecurityOperationType.RECOVERY_UPDATE:
+      return 'Recovery Update';
+    case SecurityOperationType.TIMELOCK_UPDATE:
+      return 'TimeLock Update';
+    default:
+      return 'Unknown Operation';
+  }
+};
+
+const getOperationDescription = (event: TxRecord): string => {
+  const newValue = formatValue(event.details.newValue, event.type);
+  switch (event.type) {
+    case SecurityOperationType.OWNERSHIP_UPDATE:
+      return `Transfer ownership to ${newValue}`;
+    case SecurityOperationType.BROADCASTER_UPDATE:
+      return `Update broadcaster to ${newValue}`;
+    case SecurityOperationType.RECOVERY_UPDATE:
+      return `Update recovery address to ${newValue}`;
+    case SecurityOperationType.TIMELOCK_UPDATE:
+      return `Update timelock period to ${newValue}`;
+    default:
+      return event.description;
+  }
+};
+
+const getOperationIcon = (type: SecurityOperationType) => {
+  switch (type) {
+    case SecurityOperationType.OWNERSHIP_UPDATE:
+      return <Key className="h-3 w-3" />;
+    case SecurityOperationType.BROADCASTER_UPDATE:
+      return <Radio className="h-3 w-3" />;
+    case SecurityOperationType.RECOVERY_UPDATE:
+      return <Shield className="h-3 w-3" />;
+    case SecurityOperationType.TIMELOCK_UPDATE:
+      return <Clock className="h-3 w-3" />;
+    default:
+      return null;
+  }
+};
+
+const getStatusColor = (status: TxStatus): { bg: string; text: string; icon: JSX.Element } => {
+  switch (status) {
+    case TxStatus.COMPLETED:
+      return {
+        bg: 'bg-green-500/10',
+        text: 'text-green-500',
+        icon: <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+      };
+    case TxStatus.PENDING:
+      return {
+        bg: 'bg-yellow-500/10',
+        text: 'text-yellow-500',
+        icon: <AlertCircle className="h-3.5 w-3.5 text-yellow-500" />
+      };
+    case TxStatus.CANCELLED:
+      return {
+        bg: 'bg-red-500/10',
+        text: 'text-red-500',
+        icon: <XCircle className="h-3.5 w-3.5 text-red-500" />
+      };
+  }
+};
 
 function RecoveryWalletContent({ 
   contractInfo, 
@@ -1283,122 +1395,131 @@ export function SecurityDetails() {
           </Card>
 
           {/* Operation History */}
-          <Card className="p-6">
-            <h2 className="text-xl font-bold mb-4">Operation History</h2>
+          <Card className="p-6 bg-card">
+            <h2 className="text-xl font-bold mb-6">Operation History</h2>
             <div className="space-y-2">
               {operationHistory.length > 0 ? (
                 operationHistory
                   .sort((a, b) => b.timestamp - a.timestamp)
-                  .map((event) => (
-                    <div 
-                      key={event.txId} 
-                      className="flex items-center gap-3 py-2 border-b last:border-0"
-                    >
-                      <div className={`rounded-full p-1.5 ${
-                        event.status === TxStatus.COMPLETED ? 'bg-green-500/10' :
-                        event.status === TxStatus.PENDING ? 'bg-yellow-500/10' :
-                        'bg-red-500/10'
-                      }`}>
-                        {event.status === TxStatus.COMPLETED ? (
-                          <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-                        ) : event.status === TxStatus.PENDING ? (
-                          <AlertCircle className="h-3.5 w-3.5 text-yellow-500" />
-                        ) : (
-                          <XCircle className="h-3.5 w-3.5 text-red-500" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium truncate">{event.description}</p>
-                          <Badge 
-                            variant={
-                              event.status === TxStatus.COMPLETED ? "default" :
-                              event.status === TxStatus.PENDING ? "secondary" :
-                              "destructive"
-                            }
-                            className="capitalize"
-                          >
-                            {event.status}
-                          </Badge>
+                  .map((event) => {
+                    const statusStyle = getStatusColor(event.status);
+                    const icon = getOperationIcon(event.type);
+                    return (
+                      <Collapsible key={event.txId}>
+                        <div className="group border rounded-lg bg-background">
+                          <CollapsibleTrigger className="w-full">
+                            <div className="flex items-center justify-between p-3 hover:bg-accent/5 transition-colors">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className={`rounded-full p-2 ${statusStyle.bg} shrink-0`}>
+                                  {statusStyle.icon}
+                                </div>
+                                <div className="min-w-0 text-left">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h3 className="text-sm font-semibold truncate">
+                                      {getOperationTitle(event)}
+                                    </h3>
+                                    <Badge 
+                                      variant={
+                                        event.status === TxStatus.COMPLETED ? "default" :
+                                        event.status === TxStatus.PENDING ? "secondary" :
+                                        "destructive"
+                                      }
+                                      className="capitalize"
+                                    >
+                                      {event.status}
+                                    </Badge>
+                                    {event.status === TxStatus.PENDING && event.details.remainingTime > 0 && (
+                                      <span className="flex items-center gap-1 text-xs text-yellow-500">
+                                        <Timer className="h-3 w-3" />
+                                        {Math.floor(event.details.remainingTime / 86400)}d {Math.floor((event.details.remainingTime % 86400) / 3600)}h
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                                    <Clock className="h-3 w-3" />
+                                    {new Date(event.timestamp * 1000).toLocaleDateString(undefined, {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric'
+                                    })}
+                                    <span>•</span>
+                                    <span className="flex items-center gap-1">
+                                      <Hash className="h-3 w-3" />
+                                      {event.txId}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          navigator.clipboard.writeText(event.txId.toString());
+                                          toast({
+                                            title: "Copied!",
+                                            description: "Transaction ID copied to clipboard"
+                                          });
+                                        }}
+                                      >
+                                        <span className="sr-only">Copy transaction ID</span>
+                                        <Copy className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>Copy transaction ID</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                              </div>
+                            </div>
+                          </CollapsibleTrigger>
+                          
+                          <CollapsibleContent>
+                            <div className="px-4 pb-3 pt-1">
+                              <p className="text-sm text-muted-foreground mb-3">
+                                {getOperationDescription(event)}
+                              </p>
+                              
+                              <div className="flex items-center gap-3 px-4 py-3 bg-muted/30 rounded-lg">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-medium text-muted-foreground mb-1">From</p>
+                                  <div className="flex items-center gap-2 text-sm">
+                                    {icon}
+                                    <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
+                                      {formatValue(event.details.oldValue, event.type)}
+                                    </code>
+                                  </div>
+                                </div>
+                                <div className="text-muted-foreground">→</div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-medium text-muted-foreground mb-1">To</p>
+                                  <div className="flex items-center gap-2 text-sm">
+                                    {icon}
+                                    <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
+                                      {formatValue(event.details.newValue, event.type)}
+                                    </code>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </CollapsibleContent>
                         </div>
-                        <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
-                          {event.type === SecurityOperationType.OWNERSHIP_UPDATE && (
-                            <span className="flex items-center gap-1">
-                              <Key className="h-3 w-3" />
-                              Ownership Transfer
-                            </span>
-                          )}
-                          {event.type === SecurityOperationType.BROADCASTER_UPDATE && (
-                            <span className="flex items-center gap-1">
-                              <Radio className="h-3 w-3" />
-                              Broadcaster Update
-                            </span>
-                          )}
-                          {event.type === SecurityOperationType.RECOVERY_UPDATE && (
-                            <span className="flex items-center gap-1">
-                              <Shield className="h-3 w-3" />
-                              Recovery Update
-                            </span>
-                          )}
-                          {event.type === SecurityOperationType.TIMELOCK_UPDATE && (
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              TimeLock Update
-                            </span>
-                          )}
-                          <span>•</span>
-                          <span>
-                            {new Date(event.timestamp * 1000).toLocaleDateString(undefined, {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric'
-                            })}
-                            {' '}
-                            {new Date(event.timestamp * 1000).toLocaleTimeString(undefined, {
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </span>
-                          {event.status === TxStatus.PENDING && event.details.remainingTime > 0 && (
-                            <>
-                              <span>•</span>
-                              <span className="text-yellow-500">
-                                {Math.floor(event.details.remainingTime / 86400)}d {Math.floor((event.details.remainingTime % 86400) / 3600)}h remaining
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 shrink-0"
-                              onClick={() => {
-                                navigator.clipboard.writeText(event.txId.toString());
-                                toast({
-                                  title: "Copied!",
-                                  description: "Transaction ID copied to clipboard"
-                                });
-                              }}
-                            >
-                              <span className="sr-only">Copy transaction ID</span>
-                              <Copy className="h-3.5 w-3.5" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Copy transaction ID</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                  ))
+                      </Collapsible>
+                    );
+                  })
               ) : (
-                <p className="text-center text-muted-foreground py-4">
-                  No operation history
-                </p>
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                  <History className="h-12 w-12 mb-4 opacity-50" />
+                  <p className="text-sm font-medium">No operation history available</p>
+                  <p className="text-xs mt-1">Operations will appear here once executed</p>
+                </div>
               )}
             </div>
           </Card>
