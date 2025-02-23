@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/components/ui/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -330,7 +329,6 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
     address: address,
   });
   const publicClient = usePublicClient();
-  const { toast } = useToast();
 
   const selectedToken = selectedTokenAddress === "ETH" ? undefined : tokenBalances[selectedTokenAddress];
   const tokenDecimals = selectedToken?.metadata?.decimals ?? 18;
@@ -443,21 +441,12 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
         args: [spender, amount]
       });
 
-      toast({
-        title: "Approval Initiated",
-        description: `Transaction hash: ${hash}`,
-      });
-
       if (!publicClient) throw new Error("No public client available");
 
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       
       if (receipt.status === 'success') {
         setApprovalState(prev => ({ ...prev, isApproved: true }));
-        toast({
-          title: "Approval Confirmed",
-          description: "Token approval successful",
-        });
       } else {
         throw new Error("Approval transaction failed");
       }
@@ -466,11 +455,6 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
         ...prev, 
         error: error.message || "Failed to approve token"
       }));
-      toast({
-        title: "Approval Failed",
-        description: error.message,
-        variant: "destructive",
-      });
     } finally {
       setApprovalState(prev => ({ ...prev, isApproving: false }));
     }
@@ -695,6 +679,13 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
   );
 };
 
+// Add this type definition at the top with other interfaces
+type NotificationMessage = {
+  type: 'error' | 'warning' | 'info' | 'success';
+  title: string;
+  description: string;
+};
+
 interface SimpleVaultUIProps {
   contractAddress: Address;
   contractInfo: ContractInfo;
@@ -711,6 +702,7 @@ interface SimpleVaultUIProps {
   };
   dashboardMode?: boolean;
   renderSidebar?: boolean;
+  addMessage?: (message: NotificationMessage) => void;
 }
 
 function SimpleVaultUIContent({ 
@@ -719,26 +711,34 @@ function SimpleVaultUIContent({
   onError,
   _mock, 
   dashboardMode = false,
-  renderSidebar = false
+  renderSidebar = false,
+  addMessage
 }: SimpleVaultUIProps): JSX.Element {
   const { address, isConnected } = _mock?.account || useAccount();
   const publicClient = _mock?.publicClient || usePublicClient();
   const { data: walletClient } = _mock?.walletClient || useWalletClient();
   const chain = _mock?.chain || useChain();
-  const { toast } = useToast();
   const navigate = useNavigate();
   
   const isCorrectChain = chain?.id === contractInfo.chainId;
   
+  const handleNotification = React.useCallback((message: NotificationMessage): void => {
+    if (addMessage) {
+      addMessage(message);
+    } else {
+      console.log('Notification:', message); // Fallback for when addMessage is not provided
+    }
+  }, [addMessage]);
+
   useEffect(() => {
     if (!isCorrectChain && chain?.id) {
-      toast({
+      handleNotification({
+        type: 'warning',
         title: "Wrong Network",
-        description: `This vault was deployed on ${contractInfo.chainName}. Please switch networks.`,
-        variant: "destructive"
+        description: `This vault was deployed on ${contractInfo.chainName}. Please switch networks.`
       });
     }
-  }, [chain?.id, contractInfo.chainName, isCorrectChain, toast]);
+  }, [chain?.id, contractInfo.chainName, isCorrectChain, handleNotification]);
 
   const [ethBalance, setEthBalance] = useState<bigint>(_mock?.initialData?.ethBalance || BigInt(0));
   const [tokenBalances, setTokenBalances] = useAtom(tokenBalanceAtom);
@@ -860,10 +860,10 @@ function SimpleVaultUIContent({
   const handleEthWithdrawal = async (to: Address, amount: bigint) => {
     if (!address || !vault) return;
     if (!isCorrectChain) {
-      toast({
+      handleNotification({
+        type: 'warning',
         title: "Wrong Network",
-        description: `Please switch to ${contractInfo.chainName} to perform this operation.`,
-        variant: "destructive",
+        description: `Please switch to ${contractInfo.chainName} to perform this operation.`
       });
       return;
     }
@@ -871,23 +871,25 @@ function SimpleVaultUIContent({
     setLoadingState((prev: LoadingState) => ({ ...prev, withdrawal: true }));
     try {
       const tx = await vault.withdrawEthRequest(to, amount, { from: address });
-      toast({
+      handleNotification({
+        type: 'info',
         title: "Withdrawal Requested",
-        description: `Transaction hash: ${tx.hash}`,
+        description: `Transaction hash: ${tx.hash}`
       });
       
       await tx.wait();
-      toast({
+      handleNotification({
+        type: 'success',
         title: "Transaction Confirmed",
-        description: "Your withdrawal request has been confirmed.",
+        description: "Your withdrawal request has been confirmed."
       });
       await fetchVaultData();
     } catch (error: any) {
       onError?.(error);
-      toast({
+      handleNotification({
+        type: 'error',
         title: "Error",
-        description: error.message,
-        variant: "destructive",
+        description: error.message
       });
     } finally {
       setLoadingState((prev: LoadingState) => ({ ...prev, withdrawal: false }));
@@ -897,10 +899,10 @@ function SimpleVaultUIContent({
   const handleTokenWithdrawal = async (to: Address, amount: bigint, token: Address) => {
     if (!address || !vault) return;
     if (!isCorrectChain) {
-      toast({
+      handleNotification({
+        type: 'warning',
         title: "Wrong Network",
-        description: `Please switch to ${contractInfo.chainName} to perform this operation.`,
-        variant: "destructive",
+        description: `Please switch to ${contractInfo.chainName} to perform this operation.`
       });
       return;
     }
@@ -908,23 +910,25 @@ function SimpleVaultUIContent({
     setLoadingState((prev: LoadingState) => ({ ...prev, withdrawal: true }));
     try {
       const tx = await vault.withdrawTokenRequest(token, to, amount, { from: address });
-      toast({
+      handleNotification({
+        type: 'info',
         title: "Withdrawal Requested",
-        description: `Transaction hash: ${tx.hash}`,
+        description: `Transaction hash: ${tx.hash}`
       });
       
       await tx.wait();
-      toast({
+      handleNotification({
+        type: 'success',
         title: "Transaction Confirmed",
-        description: "Your withdrawal request has been confirmed.",
+        description: "Your withdrawal request has been confirmed."
       });
       await fetchVaultData();
     } catch (error: any) {
       onError?.(error);
-      toast({
+      handleNotification({
+        type: 'error',
         title: "Error",
-        description: error.message,
-        variant: "destructive",
+        description: error.message
       });
     } finally {
       setLoadingState((prev: LoadingState) => ({ ...prev, withdrawal: false }));
@@ -942,10 +946,10 @@ function SimpleVaultUIContent({
   const handleApproveWithdrawal = async (txId: number) => {
     if (!address || !vault) return;
     if (!isCorrectChain) {
-      toast({
+      handleNotification({
+        type: 'warning',
         title: "Wrong Network",
-        description: `Please switch to ${contractInfo.chainName} to perform this operation.`,
-        variant: "destructive",
+        description: `Please switch to ${contractInfo.chainName} to perform this operation.`
       });
       return;
     }
@@ -953,19 +957,20 @@ function SimpleVaultUIContent({
     setLoadingState((prev: LoadingState) => ({ ...prev, approval: true }));
     try {
       const tx = await vault.approveWithdrawalAfterDelay(txId, { from: address });
-      toast({
+      handleNotification({
+        type: 'info',
         title: "Approval Submitted",
-        description: `Transaction hash: ${tx.hash}`,
+        description: `Transaction hash: ${tx.hash}`
       });
       
       await tx.wait();
       await fetchVaultData();
     } catch (error: any) {
       onError?.(error);
-      toast({
+      handleNotification({
+        type: 'error',
         title: "Error",
-        description: error.message,
-        variant: "destructive",
+        description: error.message
       });
     } finally {
       setLoadingState((prev: LoadingState) => ({ ...prev, approval: false }));
@@ -975,10 +980,10 @@ function SimpleVaultUIContent({
   const handleCancelWithdrawal = async (txId: number) => {
     if (!address || !vault) return;
     if (!isCorrectChain) {
-      toast({
+      handleNotification({
+        type: 'warning',
         title: "Wrong Network",
-        description: `Please switch to ${contractInfo.chainName} to perform this operation.`,
-        variant: "destructive",
+        description: `Please switch to ${contractInfo.chainName} to perform this operation.`
       });
       return;
     }
@@ -986,19 +991,20 @@ function SimpleVaultUIContent({
     setLoadingState((prev: LoadingState) => ({ ...prev, cancellation: true }));
     try {
       const tx = await vault.cancelWithdrawal(txId, { from: address });
-      toast({
+      handleNotification({
+        type: 'info',
         title: "Cancellation Submitted",
-        description: `Transaction hash: ${tx.hash}`,
+        description: `Transaction hash: ${tx.hash}`
       });
       
       await tx.wait();
       await fetchVaultData();
     } catch (error: any) {
       onError?.(error);
-      toast({
+      handleNotification({
+        type: 'error',
         title: "Error",
-        description: error.message,
-        variant: "destructive",
+        description: error.message
       });
     } finally {
       setLoadingState((prev: LoadingState) => ({ ...prev, cancellation: false }));
@@ -1008,10 +1014,10 @@ function SimpleVaultUIContent({
   const handleDeposit = async (amount: bigint, token?: Address) => {
     if (!address || !vault) return;
     if (!isCorrectChain) {
-      toast({
+      handleNotification({
+        type: 'warning',
         title: "Wrong Network",
-        description: `Please switch to ${contractInfo.chainName} to perform this operation.`,
-        variant: "destructive",
+        description: `Please switch to ${contractInfo.chainName} to perform this operation.`
       });
       return;
     }
@@ -1022,15 +1028,17 @@ function SimpleVaultUIContent({
         ? await vault.depositToken(token, amount, { from: address })
         : await vault.depositEth(amount, { from: address });
 
-      toast({
+      handleNotification({
+        type: 'info',
         title: "Deposit Initiated",
-        description: `Transaction hash: ${tx.hash}`,
+        description: `Transaction hash: ${tx.hash}`
       });
       
       await tx.wait();
-      toast({
+      handleNotification({
+        type: 'success',
         title: "Deposit Confirmed",
-        description: "Your deposit has been confirmed.",
+        description: "Your deposit has been confirmed."
       });
       await fetchVaultData();
       if (token) {
@@ -1038,10 +1046,10 @@ function SimpleVaultUIContent({
       }
     } catch (error: any) {
       onError?.(error);
-      toast({
+      handleNotification({
+        type: 'error',
         title: "Error",
-        description: error.message,
-        variant: "destructive",
+        description: error.message
       });
     } finally {
       setLoadingState((prev: LoadingState) => ({ ...prev, withdrawal: false }));
@@ -1100,9 +1108,10 @@ function SimpleVaultUIContent({
             <AddTokenDialog
               onAddToken={async (address) => {
                 await fetchTokenBalance(address);
-                toast({
+                handleNotification({
+                  type: 'success',
                   title: "Token Added",
-                  description: "The token has been added to your tracking list",
+                  description: "The token has been added to your tracking list"
                 });
               }}
               isLoading={loadingState.tokenBalance}
@@ -1143,9 +1152,10 @@ function SimpleVaultUIContent({
                     className="h-8 w-8"
                     onClick={() => {
                       // TODO: Implement token removal
-                      toast({
+                      handleNotification({
+                        type: 'warning',
                         title: "Not Implemented",
-                        description: "Token removal coming soon",
+                        description: "Token removal coming soon"
                       });
                     }}
                   >
