@@ -232,11 +232,15 @@ function TimeLockWalletContent({
 function BroadcasterWalletContent({ 
   contractInfo, 
   onSuccess,
-  onClose 
+  onClose,
+  actionLabel = "Confirm Update",
+  newValue = ""
 }: { 
   contractInfo: SecureContractInfo | null,
   onSuccess: () => void,
-  onClose: () => void
+  onClose: () => void,
+  actionLabel?: string,
+  newValue?: string
 }) {
   const { session, isConnecting, connect, disconnect } = useSingleWallet()
   const [isBroadcasterWalletConnected, setIsBroadcasterWalletConnected] = useState(false)
@@ -281,12 +285,27 @@ function BroadcasterWalletContent({
                 </Alert>
               )}
               {isBroadcasterWalletConnected && (
-                <Alert>
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                  <AlertDescription className="text-green-500">
-                    Broadcaster wallet connected successfully!
-                  </AlertDescription>
-                </Alert>
+                <div className="space-y-4">
+                  <Alert>
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    <AlertDescription className="text-green-500">
+                      Broadcaster wallet connected successfully!
+                    </AlertDescription>
+                  </Alert>
+                  {newValue && (
+                    <div className="p-2 bg-muted rounded-lg">
+                      <p className="text-sm font-medium">New Value:</p>
+                      <code className="text-xs">{newValue}</code>
+                    </div>
+                  )}
+                  <Button 
+                    onClick={onSuccess}
+                    className="w-full"
+                    variant="default"
+                  >
+                    {actionLabel}
+                  </Button>
+                </div>
               )}
             </div>
           ) : (
@@ -811,6 +830,8 @@ export function SecurityDetails() {
                             setShowBroadcasterApproveDialog(false)
                             setShowBroadcasterCancelDialog(false)
                           }}
+                          actionLabel="Submit Update Request"
+                          newValue={newBroadcasterAddress}
                         />
                       </SingleWalletManagerProvider>
                     </div>
@@ -882,6 +903,8 @@ export function SecurityDetails() {
                             setShowBroadcasterApproveDialog(false)
                             setShowBroadcasterCancelDialog(false)
                           }}
+                          actionLabel="Submit Update Request"
+                          newValue={newRecoveryAddress}
                         />
                       </SingleWalletManagerProvider>
                     </div>
@@ -966,6 +989,8 @@ export function SecurityDetails() {
                             }
                           }}
                           onClose={() => {}}
+                          actionLabel="Submit Update Request"
+                          newValue={newTimeLockPeriod}
                         />
                       </SingleWalletManagerProvider>
                     </div>
@@ -1093,6 +1118,7 @@ export function SecurityDetails() {
                                       setShowBroadcasterApproveDialog(false);
                                     }}
                                     onClose={() => setShowBroadcasterApproveDialog(false)}
+                                    actionLabel="Approve Operation"
                                   />
                                 </SingleWalletManagerProvider>
                               </DialogContent>
@@ -1134,6 +1160,7 @@ export function SecurityDetails() {
                                       setShowBroadcasterCancelDialog(false);
                                     }}
                                     onClose={() => setShowBroadcasterCancelDialog(false)}
+                                    actionLabel="Cancel Operation"
                                   />
                                 </SingleWalletManagerProvider>
                               </DialogContent>
