@@ -24,7 +24,7 @@ import { useSecureContract } from '@/hooks/useSecureContract'
 import { useToast } from '../components/ui/use-toast'
 import { Input } from '../components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '../components/ui/dialog'
-import type { SecureContractInfo } from '@/lib/types'
+import type { SecureContractInfo, SecurityOperationEvent, SecurityOperationDetails } from '@/lib/types'
 import { Address } from 'viem'
 import { SingleWalletManagerProvider, useSingleWallet } from '@/components/SingleWalletManager'
 import { formatAddress, isValidEthereumAddress } from '@/lib/utils'
@@ -38,26 +38,27 @@ import { Badge } from "@/components/ui/badge"
 
 // Define enums since we can't import them
 enum TxStatus {
-  PENDING = 'PENDING',
-  COMPLETED = 'COMPLETED',
-  CANCELLED = 'CANCELLED'
+  PENDING = 'pending',
+  COMPLETED = 'completed',
+  CANCELLED = 'cancelled'
 }
 
 enum SecurityOperationType {
-  TRANSFER_OWNERSHIP = 'TRANSFER_OWNERSHIP',
-  UPDATE_BROADCASTER = 'UPDATE_BROADCASTER',
-  UPDATE_RECOVERY = 'UPDATE_RECOVERY',
-  UPDATE_TIMELOCK = 'UPDATE_TIMELOCK'
+  OWNERSHIP_UPDATE = 'ownership',
+  BROADCASTER_UPDATE = 'broadcaster',
+  RECOVERY_UPDATE = 'recovery',
+  TIMELOCK_UPDATE = 'timelock'
 }
 
 // Define TxRecord type
 interface TxRecord {
-  txId: number
-  operationType: SecurityOperationType
-  description: string
-  status: TxStatus
-  releaseTime: number
-  timestamp: number
+  txId: number;
+  type: SecurityOperationType;
+  description: string;
+  status: TxStatus;
+  releaseTime: number;
+  timestamp: number;
+  details: Required<SecurityOperationDetails>;
 }
 
 const container = {
@@ -470,7 +471,6 @@ export function SecurityDetails() {
     }
 
     loadContractInfo()
-    loadOperationHistory()
   }, [isConnected, address])
 
   useEffect(() => {
@@ -495,10 +495,33 @@ export function SecurityDetails() {
         throw new Error('Contract info not found');
       }
       setContractInfo(info);
+
+      // Convert contract events to TxRecord format
+      const pendingOps = info.pendingOperations || [];
+      const recentOps = info.recentEvents || [];
+      const allEvents: SecurityOperationEvent[] = [...pendingOps, ...recentOps];
+      
+      const history: TxRecord[] = allEvents
+        .filter((event): event is SecurityOperationEvent & { details: Required<SecurityOperationDetails> } => 
+          event.details !== undefined &&
+          typeof event.details.oldValue === 'string' &&
+          typeof event.details.newValue === 'string' &&
+          typeof event.details.remainingTime === 'number'
+        )
+        .map(event => ({
+          txId: parseInt(event.details.newValue) || Date.now(),
+          type: event.type as SecurityOperationType,
+          description: event.description,
+          status: event.status as TxStatus,
+          releaseTime: event.timestamp + (info.timeLockPeriodInDays * 24 * 60 * 60),
+          timestamp: event.timestamp,
+          details: event.details // Now we know this has all required fields
+        }));
+
+      setOperationHistory(history);
       setError(null);
     } catch (error) {
       console.error('Error loading contract:', error);
-      // Don't set error state if we're just reloading after a transaction
       if (!contractInfo) {
         setError('Failed to load contract details. Please ensure this is a valid SecureOwnable contract.');
         toast({
@@ -511,34 +534,6 @@ export function SecurityDetails() {
       setLoading(false);
     }
   };
-
-  const loadOperationHistory = async () => {
-    if (!contractInfo) return;
-    try {
-      // Mock data for now since getOperationHistory doesn't exist
-      const history: TxRecord[] = [
-        {
-          txId: 1,
-          operationType: SecurityOperationType.TRANSFER_OWNERSHIP,
-          description: "Transfer ownership to 0x123...",
-          status: TxStatus.PENDING,
-          releaseTime: Math.floor(Date.now() / 1000) + 86400, // 1 day from now
-          timestamp: Math.floor(Date.now() / 1000)
-        },
-        {
-          txId: 2,
-          operationType: SecurityOperationType.UPDATE_BROADCASTER,
-          description: "Update broadcaster to 0x456...",
-          status: TxStatus.COMPLETED,
-          releaseTime: Math.floor(Date.now() / 1000) - 86400, // 1 day ago
-          timestamp: Math.floor(Date.now() / 1000) - 86400
-        }
-      ];
-      setOperationHistory(history);
-    } catch (error) {
-      console.error('Error loading operation history:', error);
-    }
-  }
 
   // Action handlers
   const handleTransferOwnershipRequest = async () => {
@@ -1088,7 +1083,7 @@ export function SecurityDetails() {
               {operationHistory.filter(op => op.status === TxStatus.PENDING).length > 0 ? (
                 operationHistory
                   .filter(op => op.status === TxStatus.PENDING)
-                  .map((op, index) => (
+                  .map((op) => (
                     <div key={op.txId} className="flex flex-col gap-4 p-4 border rounded-lg">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
@@ -1098,8 +1093,8 @@ export function SecurityDetails() {
                           <div>
                             <p className="font-medium">{op.description}</p>
                             <p className="text-sm text-muted-foreground">
-                              {op.releaseTime > Math.floor(Date.now() / 1000)
-                                ? `${Math.floor((op.releaseTime - Math.floor(Date.now() / 1000)) / 86400)} days remaining`
+                              {op.details.remainingTime > 0
+                                ? `${Math.floor(op.details.remainingTime / 86400)} days remaining`
                                 : 'Ready for approval'}
                             </p>
                           </div>
@@ -1121,11 +1116,11 @@ export function SecurityDetails() {
                               size="sm"
                               disabled={op.releaseTime > Math.floor(Date.now() / 1000)}
                               onClick={() => {
-                                switch (op.operationType) {
-                                  case SecurityOperationType.TRANSFER_OWNERSHIP:
+                                switch (op.type) {
+                                  case SecurityOperationType.OWNERSHIP_UPDATE:
                                     void handleTransferOwnershipApproval(op.txId);
                                     break;
-                                  case SecurityOperationType.UPDATE_BROADCASTER:
+                                  case SecurityOperationType.BROADCASTER_UPDATE:
                                     void handleUpdateBroadcasterApproval(op.txId);
                                     break;
                                 }
@@ -1138,11 +1133,11 @@ export function SecurityDetails() {
                               size="sm"
                               disabled={op.releaseTime > Math.floor(Date.now() / 1000)}
                               onClick={() => {
-                                switch (op.operationType) {
-                                  case SecurityOperationType.TRANSFER_OWNERSHIP:
+                                switch (op.type) {
+                                  case SecurityOperationType.OWNERSHIP_UPDATE:
                                     void handleTransferOwnershipCancellation(op.txId);
                                     break;
-                                  case SecurityOperationType.UPDATE_BROADCASTER:
+                                  case SecurityOperationType.BROADCASTER_UPDATE:
                                     void handleUpdateBroadcasterCancellation(op.txId);
                                     break;
                                 }
@@ -1188,11 +1183,11 @@ export function SecurityDetails() {
                                   <BroadcasterWalletContent 
                                     contractInfo={contractInfo}
                                     onSuccess={() => {
-                                      switch (op.operationType) {
-                                        case SecurityOperationType.TRANSFER_OWNERSHIP:
+                                      switch (op.type) {
+                                        case SecurityOperationType.OWNERSHIP_UPDATE:
                                           void handleTransferOwnershipApproval(op.txId);
                                           break;
-                                        case SecurityOperationType.UPDATE_BROADCASTER:
+                                        case SecurityOperationType.BROADCASTER_UPDATE:
                                           void handleUpdateBroadcasterApproval(op.txId);
                                           break;
                                       }
@@ -1230,11 +1225,11 @@ export function SecurityDetails() {
                                   <BroadcasterWalletContent 
                                     contractInfo={contractInfo}
                                     onSuccess={() => {
-                                      switch (op.operationType) {
-                                        case SecurityOperationType.TRANSFER_OWNERSHIP:
+                                      switch (op.type) {
+                                        case SecurityOperationType.OWNERSHIP_UPDATE:
                                           void handleTransferOwnershipCancellation(op.txId);
                                           break;
-                                        case SecurityOperationType.UPDATE_BROADCASTER:
+                                        case SecurityOperationType.BROADCASTER_UPDATE:
                                           void handleUpdateBroadcasterCancellation(op.txId);
                                           break;
                                       }
@@ -1264,36 +1259,38 @@ export function SecurityDetails() {
             <h2 className="text-xl font-bold mb-4">Operation History</h2>
             <div className="space-y-4">
               {operationHistory.length > 0 ? (
-                operationHistory.map((event) => (
-                  <div key={event.txId} className="flex items-center gap-4 p-4 border rounded-lg">
-                    <div className={`rounded-full p-2 ${
-                      event.status === TxStatus.COMPLETED ? 'bg-green-500/10' :
-                      event.status === TxStatus.PENDING ? 'bg-yellow-500/10' :
-                      'bg-red-500/10'
-                    }`}>
-                      {event.status === TxStatus.COMPLETED ? (
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      ) : event.status === TxStatus.PENDING ? (
-                        <AlertCircle className="h-4 w-4 text-yellow-500" />
-                      ) : (
-                        <XCircle className="h-4 w-4 text-red-500" />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium">{event.description}</p>
+                operationHistory
+                  .sort((a, b) => b.timestamp - a.timestamp)
+                  .map((event) => (
+                    <div key={event.txId} className="flex items-center gap-4 p-4 border rounded-lg">
+                      <div className={`rounded-full p-2 ${
+                        event.status === TxStatus.COMPLETED ? 'bg-green-500/10' :
+                        event.status === TxStatus.PENDING ? 'bg-yellow-500/10' :
+                        'bg-red-500/10'
+                      }`}>
+                        {event.status === TxStatus.COMPLETED ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        ) : event.status === TxStatus.PENDING ? (
+                          <AlertCircle className="h-4 w-4 text-yellow-500" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-red-500" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium">{event.description}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {event.status === TxStatus.COMPLETED
+                            ? `${event.type} updated successfully`
+                            : event.status === TxStatus.PENDING
+                            ? `${event.type} pending approval`
+                            : `${event.type} operation cancelled`}
+                        </p>
+                      </div>
                       <p className="text-sm text-muted-foreground">
-                        {event.status === TxStatus.COMPLETED
-                          ? `${event.operationType} updated successfully`
-                          : event.status === TxStatus.PENDING
-                          ? `${event.operationType} pending approval`
-                          : `${event.operationType} operation cancelled`}
+                        {new Date(event.timestamp * 1000).toLocaleString()}
                       </p>
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      {new Date(event.timestamp * 1000).toLocaleString()}
-                    </p>
-                  </div>
-                ))
+                  ))
               ) : (
                 <p className="text-center text-muted-foreground py-4">
                   No operation history

@@ -1,8 +1,22 @@
 import { usePublicClient, useWalletClient, useChainId, useConfig } from 'wagmi'
 import { Address } from 'viem'
-import type { SecureContractInfo, SecurityOperationEvent } from '../lib/types'
+import type { SecureContractInfo, SecurityOperationEvent, SecurityOperationDetails } from '../lib/types'
 import { getChainName, type Chain } from '@/lib/utils'
 import SecureOwnableABI from '@/contracts-core/SecureOwnable/SecureOwnable.abi.json'
+
+type OperationRecord = {
+  txId: bigint;
+  releaseTime: bigint;
+  status: number;
+  requester: Address;
+  target: Address;
+  operationType: string;
+  executionType: number;
+  executionOptions: string;
+  value: bigint;
+  gasLimit: bigint;
+  result: string;
+}
 
 export function useSecureContract() {
   const publicClient = usePublicClient()
@@ -63,32 +77,45 @@ export function useSecureContract() {
           address,
           abi: SecureOwnableABI,
           functionName: 'getOperationHistory'
-        }) as [bigint, Address, Address, `0x${string}`, number, `0x${string}`, bigint, bigint, bigint, bigint, number][];
-        
+        }) as OperationRecord[];
+
         // Process history into events if we have data
         if (history && Array.isArray(history)) {
-          events = history.map((op) => {
-            // Convert bytes32 to string and remove null bytes
-            const operationType = Buffer.from(op[3].slice(2), 'hex')
-              .toString('utf8')
-              .replace(/\0/g, '');
-            
-            return {
-              type: operationType === 'OWNERSHIP_UPDATE' ? 'ownership' :
-                    operationType === 'BROADCASTER_UPDATE' ? 'broadcaster' :
-                    operationType === 'RECOVERY_UPDATE' ? 'recovery' : 'timelock',
-              status: op[4] === 0 ? 'pending' :
-                      op[4] === 1 ? 'completed' : 'cancelled',
-              timestamp: Number(op[8]),
-              description: `${operationType.replace('_', ' ')} operation`,
-              details: {
-                oldValue: op[5],
-                newValue: op[6].toString(),
-                remainingTime: Number(op[7]) > Date.now() / 1000 ? 
-                  Math.floor(Number(op[7]) - Date.now() / 1000) : 0
-              }
-            };
-          });
+          events = history.map((op: OperationRecord): SecurityOperationEvent | null => {
+            try {
+              // Extract operation type from bytes32
+              const operationType = op.operationType ? 
+                Buffer.from(op.operationType.slice(2), 'hex')
+                  .toString('utf8')
+                  .replace(/\0/g, '') : '';
+
+              // Map status from contract enum (0 = Pending, 1 = Completed, 2 = Cancelled)
+              const status = op.status === 0 ? 'pending' :
+                           op.status === 1 ? 'completed' : 'cancelled';
+
+              // Extract timestamp and other values
+              const timestamp = Number(op.releaseTime);
+              const details: SecurityOperationDetails = {
+                oldValue: op.executionOptions,
+                newValue: op.value.toString(),
+                remainingTime: Number(op.releaseTime) > Date.now() / 1000 ? 
+                  Math.floor(Number(op.releaseTime) - Date.now() / 1000) : 0
+              };
+
+              return {
+                type: operationType === 'OWNERSHIP_UPDATE' ? 'ownership' :
+                      operationType === 'BROADCASTER_UPDATE' ? 'broadcaster' :
+                      operationType === 'RECOVERY_UPDATE' ? 'recovery' : 'timelock',
+                status,
+                timestamp,
+                description: `${operationType.replace(/_/g, ' ')} operation`,
+                details
+              };
+            } catch (error) {
+              console.warn('Failed to parse operation:', error);
+              return null;
+            }
+          }).filter((event): event is SecurityOperationEvent => event !== null);
         }
       } catch (error) {
         console.warn('Failed to read operation history:', error);
