@@ -109,10 +109,6 @@ const DeployedContract = ({
     });
   }, []);
 
-  const handlePreviewClick = () => {
-    navigate(`/preview/${contract.type}`);
-  };
-
   const handleEnterBlox = () => {
     navigate(`/blox/${contract.type}/${contract.address}`);
   };
@@ -186,22 +182,13 @@ const DeployedContract = ({
             </Button>
           )}
           {contract.type !== 'unknown' && (
-            <>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={handlePreviewClick}
-              >
-                Preview
-              </Button>
-              <Button 
-                variant="default" 
-                size="sm"
-                onClick={handleEnterBlox}
-              >
-                Enter Blox
-              </Button>
-            </>
+            <Button 
+              variant="default" 
+              size="sm"
+              onClick={handleEnterBlox}
+            >
+              Enter Blox
+            </Button>
           )}
         </div>
       </div>

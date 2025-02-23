@@ -103,19 +103,6 @@ export function ContractDetails() {
           </Link>
           <div className="flex justify-between items-center">
             <h1 className="text-3xl font-bold tracking-tight">{contract.name}</h1>
-            <Link
-              to={`/preview/${contract.id}`}
-              className="inline-flex"
-            >
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2"
-              >
-                <Eye className="h-4 w-4" />
-                Preview Blox
-              </Button>
-            </Link>
           </div>
           <div className="space-x-2">
             <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">

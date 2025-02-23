@@ -13,7 +13,6 @@ import SecurityCenter from './pages/SecurityCenter'
 import { SecurityDetails } from './pages/SecurityDetails'
 import { Navbar } from './components/navigation/Navbar'
 import { Footer } from './components/navigation/Footer'
-import { BloxPreview } from './pages/BloxPreview'
 import BloxMiniApp from './pages/BloxMiniApp'
 import Blockchains from './pages/Blockchains'
 import BlockchainDetails from './pages/BlockchainDetails'
@@ -33,7 +32,6 @@ export default function App() {
               <Route path="/contracts/:contractId" element={<ContractDetails />} />
               <Route path="/security-center" element={<SecurityCenter />} />
               <Route path="/security-center/:address" element={<SecurityDetails />} />
-              <Route path="/preview/:contractId" element={<BloxPreview />} />
               <Route path="/blox/:type/:address" element={<BloxMiniApp />} />
               <Route path="/blockchains" element={<Blockchains />} />
               <Route path="/blockchains/:id" element={<BlockchainDetails />} />
