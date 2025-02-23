@@ -8,8 +8,32 @@ import { ProviderPool } from '@/lib/provider-pool';
 import { WalletConnectError, ErrorCodes, isUserRejectionError } from '@/lib/errors';
 import { validateSession, validateWalletSession, type ValidWalletSession } from '@/lib/schemas';
 import { encryptData, decryptData, generateSecretKey } from '@/lib/crypto';
-import { type Chain } from '@/lib/utils';
+import { type Chain, COMMON_CHAINS } from '@/lib/utils';
 import { useConfig } from 'wagmi';
+
+// Utility function to normalize chain ID to number
+function normalizeChainId(chainId: string | number): number {
+  if (typeof chainId === 'number') return chainId;
+  
+  // Handle hexadecimal strings (both with and without '0x' prefix)
+  if (typeof chainId === 'string') {
+    // If it's a valid decimal string, convert directly
+    if (/^\d+$/.test(chainId)) {
+      return parseInt(chainId, 10);
+    }
+    
+    // Handle hex string (with or without 0x prefix)
+    const hexString = chainId.toLowerCase().startsWith('0x') ? chainId : `0x${chainId}`;
+    if (/^0x[0-9a-f]+$/i.test(hexString)) {
+      return parseInt(hexString, 16);
+    }
+  }
+  
+  throw new WalletConnectError(
+    'Invalid chain ID format',
+    ErrorCodes.INVALID_CHAIN
+  );
+}
 
 // Define minimal provider interface for what we actually use
 interface MinimalProvider {
@@ -62,7 +86,7 @@ export function SingleWalletManagerProvider({
   children,
   projectId,
   autoConnect = true,
-  allowedChainIds = [1], // Default to Ethereum mainnet
+  allowedChainIds = [1], // We'll ignore this parameter and allow all chains
   metadata = {
     name: 'Single Wallet Manager',
     description: 'Secure wallet connection',
@@ -219,7 +243,8 @@ export function SingleWalletManagerProvider({
               'personal_sign',
               'eth_signTypedData'
             ],
-            chains: allowedChainIds.map(id => `eip155:${id}`),
+            // Allow connection to any chain
+            chains: ['eip155:1'], // We'll specify mainnet but accept any chain
             events: ['chainChanged', 'accountsChanged']
           }
         }
@@ -257,31 +282,38 @@ export function SingleWalletManagerProvider({
       (modal as WalletConnectModalInterface).closeModal();
 
       const validatedSession = validateSession(rawSession);
-      const chainId = Number(validatedSession.namespaces.eip155.chains[0].split(':')[1]) as Chain;
+      // Extract chain ID from the first chain in the namespace
+      const rawChainId = validatedSession.namespaces.eip155.chains[0].split(':')[1];
+      
+      try {
+        const chainId = normalizeChainId(rawChainId) as Chain;
+        
+        // Create new session with the connected chain ID
+        const newSession: ValidWalletSession = {
+          topic: validatedSession.topic,
+          account: validatedSession.namespaces.eip155.accounts[0].split(':')[2],
+          chainId,
+          peerMetadata: validatedSession.peer.metadata,
+          lastActivity: Date.now()
+        };
 
-      if (!allowedChainIds.includes(chainId)) {
+        const encryptedSession = await encryptData(JSON.stringify(newSession), SECRET_KEY);
+        localStorage.setItem(STORAGE_KEY, encryptedSession);
+        setSession(newSession);
+
+        toast({
+          title: "Connected",
+          description: `Wallet connected successfully on chain ${chainId}!`,
+        });
+      } catch (error) {
+        if (error instanceof WalletConnectError) {
+          throw error;
+        }
         throw new WalletConnectError(
-          'Invalid chain ID',
+          'Invalid chain ID format',
           ErrorCodes.INVALID_CHAIN
         );
       }
-
-      const newSession: ValidWalletSession = {
-        topic: validatedSession.topic,
-        account: validatedSession.namespaces.eip155.accounts[0].split(':')[2],
-        chainId,
-        peerMetadata: validatedSession.peer.metadata,
-        lastActivity: Date.now()
-      };
-
-      const encryptedSession = await encryptData(JSON.stringify(newSession), SECRET_KEY);
-      localStorage.setItem(STORAGE_KEY, encryptedSession);
-      setSession(newSession);
-
-      toast({
-        title: "Connected",
-        description: "Wallet connected successfully!",
-      });
     } catch (error) {
       console.error('Error during connection:', error);
       
