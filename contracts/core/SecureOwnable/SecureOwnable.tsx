@@ -135,6 +135,20 @@ class SecureOwnable {
   }
 
   /**
+   * @notice Gets all pending transactions
+   * @return Array of transaction records with pending status
+   */
+  async getPendingTransactions(): Promise<TxRecord[]> {
+    try {
+      const operations = await this.getOperationHistory();
+      return operations.filter(op => op.status === TxStatus.PENDING);
+    } catch (error) {
+      console.error('Failed to get pending transactions:', error);
+      return [];
+    }
+  }
+
+  /**
    * @notice Initiates a transfer ownership request
    * @dev Can only be called by the recovery address
    * @param options Transaction options including the sender address

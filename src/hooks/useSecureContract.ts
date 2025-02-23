@@ -10,7 +10,7 @@ const SecureOwnableABI = parseAbi([
   'function getBroadcaster() view returns (address)',
   'function getRecoveryAddress() view returns (address)',
   'function getTimeLockPeriodInDays() view returns (uint256)',
-  'function getOperationHistory() view returns ((string,uint8,uint256,string,string,uint256)[])',
+  'function getOperationHistory() view returns ((uint256,address,address,bytes32,uint8,bytes,uint256,uint256,uint256,uint256,uint8)[])',
   'function isOperationTypeSupported(bytes32 operationType) view returns (bool)',
   
   // Constants
@@ -82,27 +82,28 @@ export function useSecureContract() {
       // Get operation history with error handling
       let events: SecurityOperationEvent[] = [];
       try {
+        // Get full operation history
         const history = await publicClient.readContract({
           address,
           abi: SecureOwnableABI,
           functionName: 'getOperationHistory'
-        }) as unknown as [string, number, bigint, string, string, bigint][];
+        }) as unknown as [number, Address, Address, string, number, string, bigint, bigint, bigint, bigint, number][];
         
         // Process history into events if we have data
         if (history && Array.isArray(history)) {
           events = history.map((op) => ({
-            type: op[0] === 'OWNERSHIP_UPDATE' ? 'ownership' :
-                  op[0] === 'BROADCASTER_UPDATE' ? 'broadcaster' :
-                  op[0] === 'RECOVERY_UPDATE' ? 'recovery' : 'timelock',
-            status: op[1] === 0 ? 'pending' :
-                    op[1] === 1 ? 'completed' : 'cancelled',
-            timestamp: Number(op[2]),
-            description: `${op[0].replace('_', ' ')} operation`,
+            type: op[3] === 'OWNERSHIP_UPDATE' ? 'ownership' :
+                  op[3] === 'BROADCASTER_UPDATE' ? 'broadcaster' :
+                  op[3] === 'RECOVERY_UPDATE' ? 'recovery' : 'timelock',
+            status: op[4] === 0 ? 'pending' :
+                    op[4] === 1 ? 'completed' : 'cancelled',
+            timestamp: Number(op[8]),
+            description: `${op[3].replace('_', ' ')} operation`,
             details: {
-              oldValue: op[3],
-              newValue: op[4],
-              remainingTime: Number(op[5]) > Date.now() / 1000 ? 
-                Math.floor(Number(op[5]) - Date.now() / 1000) : 0
+              oldValue: op[5],
+              newValue: op[6].toString(),
+              remainingTime: Number(op[7]) > Date.now() / 1000 ? 
+                Math.floor(Number(op[7]) - Date.now() / 1000) : 0
             }
           }));
         }

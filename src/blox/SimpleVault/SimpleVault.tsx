@@ -288,27 +288,6 @@ export default class SimpleVault extends SecureOwnable {
   }
 
   /**
-   * @notice Gets all pending transactions for the vault
-   * @return Array of transaction records with status
-   */
-  async getPendingTransactions(): Promise<VaultTxRecord[]> {
-    const operations = await this.getOperationHistory();
-    const pendingOps = operations.filter(op => op.status === TxStatus.PENDING);
-    const vaultTxs: VaultTxRecord[] = [];
-
-    for (const op of pendingOps) {
-      try {
-        const tx = await this.getTransaction(op.txId);
-        vaultTxs.push(tx);
-      } catch (error) {
-        console.error(`Failed to decode transaction ${op.txId}:`, error);
-      }
-    }
-
-    return vaultTxs;
-  }
-
-  /**
    * @notice Gets a specific transaction's details
    * @param txId Transaction ID
    * @return Transaction record with status
@@ -351,6 +330,14 @@ export default class SimpleVault extends SecureOwnable {
       functionName: 'getOperationHistory'
     }) as TxRecord[];
     return result;
+  }
+
+  /**
+   * @notice Gets all pending transactions for the vault
+   * @return Array of transaction records with status
+   */
+    async getPendingTransactions(): Promise<VaultTxRecord[]> {
+      return await super.getPendingTransactions() as VaultTxRecord[];
   }
 
   /**
