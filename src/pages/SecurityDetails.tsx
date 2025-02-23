@@ -27,7 +27,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import type { SecureContractInfo } from '@/lib/types'
 import { Address } from 'viem'
 import { SingleWalletManagerProvider, useSingleWallet } from '@/components/SingleWalletManager'
-import { formatAddress } from '@/lib/utils'
+import { formatAddress, isValidEthereumAddress } from '@/lib/utils'
 import {
   Tooltip,
   TooltipContent,
@@ -325,6 +325,93 @@ function BroadcasterWalletContent({
   )
 }
 
+function BroadcasterUpdateDialog({
+  contractInfo,
+  isOpen,
+  onOpenChange,
+  onSubmit
+}: {
+  contractInfo: SecureContractInfo | null,
+  isOpen: boolean,
+  onOpenChange: (open: boolean) => void,
+  onSubmit: (address: string) => Promise<void>
+}) {
+  const [newBroadcasterAddress, setNewBroadcasterAddress] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { address } = useAccount()
+
+  const isOwner = address?.toLowerCase() === contractInfo?.owner.toLowerCase()
+  const isValidAddress = isValidEthereumAddress(newBroadcasterAddress)
+  const showAddressError = newBroadcasterAddress !== '' && !isValidAddress
+
+  const handleSubmit = async () => {
+    if (!isOwner || !isValidAddress) return
+    
+    try {
+      setIsSubmitting(true)
+      await onSubmit(newBroadcasterAddress)
+      onOpenChange(false)
+    } catch (error) {
+      console.error('Error submitting update:', error)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader className="space-y-3">
+          <DialogTitle>Request Broadcaster Update</DialogTitle>
+          <div className="p-2 bg-muted rounded-lg text-sm">
+            <p className="font-medium">Current Broadcaster:</p>
+            <code className="text-xs">{contractInfo?.broadcaster}</code>
+          </div>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <Input
+              placeholder="New Broadcaster Address"
+              value={newBroadcasterAddress}
+              onChange={(e) => setNewBroadcasterAddress(e.target.value)}
+              className={showAddressError ? "border-destructive" : ""}
+            />
+            {showAddressError && (
+              <p className="text-sm text-destructive">
+                Please enter a valid Ethereum address
+              </p>
+            )}
+          </div>
+          {!isOwner && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Only the owner can request broadcaster updates
+              </AlertDescription>
+            </Alert>
+          )}
+          {isOwner && (
+            <Button 
+              onClick={() => void handleSubmit()}
+              className="w-full"
+              disabled={!isValidAddress || !newBroadcasterAddress || isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                'Submit Update Request'
+              )}
+            </Button>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function SecurityDetails() {
   const { address } = useParams<{ address: string }>()
   const { isConnected } = useAccount()
@@ -345,6 +432,7 @@ export function SecurityDetails() {
   const { session, connect, disconnect } = useSingleWallet()
   const [isRecoveryWalletConnected, setIsRecoveryWalletConnected] = useState(false)
   const [showConnectRecoveryDialog, setShowConnectRecoveryDialog] = useState(false)
+  const [showBroadcasterDialog, setShowBroadcasterDialog] = useState(false)
   const [showBroadcasterApproveDialog, setShowBroadcasterApproveDialog] = useState(false)
   const [showBroadcasterCancelDialog, setShowBroadcasterCancelDialog] = useState(false)
   const [operationHistory, setOperationHistory] = useState<TxRecord[]>([])
@@ -788,55 +876,20 @@ export function SecurityDetails() {
                 </div>
               </CardHeader>
               <CardContent>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button className="flex items-center gap-2 w-full" size="sm">
-                      <Wallet className="h-4 w-4" />
-                      Request Update
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-md">
-                    <DialogHeader className="space-y-3">
-                      <DialogTitle>Request Broadcaster Update</DialogTitle>
-                      <div className="p-2 bg-muted rounded-lg text-sm">
-                        <p className="font-medium">Current Broadcaster:</p>
-                        <code className="text-xs">{contractInfo.broadcaster}</code>
-                      </div>
-                    </DialogHeader>
-                    <div className="space-y-3">
-                      <Input
-                        placeholder="New Broadcaster Address"
-                        value={newBroadcasterAddress}
-                        onChange={(e) => setNewBroadcasterAddress(e.target.value)}
-                      />
-                      <SingleWalletManagerProvider
-                        projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
-                        autoConnect={false}
-                        metadata={{
-                          name: 'OpenBlox Broadcaster',
-                          description: 'OpenBlox Broadcaster Wallet Connection',
-                          url: window.location.origin,
-                          icons: ['https://avatars.githubusercontent.com/u/37784886']
-                        }}
-                      >
-                        <BroadcasterWalletContent 
-                          contractInfo={contractInfo}
-                          onSuccess={() => {
-                            handleUpdateBroadcasterRequest(newBroadcasterAddress)
-                            setShowBroadcasterApproveDialog(false)
-                            setShowBroadcasterCancelDialog(false)
-                          }}
-                          onClose={() => {
-                            setShowBroadcasterApproveDialog(false)
-                            setShowBroadcasterCancelDialog(false)
-                          }}
-                          actionLabel="Submit Update Request"
-                          newValue={newBroadcasterAddress}
-                        />
-                      </SingleWalletManagerProvider>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                <BroadcasterUpdateDialog
+                  contractInfo={contractInfo}
+                  isOpen={showBroadcasterDialog}
+                  onOpenChange={setShowBroadcasterDialog}
+                  onSubmit={handleUpdateBroadcasterRequest}
+                />
+                <Button 
+                  onClick={() => setShowBroadcasterDialog(true)}
+                  className="flex items-center gap-2 w-full" 
+                  size="sm"
+                >
+                  <Wallet className="h-4 w-4" />
+                  Request Update
+                </Button>
               </CardContent>
             </Card>
 
@@ -896,12 +949,10 @@ export function SecurityDetails() {
                           contractInfo={contractInfo}
                           onSuccess={() => {
                             handleUpdateRecoveryRequest(newRecoveryAddress)
-                            setShowBroadcasterApproveDialog(false)
-                            setShowBroadcasterCancelDialog(false)
+                            setShowBroadcasterDialog(false)
                           }}
                           onClose={() => {
-                            setShowBroadcasterApproveDialog(false)
-                            setShowBroadcasterCancelDialog(false)
+                            setShowBroadcasterDialog(false)
                           }}
                           actionLabel="Submit Update Request"
                           newValue={newRecoveryAddress}
