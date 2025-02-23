@@ -1031,18 +1031,32 @@ function SimpleVaultUIContent({
       handleNotification({
         type: 'info',
         title: "Deposit Initiated",
-        description: `Transaction hash: ${tx.hash}`
+        description: `Transaction submitted: ${tx.hash}`
       });
       
-      await tx.wait();
-      handleNotification({
-        type: 'success',
-        title: "Deposit Confirmed",
-        description: "Your deposit has been confirmed."
-      });
-      await fetchVaultData();
-      if (token) {
-        await fetchTokenBalance(token);
+      // Wait for transaction confirmation
+      const receipt = await tx.wait();
+      
+      if (receipt.status === 'success') {
+        handleNotification({
+          type: 'success',
+          title: "Deposit Confirmed",
+          description: `Your ${token ? 'token' : 'ETH'} deposit has been confirmed.`
+        });
+
+        // Refresh vault data
+        await fetchVaultData();
+        
+        // If it's a token deposit, refresh the specific token balance
+        if (token) {
+          await fetchTokenBalance(token);
+        }
+      } else {
+        handleNotification({
+          type: 'error',
+          title: "Deposit Failed",
+          description: "The transaction failed to complete."
+        });
       }
     } catch (error: any) {
       onError?.(error);
