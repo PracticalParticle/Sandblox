@@ -1,8 +1,24 @@
 import { usePublicClient, useWalletClient, useChainId, useConfig } from 'wagmi'
-import { Address } from 'viem'
-import type { SecureContractInfo, SecurityOperationEvent, SecurityOperationDetails } from '../lib/types'
+import { Address, Hash, PublicClient, WalletClient } from 'viem'
+import { 
+  SecureContractInfo, 
+  SecurityOperationEvent, 
+  SecurityOperationDetails,
+  OperationType,
+  ExecutionType,
+  PaymentDetails
+} from '../lib/types'
 import { getChainName, type Chain } from '@/lib/utils'
+import { CONTRACT_ERRORS, TIMELOCK_PERIODS } from '@/constants/contract'
 import SecureOwnableABI from '@/contracts-core/SecureOwnable/SecureOwnable.abi.json'
+
+// Constants from contract
+const OPERATION_TYPES = {
+  OWNERSHIP_UPDATE: 'OWNERSHIP_UPDATE',
+  BROADCASTER_UPDATE: 'BROADCASTER_UPDATE',
+  RECOVERY_UPDATE: 'RECOVERY_UPDATE',
+  TIMELOCK_UPDATE: 'TIMELOCK_UPDATE'
+} as const;
 
 type OperationRecord = {
   txId: bigint;
@@ -16,6 +32,25 @@ type OperationRecord = {
   value: bigint;
   gasLimit: bigint;
   result: string;
+  payment?: PaymentDetails;
+}
+
+type ContractWriteResult = {
+  hash: Hash;
+  wait: () => Promise<void>;
+}
+
+type MetaTransaction = {
+  txRecord: OperationRecord;
+  chainId: number;
+  handlerContract: Address;
+  handlerSelector: string;
+  nonce: number;
+  deadline: number;
+  maxGasPrice: number;
+  signer: Address;
+  signature: string;
+  data: string;
 }
 
 export function useSecureContract() {
@@ -24,76 +59,83 @@ export function useSecureContract() {
   const chainId = useChainId()
   const config = useConfig()
 
+  // Helper function to validate contract code exists
+  const validateContractExists = async (client: PublicClient, address: Address): Promise<void> => {
+    const code = await client.getBytecode({ address })
+    if (!code || code.length <= 2) { // "0x" case
+      throw new Error(CONTRACT_ERRORS.NOT_DEPLOYED)
+    }
+  }
+
+  // Helper to validate timelock period
+  const validateTimeLockPeriod = (days: number): void => {
+    if (days < TIMELOCK_PERIODS.MIN || days > TIMELOCK_PERIODS.MAX) {
+      throw new Error(CONTRACT_ERRORS.INVALID_TIMELOCK)
+    }
+  }
+
   const validateAndLoadContract = async (address: Address): Promise<SecureContractInfo> => {
     if (!publicClient) {
-      throw new Error('No public client available')
+      throw new Error(CONTRACT_ERRORS.NO_CLIENT)
     }
 
     // Validate address format
     if (!address.match(/^0x[a-fA-F0-9]{40}$/)) {
-      throw new Error('Invalid contract address format')
+      throw new Error(CONTRACT_ERRORS.INVALID_ADDRESS)
     }
 
     try {
-      // Verify contract exists using public client
-      const isContract = await publicClient.getCode({ address })
-      if (!isContract) {
-        throw new Error('Address is not a contract')
-      }
+      // Verify contract exists
+      await validateContractExists(publicClient, address)
 
-      // Get chain information from the connected client
+      // Get chain information
       const currentChainId = await publicClient.getChainId()
       const chainName = getChainName(currentChainId as Chain, [...config.chains])
 
-      // Fetch contract details using public client
+      // Fetch contract details using Promise.all for better performance
       const [owner, broadcaster, recoveryAddress, timeLockPeriodInDays] = await Promise.all([
         publicClient.readContract({
           address,
           abi: SecureOwnableABI,
           functionName: 'owner'
-        }).catch(() => { throw new Error('Failed to read owner') }),
+        }),
         publicClient.readContract({
           address,
           abi: SecureOwnableABI,
           functionName: 'getBroadcaster'
-        }).catch(() => { throw new Error('Failed to read broadcaster') }),
+        }),
         publicClient.readContract({
           address,
           abi: SecureOwnableABI,
           functionName: 'getRecoveryAddress'
-        }).catch(() => { throw new Error('Failed to read recovery address') }),
+        }),
         publicClient.readContract({
           address,
           abi: SecureOwnableABI,
           functionName: 'getTimeLockPeriodInDays'
-        }).catch(() => { throw new Error('Failed to read timelock period') }).then(value => Number(value))
+        }).then(value => Number(value))
       ]) as [Address, Address, Address, number]
 
       // Get operation history with error handling
       let events: SecurityOperationEvent[] = [];
       try {
-        // Get full operation history
         const history = await publicClient.readContract({
           address,
           abi: SecureOwnableABI,
           functionName: 'getOperationHistory'
         }) as OperationRecord[];
 
-        // Process history into events if we have data
-        if (history && Array.isArray(history)) {
+        if (history?.length) {
           events = history.map((op: OperationRecord): SecurityOperationEvent | null => {
             try {
-              // Extract operation type from bytes32
               const operationType = op.operationType ? 
                 Buffer.from(op.operationType.slice(2), 'hex')
                   .toString('utf8')
                   .replace(/\0/g, '') : '';
 
-              // Map status from contract enum (0 = Pending, 1 = Completed, 2 = Cancelled)
               const status = op.status === 0 ? 'pending' :
                            op.status === 1 ? 'completed' : 'cancelled';
 
-              // Extract timestamp and other values
               const timestamp = Number(op.releaseTime);
               const details: SecurityOperationDetails = {
                 oldValue: op.executionOptions,
@@ -103,9 +145,9 @@ export function useSecureContract() {
               };
 
               return {
-                type: operationType === 'OWNERSHIP_UPDATE' ? 'ownership' :
-                      operationType === 'BROADCASTER_UPDATE' ? 'broadcaster' :
-                      operationType === 'RECOVERY_UPDATE' ? 'recovery' : 'timelock',
+                type: operationType === OPERATION_TYPES.OWNERSHIP_UPDATE ? 'ownership' :
+                      operationType === OPERATION_TYPES.BROADCASTER_UPDATE ? 'broadcaster' :
+                      operationType === OPERATION_TYPES.RECOVERY_UPDATE ? 'recovery' : 'timelock',
                 status,
                 timestamp,
                 description: `${operationType.replace(/_/g, ' ')} operation`,
@@ -119,7 +161,6 @@ export function useSecureContract() {
         }
       } catch (error) {
         console.warn('Failed to read operation history:', error);
-        // Continue with empty events array rather than throwing
       }
 
       return {
@@ -139,70 +180,161 @@ export function useSecureContract() {
     }
   }
 
-  const transferOwnership = async (address: Address) => {
-    if (!walletClient) throw new Error('No wallet client available')
+  // Ownership Management
+  const transferOwnership = async (address: Address): Promise<Hash> => {
+    if (!walletClient) throw new Error(CONTRACT_ERRORS.NO_WALLET)
     
-    const hash = await walletClient.writeContract({
+    return walletClient.writeContract({
       address,
       abi: SecureOwnableABI,
       functionName: 'transferOwnershipRequest'
     })
-    
-    return hash
   }
 
-  const updateBroadcaster = async (address: Address, newBroadcaster: Address) => {
-    if (!walletClient) throw new Error('No wallet client available')
+  // Broadcaster Management
+  const updateBroadcaster = async (address: Address, newBroadcaster: Address): Promise<Hash> => {
+    if (!walletClient) throw new Error(CONTRACT_ERRORS.NO_WALLET)
     
-    const hash = await walletClient.writeContract({
+    return walletClient.writeContract({
       address,
       abi: SecureOwnableABI,
       functionName: 'updateBroadcasterRequest',
       args: [newBroadcaster]
     })
-    
-    return hash
   }
 
-  const approveOperation = async (address: Address, txId: number, operationType: 'ownership' | 'broadcaster') => {
-    if (!walletClient) throw new Error('No wallet client available')
+  // Operation Management
+  const approveOperation = async (
+    address: Address, 
+    txId: number, 
+    operationType: OperationType
+  ): Promise<Hash> => {
+    if (!walletClient) throw new Error(CONTRACT_ERRORS.NO_WALLET)
     
     const functionName = operationType === 'ownership' 
       ? 'transferOwnershipDelayedApproval'
       : 'updateBroadcasterDelayedApproval'
     
-    const hash = await walletClient.writeContract({
+    return walletClient.writeContract({
       address,
       abi: SecureOwnableABI,
       functionName,
       args: [BigInt(txId)]
     })
-    
-    return hash
   }
 
-  const cancelOperation = async (address: Address, txId: number, operationType: 'ownership' | 'broadcaster') => {
-    if (!walletClient) throw new Error('No wallet client available')
+  const cancelOperation = async (
+    address: Address, 
+    txId: number, 
+    operationType: OperationType
+  ): Promise<Hash> => {
+    if (!walletClient) throw new Error(CONTRACT_ERRORS.NO_WALLET)
     
     const functionName = operationType === 'ownership' 
       ? 'transferOwnershipCancellation'
       : 'updateBroadcasterCancellation'
     
-    const hash = await walletClient.writeContract({
+    return walletClient.writeContract({
       address,
       abi: SecureOwnableABI,
       functionName,
       args: [BigInt(txId)]
     })
-    
-    return hash
+  }
+
+  // Meta Transaction Management
+  const generateUnsignedMetaTransaction = async (
+    address: Address,
+    txRecord: OperationRecord,
+    handlerContract: Address,
+    handlerSelector: string,
+    deadline: number,
+    maxGasPrice: number,
+    signer: Address
+  ): Promise<MetaTransaction> => {
+    if (!publicClient) throw new Error(CONTRACT_ERRORS.NO_CLIENT)
+
+    return publicClient.readContract({
+      address,
+      abi: SecureOwnableABI,
+      functionName: 'generateUnsignedMetaTransaction',
+      args: [txRecord, handlerContract, handlerSelector, BigInt(deadline), BigInt(maxGasPrice), signer]
+    }) as Promise<MetaTransaction>
+  }
+
+  // Payment Management
+  const makePayment = async (
+    address: Address,
+    payment: PaymentDetails,
+    metaTx: MetaTransaction
+  ): Promise<Hash> => {
+    if (!walletClient) throw new Error(CONTRACT_ERRORS.NO_WALLET)
+
+    return walletClient.writeContract({
+      address,
+      abi: SecureOwnableABI,
+      functionName: 'makePayment',
+      args: [payment, metaTx]
+    })
+  }
+
+  // Recovery Management
+  const updateRecoveryAddress = async (
+    address: Address,
+    newRecoveryAddress: Address,
+    metaTx: MetaTransaction
+  ): Promise<Hash> => {
+    if (!walletClient) throw new Error(CONTRACT_ERRORS.NO_WALLET)
+
+    return walletClient.writeContract({
+      address,
+      abi: SecureOwnableABI,
+      functionName: 'updateRecoveryRequestAndApprove',
+      args: [metaTx]
+    })
+  }
+
+  // TimeLock Management
+  const updateTimeLockPeriod = async (
+    address: Address,
+    newPeriodInDays: number,
+    metaTx: MetaTransaction
+  ): Promise<Hash> => {
+    if (!walletClient) throw new Error(CONTRACT_ERRORS.NO_WALLET)
+    validateTimeLockPeriod(newPeriodInDays)
+
+    return walletClient.writeContract({
+      address,
+      abi: SecureOwnableABI,
+      functionName: 'updateTimeLockRequestAndApprove',
+      args: [metaTx]
+    })
   }
 
   return {
+    // Contract Loading
     validateAndLoadContract,
+
+    // Ownership Management
     transferOwnership,
+
+    // Broadcaster Management
     updateBroadcaster,
+
+    // Operation Management
     approveOperation,
     cancelOperation,
+
+    // Meta Transaction Management
+    generateUnsignedMetaTransaction,
+
+    // Payment Management
+    makePayment,
+
+    // Recovery Management
+    updateRecoveryAddress,
+
+    // TimeLock Management
+    updateTimeLockPeriod,
   }
 } 
