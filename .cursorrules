@@ -316,35 +316,84 @@ Enforce configuration-driven development:
         "network-addresses",
         "api-endpoints",
         "timeouts",
-        "feature-flags"
+        "feature-flags",
+        "urls",
+        "file-paths",
+        "port-numbers",
+        "database-credentials",
+        "api-keys",
+        "contract-addresses",
+        "chain-ids",
+        "color-codes",
+        "date-formats",
+        "regex-patterns",
+        "buffer-sizes",
+        "retry-attempts",
+        "cache-durations"
       ],
       "exceptions": [
         "0",
         "1",
+        "-1",
         "true",
         "false",
+        "null",
+        "undefined",
         "empty-string",
         "test-constants"
       ]
+    },
+    "enforcement": {
+      "severity": "error",
+      "auto-fix": false,
+      "require-imports": true
     }
   },
   "required-patterns": {
-    "configuration-sources": [
-      "environment-variables",
-      "config-files",
-      "constants-files",
-      "feature-flags-service"
-    ],
-    "naming-convention": {
-      "constants": "SCREAMING_SNAKE_CASE",
-      "env-vars": "UPPERCASE_WITH_UNDERSCORES",
-      "config-keys": "kebab-case"
+    "configuration-sources": {
+      "priority-order": [
+        "environment-variables",
+        "config-files",
+        "constants-files",
+        "feature-flags-service"
+      ],
+      "required-structure": {
+        "config-directory": "./config",
+        "constants-directory": "./src/constants",
+        "env-files": [".env.local", ".env.development", ".env.production"]
+      }
+    },
+    "constant-definitions": {
+      "location": "dedicated-files",
+      "grouping": "by-domain",
+      "export-style": "named-only"
     }
   },
   "validation": {
-    "required-documentation": true,
+    "required-documentation": {
+      "format": "JSDoc",
+      "fields": [
+        "description",
+        "type",
+        "default-value",
+        "override-method"
+      ]
+    },
     "type-safety": "strict",
-    "fallback-values": "mandatory"
+    "fallback-values": {
+      "required": true,
+      "must-be-documented": true
+    },
+    "configuration-validation": {
+      "schema-required": true,
+      "runtime-checks": true
+    }
+  },
+  "linting-rules": {
+    "no-magic-numbers": "error",
+    "no-hardcoded-strings": "error",
+    "prefer-named-exports": "error",
+    "require-config-import": "error"
   }
 }
 ```
