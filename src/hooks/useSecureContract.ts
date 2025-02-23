@@ -1,32 +1,8 @@
 import { usePublicClient, useWalletClient, useChainId, useConfig } from 'wagmi'
-import { Address, parseAbi } from 'viem'
+import { Address } from 'viem'
 import type { SecureContractInfo, SecurityOperationEvent } from '../lib/types'
 import { getChainName, type Chain } from '@/lib/utils'
-
-// Define the ABI inline since we can't import the JSON directly
-const SecureOwnableABI = parseAbi([
-  // View functions
-  'function owner() view returns (address)',
-  'function getBroadcaster() view returns (address)',
-  'function getRecoveryAddress() view returns (address)',
-  'function getTimeLockPeriodInDays() view returns (uint256)',
-  'function getOperationHistory() view returns ((uint256,address,address,bytes32,uint8,bytes,uint256,uint256,uint256,uint256,uint8)[])',
-  'function isOperationTypeSupported(bytes32 operationType) view returns (bool)',
-  
-  // Constants
-  'function OWNERSHIP_UPDATE() view returns (bytes32)',
-  'function BROADCASTER_UPDATE() view returns (bytes32)',
-  'function RECOVERY_UPDATE() view returns (bytes32)',
-  'function TIMELOCK_UPDATE() view returns (bytes32)',
-  
-  // Write functions
-  'function transferOwnershipRequest() returns ((uint256,address,address,bytes32,uint8,bytes,uint256,uint256,uint256,uint256,uint8))',
-  'function transferOwnershipDelayedApproval(uint256 txId) returns ((uint256,address,address,bytes32,uint8,bytes,uint256,uint256,uint256,uint256,uint8))',
-  'function transferOwnershipCancellation(uint256 txId) returns ((uint256,address,address,bytes32,uint8,bytes,uint256,uint256,uint256,uint256,uint8))',
-  'function updateBroadcasterRequest(address newBroadcaster) returns ((uint256,address,address,bytes32,uint8,bytes,uint256,uint256,uint256,uint256,uint8))',
-  'function updateBroadcasterDelayedApproval(uint256 txId) returns ((uint256,address,address,bytes32,uint8,bytes,uint256,uint256,uint256,uint256,uint8))',
-  'function updateBroadcasterCancellation(uint256 txId) returns ((uint256,address,address,bytes32,uint8,bytes,uint256,uint256,uint256,uint256,uint8))'
-])
+import SecureOwnableABI from '@/contracts-core/SecureOwnable/SecureOwnable.abi.json'
 
 export function useSecureContract() {
   const publicClient = usePublicClient()
