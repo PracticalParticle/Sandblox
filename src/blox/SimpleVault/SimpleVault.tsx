@@ -8,7 +8,7 @@ import {
   parseAbiParameters
 } from 'viem';
 import SimpleVaultABIJson from './SimpleVault.abi.json';
-import SecureOwnable from '../../../contracts/core/SecureOwnable/SecureOwnable';
+import SecureOwnable from '../../contracts-core/SecureOwnable/SecureOwnable';
 import { 
   TransactionOptions,
   TransactionResult,
@@ -16,7 +16,7 @@ import {
   MetaTransaction,
   SecurityOperationType,
   TxStatus
-} from '../../../contracts/core/iCore';
+} from '../../contracts-core/iCore';
 
 // Parse and type the ABI
 const SimpleVaultABI = SimpleVaultABIJson as Abi;

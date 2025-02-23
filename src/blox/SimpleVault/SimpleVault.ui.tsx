@@ -16,7 +16,7 @@ import SimpleVault, { VaultTxRecord } from "./SimpleVault";
 import { useChain } from "@/hooks/useChain";
 import { atom, useAtom, Provider as JotaiProvider } from "jotai";
 import { AlertCircle, CheckCircle2, Clock, XCircle, Loader2, Wallet, Coins, X, Shield, Info } from "lucide-react";
-import { TxStatus, IERC20 } from "../../../contracts/core/iCore";
+import { TxStatus, IERC20 } from "../../contracts-core/iCore";
 import { useNavigate } from "react-router-dom";
 import { ContractInfo } from "@/lib/verification/index";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
