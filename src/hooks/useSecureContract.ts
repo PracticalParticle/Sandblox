@@ -87,25 +87,32 @@ export function useSecureContract() {
           address,
           abi: SecureOwnableABI,
           functionName: 'getOperationHistory'
-        }) as unknown as [number, Address, Address, string, number, string, bigint, bigint, bigint, bigint, number][];
+        }) as [bigint, Address, Address, `0x${string}`, number, `0x${string}`, bigint, bigint, bigint, bigint, number][];
         
         // Process history into events if we have data
         if (history && Array.isArray(history)) {
-          events = history.map((op) => ({
-            type: op[3] === 'OWNERSHIP_UPDATE' ? 'ownership' :
-                  op[3] === 'BROADCASTER_UPDATE' ? 'broadcaster' :
-                  op[3] === 'RECOVERY_UPDATE' ? 'recovery' : 'timelock',
-            status: op[4] === 0 ? 'pending' :
-                    op[4] === 1 ? 'completed' : 'cancelled',
-            timestamp: Number(op[8]),
-            description: `${op[3].replace('_', ' ')} operation`,
-            details: {
-              oldValue: op[5],
-              newValue: op[6].toString(),
-              remainingTime: Number(op[7]) > Date.now() / 1000 ? 
-                Math.floor(Number(op[7]) - Date.now() / 1000) : 0
-            }
-          }));
+          events = history.map((op) => {
+            // Convert bytes32 to string and remove null bytes
+            const operationType = Buffer.from(op[3].slice(2), 'hex')
+              .toString('utf8')
+              .replace(/\0/g, '');
+            
+            return {
+              type: operationType === 'OWNERSHIP_UPDATE' ? 'ownership' :
+                    operationType === 'BROADCASTER_UPDATE' ? 'broadcaster' :
+                    operationType === 'RECOVERY_UPDATE' ? 'recovery' : 'timelock',
+              status: op[4] === 0 ? 'pending' :
+                      op[4] === 1 ? 'completed' : 'cancelled',
+              timestamp: Number(op[8]),
+              description: `${operationType.replace('_', ' ')} operation`,
+              details: {
+                oldValue: op[5],
+                newValue: op[6].toString(),
+                remainingTime: Number(op[7]) > Date.now() / 1000 ? 
+                  Math.floor(Number(op[7]) - Date.now() / 1000) : 0
+              }
+            };
+          });
         }
       } catch (error) {
         console.warn('Failed to read operation history:', error);
