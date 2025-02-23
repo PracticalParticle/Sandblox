@@ -728,19 +728,17 @@ function SimpleVaultUIContent({
   const { toast } = useToast();
   const navigate = useNavigate();
   
-  // Add chain validation
   const isCorrectChain = chain?.id === contractInfo.chainId;
   
-  // Show warning if on wrong chain
   useEffect(() => {
-    if (!isCorrectChain && contractInfo.chainId && chain?.id) {
+    if (!isCorrectChain && chain?.id) {
       toast({
         title: "Wrong Network",
-        description: `This vault was deployed on ${contractInfo.chainName}. Please switch to the correct network.`,
-        variant: "destructive",
+        description: `This vault was deployed on ${contractInfo.chainName}. Please switch networks.`,
+        variant: "destructive"
       });
     }
-  }, [isCorrectChain, contractInfo.chainId, contractInfo.chainName, chain?.id]);
+  }, [chain?.id, contractInfo.chainName, isCorrectChain, toast]);
 
   const [ethBalance, setEthBalance] = useState<bigint>(_mock?.initialData?.ethBalance || BigInt(0));
   const [tokenBalances, setTokenBalances] = useAtom(tokenBalanceAtom);

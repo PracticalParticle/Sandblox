@@ -1,9 +1,9 @@
-import { useChainId } from 'wagmi'
-import { mainnet, sepolia } from 'viem/chains'
+import { useChainId, useConfig } from 'wagmi'
 import type { Chain } from 'viem'
 
-export function useChain(): Chain {
+export function useChain(): Chain | undefined {
   const chainId = useChainId()
-  const chains: Record<number, Chain> = { [mainnet.id]: mainnet, [sepolia.id]: sepolia }
-  return chains[chainId] || mainnet
+  const config = useConfig()
+  
+  return config.chains.find(chain => chain.id === chainId)
 } 
