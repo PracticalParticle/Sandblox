@@ -344,12 +344,20 @@ function BroadcasterUpdateDialog({
   const isValidAddress = isValidEthereumAddress(newBroadcasterAddress)
   const showAddressError = newBroadcasterAddress !== '' && !isValidAddress
 
+  // Clear input when dialog closes
+  useEffect(() => {
+    if (!isOpen) {
+      setNewBroadcasterAddress('')
+    }
+  }, [isOpen])
+
   const handleSubmit = async () => {
     if (!isOwner || !isValidAddress) return
     
     try {
       setIsSubmitting(true)
       await onSubmit(newBroadcasterAddress)
+      setNewBroadcasterAddress('') // Clear input after successful submission
       onOpenChange(false)
     } catch (error) {
       console.error('Error submitting update:', error)
@@ -358,8 +366,15 @@ function BroadcasterUpdateDialog({
     }
   }
 
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      setNewBroadcasterAddress('') // Clear input when manually closing
+    }
+    onOpenChange(open)
+  }
+
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader className="space-y-3">
           <DialogTitle>Request Broadcaster Update</DialogTitle>
@@ -419,7 +434,7 @@ export function SecurityDetails() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [contractInfo, setContractInfo] = useState<SecureContractInfo | null>(null)
-  const { validateAndLoadContract } = useSecureContract()
+  const { validateAndLoadContract, updateBroadcaster } = useSecureContract()
   const { toast } = useToast()
 
   // State for input fields
@@ -583,12 +598,15 @@ export function SecurityDetails() {
 
   const handleUpdateBroadcasterRequest = async (newBroadcaster: string) => {
     try {
-      // Implementation
+      await updateBroadcaster(address as `0x${string}`, newBroadcaster as `0x${string}`)
+      
       toast({
         title: "Request submitted",
         description: "Broadcaster update request has been submitted.",
       })
+      await loadContractInfo()
     } catch (error) {
+      console.error('Error submitting broadcaster update request:', error)
       toast({
         title: "Error",
         description: "Failed to submit broadcaster update request.",
