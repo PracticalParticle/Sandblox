@@ -1,4 +1,4 @@
-import { useAccount, useBalance } from 'wagmi'
+import { useAccount, useBalance, usePublicClient } from 'wagmi'
 import { useNavigate } from 'react-router-dom'
 import { useState, useEffect, lazy, Suspense } from 'react'
 import React from 'react'
@@ -51,8 +51,8 @@ interface DeployedContractProps {
     name: string;
     address: string;
     type: string;
-    chainId?: number;
-    chainName?: string;
+    chainId: number;
+    chainName: string;
   }
   onDetectType: (address: string) => Promise<void>
   isDetecting: boolean
@@ -231,12 +231,13 @@ export function Dashboard(): JSX.Element {
     name: string;
     address: string;
     type: string;
-    chainId?: number;
-    chainName?: string;
+    chainId: number;
+    chainName: string;
   }>>(() => {
     const storedContracts = localStorage.getItem('dashboardContracts')
     return storedContracts ? JSON.parse(storedContracts) : []
   })
+  const publicClient = usePublicClient()
 
   useEffect(() => {
     if (!isConnected) {
@@ -295,7 +296,7 @@ export function Dashboard(): JSX.Element {
   const handleDetectType = async (address: string) => {
     setIsDetecting(true)
     try {
-      const identifiedContract = await identifyContract(address)
+      const identifiedContract = await identifyContract(address, publicClient)
       
       setContracts(prev => 
         prev.map(contract => 

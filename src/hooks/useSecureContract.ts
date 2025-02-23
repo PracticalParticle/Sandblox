@@ -1,4 +1,4 @@
-import { usePublicClient, useWalletClient, useChainId } from 'wagmi'
+import { usePublicClient, useWalletClient, useChainId, useConfig } from 'wagmi'
 import { Address, parseAbi } from 'viem'
 import type { SecureContractInfo, SecurityOperationEvent } from '../lib/types'
 import { getChainName, type Chain } from '@/lib/utils'
@@ -32,6 +32,7 @@ export function useSecureContract() {
   const publicClient = usePublicClient()
   const { data: walletClient } = useWalletClient()
   const chainId = useChainId()
+  const config = useConfig()
 
   const validateAndLoadContract = async (address: Address): Promise<SecureContractInfo> => {
     if (!publicClient) {
@@ -45,10 +46,14 @@ export function useSecureContract() {
 
     try {
       // Verify contract exists using public client
-      const isContract = await publicClient.getBytecode({ address })
+      const isContract = await publicClient.getCode({ address })
       if (!isContract) {
         throw new Error('Address is not a contract')
       }
+
+      // Get chain information from the connected client
+      const currentChainId = await publicClient.getChainId()
+      const chainName = getChainName(currentChainId as Chain, [...config.chains])
 
       // Fetch contract details using public client
       const [owner, broadcaster, recoveryAddress, timeLockPeriodInDays] = await Promise.all([
@@ -106,8 +111,8 @@ export function useSecureContract() {
         timeLockPeriodInDays,
         pendingOperations: events.filter(e => e.status === 'pending'),
         recentEvents: events.filter(e => e.status !== 'pending').slice(0, 5),
-        chainId,
-        chainName: getChainName(chainId as Chain)
+        chainId: currentChainId,
+        chainName
       }
     } catch (error) {
       console.error('Contract validation error:', error)

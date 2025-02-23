@@ -1,5 +1,5 @@
 import { type Address, createPublicClient, http, decodeAbiParameters, keccak256, toHex } from 'viem'
-import { mainnet } from 'viem/chains'
+import { usePublicClient, useConfig } from 'wagmi'
 import { getAllContracts, getContractABI } from '../catalog'
 import type { BloxContract } from '../catalog/types'
 import { getChainName, type Chain } from '@/lib/utils'
@@ -12,8 +12,8 @@ export interface ContractInfo {
   category?: string
   bloxId?: string
   isCustom?: boolean
-  chainId?: number
-  chainName?: string
+  chainId: number
+  chainName: string
 }
 
 let contractTypesCache: BloxContract[] | null = null
@@ -32,34 +32,21 @@ async function getContractTypes(): Promise<BloxContract[]> {
   }
 }
 
-// Create a public client for reading contract data
-const client = createPublicClient({
-  chain: mainnet,
-  transport: http()
-})
-
-export async function identifyContract(address: string): Promise<ContractInfo> {
-  // TODO: Remove this for production. we are using a mock for now.
-  // return {
-  //   address: address as Address,
-  //   type: 'SimpleVault',
-  //   name: 'Simple Vault',
-  //   category: 'Vault',
-  //   description: 'A basic vault implementation',
-  //   bloxId: 'simple-vault-v1',
-  //   isCustom: false
-  // }
+export async function identifyContract(address: string, publicClient: ReturnType<typeof usePublicClient>): Promise<ContractInfo> {
+  if (!publicClient) {
+    throw new Error('No public client available')
+  }
 
   try {
     // Get the runtime bytecode of the target contract
-    const targetBytecode = await client.getCode({ address: address as Address })
+    const targetBytecode = await publicClient.getCode({ address: address as Address })
     if (!targetBytecode) {
       throw new Error('No bytecode found at address')
     }
 
-    // Get chain information
-    const chainId = await client.getChainId()
-    const chainName = getChainName(chainId as Chain)
+    // Get chain information from the connected client
+    const chainId = await publicClient.getChainId()
+    const chainName = getChainName(chainId as Chain, publicClient.chain ? [publicClient.chain] : [])
 
     // Load all available contract types
     const contractTypes = await getContractTypes()
@@ -85,7 +72,7 @@ export async function identifyContract(address: string): Promise<ContractInfo> {
             const selector = keccak256(toHex(signature)).slice(0, 10) as `0x${string}`
 
             // Call the view function
-            const result = await client.call({
+            const result = await publicClient.call({
               account: address as Address,
               data: selector,
               to: address as Address
@@ -137,13 +124,7 @@ export async function identifyContract(address: string): Promise<ContractInfo> {
     }
   } catch (error) {
     console.error('Error identifying contract:', error)
-    return {
-      address: address as Address,
-      type: 'unknown',
-      isCustom: true,
-      chainId: client.chain.id,
-      chainName: getChainName(client.chain.id as Chain)
-    }
+    throw error
   }
 }
 

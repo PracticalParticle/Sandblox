@@ -8,7 +8,8 @@ import { ProviderPool } from '@/lib/provider-pool';
 import { WalletConnectError, ErrorCodes, isUserRejectionError } from '@/lib/errors';
 import { validateSession, validateWalletSession, type ValidWalletSession } from '@/lib/schemas';
 import { encryptData, decryptData, generateSecretKey } from '@/lib/crypto';
-import { CHAINS, type Chain } from '@/lib/utils';
+import { type Chain } from '@/lib/utils';
+import { useConfig } from 'wagmi';
 
 // Define minimal provider interface for what we actually use
 interface MinimalProvider {
@@ -56,7 +57,7 @@ export function SingleWalletManagerProvider({
   children,
   projectId,
   autoConnect = true,
-  allowedChainIds = [CHAINS.MAINNET],
+  allowedChainIds = [1], // Default to Ethereum mainnet
   metadata = {
     name: 'Single Wallet Manager',
     description: 'Secure wallet connection',

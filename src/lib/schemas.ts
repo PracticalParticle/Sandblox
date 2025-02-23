@@ -1,10 +1,8 @@
 import { z } from 'zod';
-import { CHAINS, type Chain } from './utils';
+import type { Chain } from './utils';
 
-export const ChainIdSchema = z.number().refine(
-  (chainId): chainId is Chain => Object.values(CHAINS).includes(chainId as Chain),
-  { message: 'Invalid chain ID' }
-);
+// Updated to validate any number as chain ID since we now support dynamic chains
+export const ChainIdSchema = z.number().int().positive();
 
 export const EthereumAddressSchema = z
   .string()

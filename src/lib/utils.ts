@@ -1,5 +1,7 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { Chain as ViemChain } from 'viem'
+import { localDevnet } from '@/config/chains'
 
 /// <reference types="node" />
 
@@ -58,26 +60,36 @@ export function truncate(str: string, length: number): string {
   return str.slice(0, length) + "..."
 }
 
-export const CHAINS = {
+// Updated Chain type to support any chain ID
+export type Chain = number
+
+// Common chain IDs
+export const COMMON_CHAINS = {
   MAINNET: 1,
   SEPOLIA: 11155111,
+  GOERLI: 5,
+  POLYGON: 137,
+  MUMBAI: 80001,
+  ARBITRUM: 42161,
+  OPTIMISM: 10,
+  BSC: 56,
+  AVALANCHE: 43114,
+  LOCAL: localDevnet.id
 } as const
 
-export type Chain = typeof CHAINS[keyof typeof CHAINS]
-
-export function getChainName(chainId: Chain): string {
-  switch (chainId) {
-    case CHAINS.MAINNET:
-      return "Ethereum"
-    case CHAINS.SEPOLIA:
-      return "Sepolia"
-    default:
-      return "Unknown"
-  }
+// Updated getChainName to work with a chains parameter
+export function getChainName(chainId: Chain, chains: ViemChain[]): string {
+  const chain = chains.find(c => c.id === chainId)
+  if (chain) return chain.name
+  if (chainId === localDevnet.id) return localDevnet.name
+  return "Unknown"
 }
 
-export function isTestnet(chainId: Chain): boolean {
-  return chainId === CHAINS.SEPOLIA
+export function isTestnet(chainId: Chain, chains: ViemChain[]): boolean {
+  const chain = chains.find(c => c.id === chainId)
+  if (chain) return chain.testnet ?? false
+  if (chainId === localDevnet.id) return localDevnet.testnet
+  return false
 }
 
 /**

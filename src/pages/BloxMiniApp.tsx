@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { getContractDetails } from '@/lib/catalog';
 import type { BloxContract } from '@/lib/catalog/types';
 import { initializeUIComponents, getUIComponent, type BloxUIProps, type BloxSidebarProps } from '@/lib/catalog/bloxUIComponents';
+import { useConfig, useChainId, useConnect } from 'wagmi'
 
 interface Message {
   type: 'error' | 'warning' | 'info' | 'success';
@@ -30,11 +31,14 @@ const BloxMiniApp: React.FC = () => {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [contractInfo, setContractInfo] = useState<SecureContractInfo | null>(null);
-  const [bloxContract, setBloxContract] = useState<BloxContract | null>(null);
+  const [contractInfo, setContractInfo] = useState<SecureContractInfo>();
+  const [bloxContract, setBloxContract] = useState<BloxContract>();
   const [uiInitialized, setUiInitialized] = useState(false);
   const { validateAndLoadContract } = useSecureContract();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const config = useConfig()
+  const chainId = useChainId()
+  const { connectAsync, connectors } = useConnect()
 
   // Initialize UI components on mount
   useEffect(() => {
@@ -68,6 +72,35 @@ const BloxMiniApp: React.FC = () => {
         const info = await validateAndLoadContract(address as `0x${string}`);
         setContractInfo(info);
 
+        // Get chain name for error messages
+        const targetChain = config.chains.find(c => c.id === info.chainId);
+        const targetChainName = targetChain?.name || 'Unknown Network';
+
+        // Validate chain ID
+        if (chainId !== info.chainId) {
+          addMessage({
+            type: 'warning',
+            title: 'Wrong Network',
+            description: `This contract is deployed on ${targetChainName}. Please switch networks.`
+          });
+          
+          // Find a connector that supports network switching
+          const connector = connectors.find(c => c.id === 'injected')
+          if (connector) {
+            try {
+              await connectAsync({ 
+                connector,
+                chainId: info.chainId 
+              });
+            } catch (error) {
+              console.error('Failed to switch network:', error);
+              throw new Error(`Please manually switch to ${targetChainName} network to interact with this contract.`);
+            }
+          } else {
+            throw new Error(`Please manually switch to ${targetChainName} network to interact with this contract.`);
+          }
+        }
+
         // Load blox contract details from catalog
         const bloxDetails = await getContractDetails(type);
         if (!bloxDetails) {
@@ -76,11 +109,11 @@ const BloxMiniApp: React.FC = () => {
         setBloxContract(bloxDetails);
       } catch (error) {
         console.error('Error loading contract:', error);
-        setError('Failed to load contract details. Please ensure this is a valid SecureOwnable contract.');
+        setError(error instanceof Error ? error.message : 'Failed to load contract details');
         addMessage({
           type: 'error',
           title: 'Loading Failed',
-          description: 'Failed to load contract details. Please ensure this is a valid SecureOwnable contract.'
+          description: error instanceof Error ? error.message : 'Failed to load contract details'
         });
       } finally {
         setLoading(false);
@@ -88,7 +121,7 @@ const BloxMiniApp: React.FC = () => {
     };
 
     loadContractInfo();
-  }, [address, type, uiInitialized]);
+  }, [address, type, uiInitialized, chainId]);
 
   // Function to add messages that can be called from child components
   const addMessage = (message: Omit<Message, 'timestamp'>) => {
@@ -113,34 +146,10 @@ const BloxMiniApp: React.FC = () => {
 
   // Render the appropriate Blox UI based on type
   const renderBloxUI = () => {
-    if (!uiInitialized) {
+    if (!bloxContract || !contractInfo || !address) {
       return (
         <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
-          <p className="text-gray-500">Initializing UI components...</p>
-        </div>
-      );
-    }
-
-    if (!type || !address) {
-      return (
-        <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
-          <p className="text-gray-500">No Blox selected</p>
-        </div>
-      );
-    }
-
-    if (loading) {
-      return (
-        <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
-          <p className="text-gray-500">Loading...</p>
-        </div>
-      );
-    }
-
-    if (error || !bloxContract) {
-      return (
-        <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
-          <p className="text-gray-500">{error || `Unknown Blox type: ${type}`}</p>
+          <p className="text-gray-500">Loading contract information...</p>
         </div>
       );
     }
@@ -150,7 +159,7 @@ const BloxMiniApp: React.FC = () => {
     if (!BloxUI) {
       return (
         <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
-          <p className="text-gray-500">UI component not found for type: {type}</p>
+          <p className="text-gray-500">UI component not found for type: {bloxContract.id}</p>
         </div>
       );
     }
@@ -171,10 +180,10 @@ const BloxMiniApp: React.FC = () => {
             category: bloxContract.category,
             description: bloxContract.description,
             bloxId: bloxContract.id,
-            chainId: contractInfo?.chainId,
-            chainName: contractInfo?.chainName
+            chainId: (contractInfo as SecureContractInfo).chainId,
+            chainName: (contractInfo as SecureContractInfo).chainName
           }}
-          onError={(error) => {
+          onError={(error: Error) => {
             addMessage({
               type: 'error',
               title: 'Operation Failed',
@@ -186,11 +195,25 @@ const BloxMiniApp: React.FC = () => {
     );
   };
 
+  // Helper function to get chain name
+  const getChainName = (chainId: number) => {
+    const chain = config.chains.find(c => c.id === chainId);
+    return chain?.name || 'Unknown Network';
+  };
+
   return (
     <div className="flex flex-col h-screen">
       {/* Header */}
       <div className="flex items-center justify-between p-6 border-b">
         <h1 className="text-2xl font-bold">Blox Mini App</h1>
+        {contractInfo && chainId !== contractInfo.chainId && (
+          <Alert>
+            <AlertDescription>
+              This contract is deployed on {getChainName(contractInfo.chainId)}. 
+              Please switch networks to interact with it.
+            </AlertDescription>
+          </Alert>
+        )}
         <div className="flex items-center space-x-4">
           {/* Add header controls here */}
         </div>
@@ -232,8 +255,8 @@ const BloxMiniApp: React.FC = () => {
                           category: bloxContract.category,
                           description: bloxContract.description,
                           bloxId: bloxContract.id,
-                          chainId: contractInfo?.chainId,
-                          chainName: contractInfo?.chainName
+                          chainId: (contractInfo as SecureContractInfo).chainId,
+                          chainName: (contractInfo as SecureContractInfo).chainName
                         }}
                         onError={(error: Error) => {
                           addMessage({
