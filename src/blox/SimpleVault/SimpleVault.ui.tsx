@@ -33,6 +33,32 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const pendingTxsAtom = atom<VaultTxRecord[]>([]);
 const vaultInstanceAtom = atom<SimpleVault | null>(null);
 
+// Add local storage persistence for tokens
+const STORAGE_KEY = 'simpleVault.trackedTokens';
+
+const getStoredTokens = () => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return {};
+    
+    const parsedData = JSON.parse(stored);
+    // Convert stored string balances back to BigInt
+    return Object.entries(parsedData).reduce((acc, [address, token]: [string, any]) => {
+      acc[address] = {
+        ...token,
+        balance: token.balance ? BigInt(token.balance) : BigInt(0),
+        loading: false
+      };
+      return acc;
+    }, {} as TokenBalanceState);
+  } catch (error) {
+    console.error('Failed to load tokens from storage:', error);
+    return {};
+  }
+};
+
+const tokenBalanceAtom = atom<TokenBalanceState>(getStoredTokens());
+
 interface LoadingState {
   ethBalance: boolean;
   tokenBalance: boolean;
@@ -50,8 +76,6 @@ const loadingStateAtom = atom<LoadingState>({
   cancellation: false,
   initialization: true,
 });
-
-const tokenBalanceAtom = atom<TokenBalanceState>({});
 
 interface WithdrawalFormProps {
   onSubmit: (to: Address, amount: bigint, token?: Address) => Promise<void>;
@@ -741,7 +765,7 @@ function SimpleVaultUIContent({
   }, [chain?.id, contractInfo.chainName, isCorrectChain, handleNotification]);
 
   const [ethBalance, setEthBalance] = useState<bigint>(_mock?.initialData?.ethBalance || BigInt(0));
-  const [tokenBalances, setTokenBalances] = useAtom(tokenBalanceAtom);
+  const [tokenBalances, setTokenBalances] = useAtom<TokenBalanceState>(tokenBalanceAtom);
   const [pendingTxs, setPendingTxs] = useAtom(pendingTxsAtom);
   const [loadingState, setLoadingState] = useAtom(loadingStateAtom);
   const [vault, setVault] = useAtom(vaultInstanceAtom);
@@ -825,7 +849,10 @@ function SimpleVaultUIContent({
       setLoadingState((prev: LoadingState) => ({ ...prev, tokenBalance: true }));
       setTokenBalances((prev: TokenBalanceState) => ({
         ...prev,
-        [tokenAddress]: { ...prev[tokenAddress], loading: true }
+        [tokenAddress]: { 
+          ...prev[tokenAddress],
+          loading: true 
+        }
       }));
 
       const [balance, metadata] = await Promise.all([
@@ -1089,6 +1116,39 @@ function SimpleVaultUIContent({
     );
   };
 
+  // Add effect to persist tokens to local storage
+  useEffect(() => {
+    if (!tokenBalances) return;
+    try {
+      // Convert BigInt to string for storage
+      const storageData = Object.entries(tokenBalances).reduce((acc, [address, token]) => {
+        acc[address] = {
+          ...token,
+          balance: token.balance ? token.balance.toString() : "0",
+          loading: false // Don't store loading state
+        };
+        return acc;
+      }, {} as Record<string, any>);
+      
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(storageData));
+    } catch (error) {
+      console.error('Failed to save tokens to storage:', error);
+    }
+  }, [tokenBalances]);
+
+  const handleRemoveToken = (tokenAddress: string) => {
+    setTokenBalances((prev: TokenBalanceState) => {
+      const newBalances = { ...prev };
+      delete newBalances[tokenAddress];
+      return newBalances;
+    });
+    handleNotification({
+      type: 'success',
+      title: "Token Removed",
+      description: "The token has been removed from your tracking list"
+    });
+  };
+
   // Render sidebar content
   if (renderSidebar) {
     return (
@@ -1163,15 +1223,8 @@ function SimpleVaultUIContent({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8"
-                    onClick={() => {
-                      // TODO: Implement token removal
-                      handleNotification({
-                        type: 'warning',
-                        title: "Not Implemented",
-                        description: "Token removal coming soon"
-                      });
-                    }}
+                    className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => handleRemoveToken(tokenAddress)}
                   >
                     <X className="h-4 w-4" />
                   </Button>
