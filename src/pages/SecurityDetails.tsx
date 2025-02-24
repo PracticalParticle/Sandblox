@@ -39,32 +39,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-
-// Define enums since we can't import them
-enum TxStatus {
-  PENDING = 'pending',
-  COMPLETED = 'completed',
-  CANCELLED = 'cancelled'
-}
-
-enum SecurityOperationType {
-  OWNERSHIP_UPDATE = 'ownership',
-  BROADCASTER_UPDATE = 'broadcaster',
-  RECOVERY_UPDATE = 'recovery',
-  TIMELOCK_UPDATE = 'timelock'
-}
-
-// Define TxRecord type
-interface TxRecord {
-  txId: number;
-  type: SecurityOperationType;
-  description: string;
-  status: TxStatus;
-  releaseTime: number;
-  timestamp: number;
-  details: Required<SecurityOperationDetails>;
-}
+import { OperationHistory, TxRecord, SecurityOperationType, TxStatus } from '@/components/OperationHistory'
 
 const container = {
   hidden: { opacity: 0 },
@@ -826,6 +801,17 @@ export function SecurityDetails() {
     }
   }
 
+  // Handle operation actions
+  const handleOperationApprove = async (txId: number, type: SecurityOperationType) => {
+    setShowBroadcasterApproveDialog(true)
+    setSelectedTxId(txId.toString())
+  }
+
+  const handleOperationCancel = async (txId: number, type: SecurityOperationType) => {
+    setShowBroadcasterCancelDialog(true)
+    setSelectedTxId(txId.toString())
+  }
+
   const RecoveryWalletDialog = () => {
     const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID;
     if (!projectId) {
@@ -1217,317 +1203,20 @@ export function SecurityDetails() {
           </div>
 
           {/* Pending Operations */}
-          <Card className="p-6">
-            <h2 className="text-xl font-bold mb-6">Pending Operations</h2>
-            <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
-              {operationHistory.filter(op => op.status === TxStatus.PENDING).length > 0 ? (
-                operationHistory
-                  .filter(op => op.status === TxStatus.PENDING)
-                  .map((op) => {
-                    const statusStyle = getStatusColor(op.status);
-                    const icon = getOperationIcon(op.type);
-                    return (
-                      <Collapsible key={op.txId}>
-                        <div className="group border rounded-lg bg-background">
-                          <CollapsibleTrigger className="w-full">
-                            <div className="flex items-center justify-between p-3 hover:bg-accent/5 transition-colors">
-                              <div className="flex items-center gap-3 min-w-0">
-                                <div className={`rounded-full p-2 ${statusStyle.bg} shrink-0`}>
-                                  {statusStyle.icon}
-                                </div>
-                                <div className="min-w-0 text-left">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <h3 className="text-sm font-semibold truncate">
-                                      {getOperationTitle(op)}
-                                    </h3>
-                                    <Badge variant="secondary" className="capitalize">
-                                      {op.status}
-                                    </Badge>
-                                    {op.details.remainingTime > 0 && (
-                                      <span className="flex items-center gap-1 text-xs text-yellow-500">
-                                        <Timer className="h-3 w-3" />
-                                        {Math.floor(op.details.remainingTime / 86400)}d {Math.floor((op.details.remainingTime % 86400) / 3600)}h
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                                    <Clock className="h-3 w-3" />
-                                    {new Date(op.timestamp * 1000).toLocaleDateString(undefined, {
-                                      month: 'short',
-                                      day: 'numeric',
-                                      year: 'numeric'
-                                    })}
-                                    <span>•</span>
-                                    <span className="flex items-center gap-1">
-                                      <Hash className="h-3 w-3" />
-                                      {op.txId}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                              <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
-                            </div>
-                          </CollapsibleTrigger>
-                          
-                          <CollapsibleContent>
-                            <div className="px-4 pb-3 pt-1">
-                              <p className="text-sm text-muted-foreground mb-3">
-                                {getOperationDescription(op)}
-                              </p>
-                              
-                              <div className="flex items-center gap-3 px-4 py-3 bg-muted/30 rounded-lg">
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-medium text-muted-foreground mb-1">From</p>
-                                  <div className="flex items-center gap-2 text-sm">
-                                    {icon}
-                                    <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
-                                      {formatValue(op.details.oldValue, op.type)}
-                                    </code>
-                                  </div>
-                                </div>
-                                <div className="text-muted-foreground">→</div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-medium text-muted-foreground mb-1">To</p>
-                                  <div className="flex items-center gap-2 text-sm">
-                                    {icon}
-                                    <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
-                                      {formatValue(op.details.newValue, op.type)}
-                                    </code>
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center justify-end gap-2 mt-3">
-                                <Dialog open={showBroadcasterApproveDialog} onOpenChange={setShowBroadcasterApproveDialog}>
-                                  <DialogTrigger asChild>
-                                    <Button variant="outline" size="sm" disabled={op.releaseTime > Math.floor(Date.now() / 1000)}>
-                                      Approve
-                                    </Button>
-                                  </DialogTrigger>
-                                  <DialogContent className="sm:max-w-md">
-                                    <DialogHeader>
-                                      <DialogTitle>Approve via Meta Transaction</DialogTitle>
-                                      <DialogDescription>
-                                        Connect the broadcaster wallet to approve this operation.
-                                      </DialogDescription>
-                                    </DialogHeader>
-                                    <SingleWalletManagerProvider
-                                      projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
-                                      autoConnect={false}
-                                      metadata={{
-                                        name: 'OpenBlox Broadcaster',
-                                        description: 'OpenBlox Broadcaster Wallet Connection',
-                                        url: window.location.origin,
-                                        icons: ['https://avatars.githubusercontent.com/u/37784886']
-                                      }}
-                                    >
-                                      <BroadcasterWalletContent 
-                                        contractInfo={contractInfo}
-                                        onSuccess={() => {
-                                          switch (op.type) {
-                                            case SecurityOperationType.OWNERSHIP_UPDATE:
-                                              void handleTransferOwnershipApproval(op.txId);
-                                              break;
-                                            case SecurityOperationType.BROADCASTER_UPDATE:
-                                              void handleUpdateBroadcasterApproval(op.txId);
-                                              break;
-                                          }
-                                          setShowBroadcasterApproveDialog(false);
-                                        }}
-                                        onClose={() => setShowBroadcasterApproveDialog(false)}
-                                        actionLabel="Approve Operation"
-                                      />
-                                    </SingleWalletManagerProvider>
-                                  </DialogContent>
-                                </Dialog>
-                                <Dialog open={showBroadcasterCancelDialog} onOpenChange={setShowBroadcasterCancelDialog}>
-                                  <DialogTrigger asChild>
-                                    <Button variant="outline" size="sm" disabled={op.releaseTime > Math.floor(Date.now() / 1000)}>
-                                      Cancel
-                                    </Button>
-                                  </DialogTrigger>
-                                  <DialogContent className="sm:max-w-md">
-                                    <DialogHeader>
-                                      <DialogTitle>Cancel via Meta Transaction</DialogTitle>
-                                      <DialogDescription>
-                                        Connect the broadcaster wallet to cancel this operation.
-                                      </DialogDescription>
-                                    </DialogHeader>
-                                    <SingleWalletManagerProvider
-                                      projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
-                                      autoConnect={false}
-                                      metadata={{
-                                        name: 'OpenBlox Broadcaster',
-                                        description: 'OpenBlox Broadcaster Wallet Connection',
-                                        url: window.location.origin,
-                                        icons: ['https://avatars.githubusercontent.com/u/37784886']
-                                      }}
-                                    >
-                                      <BroadcasterWalletContent 
-                                        contractInfo={contractInfo}
-                                        onSuccess={() => {
-                                          switch (op.type) {
-                                            case SecurityOperationType.OWNERSHIP_UPDATE:
-                                              void handleTransferOwnershipCancellation(op.txId);
-                                              break;
-                                            case SecurityOperationType.BROADCASTER_UPDATE:
-                                              void handleUpdateBroadcasterCancellation(op.txId);
-                                              break;
-                                          }
-                                          setShowBroadcasterCancelDialog(false);
-                                        }}
-                                        onClose={() => setShowBroadcasterCancelDialog(false)}
-                                        actionLabel="Cancel Operation"
-                                      />
-                                    </SingleWalletManagerProvider>
-                                  </DialogContent>
-                                </Dialog>
-                              </div>
-                            </div>
-                          </CollapsibleContent>
-                        </div>
-                      </Collapsible>
-                    );
-                  })
-              ) : (
-                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                  <History className="h-12 w-12 mb-4 opacity-50" />
-                  <p className="text-sm font-medium">No pending operations</p>
-                  <p className="text-xs mt-1">Pending operations will appear here</p>
-                </div>
-              )}
-            </div>
-          </Card>
+          <OperationHistory
+            operations={operationHistory.filter(op => op.status === TxStatus.PENDING)}
+            title="Pending Operations"
+            onApprove={handleOperationApprove}
+            onCancel={handleOperationCancel}
+            showFilters={false}
+          />
 
           {/* Operation History */}
-          <Card className="p-6 bg-card">
-            <h2 className="text-xl font-bold mb-6">Operation History</h2>
-            <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
-              {operationHistory.length > 0 ? (
-                operationHistory
-                  .sort((a, b) => b.timestamp - a.timestamp)
-                  .map((event) => {
-                    const statusStyle = getStatusColor(event.status);
-                    const icon = getOperationIcon(event.type);
-                    return (
-                      <Collapsible key={event.txId}>
-                        <div className="group border rounded-lg bg-background">
-                          <CollapsibleTrigger className="w-full">
-                            <div className="flex items-center justify-between p-3 hover:bg-accent/5 transition-colors">
-                              <div className="flex items-center gap-3 min-w-0">
-                                <div className={`rounded-full p-2 ${statusStyle.bg} shrink-0`}>
-                                  {statusStyle.icon}
-                                </div>
-                                <div className="min-w-0 text-left">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <h3 className="text-sm font-semibold truncate">
-                                      {getOperationTitle(event)}
-                                    </h3>
-                                    <Badge 
-                                      variant={
-                                        event.status === TxStatus.COMPLETED ? "default" :
-                                        event.status === TxStatus.PENDING ? "secondary" :
-                                        "destructive"
-                                      }
-                                      className="capitalize"
-                                    >
-                                      {event.status}
-                                    </Badge>
-                                    {event.status === TxStatus.PENDING && event.details.remainingTime > 0 && (
-                                      <span className="flex items-center gap-1 text-xs text-yellow-500">
-                                        <Timer className="h-3 w-3" />
-                                        {Math.floor(event.details.remainingTime / 86400)}d {Math.floor((event.details.remainingTime % 86400) / 3600)}h
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                                    <Clock className="h-3 w-3" />
-                                    {new Date(event.timestamp * 1000).toLocaleDateString(undefined, {
-                                      month: 'short',
-                                      day: 'numeric',
-                                      year: 'numeric'
-                                    })}
-                                    <span>•</span>
-                                    <span className="flex items-center gap-1">
-                                      <Hash className="h-3 w-3" />
-                                      {event.txId}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          navigator.clipboard.writeText(event.txId.toString());
-                                          toast({
-                                            title: "Copied!",
-                                            description: "Transaction ID copied to clipboard"
-                                          });
-                                        }}
-                                      >
-                                        <span className="sr-only">Copy transaction ID</span>
-                                        <Copy className="h-4 w-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>Copy transaction ID</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
-                              </div>
-                            </div>
-                          </CollapsibleTrigger>
-                          
-                          <CollapsibleContent>
-                            <div className="px-4 pb-3 pt-1">
-                              <p className="text-sm text-muted-foreground mb-3">
-                                {getOperationDescription(event)}
-                              </p>
-                              
-                              <div className="flex items-center gap-3 px-4 py-3 bg-muted/30 rounded-lg">
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-medium text-muted-foreground mb-1">From</p>
-                                  <div className="flex items-center gap-2 text-sm">
-                                    {icon}
-                                    <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
-                                      {formatValue(event.details.oldValue, event.type)}
-                                    </code>
-                                  </div>
-                                </div>
-                                <div className="text-muted-foreground">→</div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-medium text-muted-foreground mb-1">To</p>
-                                  <div className="flex items-center gap-2 text-sm">
-                                    {icon}
-                                    <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
-                                      {formatValue(event.details.newValue, event.type)}
-                                    </code>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </CollapsibleContent>
-                        </div>
-                      </Collapsible>
-                    );
-                  })
-              ) : (
-                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                  <History className="h-12 w-12 mb-4 opacity-50" />
-                  <p className="text-sm font-medium">No operation history available</p>
-                  <p className="text-xs mt-1">Operations will appear here once executed</p>
-                </div>
-              )}
-            </div>
-          </Card>
+          <OperationHistory
+            operations={operationHistory}
+            title="Operation History"
+            className="bg-card"
+          />
         </motion.div>
 
         {/* Recovery Wallet Connection Dialog */}
