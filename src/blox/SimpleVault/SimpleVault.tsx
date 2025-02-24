@@ -122,7 +122,6 @@ export default class SimpleVault extends SecureOwnable {
       abi: SimpleVaultABI,
       functionName: 'withdrawEthRequest',
       args: [to, amount],
-      value: amount,
       account: options.from
     });
 

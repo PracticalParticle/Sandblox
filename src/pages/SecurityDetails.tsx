@@ -932,12 +932,12 @@ export function SecurityDetails() {
   }
 
   return (
-    <div className="container py-8">
+    <div className="container py-8 min-h-screen flex flex-col">
       <motion.div
         variants={container}
         initial="hidden"
         animate="show"
-        className="flex flex-col space-y-8"
+        className="flex flex-col space-y-8 flex-1"
       >
         {/* Header */}
         <motion.div variants={item} className="flex items-center justify-start">
@@ -1219,7 +1219,7 @@ export function SecurityDetails() {
           {/* Pending Operations */}
           <Card className="p-6">
             <h2 className="text-xl font-bold mb-6">Pending Operations</h2>
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
               {operationHistory.filter(op => op.status === TxStatus.PENDING).length > 0 ? (
                 operationHistory
                   .filter(op => op.status === TxStatus.PENDING)
@@ -1402,7 +1402,7 @@ export function SecurityDetails() {
           {/* Operation History */}
           <Card className="p-6 bg-card">
             <h2 className="text-xl font-bold mb-6">Operation History</h2>
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
               {operationHistory.length > 0 ? (
                 operationHistory
                   .sort((a, b) => b.timestamp - a.timestamp)

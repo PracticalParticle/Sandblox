@@ -66,10 +66,9 @@ contract SimpleVault is SecureOwnable {
      * @param to Recipient address
      * @param amount Amount of ETH to withdraw
      */
-    function withdrawEthRequest(address to, uint256 amount) public payable onlyOwner returns (MultiPhaseSecureOperation.TxRecord memory) {
+    function withdrawEthRequest(address to, uint256 amount) public onlyOwner returns (MultiPhaseSecureOperation.TxRecord memory) {
         require(to != address(0), "Invalid recipient");
         require(amount <= getEthBalance(), "Insufficient balance");
-        require(amount == msg.value, "Amount must be equal to msg.value");
 
         bytes memory executionOptions = abi.encode(MultiPhaseSecureOperation.StandardExecutionOptions({
             functionSelector: bytes4(keccak256("_withdrawEth(address,uint256)")),
@@ -83,7 +82,7 @@ contract SimpleVault is SecureOwnable {
             WITHDRAW_ETH,
             MultiPhaseSecureOperation.ExecutionType.STANDARD,
             executionOptions,
-            msg.value,
+            0, // No ETH should be sent with withdrawal request
             gasleft()
         );
 
