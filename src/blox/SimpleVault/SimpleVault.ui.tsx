@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useState, useEffect } from "react";
-import { useAccount, usePublicClient, useWalletClient, useBalance } from "wagmi";
+import { useState, useEffect, useRef } from "react";
+import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import { Address, formatEther, parseEther, formatUnits, parseUnits } from "viem";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,8 @@ import { AddTokenDialog } from "./components/AddTokenDialog";
 import type { TokenMetadata, TokenState, TokenBalanceState } from "./components/TokenList";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { getContract } from 'viem';
+import { erc20Abi } from "viem";
 
 // State atoms following .cursorrules state management guidelines
 const pendingTxsAtom = atom<VaultTxRecord[]>([]);
@@ -59,10 +61,20 @@ const getStoredTokens = () => {
 
 const tokenBalanceAtom = atom<TokenBalanceState>(getStoredTokens());
 
+// Add near the top with other atoms
+const walletBalancesAtom = atom<{
+  eth: bigint;
+  tokens: Record<string, bigint>;
+}>({
+  eth: BigInt(0),
+  tokens: {}
+});
+
 interface LoadingState {
   ethBalance: boolean;
   tokenBalance: boolean;
   withdrawal: boolean;
+  deposit: boolean;
   approval: boolean;
   cancellation: boolean;
   initialization: boolean;
@@ -72,6 +84,7 @@ const loadingStateAtom = atom<LoadingState>({
   ethBalance: false,
   tokenBalance: false,
   withdrawal: false,
+  deposit: false,
   approval: false,
   cancellation: false,
   initialization: true,
@@ -82,33 +95,64 @@ interface WithdrawalFormProps {
   isLoading: boolean;
   maxAmount: bigint;
   onTokenSelect?: (token: Address | undefined) => void;
+  selectedTokenAddress: string;
+  onSelectedTokenAddressChange: (value: string) => void;
 }
 
-const WithdrawalForm = ({ onSubmit, isLoading, maxAmount, onTokenSelect }: WithdrawalFormProps) => {
+// Utility function to validate Ethereum addresses
+const isValidAddress = (address: string): address is Address => {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
+};
+
+const WithdrawalForm = ({ 
+  onSubmit, 
+  isLoading, 
+  maxAmount, 
+  selectedTokenAddress,
+  onSelectedTokenAddressChange,
+  onTokenSelect 
+}: WithdrawalFormProps) => {
   const [to, setTo] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
   const [error, setError] = useState<string>("");
-  const [selectedTokenAddress, setSelectedTokenAddress] = useState<string>("ETH");
   const [tokenBalances] = useAtom(tokenBalanceAtom);
-
-  useEffect(() => {
-    onTokenSelect?.(selectedTokenAddress === "ETH" ? undefined : selectedTokenAddress as Address);
-  }, [selectedTokenAddress, onTokenSelect]);
 
   const selectedToken = selectedTokenAddress === "ETH" ? undefined : tokenBalances[selectedTokenAddress];
   const tokenDecimals = selectedToken?.metadata?.decimals ?? 18;
+
+  // Format the max amount based on token type
+  const formattedMaxAmount = selectedTokenAddress === "ETH"
+    ? formatEther(maxAmount)
+    : formatUnits(maxAmount, tokenDecimals);
+
+  useEffect(() => {
+    console.log('Token selection changed:', selectedTokenAddress);
+    onTokenSelect?.(selectedTokenAddress === "ETH" ? undefined : selectedTokenAddress as Address);
+  }, [selectedTokenAddress, onTokenSelect]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
     
     try {
+      console.log('Submitting withdrawal:', { 
+        to, 
+        amount, 
+        selectedTokenAddress,
+        tokenDecimals 
+      });
+
       const parsedAmount = selectedTokenAddress === "ETH" 
         ? parseEther(amount) 
         : parseUnits(amount, tokenDecimals);
 
       if (parsedAmount > maxAmount) {
-        throw new Error("Amount exceeds balance");
+        throw new Error("Amount exceeds vault balance");
+      }
+
+      // Validate the recipient address
+      if (!isValidAddress(to)) {
+        throw new Error("Invalid recipient address");
       }
 
       await onSubmit(
@@ -118,8 +162,8 @@ const WithdrawalForm = ({ onSubmit, isLoading, maxAmount, onTokenSelect }: Withd
       );
       setTo("");
       setAmount("");
-      setSelectedTokenAddress("ETH");
     } catch (error: any) {
+      console.error('Form submission error:', error);
       setError(error.message);
     }
   };
@@ -128,89 +172,92 @@ const WithdrawalForm = ({ onSubmit, isLoading, maxAmount, onTokenSelect }: Withd
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="tokenSelect">Select Token</Label>
-        <Select
-          value={selectedTokenAddress}
-          onValueChange={setSelectedTokenAddress}
-        >
-          <SelectTrigger>
-            <SelectValue>
-              <div className="flex items-center gap-2">
-                {selectedTokenAddress === "ETH" ? (
-                  <>
+        <div id="tokenSelectWrapper">
+          <Select
+            value={selectedTokenAddress}
+            onValueChange={onSelectedTokenAddressChange}
+          >
+            <SelectTrigger>
+              <SelectValue>
+                <div className="flex items-center gap-2">
+                  {selectedTokenAddress === "ETH" ? (
+                    <>
+                      <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Wallet className="h-3 w-3 text-primary" />
+                      </div>
+                      <span>ETH</span>
+                    </>
+                  ) : tokenBalances[selectedTokenAddress]?.metadata ? (
+                    <>
+                      <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
+                        {tokenBalances[selectedTokenAddress].metadata?.logo ? (
+                          <img 
+                            src={tokenBalances[selectedTokenAddress].metadata.logo} 
+                            alt={tokenBalances[selectedTokenAddress].metadata.symbol} 
+                            className="w-5 h-5 rounded-full"
+                          />
+                        ) : (
+                          <Coins className="h-3 w-3 text-primary" />
+                        )}
+                      </div>
+                      <span>{tokenBalances[selectedTokenAddress].metadata.symbol}</span>
+                    </>
+                  ) : (
+                    "Select a token"
+                  )}
+                </div>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {/* ETH Option */}
+              <SelectItem value="ETH">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Wallet className="h-3 w-3 text-primary" />
+                  </div>
+                  <span>ETH</span>
+                  <span className="ml-auto text-muted-foreground">
+                    {formatEther(maxAmount)} available
+                  </span>
+                </div>
+              </SelectItem>
+              
+              {/* ERC20 Token Options */}
+              {Object.entries(tokenBalances).map(([address, token]) => (
+                <SelectItem key={address} value={address}>
+                  <div className="flex items-center gap-2">
                     <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Wallet className="h-3 w-3 text-primary" />
-                    </div>
-                    <span>ETH</span>
-                  </>
-                ) : tokenBalances[selectedTokenAddress]?.metadata ? (
-                  <>
-                    <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
-                      {tokenBalances[selectedTokenAddress].metadata?.logo ? (
+                      {token.metadata?.logo ? (
                         <img 
-                          src={tokenBalances[selectedTokenAddress].metadata.logo} 
-                          alt={tokenBalances[selectedTokenAddress].metadata.symbol} 
+                          src={token.metadata.logo} 
+                          alt={token.metadata.symbol} 
                           className="w-5 h-5 rounded-full"
                         />
                       ) : (
                         <Coins className="h-3 w-3 text-primary" />
                       )}
                     </div>
-                    <span>{tokenBalances[selectedTokenAddress].metadata.symbol}</span>
-                  </>
-                ) : (
-                  "Select a token"
-                )}
-              </div>
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {/* ETH Option */}
-            <SelectItem value="ETH">
-              <div className="flex items-center gap-2">
-                <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Wallet className="h-3 w-3 text-primary" />
-                </div>
-                <span>ETH</span>
-                <span className="ml-auto text-muted-foreground">
-                  {formatEther(maxAmount)}
-                </span>
-              </div>
-            </SelectItem>
-            
-            {/* ERC20 Token Options */}
-            {Object.entries(tokenBalances).map(([address, token]) => (
-              <SelectItem key={address} value={address}>
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
-                    {token.metadata?.logo ? (
-                      <img 
-                        src={token.metadata.logo} 
-                        alt={token.metadata.symbol} 
-                        className="w-5 h-5 rounded-full"
-                      />
-                    ) : (
-                      <Coins className="h-3 w-3 text-primary" />
-                    )}
+                    <span>{token.metadata?.symbol || 'Unknown Token'}</span>
+                    <span className="ml-auto text-muted-foreground">
+                      {token.loading ? (
+                        <Skeleton className="h-4 w-16" />
+                      ) : (
+                        `${formatUnits(token.balance || BigInt(0), token.metadata?.decimals || 18)} available`
+                      )}
+                    </span>
                   </div>
-                  <span>{token.metadata?.symbol || 'Unknown Token'}</span>
-                  <span className="ml-auto text-muted-foreground">
-                    {token.loading ? (
-                      <Skeleton className="h-4 w-16" />
-                    ) : (
-                      formatUnits(token.balance || BigInt(0), token.metadata?.decimals || 18)
-                    )}
-                  </span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="to">Recipient Address</Label>
         <Input
           id="to"
+          name="recipientAddress"
           placeholder="0x..."
           value={to}
           onChange={(e) => setTo(e.target.value)}
@@ -226,6 +273,7 @@ const WithdrawalForm = ({ onSubmit, isLoading, maxAmount, onTokenSelect }: Withd
         </Label>
         <Input
           id="amount"
+          name="amount"
           type="number"
           step="any"
           min="0"
@@ -235,12 +283,22 @@ const WithdrawalForm = ({ onSubmit, isLoading, maxAmount, onTokenSelect }: Withd
           required
           aria-label={`${selectedTokenAddress === "ETH" ? "ETH" : "Token"} amount input`}
         />
-        <p className="text-sm text-muted-foreground">
-          Available: {selectedTokenAddress === "ETH" 
-            ? formatEther(maxAmount) 
-            : formatUnits(maxAmount, tokenDecimals)
-          } {selectedTokenAddress === "ETH" ? "ETH" : selectedToken?.metadata?.symbol || "Tokens"}
-        </p>
+        <div className="flex justify-between text-sm text-muted-foreground">
+          <div>Available in vault: {
+            selectedTokenAddress === "ETH"
+              ? `${Number(formattedMaxAmount).toFixed(4)} ETH`
+              : `${Number(formattedMaxAmount).toFixed(4)} ${selectedToken?.metadata?.symbol || "Tokens"}`
+          }</div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-auto p-0 text-primary"
+            onClick={() => setAmount(formattedMaxAmount)}
+          >
+            Max
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -329,200 +387,43 @@ interface DepositFormProps {
   isLoading: boolean;
 }
 
-const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
+const DepositForm = React.memo(({ onSubmit, isLoading }: DepositFormProps) => {
   const [amount, setAmount] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [selectedTokenAddress, setSelectedTokenAddress] = useState<string>("ETH");
   const [tokenBalances] = useAtom(tokenBalanceAtom);
-  const [walletBalances, setWalletBalances] = useState<{
-    tokens: Record<string, bigint>;
-  }>({
-    tokens: {}
-  });
-  const [approvalState, setApprovalState] = useState<{
-    isApproved: boolean;
-    isApproving: boolean;
-    error?: string;
-  }>({
-    isApproved: false,
-    isApproving: false
-  });
-  const { data: walletClient } = useWalletClient();
-  const { address, isConnected } = useAccount();
-  const { data: balanceData, isLoading: isBalanceLoading } = useBalance({
-    address: address,
-  });
-  const publicClient = usePublicClient();
+  const [walletBalances] = useAtom(walletBalancesAtom);
 
   const selectedToken = selectedTokenAddress === "ETH" ? undefined : tokenBalances[selectedTokenAddress];
   const tokenDecimals = selectedToken?.metadata?.decimals ?? 18;
 
-  // Reset approval state when token changes
-  useEffect(() => {
-    setApprovalState({
-      isApproved: false,
-      isApproving: false
-    });
-  }, [selectedTokenAddress]);
+  // Get the maximum amount from wallet balance
+  const maxAmount = selectedTokenAddress === "ETH"
+    ? walletBalances.eth
+    : walletBalances.tokens[selectedTokenAddress] || BigInt(0);
 
-  // Fetch wallet balances for tokens
-  useEffect(() => {
-    const fetchWalletBalances = async () => {
-      if (!address || !publicClient) return;
-
-      try {
-        // Get token balances for tracked tokens
-        const tokenBalancePromises = Object.entries(tokenBalances).map(async ([tokenAddress]) => {
-          try {
-            const balance = await publicClient.readContract({
-              address: tokenAddress as Address,
-              abi: [
-                {
-                  inputs: [{ name: 'account', type: 'address' }],
-                  name: 'balanceOf',
-                  outputs: [{ type: 'uint256' }],
-                  stateMutability: 'view',
-                  type: 'function'
-                }
-              ],
-              functionName: 'balanceOf',
-              args: [address]
-            }) as bigint;
-
-            return [tokenAddress, balance];
-          } catch (error) {
-            console.error(`Error fetching balance for token ${tokenAddress}:`, error);
-            return [tokenAddress, BigInt(0)];
-          }
-        });
-
-        const tokenBalanceResults = await Promise.all(tokenBalancePromises);
-        const newTokenBalances = Object.fromEntries(tokenBalanceResults);
-
-        setWalletBalances(prev => ({
-          ...prev,
-          tokens: newTokenBalances
-        }));
-      } catch (error) {
-        console.error('Error fetching wallet balances:', error);
-      }
-    };
-
-    fetchWalletBalances();
-  }, [address, publicClient, tokenBalances]);
-
-  const checkAllowance = async (token: Address, amount: bigint, spender: Address) => {
-    try {
-      if (!address) throw new Error("No wallet connected");
-      
-      const allowance = await publicClient?.readContract({
-        address: token,
-        abi: [
-          {
-            inputs: [
-              { name: 'owner', type: 'address' },
-              { name: 'spender', type: 'address' }
-            ],
-            name: 'allowance',
-            outputs: [{ type: 'uint256' }],
-            stateMutability: 'view',
-            type: 'function'
-          }
-        ],
-        functionName: 'allowance',
-        args: [address, spender]
-      }) as bigint;
-
-      return allowance >= amount;
-    } catch (error) {
-      console.error('Error checking allowance:', error);
-      return false;
-    }
-  };
-
-  const handleApprove = async (token: Address, amount: bigint, spender: Address) => {
-    if (!walletClient || !address) {
-      throw new Error("Wallet not connected");
-    }
-
-    setApprovalState(prev => ({ ...prev, isApproving: true, error: undefined }));
-    try {
-      const hash = await walletClient.writeContract({
-        address: token,
-        abi: [
-          {
-            inputs: [
-              { name: 'spender', type: 'address' },
-              { name: 'amount', type: 'uint256' }
-            ],
-            name: 'approve',
-            outputs: [{ type: 'bool' }],
-            stateMutability: 'nonpayable',
-            type: 'function'
-          }
-        ],
-        functionName: 'approve',
-        args: [spender, amount]
-      });
-
-      if (!publicClient) throw new Error("No public client available");
-
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-      
-      if (receipt.status === 'success') {
-        setApprovalState(prev => ({ ...prev, isApproved: true }));
-      } else {
-        throw new Error("Approval transaction failed");
-      }
-    } catch (error: any) {
-      setApprovalState(prev => ({ 
-        ...prev, 
-        error: error.message || "Failed to approve token"
-      }));
-    } finally {
-      setApprovalState(prev => ({ ...prev, isApproving: false }));
-    }
-  };
+  // Format the max amount based on token type
+  const formattedMaxAmount = selectedTokenAddress === "ETH"
+    ? formatEther(maxAmount)
+    : formatUnits(maxAmount, tokenDecimals);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
     
     try {
-      if (!isConnected) {
-        throw new Error("Please connect your wallet first");
-      }
+      console.log('Submitting deposit:', { 
+        amount, 
+        selectedTokenAddress,
+        tokenDecimals 
+      });
 
       const parsedAmount = selectedTokenAddress === "ETH" 
         ? parseEther(amount) 
         : parseUnits(amount, tokenDecimals);
 
-      // Check wallet balance
-      const walletBalance = selectedTokenAddress === "ETH"
-        ? (balanceData ? parseEther(balanceData.formatted) : BigInt(0))
-        : walletBalances.tokens[selectedTokenAddress] || BigInt(0);
-
-      if (parsedAmount > walletBalance) {
-        throw new Error("Insufficient balance in wallet");
-      }
-
-      // For ERC20 tokens, check and handle approval
-      if (selectedTokenAddress !== "ETH") {
-        const isApproved = await checkAllowance(
-          selectedTokenAddress as Address,
-          parsedAmount,
-          address as Address
-        );
-
-        if (!isApproved) {
-          await handleApprove(
-            selectedTokenAddress as Address,
-            parsedAmount,
-            address as Address
-          );
-          // Return early if approval failed
-          if (!approvalState.isApproved) return;
-        }
+      if (parsedAmount > maxAmount) {
+        throw new Error("Amount exceeds wallet balance");
       }
 
       await onSubmit(
@@ -530,8 +431,9 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
         selectedTokenAddress === "ETH" ? undefined : selectedTokenAddress as Address
       );
       setAmount("");
-      setApprovalState({ isApproved: false, isApproving: false });
+      setSelectedTokenAddress("ETH");
     } catch (error: any) {
+      console.error('Form submission error:', error);
       setError(error.message);
     }
   };
@@ -583,15 +485,9 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
                   <Wallet className="h-3 w-3 text-primary" />
                 </div>
                 <span>ETH</span>
-                <div className="text-sm text-muted-foreground">
-                  {isBalanceLoading ? (
-                    <Skeleton className="h-4 w-20" />
-                  ) : balanceData ? (
-                    `${Number(balanceData.formatted).toFixed(4)} ${balanceData.symbol}`
-                  ) : (
-                    'Connect wallet'
-                  )}
-                </div>
+                <span className="ml-auto text-muted-foreground">
+                  {formatEther(walletBalances.eth)} available
+                </span>
               </div>
             </SelectItem>
             
@@ -611,13 +507,13 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
                     )}
                   </div>
                   <span>{token.metadata?.symbol || 'Unknown Token'}</span>
-                  <div className="text-sm text-muted-foreground">
+                  <span className="ml-auto text-muted-foreground">
                     {token.loading ? (
-                      <Skeleton className="h-4 w-20" />
+                      <Skeleton className="h-4 w-16" />
                     ) : (
                       `${formatUnits(walletBalances.tokens[address] || BigInt(0), token.metadata?.decimals || 18)} available`
                     )}
-                  </div>
+                  </span>
                 </div>
               </SelectItem>
             ))}
@@ -631,6 +527,7 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
         </Label>
         <Input
           id="amount"
+          name="amount"
           type="number"
           step="any"
           min="0"
@@ -643,25 +540,20 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
         <div className="flex justify-between text-sm text-muted-foreground">
           <div>Available in wallet: {
             selectedTokenAddress === "ETH"
-              ? isBalanceLoading ? (
-                  <Skeleton className="h-4 w-16 inline-block" />
-                ) : balanceData ? (
-                  `${Number(balanceData.formatted).toFixed(4)} ${balanceData.symbol}`
-                ) : (
-                  'Connect wallet'
-                )
-              : `${formatUnits(walletBalances.tokens[selectedTokenAddress] || BigInt(0), tokenDecimals)} ${selectedToken?.metadata?.symbol || "Tokens"}`
+              ? `${Number(formattedMaxAmount).toFixed(4)} ETH`
+              : `${Number(formattedMaxAmount).toFixed(4)} ${selectedToken?.metadata?.symbol || "Tokens"}`
           }</div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-auto p-0 text-primary"
+            onClick={() => setAmount(formattedMaxAmount)}
+          >
+            Max
+          </Button>
         </div>
       </div>
-
-      {!isConnected && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Wallet not connected</AlertTitle>
-          <AlertDescription>Please connect your wallet to continue</AlertDescription>
-        </Alert>
-      )}
 
       {error && (
         <Alert variant="destructive">
@@ -671,37 +563,16 @@ const DepositForm = ({ onSubmit, isLoading }: DepositFormProps) => {
         </Alert>
       )}
 
-      {approvalState.error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Approval Error</AlertTitle>
-          <AlertDescription>{approvalState.error}</AlertDescription>
-        </Alert>
-      )}
-
-      <Button 
-        type="submit" 
-        disabled={isLoading || approvalState.isApproving || !amount || parseFloat(amount) <= 0 || !isConnected} 
-        className="w-full"
-      >
-        {isLoading || approvalState.isApproving ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            {approvalState.isApproving ? "Approving..." : "Processing..."}
-          </>
-        ) : !isConnected ? (
-          "Connect Wallet"
-        ) : selectedTokenAddress === "ETH" ? (
-          "Deposit ETH"
-        ) : approvalState.isApproved ? (
-          `Deposit ${selectedToken?.metadata?.symbol || "Token"}`
-        ) : (
-          `Approve ${selectedToken?.metadata?.symbol || "Token"}`
-        )}
+      <Button type="submit" disabled={isLoading} className="w-full">
+        {isLoading ? "Processing..." : `Deposit ${
+          selectedTokenAddress === "ETH" ? "ETH" : selectedToken?.metadata?.symbol || "Token"
+        }`}
       </Button>
     </form>
   );
-};
+});
+
+DepositForm.displayName = 'DepositForm';
 
 // Add this type definition at the top with other interfaces
 type NotificationMessage = {
@@ -729,6 +600,73 @@ interface SimpleVaultUIProps {
   addMessage?: (message: NotificationMessage) => void;
 }
 
+// Move WithdrawalFormWrapper outside of SimpleVaultUIContent
+const WithdrawalFormWrapper = React.memo(({ 
+  handleWithdrawal, 
+  loadingState, 
+  ethBalance, 
+  fetchTokenBalance,
+  tokenBalances
+}: { 
+  handleWithdrawal: (to: Address, amount: bigint, token?: Address) => Promise<void>;
+  loadingState: LoadingState;
+  ethBalance: bigint;
+  fetchTokenBalance: (tokenAddress: Address) => Promise<void>;
+  tokenBalances: TokenBalanceState;
+}) => {
+  const [selectedTokenAddress, setSelectedTokenAddress] = useState<string>("ETH");
+  const lastFetchRef = useRef<string | undefined>(undefined);
+
+  console.log('WithdrawalFormWrapper render:', {
+    selectedTokenAddress,
+    tokenBalancesKeys: Object.keys(tokenBalances),
+    tokenBalancesState: tokenBalances,
+    lastFetch: lastFetchRef.current
+  });
+
+  // Only fetch token balance if it's a new token and not already loading
+  useEffect(() => {
+    const tokenAddress = selectedTokenAddress === "ETH" ? undefined : selectedTokenAddress as Address;
+    if (tokenAddress && 
+        tokenAddress !== lastFetchRef.current && 
+        !loadingState.tokenBalance && 
+        !tokenBalances[tokenAddress]?.loading) {
+      console.log('Fetching balance for selected token:', tokenAddress);
+      lastFetchRef.current = tokenAddress;
+      fetchTokenBalance(tokenAddress);
+    }
+  }, [selectedTokenAddress, loadingState.tokenBalance, tokenBalances, fetchTokenBalance]);
+
+  const currentBalance = React.useMemo(() => 
+    selectedTokenAddress === "ETH"
+      ? ethBalance
+      : (tokenBalances[selectedTokenAddress]?.balance || BigInt(0)),
+    [selectedTokenAddress, tokenBalances, ethBalance]
+  );
+
+  const handleTokenSelect = React.useCallback((token: Address | undefined) => {
+    console.log('Token selected in wrapper:', token);
+  }, []);
+
+  const handleSelectedTokenChange = (value: string) => {
+    console.log('Token selection changing to:', value);
+    setSelectedTokenAddress(value);
+  };
+
+  return (
+    <WithdrawalForm
+      onSubmit={handleWithdrawal}
+      isLoading={loadingState.withdrawal}
+      maxAmount={currentBalance}
+      selectedTokenAddress={selectedTokenAddress}
+      onSelectedTokenAddressChange={handleSelectedTokenChange}
+      onTokenSelect={handleTokenSelect}
+    />
+  );
+});
+
+WithdrawalFormWrapper.displayName = 'WithdrawalFormWrapper';
+
 function SimpleVaultUIContent({ 
   contractAddress, 
   contractInfo, 
@@ -738,8 +676,8 @@ function SimpleVaultUIContent({
   renderSidebar = false,
   addMessage
 }: SimpleVaultUIProps): JSX.Element {
-  const { address, isConnected } = _mock?.account || useAccount();
-  const publicClient = _mock?.publicClient || usePublicClient();
+  const { address } = useAccount();
+  const publicClient = usePublicClient();
   const { data: walletClient } = _mock?.walletClient || useWalletClient();
   const chain = _mock?.chain || useChain();
   const navigate = useNavigate();
@@ -770,32 +708,44 @@ function SimpleVaultUIContent({
   const [loadingState, setLoadingState] = useAtom(loadingStateAtom);
   const [vault, setVault] = useAtom(vaultInstanceAtom);
   const [error, setError] = useState<string | null>(null);
+  const [walletBalances, setWalletBalances] = useAtom(walletBalancesAtom);
 
   // Initialize vault instance and fetch data once
   useEffect(() => {
     const initializeVault = async () => {
-      if (!publicClient || !chain) return;
+      console.log('Initializing vault with params:', { publicClient, chain, contractAddress });
+      if (!publicClient || !chain) {
+        console.log('Missing required dependencies:', { publicClient: !!publicClient, chain: !!chain });
+        return;
+      }
+      
+      // Skip if already initialized
+      if (vault) {
+        console.log('Vault already initialized, skipping');
+        return;
+      }
       
       try {
         setLoadingState(prev => ({ ...prev, initialization: true }));
         const vaultInstance = new SimpleVault(publicClient, walletClient, contractAddress, chain);
+        console.log('Vault instance created successfully');
         setVault(vaultInstance);
         setError(null);
 
         // Fetch data once after successful initialization
         if (!_mock) {
           try {
+            console.log('Fetching initial vault data...');
             const [balance, transactions] = await Promise.all([
               vaultInstance.getEthBalance(),
               vaultInstance.getPendingTransactions()
             ]);
             
+            console.log('Initial vault data:', { balance: balance.toString(), transactions });
             setEthBalance(balance);
             setPendingTxs(transactions);
           } catch (err: any) {
             console.error("Failed to fetch initial vault data:", err);
-            // Don't set error state for initial fetch failure
-            // User can retry using the refresh button
           }
         }
       } catch (err: any) {
@@ -808,42 +758,21 @@ function SimpleVaultUIContent({
     };
 
     initializeVault();
-  }, [publicClient, walletClient, contractAddress, chain, setVault, onError, _mock, setEthBalance, setPendingTxs]);
+  }, [publicClient, walletClient, contractAddress, chain]); // Remove dependencies that cause loops
 
-  // Initialize with mock data if available
-  useEffect(() => {
-    if (_mock?.initialData) {
-      setEthBalance(_mock.initialData.ethBalance);
-      setPendingTxs(_mock.initialData.pendingTransactions);
-    }
-  }, [_mock?.initialData, setPendingTxs]);
-
-  const fetchVaultData = React.useCallback(async () => {
-    if (!vault || _mock) return;
-    
-    try {
-      setLoadingState(prev => ({ ...prev, ethBalance: true }));
-      
-      const [balance, transactions] = await Promise.all([
-        vault.getEthBalance(),
-        vault.getPendingTransactions()
-      ]);
-      
-      setEthBalance(balance);
-      setPendingTxs(transactions);
-      setError(null);
-    } catch (err: any) {
-      console.error("Failed to fetch vault data:", err);
-      setError("Failed to fetch vault data");
-      onError?.(new Error("Failed to fetch vault data"));
-    } finally {
-      setLoadingState(prev => ({ ...prev, ethBalance: false }));
-    }
-  }, [vault, setLoadingState, setEthBalance, setPendingTxs, _mock, onError]);
-
+  // Memoize fetchTokenBalance to prevent recreation
   const fetchTokenBalance = React.useCallback(async (tokenAddress: Address) => {
-    if (!vault || _mock) return;
+    if (!vault) {
+      console.log('No vault instance available for fetching token balance');
+      return;
+    }
     
+    // Skip if already loading this token
+    if (tokenBalances[tokenAddress]?.loading) {
+      console.log('Token balance already loading, skipping:', tokenAddress);
+      return;
+    }
+
     try {
       setLoadingState((prev: LoadingState) => ({ ...prev, tokenBalance: true }));
       setTokenBalances((prev: TokenBalanceState) => ({
@@ -887,152 +816,187 @@ function SimpleVaultUIContent({
     } finally {
       setLoadingState((prev: LoadingState) => ({ ...prev, tokenBalance: false }));
     }
-  }, [vault, tokenBalances, setLoadingState, setTokenBalances, _mock]);
+  }, [vault, tokenBalances]);
 
-  // Add effect to refresh token balances when vault is ready
-  useEffect(() => {
-    if (!vault || !tokenBalances || Object.keys(tokenBalances).length === 0) return;
+  const fetchVaultData = React.useCallback(async () => {
+    if (!vault || _mock) return;
     
-    let mounted = true;
-    
-    // Refresh all token balances
-    const refreshTokens = async () => {
-      try {
-        // Fetch balances for all tracked tokens in parallel
-        const tokenUpdates = await Promise.all(
-          Object.keys(tokenBalances).map(async (tokenAddress) => {
-            try {
-              // Get fresh balance and metadata
-              const [balance, metadata] = await Promise.all([
-                vault.getTokenBalance(tokenAddress as Address),
-                // Only fetch metadata if we don't have it already
-                !tokenBalances[tokenAddress]?.metadata ? 
-                  vault.getTokenMetadata(tokenAddress as Address) : 
-                  Promise.resolve(tokenBalances[tokenAddress].metadata)
-              ]);
-
-              return [tokenAddress, {
-                balance,
-                metadata: metadata || tokenBalances[tokenAddress]?.metadata,
-                loading: false,
-                error: undefined
-              }];
-            } catch (error) {
-              console.error(`Failed to fetch data for token ${tokenAddress}:`, error);
-              return [tokenAddress, {
-                ...tokenBalances[tokenAddress],
-                loading: false,
-                error: error instanceof Error ? error.message : 'Failed to fetch token data'
-              }];
-            }
-          })
-        );
-
-        if (mounted) {
-          // Update all tokens at once to avoid multiple re-renders
-          setTokenBalances(prev => {
-            const updates = Object.fromEntries(tokenUpdates);
-            return {
-              ...prev,
-              ...updates
-            };
-          });
-        }
-      } catch (error) {
-        console.error('Failed to refresh token balances:', error);
-      }
-    };
-
-    refreshTokens();
-
-    return () => {
-      mounted = false;
-    };
-  }, [vault, tokenBalances]); // Only depend on vault and tokenBalances object reference
-
-  const handleEthWithdrawal = async (to: Address, amount: bigint) => {
-    if (!address || !vault) return;
-    if (!isCorrectChain) {
-      handleNotification({
-        type: 'warning',
-        title: "Wrong Network",
-        description: `Please switch to ${contractInfo.chainName} to perform this operation.`
-      });
-      return;
-    }
-    
-    setLoadingState((prev: LoadingState) => ({ ...prev, withdrawal: true }));
     try {
-      const tx = await vault.withdrawEthRequest(to, amount, { from: address });
-      handleNotification({
-        type: 'info',
-        title: "Withdrawal Requested",
-        description: `Transaction hash: ${tx.hash}`
-      });
+      setLoadingState(prev => ({ ...prev, ethBalance: true }));
       
-      await tx.wait();
-      handleNotification({
-        type: 'success',
-        title: "Transaction Confirmed",
-        description: "Your withdrawal request has been confirmed."
-      });
-      await fetchVaultData();
-    } catch (error: any) {
-      onError?.(error);
-      handleNotification({
-        type: 'error',
-        title: "Error",
-        description: error.message
-      });
-    } finally {
-      setLoadingState((prev: LoadingState) => ({ ...prev, withdrawal: false }));
-    }
-  };
-
-  const handleTokenWithdrawal = async (to: Address, amount: bigint, token: Address) => {
-    if (!address || !vault) return;
-    if (!isCorrectChain) {
-      handleNotification({
-        type: 'warning',
-        title: "Wrong Network",
-        description: `Please switch to ${contractInfo.chainName} to perform this operation.`
-      });
-      return;
-    }
-    
-    setLoadingState((prev: LoadingState) => ({ ...prev, withdrawal: true }));
-    try {
-      const tx = await vault.withdrawTokenRequest(token, to, amount, { from: address });
-      handleNotification({
-        type: 'info',
-        title: "Withdrawal Requested",
-        description: `Transaction hash: ${tx.hash}`
-      });
+      const [balance, transactions] = await Promise.all([
+        vault.getEthBalance(),
+        vault.getPendingTransactions()
+      ]);
       
-      await tx.wait();
-      handleNotification({
-        type: 'success',
-        title: "Transaction Confirmed",
-        description: "Your withdrawal request has been confirmed."
-      });
-      await fetchVaultData();
-    } catch (error: any) {
-      onError?.(error);
-      handleNotification({
-        type: 'error',
-        title: "Error",
-        description: error.message
-      });
+      setEthBalance(balance);
+      setPendingTxs(transactions);
+      setError(null);
+    } catch (err: any) {
+      console.error("Failed to fetch vault data:", err);
+      setError("Failed to fetch vault data");
+      onError?.(new Error("Failed to fetch vault data"));
     } finally {
-      setLoadingState((prev: LoadingState) => ({ ...prev, withdrawal: false }));
+      setLoadingState(prev => ({ ...prev, ethBalance: false }));
     }
-  };
+  }, [vault, setLoadingState, setEthBalance, setPendingTxs, _mock, onError]);
 
   const handleWithdrawal = async (to: Address, amount: bigint, token?: Address) => {
-    if (token) {
-      await handleTokenWithdrawal(to, amount, token);
-    } else {
-      await handleEthWithdrawal(to, amount);
+    if (!address || !vault) {
+      handleNotification({
+        type: 'error',
+        title: "Error",
+        description: "Wallet not connected or vault not initialized"
+      });
+      return;
+    }
+
+    if (!isCorrectChain) {
+      handleNotification({
+        type: 'warning',
+        title: "Wrong Network",
+        description: `Please switch to ${contractInfo.chainName} to perform this operation.`
+      });
+      return;
+    }
+
+    console.log('Handling withdrawal:', { to, amount: amount.toString(), token });
+    
+    setLoadingState((prev: LoadingState) => ({ ...prev, withdrawal: true }));
+    try {
+      let tx;
+      if (token) {
+        // Token withdrawal
+        const tokenBalance = tokenBalances[token]?.balance || BigInt(0);
+        if (amount > tokenBalance) {
+          throw new Error("Amount exceeds token balance in vault");
+        }
+        console.log('Initiating token withdrawal:', { token, to, amount: amount.toString() });
+        tx = await vault.withdrawTokenRequest(token, to, amount, { from: address });
+      } else {
+        // ETH withdrawal
+        if (amount > ethBalance) {
+          throw new Error("Amount exceeds ETH balance in vault");
+        }
+        console.log('Initiating ETH withdrawal:', { to, amount: amount.toString() });
+        tx = await vault.withdrawEthRequest(to, amount, { from: address });
+      }
+
+      handleNotification({
+        type: 'info',
+        title: "Withdrawal Requested",
+        description: `Transaction hash: ${tx.hash}`
+      });
+      
+      const receipt = await tx.wait();
+      console.log('Withdrawal transaction receipt:', receipt);
+
+      if (receipt.status === 'success') {
+        handleNotification({
+          type: 'success',
+          title: "Withdrawal Request Confirmed",
+          description: `Your ${token ? tokenBalances[token]?.metadata?.symbol || 'token' : 'ETH'} withdrawal request has been confirmed.`
+        });
+
+        // Refresh balances and transactions
+        await fetchVaultData();
+        if (token) {
+          await fetchTokenBalance(token);
+        }
+      } else {
+        throw new Error("Transaction failed");
+      }
+    } catch (error: any) {
+      console.error('Withdrawal error:', error);
+      onError?.(error);
+      handleNotification({
+        type: 'error',
+        title: "Withdrawal Error",
+        description: error.message || "Failed to process withdrawal request"
+      });
+    } finally {
+      setLoadingState((prev: LoadingState) => ({ ...prev, withdrawal: false }));
+    }
+  };
+
+  const handleDeposit = async (amount: bigint, token?: Address) => {
+    if (!address || !vault) {
+      handleNotification({
+        type: 'error',
+        title: "Error",
+        description: "Wallet not connected or vault not initialized"
+      });
+      return;
+    }
+
+    if (!isCorrectChain) {
+      handleNotification({
+        type: 'warning',
+        title: "Wrong Network",
+        description: `Please switch to ${contractInfo.chainName} to perform this operation.`
+      });
+      return;
+    }
+    
+    setLoadingState((prev: LoadingState) => ({ ...prev, deposit: true }));
+    try {
+      console.log('Initiating deposit:', { token, amount: amount.toString() });
+      
+      let tx;
+      if (token) {
+        // First check if we need approval
+        const allowance = await vault.getTokenAllowance(token, address);
+        if (allowance < amount) {
+          console.log('Approving token spend:', { token, amount: amount.toString() });
+          const approveTx = await vault.approveTokenAllowance(token, amount, { from: address });
+          await approveTx.wait();
+        }
+
+        // Now deposit the token
+        console.log('Depositing token:', { token, amount: amount.toString() });
+        tx = await vault.depositToken(token, amount, { from: address });
+      } else {
+        // ETH deposit
+        console.log('Depositing ETH:', { amount: amount.toString() });
+        tx = await vault.depositEth(amount, { from: address });
+      }
+
+      handleNotification({
+        type: 'info',
+        title: "Deposit Initiated",
+        description: `Transaction submitted: ${tx.hash}`
+      });
+      
+      const receipt = await tx.wait();
+      
+      if (receipt.status === 'success') {
+        handleNotification({
+          type: 'success',
+          title: "Deposit Confirmed",
+          description: `Your ${token ? tokenBalances[token]?.metadata?.symbol || 'token' : 'ETH'} deposit has been confirmed.`
+        });
+
+        // Refresh balances
+        await fetchVaultData();
+        if (token) {
+          await fetchTokenBalance(token);
+        }
+        
+        // Also refresh wallet balances
+        await fetchWalletBalance(token);
+      } else {
+        throw new Error("Transaction failed");
+      }
+    } catch (error: any) {
+      console.error('Deposit error:', error);
+      onError?.(error);
+      handleNotification({
+        type: 'error',
+        title: "Deposit Error",
+        description: error.message || "Failed to process deposit"
+      });
+    } finally {
+      setLoadingState((prev: LoadingState) => ({ ...prev, deposit: false }));
     }
   };
 
@@ -1104,84 +1068,6 @@ function SimpleVaultUIContent({
     }
   };
 
-  const handleDeposit = async (amount: bigint, token?: Address) => {
-    if (!address || !vault) return;
-    if (!isCorrectChain) {
-      handleNotification({
-        type: 'warning',
-        title: "Wrong Network",
-        description: `Please switch to ${contractInfo.chainName} to perform this operation.`
-      });
-      return;
-    }
-    
-    setLoadingState((prev: LoadingState) => ({ ...prev, withdrawal: true }));
-    try {
-      const tx = token 
-        ? await vault.depositToken(token, amount, { from: address })
-        : await vault.depositEth(amount, { from: address });
-
-      handleNotification({
-        type: 'info',
-        title: "Deposit Initiated",
-        description: `Transaction submitted: ${tx.hash}`
-      });
-      
-      // Wait for transaction confirmation
-      const receipt = await tx.wait();
-      
-      if (receipt.status === 'success') {
-        handleNotification({
-          type: 'success',
-          title: "Deposit Confirmed",
-          description: `Your ${token ? 'token' : 'ETH'} deposit has been confirmed.`
-        });
-
-        // Refresh vault data
-        await fetchVaultData();
-        
-        // If it's a token deposit, refresh the specific token balance
-        if (token) {
-          await fetchTokenBalance(token);
-        }
-      } else {
-        handleNotification({
-          type: 'error',
-          title: "Deposit Failed",
-          description: "The transaction failed to complete."
-        });
-      }
-    } catch (error: any) {
-      onError?.(error);
-      handleNotification({
-        type: 'error',
-        title: "Error",
-        description: error.message
-      });
-    } finally {
-      setLoadingState((prev: LoadingState) => ({ ...prev, withdrawal: false }));
-    }
-  };
-
-  const WithdrawalFormWrapper = () => {
-    const [selectedToken, setSelectedToken] = useState<Address | undefined>(undefined);
-
-    useEffect(() => {
-      if (selectedToken) {
-        fetchTokenBalance(selectedToken);
-      }
-    }, [selectedToken, fetchTokenBalance]);
-
-    return (
-      <WithdrawalForm
-        onSubmit={handleWithdrawal}
-        isLoading={loadingState.withdrawal}
-        maxAmount={selectedToken ? (tokenBalances[selectedToken]?.balance || BigInt(0)) : ethBalance}
-        onTokenSelect={setSelectedToken}
-      />
-    );
-  };
-
   // Add effect to persist tokens to local storage
   useEffect(() => {
     if (!tokenBalances) return;
@@ -1214,6 +1100,55 @@ function SimpleVaultUIContent({
       description: "The token has been removed from your tracking list"
     });
   };
+
+  // Move fetchWalletBalance inside the component with proper scope
+  const fetchWalletBalance = React.useCallback(async (tokenAddress?: Address) => {
+    if (!address || !publicClient) return;
+    
+    try {
+      if (!tokenAddress) {
+        // Fetch ETH balance
+        const ethBalance = await publicClient.getBalance({ 
+          address: address 
+        });
+        setWalletBalances((prev: { eth: bigint; tokens: Record<string, bigint> }) => ({ 
+          ...prev, 
+          eth: ethBalance 
+        }));
+      } else {
+        // Fetch token balance using contract read
+        const balance = await publicClient.readContract({
+          address: tokenAddress,
+          abi: erc20Abi,
+          functionName: 'balanceOf',
+          args: [address]
+        }) as bigint;
+
+        setWalletBalances((prev: { eth: bigint; tokens: Record<string, bigint> }) => ({
+          ...prev,
+          tokens: {
+            ...prev.tokens,
+            [tokenAddress]: balance
+          }
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching wallet balance:', error);
+    }
+  }, [address, publicClient, setWalletBalances]);
+
+  // Add effect to fetch wallet balances
+  useEffect(() => {
+    if (!address) return;
+    
+    // Fetch ETH balance
+    fetchWalletBalance();
+    
+    // Fetch all token balances
+    Object.entries(tokenBalances).forEach(([tokenAddress]) => {
+      fetchWalletBalance(tokenAddress as Address);
+    });
+  }, [address, tokenBalances, fetchWalletBalance]);
 
   // Render sidebar content
   if (renderSidebar) {
@@ -1436,7 +1371,7 @@ function SimpleVaultUIContent({
                       <CardContent>
                         <DepositForm
                           onSubmit={handleDeposit}
-                          isLoading={loadingState.withdrawal}
+                          isLoading={loadingState.deposit}
                         />
                       </CardContent>
                     </Card>
@@ -1451,7 +1386,13 @@ function SimpleVaultUIContent({
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <WithdrawalFormWrapper />
+                        <WithdrawalFormWrapper
+                          handleWithdrawal={handleWithdrawal}
+                          loadingState={loadingState}
+                          ethBalance={ethBalance}
+                          fetchTokenBalance={fetchTokenBalance}
+                          tokenBalances={tokenBalances}
+                        />
                       </CardContent>
                     </Card>
                   </TabsContent>
