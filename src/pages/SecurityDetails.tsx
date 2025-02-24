@@ -1218,178 +1218,183 @@ export function SecurityDetails() {
 
           {/* Pending Operations */}
           <Card className="p-6">
-            <h2 className="text-xl font-bold mb-4">Pending Operations</h2>
-            <div className="space-y-4">
+            <h2 className="text-xl font-bold mb-6">Pending Operations</h2>
+            <div className="space-y-2">
               {operationHistory.filter(op => op.status === TxStatus.PENDING).length > 0 ? (
                 operationHistory
                   .filter(op => op.status === TxStatus.PENDING)
-                  .map((op) => (
-                    <div key={op.txId} className="flex flex-col gap-4 p-4 border rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="rounded-full bg-yellow-500/10 p-2">
-                            <AlertCircle className="h-4 w-4 text-yellow-500" />
-                          </div>
-                          <div>
-                            <p className="font-medium">{op.description}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {op.details.remainingTime > 0
-                                ? `${Math.floor(op.details.remainingTime / 86400)} days remaining`
-                                : 'Ready for approval'}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="space-y-3">
-                        {/* Temporal Option */}
-                        <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
-                          <div className="flex items-center gap-2">
-                            <Timer className="h-4 w-4 text-muted-foreground" />
-                            <div>
-                              <p className="font-medium">Temporal Security</p>
-                              <p className="text-sm text-muted-foreground">Valid after timelock period</p>
+                  .map((op) => {
+                    const statusStyle = getStatusColor(op.status);
+                    const icon = getOperationIcon(op.type);
+                    return (
+                      <Collapsible key={op.txId}>
+                        <div className="group border rounded-lg bg-background">
+                          <CollapsibleTrigger className="w-full">
+                            <div className="flex items-center justify-between p-3 hover:bg-accent/5 transition-colors">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className={`rounded-full p-2 ${statusStyle.bg} shrink-0`}>
+                                  {statusStyle.icon}
+                                </div>
+                                <div className="min-w-0 text-left">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h3 className="text-sm font-semibold truncate">
+                                      {getOperationTitle(op)}
+                                    </h3>
+                                    <Badge variant="secondary" className="capitalize">
+                                      {op.status}
+                                    </Badge>
+                                    {op.details.remainingTime > 0 && (
+                                      <span className="flex items-center gap-1 text-xs text-yellow-500">
+                                        <Timer className="h-3 w-3" />
+                                        {Math.floor(op.details.remainingTime / 86400)}d {Math.floor((op.details.remainingTime % 86400) / 3600)}h
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                                    <Clock className="h-3 w-3" />
+                                    {new Date(op.timestamp * 1000).toLocaleDateString(undefined, {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric'
+                                    })}
+                                    <span>•</span>
+                                    <span className="flex items-center gap-1">
+                                      <Hash className="h-3 w-3" />
+                                      {op.txId}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                              <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
                             </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              disabled={op.releaseTime > Math.floor(Date.now() / 1000)}
-                              onClick={() => {
-                                switch (op.type) {
-                                  case SecurityOperationType.OWNERSHIP_UPDATE:
-                                    void handleTransferOwnershipApproval(op.txId);
-                                    break;
-                                  case SecurityOperationType.BROADCASTER_UPDATE:
-                                    void handleUpdateBroadcasterApproval(op.txId);
-                                    break;
-                                }
-                              }}
-                            >
-                              Approve
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              disabled={op.releaseTime > Math.floor(Date.now() / 1000)}
-                              onClick={() => {
-                                switch (op.type) {
-                                  case SecurityOperationType.OWNERSHIP_UPDATE:
-                                    void handleTransferOwnershipCancellation(op.txId);
-                                    break;
-                                  case SecurityOperationType.BROADCASTER_UPDATE:
-                                    void handleUpdateBroadcasterCancellation(op.txId);
-                                    break;
-                                }
-                              }}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        </div>
-                        {/* Meta Tx Option */}
-                        <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
-                          <div className="flex items-center gap-2">
-                            <Network className="h-4 w-4 text-muted-foreground" />
-                            <div>
-                              <p className="font-medium">Meta Transaction</p>
-                              <p className="text-sm text-muted-foreground">Requires broadcaster wallet</p>
+                          </CollapsibleTrigger>
+                          
+                          <CollapsibleContent>
+                            <div className="px-4 pb-3 pt-1">
+                              <p className="text-sm text-muted-foreground mb-3">
+                                {getOperationDescription(op)}
+                              </p>
+                              
+                              <div className="flex items-center gap-3 px-4 py-3 bg-muted/30 rounded-lg">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-medium text-muted-foreground mb-1">From</p>
+                                  <div className="flex items-center gap-2 text-sm">
+                                    {icon}
+                                    <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
+                                      {formatValue(op.details.oldValue, op.type)}
+                                    </code>
+                                  </div>
+                                </div>
+                                <div className="text-muted-foreground">→</div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-medium text-muted-foreground mb-1">To</p>
+                                  <div className="flex items-center gap-2 text-sm">
+                                    {icon}
+                                    <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
+                                      {formatValue(op.details.newValue, op.type)}
+                                    </code>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-end gap-2 mt-3">
+                                <Dialog open={showBroadcasterApproveDialog} onOpenChange={setShowBroadcasterApproveDialog}>
+                                  <DialogTrigger asChild>
+                                    <Button variant="outline" size="sm" disabled={op.releaseTime > Math.floor(Date.now() / 1000)}>
+                                      Approve
+                                    </Button>
+                                  </DialogTrigger>
+                                  <DialogContent className="sm:max-w-md">
+                                    <DialogHeader>
+                                      <DialogTitle>Approve via Meta Transaction</DialogTitle>
+                                      <DialogDescription>
+                                        Connect the broadcaster wallet to approve this operation.
+                                      </DialogDescription>
+                                    </DialogHeader>
+                                    <SingleWalletManagerProvider
+                                      projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
+                                      autoConnect={false}
+                                      metadata={{
+                                        name: 'OpenBlox Broadcaster',
+                                        description: 'OpenBlox Broadcaster Wallet Connection',
+                                        url: window.location.origin,
+                                        icons: ['https://avatars.githubusercontent.com/u/37784886']
+                                      }}
+                                    >
+                                      <BroadcasterWalletContent 
+                                        contractInfo={contractInfo}
+                                        onSuccess={() => {
+                                          switch (op.type) {
+                                            case SecurityOperationType.OWNERSHIP_UPDATE:
+                                              void handleTransferOwnershipApproval(op.txId);
+                                              break;
+                                            case SecurityOperationType.BROADCASTER_UPDATE:
+                                              void handleUpdateBroadcasterApproval(op.txId);
+                                              break;
+                                          }
+                                          setShowBroadcasterApproveDialog(false);
+                                        }}
+                                        onClose={() => setShowBroadcasterApproveDialog(false)}
+                                        actionLabel="Approve Operation"
+                                      />
+                                    </SingleWalletManagerProvider>
+                                  </DialogContent>
+                                </Dialog>
+                                <Dialog open={showBroadcasterCancelDialog} onOpenChange={setShowBroadcasterCancelDialog}>
+                                  <DialogTrigger asChild>
+                                    <Button variant="outline" size="sm" disabled={op.releaseTime > Math.floor(Date.now() / 1000)}>
+                                      Cancel
+                                    </Button>
+                                  </DialogTrigger>
+                                  <DialogContent className="sm:max-w-md">
+                                    <DialogHeader>
+                                      <DialogTitle>Cancel via Meta Transaction</DialogTitle>
+                                      <DialogDescription>
+                                        Connect the broadcaster wallet to cancel this operation.
+                                      </DialogDescription>
+                                    </DialogHeader>
+                                    <SingleWalletManagerProvider
+                                      projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
+                                      autoConnect={false}
+                                      metadata={{
+                                        name: 'OpenBlox Broadcaster',
+                                        description: 'OpenBlox Broadcaster Wallet Connection',
+                                        url: window.location.origin,
+                                        icons: ['https://avatars.githubusercontent.com/u/37784886']
+                                      }}
+                                    >
+                                      <BroadcasterWalletContent 
+                                        contractInfo={contractInfo}
+                                        onSuccess={() => {
+                                          switch (op.type) {
+                                            case SecurityOperationType.OWNERSHIP_UPDATE:
+                                              void handleTransferOwnershipCancellation(op.txId);
+                                              break;
+                                            case SecurityOperationType.BROADCASTER_UPDATE:
+                                              void handleUpdateBroadcasterCancellation(op.txId);
+                                              break;
+                                          }
+                                          setShowBroadcasterCancelDialog(false);
+                                        }}
+                                        onClose={() => setShowBroadcasterCancelDialog(false)}
+                                        actionLabel="Cancel Operation"
+                                      />
+                                    </SingleWalletManagerProvider>
+                                  </DialogContent>
+                                </Dialog>
+                              </div>
                             </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <Dialog open={showBroadcasterApproveDialog} onOpenChange={setShowBroadcasterApproveDialog}>
-                              <DialogTrigger asChild>
-                                <Button variant="outline" size="sm">
-                                  Approve
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent className="sm:max-w-md">
-                                <DialogHeader>
-                                  <DialogTitle>Approve via Meta Transaction</DialogTitle>
-                                  <DialogDescription>
-                                    Connect the broadcaster wallet to approve this operation.
-                                  </DialogDescription>
-                                </DialogHeader>
-                                <SingleWalletManagerProvider
-                                  projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
-                                  autoConnect={false}
-                                  metadata={{
-                                    name: 'OpenBlox Broadcaster',
-                                    description: 'OpenBlox Broadcaster Wallet Connection',
-                                    url: window.location.origin,
-                                    icons: ['https://avatars.githubusercontent.com/u/37784886']
-                                  }}
-                                >
-                                  <BroadcasterWalletContent 
-                                    contractInfo={contractInfo}
-                                    onSuccess={() => {
-                                      switch (op.type) {
-                                        case SecurityOperationType.OWNERSHIP_UPDATE:
-                                          void handleTransferOwnershipApproval(op.txId);
-                                          break;
-                                        case SecurityOperationType.BROADCASTER_UPDATE:
-                                          void handleUpdateBroadcasterApproval(op.txId);
-                                          break;
-                                      }
-                                      setShowBroadcasterApproveDialog(false);
-                                    }}
-                                    onClose={() => setShowBroadcasterApproveDialog(false)}
-                                    actionLabel="Approve Operation"
-                                  />
-                                </SingleWalletManagerProvider>
-                              </DialogContent>
-                            </Dialog>
-                            <Dialog open={showBroadcasterCancelDialog} onOpenChange={setShowBroadcasterCancelDialog}>
-                              <DialogTrigger asChild>
-                                <Button variant="outline" size="sm">
-                                  Cancel
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent className="sm:max-w-md">
-                                <DialogHeader>
-                                  <DialogTitle>Cancel via Meta Transaction</DialogTitle>
-                                  <DialogDescription>
-                                    Connect the broadcaster wallet to cancel this operation.
-                                  </DialogDescription>
-                                </DialogHeader>
-                                <SingleWalletManagerProvider
-                                  projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
-                                  autoConnect={false}
-                                  metadata={{
-                                    name: 'OpenBlox Broadcaster',
-                                    description: 'OpenBlox Broadcaster Wallet Connection',
-                                    url: window.location.origin,
-                                    icons: ['https://avatars.githubusercontent.com/u/37784886']
-                                  }}
-                                >
-                                  <BroadcasterWalletContent 
-                                    contractInfo={contractInfo}
-                                    onSuccess={() => {
-                                      switch (op.type) {
-                                        case SecurityOperationType.OWNERSHIP_UPDATE:
-                                          void handleTransferOwnershipCancellation(op.txId);
-                                          break;
-                                        case SecurityOperationType.BROADCASTER_UPDATE:
-                                          void handleUpdateBroadcasterCancellation(op.txId);
-                                          break;
-                                      }
-                                      setShowBroadcasterCancelDialog(false);
-                                    }}
-                                    onClose={() => setShowBroadcasterCancelDialog(false)}
-                                    actionLabel="Cancel Operation"
-                                  />
-                                </SingleWalletManagerProvider>
-                              </DialogContent>
-                            </Dialog>
-                          </div>
+                          </CollapsibleContent>
                         </div>
-                      </div>
-                    </div>
-                  ))
+                      </Collapsible>
+                    );
+                  })
               ) : (
-                <p className="text-center text-muted-foreground py-4">
-                  No pending operations
-                </p>
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                  <History className="h-12 w-12 mb-4 opacity-50" />
+                  <p className="text-sm font-medium">No pending operations</p>
+                  <p className="text-xs mt-1">Pending operations will appear here</p>
+                </div>
               )}
             </div>
           </Card>
