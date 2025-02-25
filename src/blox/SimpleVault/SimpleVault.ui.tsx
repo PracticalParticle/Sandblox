@@ -75,8 +75,8 @@ interface LoadingState {
   tokenBalance: boolean;
   withdrawal: boolean;
   deposit: boolean;
-  approval: boolean;
-  cancellation: boolean;
+  approval: Record<number, boolean>;  // Map of txId to loading state
+  cancellation: Record<number, boolean>;  // Map of txId to loading state
   initialization: boolean;
 }
 
@@ -85,8 +85,8 @@ const loadingStateAtom = atom<LoadingState>({
   tokenBalance: false,
   withdrawal: false,
   deposit: false,
-  approval: false,
-  cancellation: false,
+  approval: {},
+  cancellation: {},
   initialization: true,
 });
 
@@ -363,7 +363,12 @@ const PendingTransaction = ({ tx, onApprove, onCancel, isLoading }: PendingTrans
                 disabled={!isReady || isLoading || tx.status !== TxStatus.PENDING || progress < 100}
                 className="flex-1"
               >
-                {isLoading ? "Processing..." : "Approve"}
+                {isLoading ? (
+                  <div className="flex items-center">
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Processing...
+                  </div>
+                ) : "Approve"}
               </Button>
               <Button
                 variant="destructive"
@@ -371,7 +376,12 @@ const PendingTransaction = ({ tx, onApprove, onCancel, isLoading }: PendingTrans
                 disabled={isLoading || tx.status !== TxStatus.PENDING}
                 className="flex-1"
               >
-                {isLoading ? "Processing..." : "Cancel"}
+                {isLoading ? (
+                  <div className="flex items-center">
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Processing...
+                  </div>
+                ) : "Cancel"}
               </Button>
             </div>
           </div>
@@ -1013,7 +1023,7 @@ function SimpleVaultUIContent({
       return;
     }
     
-    setLoadingState((prev: LoadingState) => ({ ...prev, approval: true }));
+    setLoadingState((prev: LoadingState) => ({ ...prev, approval: { ...prev.approval, [txId]: true } }));
     try {
       const tx = await vault.approveWithdrawalAfterDelay(txId, { from: address });
       handleNotification({
@@ -1032,7 +1042,7 @@ function SimpleVaultUIContent({
         description: error.message
       });
     } finally {
-      setLoadingState((prev: LoadingState) => ({ ...prev, approval: false }));
+      setLoadingState((prev: LoadingState) => ({ ...prev, approval: { ...prev.approval, [txId]: false } }));
     }
   };
 
@@ -1047,7 +1057,7 @@ function SimpleVaultUIContent({
       return;
     }
     
-    setLoadingState((prev: LoadingState) => ({ ...prev, cancellation: true }));
+    setLoadingState((prev: LoadingState) => ({ ...prev, cancellation: { ...prev.cancellation, [txId]: true } }));
     try {
       const tx = await vault.cancelWithdrawal(txId, { from: address });
       handleNotification({
@@ -1066,7 +1076,7 @@ function SimpleVaultUIContent({
         description: error.message
       });
     } finally {
-      setLoadingState((prev: LoadingState) => ({ ...prev, cancellation: false }));
+      setLoadingState((prev: LoadingState) => ({ ...prev, cancellation: { ...prev.cancellation, [txId]: false } }));
     }
   };
 
@@ -1422,7 +1432,7 @@ function SimpleVaultUIContent({
                                 tx={tx}
                                 onApprove={handleApproveWithdrawal}
                                 onCancel={handleCancelWithdrawal}
-                                isLoading={loadingState.approval || loadingState.cancellation}
+                                isLoading={loadingState.approval[tx.txId] || loadingState.cancellation[tx.txId]}
                               />
                             ))
                           )}
@@ -1443,7 +1453,7 @@ function SimpleVaultUIContent({
                           tx={tx}
                           onApprove={handleApproveWithdrawal}
                           onCancel={handleCancelWithdrawal}
-                          isLoading={loadingState.approval || loadingState.cancellation}
+                          isLoading={loadingState.approval[tx.txId] || loadingState.cancellation[tx.txId]}
                         />
                       ))}
                       {pendingTxs.length > 2 && (

@@ -202,7 +202,7 @@ const BloxMiniApp: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col flex-1">
       {/* Header */}
       <div className="flex items-center justify-between p-6 border-b">
         <h1 className="text-2xl font-bold">Blox Mini App</h1>
@@ -235,7 +235,7 @@ const BloxMiniApp: React.FC = () => {
                 <ChevronLeft className="h-4 w-4" />
               </Button>
             </div>
-            <ScrollArea className="h-[calc(100vh-12rem)] p-4">
+            <ScrollArea className="h-[calc(100%-3rem)] p-4">
               {!loading && !error && bloxContract && (
                 <Suspense fallback={
                   <div className="flex items-center justify-center py-4">
