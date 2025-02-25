@@ -339,15 +339,18 @@ const PendingTransaction = ({ tx, onApprove, onCancel, isLoading }: PendingTrans
         <CardContent className="pt-6">
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <div>
-                <p className="font-medium">Transaction #{tx.txId.toString()}</p>
+              <div className="text-left">
+                <div className="flex items-center gap-2">
+                
+                  {tx.status === TxStatus.PENDING && <Clock className="h-4 w-4 text-yellow-500" />}
+                  {tx.status === TxStatus.CANCELLED && <XCircle className="h-4 w-4 text-red-500" />}
+                  {tx.status === TxStatus.COMPLETED && <CheckCircle2 className="h-4 w-4 text-green-500" />}
+                  <p className="font-medium">Transaction #{tx.txId.toString()}</p>
+                </div>
                 <p className="text-sm text-muted-foreground">
                   Amount: {tx.type === "ETH" ? formatEther(amount) : formatUnits(amount, 18)} {tx.type}
                 </p>
                 <p className="text-sm text-muted-foreground">To: {tx.target}</p>
-                {tx.status === TxStatus.PENDING && <Clock className="h-5 w-5 text-yellow-500" />}
-                {tx.status === TxStatus.CANCELLED && <XCircle className="h-5 w-5 text-red-500" />}
-                {tx.status === TxStatus.COMPLETED && <CheckCircle2 className="h-5 w-5 text-green-500" />}
               </div>
             </div>
             <div className="space-y-2">
