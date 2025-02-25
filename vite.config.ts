@@ -47,10 +47,6 @@ export default defineConfig({
           wss://*.walletconnect.org 
           https://*.walletconnect.com 
           wss://*.walletconnect.com 
-          https://*.alchemyapi.io 
-          wss://*.alchemyapi.io 
-          https://eth-mainnet.g.alchemy.com 
-          https://eth-sepolia.g.alchemy.com 
           https://explorer-api.walletconnect.com 
           https://remote-ganache-1.tailb0865.ts.net
           https://*.merkle.io;

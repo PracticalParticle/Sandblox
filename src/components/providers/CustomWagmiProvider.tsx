@@ -4,26 +4,21 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RainbowKitProvider, getDefaultConfig } from '@rainbow-me/rainbowkit';
 import { mainnet, sepolia } from 'wagmi/chains';
 import { localDevnet } from '@/config/chains';
+import { Transport } from 'wagmi';
 
 // Create a new QueryClient instance
 const queryClient = new QueryClient();
 
 // Initialize transports based on available environment variables
-const transports: Record<number, ReturnType<typeof http>> = {};
-
-// Add mainnet transport if API key is available
-if (import.meta.env.VITE_ALCHEMY_API_KEY) {
-  transports[mainnet.id] = http(`https://eth-mainnet.g.alchemy.com/v2/${import.meta.env.VITE_ALCHEMY_API_KEY}`);
-  transports[sepolia.id] = http(`https://eth-sepolia.g.alchemy.com/v2/${import.meta.env.VITE_ALCHEMY_API_KEY}`);
-}
+const transports: Record<number, Transport> = {
+  [mainnet.id]: http(),
+  [sepolia.id]: http()
+};
 
 // Always add local devnet transport
 transports[localDevnet.id] = http(localDevnet.rpcUrls.default.http[0]);
 
-// Get available chains based on transports
-const availableChains = import.meta.env.VITE_ALCHEMY_API_KEY 
-  ? [localDevnet, mainnet, sepolia] as const
-  : [localDevnet] as const;
+const availableChains = [localDevnet, mainnet, sepolia] as const;
 
 const wagmiConfig = getDefaultConfig({
   appName: import.meta.env.VITE_APP_NAME || 'OpenBlox UI',

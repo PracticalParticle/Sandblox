@@ -238,7 +238,7 @@ Implement comprehensive security headers through Vite middleware:
 "security-headers": {  
   "content-security-policy": {  
     "default-src": "'self'",  
-    "connect-src": ["https://*.alchemyapi.io", "wss://*.alchemyapi.io"]  
+    "connect-src": ["https://api.example.com", "wss://api.example.com"]  
   },  
   "permissions-policy": {  
     "interest-cohort": "()",  
