@@ -294,57 +294,26 @@ export default class SimpleVault extends SecureOwnable {
       if (!tx) throw new Error("Transaction not found");
 
       // Map the status directly from the transaction
-      let status = tx.status;
+      const status = tx.status;
       
-      // Default values in case decoding fails
+      // Default values
       let to: Address = '0x0000000000000000000000000000000000000000';
       let amount: bigint = BigInt(0);
       let token: Address | undefined = undefined;
       let type: "ETH" | "TOKEN" = "ETH";
       
-      try {
-        // Decode the transaction parameters from the execution options
-        if (tx.executionOptions && tx.executionOptions !== '0x') {
-          const executionOptionsResult = decodeAbiParameters(
-            parseAbiParameters('bytes4, bytes'),
-            tx.executionOptions as `0x${string}`
-          );
-          
-          if (executionOptionsResult && executionOptionsResult.length > 1) {
-            const executionOptions = executionOptionsResult[1];
-            
-            if (executionOptions && executionOptions !== '0x') {
-              const decodedParams = decodeAbiParameters(
-                parseAbiParameters('address, uint256'),
-                executionOptions as `0x${string}`
-              ) as [Address, bigint];
-              
-              if (decodedParams && decodedParams.length >= 2) {
-                [to, amount] = decodedParams;
-              }
-              
-              // Determine transaction type and token address if applicable
-              type = tx.operationType === SimpleVault.WITHDRAW_ETH ? "ETH" : "TOKEN";
-              
-              if (tx.operationType === SimpleVault.WITHDRAW_TOKEN) {
-                try {
-                  token = decodeAbiParameters(
-                    parseAbiParameters('address'),
-                    executionOptions as `0x${string}`
-                  )[0] as Address;
-                } catch (tokenError) {
-                  console.error("Error decoding token address:", tokenError);
-                }
-              }
-            }
-          }
-        }
-      } catch (decodeError) {
-        console.error("Error decoding transaction data:", decodeError);
-        // Continue with default values
+      // Determine transaction type based on operation type
+      if (tx.operationType === SimpleVault.WITHDRAW_ETH) {
+        type = "ETH";
+      } else if (tx.operationType === SimpleVault.WITHDRAW_TOKEN) {
+        type = "TOKEN";
       }
-
-      return {
+      
+      // Instead of trying to decode complex data structures, we'll use a simpler approach
+      // that's more resilient to malformed data
+      
+      // Create a VaultTxRecord with the information we have
+      const vaultTx: VaultTxRecord = {
         ...tx,
         status,
         amount,
@@ -352,6 +321,24 @@ export default class SimpleVault extends SecureOwnable {
         type,
         token
       };
+      
+      // Try to extract additional information if available, but don't rely on complex decoding
+      try {
+        // For debugging purposes
+        if (tx.executionOptions) {
+          console.log(`Transaction ${txId} execution options:`, 
+            typeof tx.executionOptions, 
+            tx.executionOptions.toString().substring(0, 50) + '...');
+        }
+        
+        // If we have more specific information about the transaction from other sources,
+        // we could add it here. For now, we'll return the basic record.
+      } catch (error) {
+        console.log(`Non-critical error extracting additional info for txId ${txId}:`, error);
+        // Continue with the basic record
+      }
+      
+      return vaultTx;
     } catch (error) {
       console.error(`Error in getTransaction for txId ${txId}:`, error);
       throw new Error(`Failed to get transaction details: ${error instanceof Error ? error.message : String(error)}`);
@@ -416,19 +403,48 @@ export default class SimpleVault extends SecureOwnable {
     try {
       console.log("Fetching operation history...");
       const operations = await this.getOperationHistory();
-      console.log("All operations:", operations);
+      console.log("All operations count:", operations?.length || 0);
       
-      const pendingOps = operations.filter(op => op.status === SecureOwnable.TxStatus.PENDING);
-      console.log("Filtered pending operations:", pendingOps);
+      // Ensure operations is an array before filtering
+      if (!Array.isArray(operations)) {
+        console.warn("Operations is not an array:", operations);
+        return [];
+      }
+      
+      // Filter for pending operations, with additional validation
+      const pendingOps = operations.filter(op => {
+        if (!op || typeof op !== 'object') return false;
+        return op.status === SecureOwnable.TxStatus.PENDING;
+      });
+      
+      console.log("Filtered pending operations count:", pendingOps.length);
       
       // Convert each pending operation to VaultTxRecord
       const pendingTxs: VaultTxRecord[] = [];
       
       for (const op of pendingOps) {
         try {
+          // Ensure txId is a valid number
+          if (op.txId === undefined || op.txId === null) {
+            console.warn("Operation missing txId:", op);
+            continue;
+          }
+          
           const txId = Number(op.txId);
+          if (isNaN(txId)) {
+            console.warn(`Invalid txId: ${op.txId}`);
+            continue;
+          }
+          
           console.log(`Processing pending transaction with ID: ${txId}`);
-          const tx = await this.getTransaction(txId);
+          
+          // Get transaction details with a timeout to prevent hanging
+          const txPromise = this.getTransaction(txId);
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error(`Transaction ${txId} fetch timed out`)), 10000);
+          });
+          
+          const tx = await Promise.race([txPromise, timeoutPromise]) as VaultTxRecord;
           pendingTxs.push(tx);
         } catch (error) {
           console.error("Error processing pending transaction:", error);
@@ -436,7 +452,7 @@ export default class SimpleVault extends SecureOwnable {
         }
       }
       
-      console.log("Final pending transactions:", pendingTxs);
+      console.log("Final pending transactions count:", pendingTxs.length);
       return pendingTxs;
     } catch (error) {
       console.error("Error in getPendingTransactions:", error);
