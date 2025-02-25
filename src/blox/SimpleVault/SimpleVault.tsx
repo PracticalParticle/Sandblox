@@ -289,43 +289,123 @@ export default class SimpleVault extends SecureOwnable {
    * @return Transaction record with status
    */
   async getTransaction(txId: number): Promise<VaultTxRecord> {
-    const tx = await this.getOperation(txId);
-    if (!tx) throw new Error("Transaction not found");
+    try {
+      const tx = await this.getOperation(txId);
+      if (!tx) throw new Error("Transaction not found");
 
-    // Map the status directly from the transaction
-    let status = tx.status;
-    
-    // Decode the transaction parameters from the execution options
-    const executionOptions = decodeAbiParameters(
-      parseAbiParameters('bytes4, bytes'),
-      tx.executionOptions as `0x${string}`
-    )[1];
+      // Map the status directly from the transaction
+      let status = tx.status;
+      
+      // Default values in case decoding fails
+      let to: Address = '0x0000000000000000000000000000000000000000';
+      let amount: bigint = BigInt(0);
+      let token: Address | undefined = undefined;
+      let type: "ETH" | "TOKEN" = "ETH";
+      
+      try {
+        // Decode the transaction parameters from the execution options
+        if (tx.executionOptions && tx.executionOptions !== '0x') {
+          const executionOptionsResult = decodeAbiParameters(
+            parseAbiParameters('bytes4, bytes'),
+            tx.executionOptions as `0x${string}`
+          );
+          
+          if (executionOptionsResult && executionOptionsResult.length > 1) {
+            const executionOptions = executionOptionsResult[1];
+            
+            if (executionOptions && executionOptions !== '0x') {
+              const decodedParams = decodeAbiParameters(
+                parseAbiParameters('address, uint256'),
+                executionOptions as `0x${string}`
+              ) as [Address, bigint];
+              
+              if (decodedParams && decodedParams.length >= 2) {
+                [to, amount] = decodedParams;
+              }
+              
+              // Determine transaction type and token address if applicable
+              type = tx.operationType === SimpleVault.WITHDRAW_ETH ? "ETH" : "TOKEN";
+              
+              if (tx.operationType === SimpleVault.WITHDRAW_TOKEN) {
+                try {
+                  token = decodeAbiParameters(
+                    parseAbiParameters('address'),
+                    executionOptions as `0x${string}`
+                  )[0] as Address;
+                } catch (tokenError) {
+                  console.error("Error decoding token address:", tokenError);
+                }
+              }
+            }
+          }
+        }
+      } catch (decodeError) {
+        console.error("Error decoding transaction data:", decodeError);
+        // Continue with default values
+      }
 
-    const [to, amount] = decodeAbiParameters(
-      parseAbiParameters('address, uint256'),
-      executionOptions
-    ) as [Address, bigint];
-
-    return {
-      ...tx,
-      status,
-      amount,
-      to,
-      type: tx.operationType === SimpleVault.WITHDRAW_ETH ? "ETH" : "TOKEN",
-      token: tx.operationType === SimpleVault.WITHDRAW_TOKEN ? (decodeAbiParameters(
-        parseAbiParameters('address'),
-        executionOptions
-      )[0] as Address) : undefined
-    };
+      return {
+        ...tx,
+        status,
+        amount,
+        to,
+        type,
+        token
+      };
+    } catch (error) {
+      console.error(`Error in getTransaction for txId ${txId}:`, error);
+      throw new Error(`Failed to get transaction details: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   async getOperationHistory(): Promise<TxRecord[]> {
-    const result = await this.publicClient.readContract({
-      address: this.address,
-      abi: SimpleVaultABI,
-      functionName: 'getOperationHistory'
-    }) as TxRecord[];
-    return result;
+    try {
+      console.log("Reading operation history from contract...");
+      const result = await this.publicClient.readContract({
+        address: this.address,
+        abi: SimpleVaultABI,
+        functionName: 'getOperationHistory'
+      });
+      
+      console.log("Raw operation history result:", result);
+      
+      // Ensure we have a valid array result
+      if (!Array.isArray(result)) {
+        console.error("Operation history is not an array:", result);
+        return [];
+      }
+      
+      // Convert and validate each record
+      const records = result.map((record: any) => {
+        // Ensure each record has the required fields
+        if (!record || typeof record !== 'object') {
+          console.warn("Invalid record in operation history:", record);
+          return null;
+        }
+        
+        try {
+          // Ensure txId is a bigint
+          const txId = typeof record.txId === 'bigint' ? record.txId : BigInt(record.txId || 0);
+          
+          return {
+            ...record,
+            txId,
+            // Ensure other bigint fields are properly converted
+            releaseTime: typeof record.releaseTime === 'bigint' ? record.releaseTime : BigInt(record.releaseTime || 0),
+            value: typeof record.value === 'bigint' ? record.value : BigInt(record.value || 0),
+            gasLimit: typeof record.gasLimit === 'bigint' ? record.gasLimit : BigInt(record.gasLimit || 0)
+          } as TxRecord;
+        } catch (error) {
+          console.error("Error processing record:", error, record);
+          return null;
+        }
+      }).filter((record): record is TxRecord => record !== null);
+      
+      return records;
+    } catch (error) {
+      console.error("Error fetching operation history:", error);
+      return [];
+    }
   }
 
   /**
@@ -333,18 +413,36 @@ export default class SimpleVault extends SecureOwnable {
    * @return Array of transaction records with status
    */
   async getPendingTransactions(): Promise<VaultTxRecord[]> {
-    const operations = await this.getOperationHistory();
-    const pendingOps = operations.filter(op => op.status === SecureOwnable.TxStatus.PENDING);
-    
-    // Convert each pending operation to VaultTxRecord
-    const pendingTxs = await Promise.all(
-      pendingOps.map(async (op) => {
-        const txId = Number(op.txId);
-        return await this.getTransaction(txId);
-      })
-    );
-
-    return pendingTxs;
+    try {
+      console.log("Fetching operation history...");
+      const operations = await this.getOperationHistory();
+      console.log("All operations:", operations);
+      
+      const pendingOps = operations.filter(op => op.status === SecureOwnable.TxStatus.PENDING);
+      console.log("Filtered pending operations:", pendingOps);
+      
+      // Convert each pending operation to VaultTxRecord
+      const pendingTxs: VaultTxRecord[] = [];
+      
+      for (const op of pendingOps) {
+        try {
+          const txId = Number(op.txId);
+          console.log(`Processing pending transaction with ID: ${txId}`);
+          const tx = await this.getTransaction(txId);
+          pendingTxs.push(tx);
+        } catch (error) {
+          console.error("Error processing pending transaction:", error);
+          // Continue with next transaction instead of failing the entire batch
+        }
+      }
+      
+      console.log("Final pending transactions:", pendingTxs);
+      return pendingTxs;
+    } catch (error) {
+      console.error("Error in getPendingTransactions:", error);
+      // Return empty array instead of failing
+      return [];
+    }
   }
 
   /**

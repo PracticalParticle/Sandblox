@@ -729,7 +729,12 @@ function SimpleVaultUIContent({
   // Initialize vault instance and fetch data once
   useEffect(() => {
     const initializeVault = async () => {
-      console.log('Initializing vault with params:', { publicClient, chain, contractAddress });
+      console.log('Initializing vault with params:', { 
+        publicClient: !!publicClient, 
+        chain: chain?.id, 
+        contractAddress 
+      });
+      
       if (!publicClient || !chain) {
         console.log('Missing required dependencies:', { publicClient: !!publicClient, chain: !!chain });
         return;
@@ -743,6 +748,7 @@ function SimpleVaultUIContent({
       
       try {
         setLoadingState(prev => ({ ...prev, initialization: true }));
+        console.log('Creating new vault instance...');
         const vaultInstance = new SimpleVault(publicClient, walletClient, contractAddress, chain);
         console.log('Vault instance created successfully');
         setVault(vaultInstance);
@@ -752,22 +758,39 @@ function SimpleVaultUIContent({
         if (!_mock) {
           try {
             console.log('Fetching initial vault data...');
-            const [balance, transactions] = await Promise.all([
-              vaultInstance.getEthBalance(),
-              vaultInstance.getPendingTransactions()
-            ]);
+            // Fetch ETH balance first
+            let balance: bigint;
+            try {
+              balance = await vaultInstance.getEthBalance();
+              console.log('Initial ETH balance:', balance.toString());
+              setEthBalance(balance);
+            } catch (balanceError) {
+              console.error('Failed to fetch initial ETH balance:', balanceError);
+              // Continue with default balance
+              balance = BigInt(0);
+            }
             
-            console.log('Initial vault data:', { balance: balance.toString(), transactions });
-            setEthBalance(balance);
-            setPendingTxs(transactions);
-          } catch (err: any) {
-            console.error("Failed to fetch initial vault data:", err);
+            // Then fetch pending transactions
+            let transactions: VaultTxRecord[] = [];
+            try {
+              transactions = await vaultInstance.getPendingTransactions();
+              console.log('Initial pending transactions:', transactions);
+              setPendingTxs(transactions);
+            } catch (txError) {
+              console.error('Failed to fetch initial pending transactions:', txError);
+              // Continue with empty transactions array
+            }
+            
+            console.log('Initial vault data fetched successfully');
+          } catch (dataError: any) {
+            console.error("Failed to fetch initial vault data:", dataError);
+            setError(`Failed to fetch initial vault data: ${dataError.message || String(dataError)}`);
           }
         }
-      } catch (err: any) {
-        console.error("Failed to initialize vault:", err);
-        setError("Failed to initialize vault contract");
-        onError?.(new Error("Failed to initialize vault contract"));
+      } catch (initError: any) {
+        console.error("Failed to initialize vault:", initError);
+        setError(`Failed to initialize vault contract: ${initError.message || String(initError)}`);
+        onError?.(new Error(`Failed to initialize vault contract: ${initError.message || String(initError)}`));
       } finally {
         setLoadingState(prev => ({ ...prev, initialization: false }));
       }
@@ -835,23 +858,39 @@ function SimpleVaultUIContent({
   }, [vault, tokenBalances]);
 
   const fetchVaultData = React.useCallback(async () => {
-    if (!vault || _mock) return;
+    if (!vault || _mock) {
+      console.log("Skipping fetchVaultData: vault not initialized or using mock data");
+      return;
+    }
+    
+    console.log("Starting to fetch vault data...");
+    setLoadingState(prev => ({ ...prev, ethBalance: true }));
     
     try {
-      setLoadingState(prev => ({ ...prev, ethBalance: true }));
-      
-      const [balance, transactions] = await Promise.all([
-        vault.getEthBalance(),
-        vault.getPendingTransactions()
-      ]);
-      
+      // Fetch ETH balance first
+      console.log("Fetching ETH balance...");
+      const balance = await vault.getEthBalance();
+      console.log("ETH balance fetched:", balance.toString());
       setEthBalance(balance);
+      
+      // Then fetch pending transactions
+      console.log("Fetching pending transactions...");
+      let transactions: VaultTxRecord[] = [];
+      try {
+        transactions = await vault.getPendingTransactions();
+        console.log("Pending transactions fetched:", transactions);
+      } catch (txError) {
+        console.error("Error fetching pending transactions:", txError);
+        // Don't fail the entire operation if just transactions fail
+      }
+      
       setPendingTxs(transactions);
       setError(null);
     } catch (err: any) {
       console.error("Failed to fetch vault data:", err);
-      setError("Failed to fetch vault data");
-      onError?.(new Error("Failed to fetch vault data"));
+      // Don't update state if there was an error fetching the balance
+      setError("Failed to fetch vault data: " + (err.message || String(err)));
+      onError?.(new Error("Failed to fetch vault data: " + (err.message || String(err))));
     } finally {
       setLoadingState(prev => ({ ...prev, ethBalance: false }));
     }
