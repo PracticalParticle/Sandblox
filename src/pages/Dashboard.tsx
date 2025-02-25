@@ -192,15 +192,6 @@ const DeployedContract = ({
           )}
         </div>
       </div>
-
-      {/* Show placeholder when type is unknown */}
-      {contract.type === 'unknown' && (
-        <div className="flex flex-col items-center justify-center h-[200px] rounded-lg border-2 border-dashed border-muted-foreground/20">
-          <p className="text-muted-foreground text-sm">
-            Click "Auto Detect" to identify the contract type or select it manually
-          </p>
-        </div>
-      )}
     </Card>
   );
 };
@@ -263,7 +254,7 @@ export function Dashboard(): JSX.Element {
       // Create new contract entry with unknown type initially
       const newContract = {
         id: contractInfo.address,
-        name: 'Imported Contract',
+        name: 'Particle Secured Contract',
         address: contractInfo.address,
         type: 'unknown',
         chainId: contractInfo.chainId,
