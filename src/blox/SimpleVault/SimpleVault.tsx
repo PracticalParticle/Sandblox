@@ -39,8 +39,8 @@ export default class SimpleVault extends SecureOwnable {
   protected chain: Chain;
 
   // Constants for operation types
-  static readonly WITHDRAW_ETH = "WITHDRAW_ETH" as SecurityOperationType;
-  static readonly WITHDRAW_TOKEN = "WITHDRAW_TOKEN" as SecurityOperationType;
+  static readonly WITHDRAW_ETH = "WITHDRAW_ETH";
+  static readonly WITHDRAW_TOKEN = "WITHDRAW_TOKEN";
 
   /**
    * @notice Creates a new SimpleVault instance
@@ -98,7 +98,7 @@ export default class SimpleVault extends SecureOwnable {
   async withdrawEthRequest(
     to: Address,
     amount: bigint,
-    options: TransactionOptions = {}
+    options: TransactionOptions
   ): Promise<TransactionResult> {
     if (!this.walletClient) throw new Error("WalletClient required for write operations");
     if (!options.from) throw new Error("Sender address required");
@@ -138,7 +138,7 @@ export default class SimpleVault extends SecureOwnable {
     token: Address,
     to: Address,
     amount: bigint,
-    options: TransactionOptions = {}
+    options: TransactionOptions
   ): Promise<TransactionResult> {
     if (!this.walletClient) throw new Error("WalletClient required for write operations");
     if (!options.from) throw new Error("Sender address required");
@@ -174,7 +174,7 @@ export default class SimpleVault extends SecureOwnable {
    */
   async approveWithdrawalAfterDelay(
     txId: number,
-    options: TransactionOptions = {}
+    options: TransactionOptions
   ): Promise<TransactionResult> {
     if (!this.walletClient) throw new Error("WalletClient required for write operations");
     if (!options.from) throw new Error("Sender address required");
@@ -215,7 +215,7 @@ export default class SimpleVault extends SecureOwnable {
    */
   async cancelWithdrawal(
     txId: number,
-    options: TransactionOptions = {}
+    options: TransactionOptions
   ): Promise<TransactionResult> {
     if (!this.walletClient) throw new Error("WalletClient required for write operations");
     if (!options.from) throw new Error("Sender address required");
@@ -257,7 +257,7 @@ export default class SimpleVault extends SecureOwnable {
    */
   async approveWithdrawalWithMetaTx(
     metaTx: MetaTransaction,
-    options: TransactionOptions = {}
+    options: TransactionOptions
   ): Promise<TransactionResult> {
     if (!this.walletClient) throw new Error("WalletClient required for write operations");
     if (!options.from) throw new Error("Sender address required");
@@ -326,13 +326,13 @@ export default class SimpleVault extends SecureOwnable {
     return result;
   }
 
-  /**
-   * @notice Gets all pending transactions for the vault
-   * @return Array of transaction records with status
-   */
-    async getPendingTransactions(): Promise<VaultTxRecord[]> {
-      return await super.getPendingTransactions() as VaultTxRecord[];
-  }
+  // /**
+  //  * @notice Gets all pending transactions for the vault
+  //  * @return Array of transaction records with status
+  //  */
+  //   async getPendingTransactions(): Promise<VaultTxRecord[]> {
+  //     return await super.getPendingTransactions() as VaultTxRecord[];
+  // }
 
   /**
    * @notice Gets the token metadata
@@ -409,7 +409,7 @@ export default class SimpleVault extends SecureOwnable {
   async approveTokenAllowance(
     token: Address,
     amount: bigint,
-    options: TransactionOptions = {}
+    options: TransactionOptions
   ): Promise<TransactionResult> {
     if (!this.walletClient) throw new Error("WalletClient required for write operations");
     if (!options.from) throw new Error("Sender address required");
@@ -454,7 +454,7 @@ export default class SimpleVault extends SecureOwnable {
    */
   async revokeTokenAllowance(
     token: Address,
-    options: TransactionOptions = {}
+    options: TransactionOptions
   ): Promise<TransactionResult> {
     if (!this.walletClient) throw new Error("WalletClient required for write operations");
     if (!options.from) throw new Error("Sender address required");
@@ -499,7 +499,7 @@ export default class SimpleVault extends SecureOwnable {
    */
   async depositEth(
     amount: bigint,
-    options: TransactionOptions = {}
+    options: TransactionOptions
   ): Promise<TransactionResult> {
     if (!this.walletClient) throw new Error("WalletClient required for write operations");
     if (!options.from) throw new Error("Sender address required");
@@ -528,7 +528,7 @@ export default class SimpleVault extends SecureOwnable {
   async depositToken(
     token: Address,
     amount: bigint,
-    options: TransactionOptions = {}
+    options: TransactionOptions
   ): Promise<TransactionResult> {
     if (!this.walletClient) throw new Error("WalletClient required for write operations");
     if (!options.from) throw new Error("Sender address required");
