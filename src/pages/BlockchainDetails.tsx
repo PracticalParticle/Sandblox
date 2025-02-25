@@ -12,7 +12,8 @@ import {
   XCircle,
   Copy,
   Trash2,
-  Library
+  Library,
+  Code
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -69,6 +70,8 @@ export default function BlockchainDetails() {
   const { toast } = useToast()
   const [network, setNetwork] = useState<NetworkType | null>(null)
   const [securityLibraries, setSecurityLibraries] = useState<SecurityLibrary[]>([])
+  const [sourceCode, setSourceCode] = useState<string>('')
+  const [showCode, setShowCode] = useState(false)
 
   useEffect(() => {
     // Load network data
@@ -152,6 +155,13 @@ export default function BlockchainDetails() {
       description: `${description} copied to clipboard`
     })
   }
+
+  const loadSourceCode = () => {
+    const code = `Coming Soon`;
+    
+    setSourceCode(code);
+    setShowCode(true);
+  };
 
   if (!network) {
     return (
@@ -257,10 +267,16 @@ export default function BlockchainDetails() {
                   <Shield className="h-4 w-4 text-muted-foreground" />
                   <h3 className="font-medium">Security Engine</h3>
                 </div>
-                <Button onClick={deployLibrary}>
-                  <Library className="h-4 w-4 mr-2" />
-                  Deploy Library
-                </Button>
+                <div className="flex gap-2">
+                  <Button onClick={deployLibrary}>
+                    <Library className="h-4 w-4 mr-2" />
+                    Deploy Library
+                  </Button>
+                  <Button variant="outline" onClick={loadSourceCode}>
+                    <Code className="h-4 w-4 mr-2" />
+                    Show Code
+                  </Button>
+                </div>
               </div>
               
               <AnimatePresence mode="popLayout">
@@ -291,10 +307,35 @@ export default function BlockchainDetails() {
                 ))}
               </AnimatePresence>
 
-              {securityLibraries.length === 0 && (
+              {securityLibraries.length === 0 && !showCode && (
                 <p className="text-sm text-muted-foreground text-center py-4">
                   No security libraries deployed yet
                 </p>
+              )}
+
+              {showCode && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mt-4"
+                >
+                  <div className="relative">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-2 top-2"
+                      onClick={() => setShowCode(false)}
+                    >
+                      <XCircle className="h-4 w-4" />
+                    </Button>
+                    <pre className="p-4 bg-muted rounded-lg overflow-x-auto max-h-[500px] overflow-y-auto">
+                      <code className="text-sm font-mono">
+                        {sourceCode}
+                      </code>
+                    </pre>
+                  </div>
+                </motion.div>
               )}
             </div>
           </CardContent>
