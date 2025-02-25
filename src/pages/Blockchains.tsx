@@ -12,7 +12,9 @@ import {
   Plus,
   CheckCircle,
   Settings,
-  Trash2
+  Trash2,
+  Globe,
+  Lock
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -42,6 +44,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs"
 import { NetworkCard } from '@/components/networks/NetworkCard'
 
 export interface NetworkType {
@@ -418,44 +426,54 @@ export default function Blockchains() {
           </div>
         </motion.div>
 
-        {/* Public Blockchain Section */}
+        {/* Network Tabs */}
         <motion.div variants={item}>
-          <h2 className="text-2xl font-semibold mb-6">Public Networks</h2>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {blockchains.public.map((chain) => (
-              <NetworkCard 
-                key={chain.id} 
-                chain={chain}
-                onEdit={handleEditNetwork}
-                onDelete={handleDeleteNetwork}
-              />
-            ))}
-            {customNetworks.filter(network => network.isPublic).map((chain) => (
-              <NetworkCard 
-                key={chain.id} 
-                chain={chain} 
-                isCustom 
-                onEdit={handleEditNetwork}
-                onDelete={handleDeleteNetwork}
-              />
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Private Blockchain Section */}
-        <motion.div variants={item}>
-          <h2 className="text-2xl font-semibold mb-6">Private Networks</h2>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {customNetworks.filter(network => !network.isPublic).map((chain) => (
-              <NetworkCard 
-                key={chain.id} 
-                chain={chain} 
-                isCustom 
-                onEdit={handleEditNetwork}
-                onDelete={handleDeleteNetwork}
-              />
-            ))}
-          </div>
+          <Tabs defaultValue="public" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
+              <TabsTrigger value="public" className="gap-2">
+                <Globe className="h-4 w-4" />
+                Public Networks
+              </TabsTrigger>
+              <TabsTrigger value="private" className="gap-2">
+                <Lock className="h-4 w-4" />
+                Private Networks
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="public" className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {blockchains.public.map((chain) => (
+                  <NetworkCard 
+                    key={chain.id} 
+                    chain={chain}
+                    onEdit={handleEditNetwork}
+                    onDelete={handleDeleteNetwork}
+                  />
+                ))}
+                {customNetworks.filter(network => network.isPublic).map((chain) => (
+                  <NetworkCard 
+                    key={chain.id} 
+                    chain={chain} 
+                    isCustom 
+                    onEdit={handleEditNetwork}
+                    onDelete={handleDeleteNetwork}
+                  />
+                ))}
+              </div>
+            </TabsContent>
+            <TabsContent value="private" className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {customNetworks.filter(network => !network.isPublic).map((chain) => (
+                  <NetworkCard 
+                    key={chain.id} 
+                    chain={chain} 
+                    isCustom 
+                    onEdit={handleEditNetwork}
+                    onDelete={handleDeleteNetwork}
+                  />
+                ))}
+              </div>
+            </TabsContent>
+          </Tabs>
         </motion.div>
       </motion.div>
     </div>
