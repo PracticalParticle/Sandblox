@@ -362,7 +362,8 @@ const PendingTransaction = ({ tx, onApprove, onCancel, isLoading }: PendingTrans
             </div>
             <div className="flex space-x-2">
               <Button
-                onClick={() => onApprove(tx.txId)}
+                onClick={() => onApprove(Number(tx.txId))}
+
                 disabled={!isReady || isLoading || tx.status !== TxStatus.PENDING || progress < 100}
                 className="flex-1"
               >
@@ -375,7 +376,7 @@ const PendingTransaction = ({ tx, onApprove, onCancel, isLoading }: PendingTrans
               </Button>
               <Button
                 variant="destructive"
-                onClick={() => onCancel(tx.txId)}
+                onClick={() => onCancel(Number(tx.txId))}
                 disabled={isLoading || tx.status !== TxStatus.PENDING}
                 className="flex-1"
               >
@@ -1435,7 +1436,7 @@ function SimpleVaultUIContent({
                                 tx={tx}
                                 onApprove={handleApproveWithdrawal}
                                 onCancel={handleCancelWithdrawal}
-                                isLoading={loadingState.approval[tx.txId] || loadingState.cancellation[tx.txId]}
+                                isLoading={loadingState.approval[Number(tx.txId)] || loadingState.cancellation[Number(tx.txId)]}
                               />
                             ))
                           )}
@@ -1456,7 +1457,7 @@ function SimpleVaultUIContent({
                           tx={tx}
                           onApprove={handleApproveWithdrawal}
                           onCancel={handleCancelWithdrawal}
-                          isLoading={loadingState.approval[tx.txId] || loadingState.cancellation[tx.txId]}
+                          isLoading={loadingState.approval[Number(tx.txId)] || loadingState.cancellation[Number(tx.txId)]}
                         />
                       ))}
                       {pendingTxs.length > 2 && (
