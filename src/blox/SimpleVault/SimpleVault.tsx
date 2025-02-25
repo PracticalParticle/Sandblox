@@ -328,13 +328,24 @@ export default class SimpleVault extends SecureOwnable {
     return result;
   }
 
-  // /**
-  //  * @notice Gets all pending transactions for the vault
-  //  * @return Array of transaction records with status
-  //  */
-  //   async getPendingTransactions(): Promise<VaultTxRecord[]> {
-  //     return await super.getPendingTransactions() as VaultTxRecord[];
-  // }
+  /**
+   * @notice Gets all pending transactions for the vault
+   * @return Array of transaction records with status
+   */
+  async getPendingTransactions(): Promise<VaultTxRecord[]> {
+    const operations = await this.getOperationHistory();
+    const pendingOps = operations.filter(op => op.status === SecureOwnable.TxStatus.PENDING);
+    
+    // Convert each pending operation to VaultTxRecord
+    const pendingTxs = await Promise.all(
+      pendingOps.map(async (op) => {
+        const txId = Number(op.txId);
+        return await this.getTransaction(txId);
+      })
+    );
+
+    return pendingTxs;
+  }
 
   /**
    * @notice Gets the token metadata
