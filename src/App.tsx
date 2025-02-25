@@ -5,7 +5,6 @@ import { Home } from './pages/Home';
 import { Dashboard } from './pages/Dashboard';
 import { BloxContracts } from './pages/BloxContracts';
 import { ContractDetails } from './pages/ContractDetails';
-import SecurityCenter from './pages/SecurityCenter';
 import { SecurityDetails } from './pages/SecurityDetails';
 import { Navbar } from './components/navigation/Navbar';
 import { Footer } from './components/navigation/Footer';
@@ -25,8 +24,7 @@ export default function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/blox-contracts" element={<BloxContracts />} />
               <Route path="/contracts/:contractId" element={<ContractDetails />} />
-              <Route path="/security-center" element={<SecurityCenter />} />
-              <Route path="/security-center/:address" element={<SecurityDetails />} />
+              <Route path="/blox-security/:address" element={<SecurityDetails />} />
               <Route path="/blox/:type/:address" element={<BloxMiniApp />} />
               <Route path="/blockchains" element={<Blockchains />} />
               <Route path="/blockchains/:id" element={<BlockchainDetails />} />

@@ -556,7 +556,7 @@ export function SecurityDetails() {
     }
 
     if (!address) {
-      navigate('/security-center')
+      navigate('/blox-security')
       return
     }
 
@@ -864,7 +864,7 @@ export function SecurityDetails() {
           <motion.div variants={item}>
             <Button
               variant="ghost"
-              onClick={() => navigate('/security-center')}
+              onClick={() => navigate('/blox-security')}
               className="mb-4"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -901,7 +901,7 @@ export function SecurityDetails() {
           <motion.div variants={item}>
             <Button
               variant="ghost"
-              onClick={() => navigate('/security-center')}
+              onClick={() => navigate('/blox-security')}
               className="mb-4"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -931,7 +931,7 @@ export function SecurityDetails() {
             <div className="flex items-center gap-4">
               <Button
                 variant="ghost"
-                onClick={() => navigate('/security-center')}
+                onClick={() => navigate('/blox-security')}
                 className="mr-4"
               >
                 <ArrowLeft className="h-4 w-4" />

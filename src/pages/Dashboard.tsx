@@ -168,6 +168,14 @@ const DeployedContract = ({
                 )}
                 Auto Detect
               </Button>
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/blox-security/${contract.address}`)}
+              >
+                <Shield className="h-4 w-4 mr-2" aria-hidden="true" />
+                Manage Security
+              </Button>
             </>
           )}
           {onUnload && (
@@ -182,13 +190,23 @@ const DeployedContract = ({
             </Button>
           )}
           {contract.type !== 'unknown' && (
-            <Button 
-              variant="default" 
-              size="sm"
-              onClick={handleEnterBlox}
-            >
-              Enter Blox
-            </Button>
+            <>
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/blox-security/${contract.address}`)}
+              >
+                <Shield className="h-4 w-4 mr-2" aria-hidden="true" />
+                Manage Security
+              </Button>
+              <Button 
+                variant="default" 
+                size="sm"
+                onClick={handleEnterBlox}
+              >
+                Enter Blox
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -340,7 +358,7 @@ export function Dashboard(): JSX.Element {
         {/* Header */}
         <motion.div variants={item} className="flex items-center justify-start">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-left">Dashboard</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-left">My Blox Dashboard</h1>
             <p className="mt-2 text-muted-foreground">
               Manage your contracts and monitor their activity.
             </p>

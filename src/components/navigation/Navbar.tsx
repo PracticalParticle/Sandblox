@@ -40,20 +40,12 @@ export function Navbar() {
           </a>
           <div className="hidden md:flex md:items-center md:gap-6">
             {isConnected && (
-              <DropdownMenu>
-                <DropdownMenuTrigger className="flex items-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift">
-                  My Blox
-                  <ChevronDown className="h-4 w-4" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem asChild>
-                    <a href="/dashboard">Dashboard</a>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <a href="/security-center">Security Center</a>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <a
+                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
+                href="/dashboard"
+              >
+                My Blox
+              </a>
             )}
             <DropdownMenu>
               <DropdownMenuTrigger className="flex items-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift">
@@ -115,23 +107,13 @@ export function Navbar() {
           >
             <div className="container flex flex-col space-y-4 py-4">
               {isConnected && (
-                <>
-                  <div className="text-sm font-medium text-muted-foreground">My Blox</div>
-                  <a
-                    className="pl-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
-                    href="/dashboard"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    Dashboard
-                  </a>
-                  <a
-                    className="pl-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
-                    href="/security-center"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    Security Center
-                  </a>
-                </>
+                <a
+                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
+                  href="/dashboard"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  My Blox
+                </a>
               )}
               <div className="text-sm font-medium text-muted-foreground">Explore</div>
               <a
