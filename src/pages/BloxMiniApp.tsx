@@ -2,7 +2,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Address } from 'viem';
 import { AlertCircle, Info, AlertTriangle, CheckCircle, Shield, Timer, Network, Wallet, Key, Clock, Radio as RadioIcon, Copy, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -39,6 +39,7 @@ const BloxMiniApp: React.FC = () => {
   const config = useConfig()
   const chainId = useChainId()
   const { connectAsync, connectors } = useConnect()
+  const navigate = useNavigate()
 
   // Initialize UI components on mount
   useEffect(() => {
@@ -456,6 +457,18 @@ const BloxMiniApp: React.FC = () => {
                             </span>
                           </div>
                         </div>
+                      </div>
+
+                      {/* Manage Security Button */}
+                      <div className="mt-4">
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => navigate(`/blox-security/${address}`)}
+                        >
+                          <Shield className="h-4 w-4 mr-2" aria-hidden="true" />
+                          Manage Security
+                        </Button>
                       </div>
                     </div>
                   ) : (
