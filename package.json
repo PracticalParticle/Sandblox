@@ -12,7 +12,11 @@
     "test": "vitest",
     "typecheck": "tsc --noEmit",
     "test:coverage": "vitest run --coverage",
-    "format": "prettier --write \"src/**/*.{ts,tsx}\""
+    "format": "prettier --write \"src/**/*.{ts,tsx}\"",
+    "postinstall": "git submodule update --init --recursive",
+    "update:submodules": "git submodule update --remote --merge",
+    "contracts:build": "cd src/particle-core && forge build",
+    "contracts:test": "cd src/particle-core && forge test"
   },
   "dependencies": {
     "@ionic/react": "^8.4.3",
@@ -89,5 +93,8 @@
       "prettier --write",
       "eslint --fix"
     ]
-  }
+  },
+  "workspaces": [
+    "src/particle-core"
+  ]
 }
