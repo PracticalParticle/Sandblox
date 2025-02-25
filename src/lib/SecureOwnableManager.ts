@@ -12,8 +12,7 @@ import {
   OperationType
 } from './types';
 import { getChainName } from './utils';
-import { CONTRACT_ERRORS } from '@/constants/contract';
-import SecureOwnable from '@/contracts-core/SecureOwnable/SecureOwnable';
+import SecureOwnable from '../particle-core/sdk/typescript/SecureOwnable';
 
 export class SecureOwnableManager {
   private contract: SecureOwnable;
@@ -163,7 +162,7 @@ export class SecureOwnableManager {
     const txRecord = await this.contract.createNewTxRecord(
       requester,
       this.address,
-      SecureOwnable.SecurityOperationType[operationType as keyof typeof SecureOwnable.SecurityOperationType],
+      operationType,
       SecureOwnable.ExecutionType.STANDARD,
       executionOptions,
       0,

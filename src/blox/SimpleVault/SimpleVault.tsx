@@ -8,15 +8,10 @@ import {
   parseAbiParameters
 } from 'viem';
 import SimpleVaultABIJson from './SimpleVault.abi.json';
-import SecureOwnable from '../../contracts-core/SecureOwnable/SecureOwnable';
-import { 
-  TransactionOptions,
-  TransactionResult,
-  TxRecord,
-  MetaTransaction,
-  SecurityOperationType,
-  TxStatus
-} from '../../contracts-core/iCore';
+import SecureOwnable from '../../particle-core/sdk/typescript/SecureOwnable';
+import { TxRecord, MetaTransaction } from '../../particle-core/sdk/typescript/interfaces/lib.index';
+import { TransactionOptions, TransactionResult } from '../../particle-core/sdk/typescript/interfaces/base.index';
+import { TxStatus } from '../../particle-core/sdk/typescript/types/lib.index';
 
 // Parse and type the ABI
 const SimpleVaultABI = SimpleVaultABIJson as Abi;
