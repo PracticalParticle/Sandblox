@@ -20,7 +20,6 @@ export interface NetworkType {
     transactions: string;
   };
   isOfficial?: boolean;
-  rpcUrls: string[];
   chainId?: string;
   isPublic?: boolean;
 }
@@ -43,14 +42,24 @@ export function NetworkCard({ chain, isCustom = false, onEdit, onDelete }: Netwo
             <div className="rounded-lg bg-primary/10 p-2">
               {chain.icon}
             </div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-xl font-semibold">{chain.name}</h3>
-              <CheckCircle2 
-                className={chain.isOfficial 
-                  ? "h-4 w-4 text-primary" 
-                  : "h-4 w-4 text-muted-foreground"
-                } 
-              />
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <h3 className="text-xl font-semibold">{chain.name}</h3>
+                <CheckCircle2 
+                  className={chain.isOfficial 
+                    ? "h-4 w-4 text-primary" 
+                    : "h-4 w-4 text-muted-foreground"
+                  } 
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Chain ID: {chain.chainId}</span>
+                {chain.isPublic ? (
+                  <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Public</span>
+                ) : (
+                  <span className="text-xs bg-muted/50 text-muted-foreground px-2 py-0.5 rounded-full">Private</span>
+                )}
+              </div>
             </div>
           </div>
           <p className="text-sm text-muted-foreground">{chain.description}</p>

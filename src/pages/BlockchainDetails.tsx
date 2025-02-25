@@ -13,7 +13,7 @@ import {
   Copy
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
 import { useState, useEffect } from 'react'
@@ -29,7 +29,6 @@ interface NetworkType {
     transactions: string;
   };
   isOfficial?: boolean;
-  rpcUrls: string[];
   chainId?: string;
   isPublic?: boolean;
 }
@@ -46,7 +45,6 @@ const defaultNetworks = {
       transactions: '1.5M daily'
     },
     isOfficial: true,
-    rpcUrls: ['https://eth-mainnet.g.alchemy.com'],
     chainId: '1',
     isPublic: true
   }
@@ -62,7 +60,6 @@ export default function BlockchainDetails() {
   const navigate = useNavigate()
   const { toast } = useToast()
   const [network, setNetwork] = useState<NetworkType | null>(null)
-  const [rpcHealthStatus, setRpcHealthStatus] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     // Load network data
@@ -93,211 +90,108 @@ export default function BlockchainDetails() {
     }
   }, [id])
 
-  useEffect(() => {
-    // Check RPC endpoints health
-    if (!network) return
-
-    const checkRpcHealth = async (url: string) => {
-      try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            method: 'eth_blockNumber',
-            params: [],
-            id: 1
-          })
-        })
-        const data = await response.json()
-        return !!data.result
-      } catch (e) {
-        return false
-      }
-    }
-
-    network.rpcUrls.forEach(async (url) => {
-      const isHealthy = await checkRpcHealth(url)
-      setRpcHealthStatus(prev => ({
-        ...prev,
-        [url]: isHealthy
-      }))
-    })
-  }, [network])
-
   const copyToClipboard = (text: string, description: string) => {
     navigator.clipboard.writeText(text)
     toast({
-      title: 'Copied!',
+      title: "Copied!",
       description: `${description} copied to clipboard`
     })
   }
 
   if (!network) {
     return (
-      <div className="flex items-center justify-center h-[60vh]">
+      <div className="flex items-center justify-center h-[50vh]">
         <p className="text-muted-foreground">Network not found</p>
       </div>
     )
   }
 
   return (
-    <div className="mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 py-8">
+    <div className="container mx-auto p-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="space-y-8"
       >
         {/* Header */}
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate('/blockchains')}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">{network.name}</h1>
-            <p className="text-muted-foreground">{network.description}</p>
-          </div>
-          <Badge 
-            variant={network.isOfficial ? "secondary" : "outline"} 
-            className="ml-auto gap-1"
-          >
-            {network.isOfficial ? (
-              <>
-                <CheckCircle2 className="h-3 w-3" />
-                Official Support
-              </>
-            ) : (
-              <>
-                <Shield className="h-3 w-3" />
-                Unofficial Support
-              </>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate('/blockchains')}
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <h1 className="text-3xl font-bold">{network.name}</h1>
+            {network.isOfficial && (
+              <CheckCircle2 className="h-6 w-6 text-primary" />
             )}
-          </Badge>
+          </div>
         </div>
 
-        {/* Network Information */}
+        {/* Network Info */}
         <div className="grid gap-6 md:grid-cols-2">
-          <Card className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Network Details</h2>
-            </div>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="space-y-4">
                 <div className="flex items-center gap-2">
                   <Globe className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Network Type</span>
+                  <h3 className="font-medium">Network Type</h3>
+                  <Badge variant={network.isPublic ? "default" : "secondary"}>
+                    {network.isPublic ? "Public" : "Private"}
+                  </Badge>
                 </div>
-                <span className="text-sm">
-                  {network.isPublic ? 'Public Network' : 'Private Network'}
-                </span>
-              </div>
-              
-              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Hash className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Chain ID</span>
+                  <h3 className="font-medium">Chain ID</h3>
+                  <div className="flex items-center gap-2">
+                    <code className="rounded bg-muted px-2 py-1">
+                      {network.chainId}
+                    </code>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => copyToClipboard(network.chainId || '', 'Chain ID')}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm">{network.chainId}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => copyToClipboard(network.chainId || '', 'Chain ID')}
-                  >
-                    <Copy className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t">
-                <div className="flex items-center gap-2 mb-3">
-                  <Server className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">RPC Endpoints</span>
-                </div>
-                <div className="space-y-3">
-                  {network.rpcUrls.map((url, index) => (
-                    <div key={index} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted/50">
-                      <div className="flex items-center gap-2 min-w-0">
-                        {rpcHealthStatus[url] !== undefined && (
-                          rpcHealthStatus[url] ? (
-                            <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
-                          ) : (
-                            <XCircle className="h-4 w-4 text-destructive shrink-0" />
-                          )
-                        )}
-                        <span className="text-sm truncate">{url}</span>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 shrink-0"
-                        onClick={() => copyToClipboard(url, 'RPC URL')}
-                      >
-                        <Copy className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))}
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    {network.description}
+                  </p>
                 </div>
               </div>
-            </div>
+            </CardContent>
           </Card>
 
-          <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Network Statistics</h2>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Total Contracts</span>
-                <span className="text-sm">{network.stats.contracts}</span>
+          {/* Network Stats */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-medium mb-2">Network Statistics</h3>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <p className="text-sm font-medium">Contracts</p>
+                      <p className="text-2xl font-bold">{network.stats.contracts}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">TVL</p>
+                      <p className="text-2xl font-bold">{network.stats.tvl}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Tx/Day</p>
+                      <p className="text-2xl font-bold">{network.stats.transactions}</p>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Total Value Locked</span>
-                <span className="text-sm">{network.stats.tvl}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Daily Transactions</span>
-                <span className="text-sm">{network.stats.transactions}</span>
-              </div>
-            </div>
+            </CardContent>
           </Card>
         </div>
-
-        {/* Security Infrastructure */}
-        <motion.div variants={item}>
-          <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Security Infrastructure</h2>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">MultiPhaseSecureOperation Library:</span>
-                </div>
-                {!network.isOfficial && (
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="gap-2"
-                    onClick={() => {
-                      toast({
-                        title: "Deployment Started",
-                        description: "Deploying MultiPhaseSecureOperation Library to the network..."
-                      })
-                    }}
-                  >
-                    <Shield className="h-4 w-4" />
-                    Deploy Library
-                  </Button>
-                )}
-              </div>
-            </div>
-          </Card>
-        </motion.div>
       </motion.div>
     </div>
   )

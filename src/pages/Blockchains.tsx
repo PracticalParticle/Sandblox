@@ -1,4 +1,5 @@
 import { useAccount } from 'wagmi'
+import { useChain } from '@/hooks/useChain'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -41,7 +42,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { NetworkCard, NetworkType } from '@/components/networks/NetworkCard'
+import { NetworkCard } from '@/components/networks/NetworkCard'
+
+export interface NetworkType {
+  id: string;
+  name: string;
+  description: string;
+  icon: JSX.Element;
+  stats: {
+    contracts: string;
+    tvl: string;
+    transactions: string;
+  };
+  isOfficial?: boolean;
+  chainId?: string;
+  isPublic?: boolean;
+}
 
 const container = {
   hidden: { opacity: 0 },
@@ -71,7 +87,6 @@ const blockchains = {
         transactions: '1.5M daily'
       },
       isOfficial: true,
-      rpcUrls: ['https://eth-mainnet.g.alchemy.com'],
       chainId: '1',
       isPublic: true
     }
@@ -81,14 +96,13 @@ const blockchains = {
 
 interface NetworkFormData {
   name: string;
-  rpcUrls: string[];
   chainId: string;
-  description: string;
   type: 'public' | 'private';
 }
 
 export default function Blockchains() {
   const { isConnected } = useAccount()
+  const chain = useChain()
   const navigate = useNavigate()
   const { toast } = useToast()
   const [isAddNetworkOpen, setIsAddNetworkOpen] = useState(false)
@@ -126,15 +140,24 @@ export default function Blockchains() {
 
   const [newNetwork, setNewNetwork] = useState<NetworkFormData>({
     name: '',
-    rpcUrls: [''],
     chainId: '',
-    description: '',
     type: 'private'
   })
 
+  // Effect to update network info when chain changes
+  useEffect(() => {
+    if (chain && isAddNetworkOpen && 'name' in chain) {
+      setNewNetwork(prev => ({
+        ...prev,
+        name: chain.name,
+        chainId: chain.id.toString()
+      }))
+    }
+  }, [chain, isAddNetworkOpen])
+
   const handleAddNetwork = async () => {
     try {
-      if (!newNetwork.name || newNetwork.rpcUrls.some(url => !url) || !newNetwork.chainId || !newNetwork.type) {
+      if (!newNetwork.name || !newNetwork.chainId || !newNetwork.type) {
         throw new Error('Please fill in all required fields')
       }
 
@@ -151,17 +174,16 @@ export default function Blockchains() {
       const network: NetworkType = {
         id: `custom-${Date.now()}`,
         name: newNetwork.name,
-        description: newNetwork.description || 'Custom blockchain network',
+        description: `Custom ${newNetwork.type} network`,
         icon: <Shield className="h-6 w-6" />,
         stats: {
           contracts: '0',
           tvl: '$0',
           transactions: '0 daily'
         },
-        rpcUrls: newNetwork.rpcUrls,
         chainId: newNetwork.chainId,
         isPublic: newNetwork.type === 'public',
-        isOfficial: false // Set unofficial support for all new networks
+        isOfficial: false
       }
 
       setCustomNetworks(prev => [...prev, network])
@@ -172,7 +194,7 @@ export default function Blockchains() {
       })
       
       setIsAddNetworkOpen(false)
-      setNewNetwork({ name: '', rpcUrls: [''], chainId: '', description: '', type: 'private' })
+      setNewNetwork({ name: '', chainId: '', type: 'private' })
     } catch (error) {
       toast({
         title: "Error",
@@ -186,9 +208,7 @@ export default function Blockchains() {
     setEditingNetwork(network)
     setNewNetwork({
       name: network.name,
-      rpcUrls: network.rpcUrls,
       chainId: network.chainId || '',
-      description: network.description,
       type: network.isPublic ? 'public' : 'private'
     })
     setIsEditMode(true)
@@ -202,9 +222,8 @@ export default function Blockchains() {
       const updatedNetwork: NetworkType = {
         ...editingNetwork,
         name: newNetwork.name,
-        description: newNetwork.description,
-        rpcUrls: newNetwork.rpcUrls,
-        chainId: newNetwork.chainId
+        chainId: newNetwork.chainId,
+        isPublic: newNetwork.type === 'public'
       }
 
       setCustomNetworks(prev => 
@@ -219,7 +238,7 @@ export default function Blockchains() {
       setIsAddNetworkOpen(false)
       setIsEditMode(false)
       setEditingNetwork(null)
-      setNewNetwork({ name: '', rpcUrls: [''], chainId: '', description: '', type: 'private' })
+      setNewNetwork({ name: '', chainId: '', type: 'private' })
     } catch (error) {
       toast({
         title: "Error",
@@ -245,32 +264,6 @@ export default function Blockchains() {
     })
   }
 
-  // Function to add a new RPC URL field
-  const addRpcUrl = () => {
-    setNewNetwork(prev => ({
-      ...prev,
-      rpcUrls: [...prev.rpcUrls, '']
-    }))
-  }
-
-  // Function to remove an RPC URL field
-  const removeRpcUrl = (index: number) => {
-    if (newNetwork.rpcUrls.length > 1) {
-      setNewNetwork(prev => ({
-        ...prev,
-        rpcUrls: prev.rpcUrls.filter((_, i) => i !== index)
-      }))
-    }
-  }
-
-  // Function to update an RPC URL
-  const updateRpcUrl = (index: number, value: string) => {
-    setNewNetwork(prev => ({
-      ...prev,
-      rpcUrls: prev.rpcUrls.map((url, i) => i === index ? value : url)
-    }))
-  }
-
   return (
     <div className="mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 py-8" role="main" aria-label="Blockchains">
       <motion.div
@@ -292,7 +285,7 @@ export default function Blockchains() {
             if (!open) {
               setIsEditMode(false)
               setEditingNetwork(null)
-              setNewNetwork({ name: '', rpcUrls: [''], chainId: '', description: '', type: 'private' })
+              setNewNetwork({ name: '', chainId: '', type: 'private' })
             }
           }}>
             <DialogTrigger asChild>
@@ -335,15 +328,7 @@ export default function Blockchains() {
                     value={newNetwork.name}
                     onChange={(e) => setNewNetwork(prev => ({ ...prev, name: e.target.value }))}
                     placeholder="e.g. My Private Network"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Input
-                    id="description"
-                    value={newNetwork.description}
-                    onChange={(e) => setNewNetwork(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Brief description of your network"
+                    disabled={!isEditMode && !!chain}
                   />
                 </div>
                 <div className="grid gap-2">
@@ -353,38 +338,8 @@ export default function Blockchains() {
                     value={newNetwork.chainId}
                     onChange={(e) => setNewNetwork(prev => ({ ...prev, chainId: e.target.value }))}
                     placeholder="e.g. 1337"
+                    disabled={!isEditMode && !!chain}
                   />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="rpcUrl">RPC URLs</Label>
-                  {newNetwork.rpcUrls.map((url, index) => (
-                    <div key={index} className="flex gap-2">
-                      <Input
-                        id={`rpcUrl-${index}`}
-                        value={url}
-                        onChange={(e) => updateRpcUrl(index, e.target.value)}
-                        placeholder="e.g. http://localhost:8545"
-                      />
-                      {newNetwork.rpcUrls.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => removeRpcUrl(index)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={addRpcUrl}
-                    className="mt-2"
-                  >
-                    Add Another RPC URL
-                  </Button>
                 </div>
               </div>
               <div className="flex justify-end gap-3">
@@ -392,7 +347,7 @@ export default function Blockchains() {
                   setIsAddNetworkOpen(false)
                   setIsEditMode(false)
                   setEditingNetwork(null)
-                  setNewNetwork({ name: '', rpcUrls: [''], chainId: '', description: '', type: 'private' })
+                  setNewNetwork({ name: '', chainId: '', type: 'private' })
                 }}>
                   Cancel
                 </Button>
