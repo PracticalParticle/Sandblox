@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   Network,
   Shield,
@@ -10,13 +10,21 @@ import {
   Server,
   CheckCircle2,
   XCircle,
-  Copy
+  Copy,
+  Trash2,
+  Library
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
 import { useState, useEffect } from 'react'
+
+interface SecurityLibrary {
+  id: string;
+  name: string;
+  timestamp: number;
+}
 
 interface NetworkType {
   id: string;
@@ -60,6 +68,7 @@ export default function BlockchainDetails() {
   const navigate = useNavigate()
   const { toast } = useToast()
   const [network, setNetwork] = useState<NetworkType | null>(null)
+  const [securityLibraries, setSecurityLibraries] = useState<SecurityLibrary[]>([])
 
   useEffect(() => {
     // Load network data
@@ -89,6 +98,52 @@ export default function BlockchainDetails() {
       }
     }
   }, [id])
+
+  useEffect(() => {
+    // Load security libraries from localStorage
+    if (id) {
+      const savedLibraries = localStorage.getItem(`securityLibraries_${id}`)
+      if (savedLibraries) {
+        try {
+          setSecurityLibraries(JSON.parse(savedLibraries))
+        } catch (e) {
+          console.error('Failed to load security libraries:', e)
+        }
+      }
+    }
+  }, [id])
+
+  const deployLibrary = () => {
+    if (!id) return
+
+    const newLibrary: SecurityLibrary = {
+      id: crypto.randomUUID(),
+      name: `Security Library ${securityLibraries.length + 1}`,
+      timestamp: Date.now()
+    }
+
+    const updatedLibraries = [...securityLibraries, newLibrary]
+    setSecurityLibraries(updatedLibraries)
+    localStorage.setItem(`securityLibraries_${id}`, JSON.stringify(updatedLibraries))
+
+    toast({
+      title: "Library Deployed",
+      description: `${newLibrary.name} has been deployed successfully`
+    })
+  }
+
+  const deleteLibrary = (libraryId: string) => {
+    if (!id) return
+
+    const updatedLibraries = securityLibraries.filter(lib => lib.id !== libraryId)
+    setSecurityLibraries(updatedLibraries)
+    localStorage.setItem(`securityLibraries_${id}`, JSON.stringify(updatedLibraries))
+
+    toast({
+      title: "Library Removed",
+      description: "Security library has been removed"
+    })
+  }
 
   const copyToClipboard = (text: string, description: string) => {
     navigator.clipboard.writeText(text)
@@ -192,6 +247,59 @@ export default function BlockchainDetails() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Security Engine */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-muted-foreground" />
+                  <h3 className="font-medium">Security Engine</h3>
+                </div>
+                <Button onClick={deployLibrary}>
+                  <Library className="h-4 w-4 mr-2" />
+                  Deploy Library
+                </Button>
+              </div>
+              
+              <AnimatePresence mode="popLayout">
+                {securityLibraries.map((library) => (
+                  <motion.div
+                    key={library.id}
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <div className="flex items-center justify-between p-3 bg-muted rounded-md">
+                      <div>
+                        <p className="font-medium">{library.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(library.timestamp).toLocaleString()}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deleteLibrary(library.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+
+              {securityLibraries.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No security libraries deployed yet
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
       </motion.div>
     </div>
   )
