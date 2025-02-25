@@ -326,60 +326,62 @@ interface PendingTransactionProps {
 }
 
 const PendingTransaction = ({ tx, onApprove, onCancel, isLoading }: PendingTransactionProps) => {
-  const now = Math.floor(Date.now() / 1000);
-  const isReady = now >= tx.releaseTime;
-  const progress = Math.min(((now - (tx.releaseTime - 24 * 3600)) / (24 * 3600)) * 100, 100);
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const isReady = now >= Number(tx.releaseTime);
+    const progress = Math.min(((now - (Number(tx.releaseTime) - 24 * 3600)) / (24 * 3600)) * 100, 100);
 
-  return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <p className="font-medium">Transaction #{tx.txId}</p>
-              <p className="text-sm text-muted-foreground">
-                {tx.type === "ETH" ? formatEther(tx.amount) : formatUnits(tx.amount, 18)} {tx.type}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                To: {tx.to}
-              </p>
-            </div>
-            <div className="flex items-center space-x-2">
-              {tx.status === TxStatus.PENDING && <Clock className="h-5 w-5 text-yellow-500" />}
-              {tx.status === TxStatus.CANCELLED && <XCircle className="h-5 w-5 text-red-500" />}
-              {tx.status === TxStatus.COMPLETED && <CheckCircle2 className="h-5 w-5 text-green-500" />}
-            </div>
-          </div>
-          
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Time Lock Progress</span>
-              <span>{Math.round(progress)}%</span>
-            </div>
-            <Progress value={progress} className="h-2" />
-          </div>
+    // Ensure amount is a BigInt and handle undefined
+    const amount = tx.amount !== undefined ? BigInt(tx.amount) : 0n;
 
-          <div className="flex space-x-2">
-            <Button
-              onClick={() => onApprove(tx.txId)}
-              disabled={!isReady || isLoading || tx.status !== TxStatus.COMPLETED}
-              className="flex-1"
-            >
-              {isLoading ? "Processing..." : "Approve"}
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => onCancel(tx.txId)}
-              disabled={isLoading || tx.status !== TxStatus.PENDING}
-              className="flex-1"
-            >
-              {isLoading ? "Processing..." : "Cancel"}
-            </Button>
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="font-medium">Transaction #{tx.txId.toString()}</p>
+                <p className="text-sm text-muted-foreground">
+                  Amount: {tx.type === "ETH" ? formatEther(amount) : formatUnits(amount, 18)} {tx.type}
+                </p>
+                <p className="text-sm text-muted-foreground">To: {tx.target}</p>
+                {tx.status === TxStatus.PENDING && <Clock className="h-5 w-5 text-yellow-500" />}
+                {tx.status === TxStatus.CANCELLED && <XCircle className="h-5 w-5 text-red-500" />}
+                {tx.status === TxStatus.COMPLETED && <CheckCircle2 className="h-5 w-5 text-green-500" />}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Time Lock Progress</span>
+                <span>{Math.round(progress)}%</span>
+              </div>
+              <Progress value={progress} className="h-2" />
+            </div>
+            <div className="flex space-x-2">
+              <Button
+                onClick={() => onApprove(tx.txId)}
+                disabled={!isReady || isLoading || tx.status !== TxStatus.PENDING || progress < 100}
+                className="flex-1"
+              >
+                {isLoading ? "Processing..." : "Approve"}
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => onCancel(tx.txId)}
+                disabled={isLoading || tx.status !== TxStatus.PENDING}
+                className="flex-1"
+              >
+                {isLoading ? "Processing..." : "Cancel"}
+              </Button>
+            </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
+        </CardContent>
+      </Card>
+    );
+  } catch (error) {
+    console.error("Error rendering PendingTransaction:", error);
+    return <div>Error rendering transaction details.</div>;
+  }
 };
 
 interface DepositFormProps {
