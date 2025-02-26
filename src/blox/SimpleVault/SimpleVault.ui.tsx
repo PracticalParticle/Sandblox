@@ -78,6 +78,7 @@ interface LoadingState {
   approval: Record<number, boolean>;  // Map of txId to loading state
   cancellation: Record<number, boolean>;  // Map of txId to loading state
   initialization: boolean;
+  transactions: boolean;
 }
 
 const loadingStateAtom = atom<LoadingState>({
@@ -88,6 +89,14 @@ const loadingStateAtom = atom<LoadingState>({
   approval: {},
   cancellation: {},
   initialization: true,
+  transactions: false,
+});
+
+// Add a background fetching atom to track background processes
+const backgroundFetchingAtom = atom<{
+  transactions: boolean;
+}>({
+  transactions: false,
 });
 
 interface WithdrawalFormProps {
@@ -326,6 +335,36 @@ interface PendingTransactionProps {
 }
 
 const PendingTransaction = ({ tx, onApprove, onCancel, isLoading }: PendingTransactionProps) => {
+  const [loadingState] = useAtom(loadingStateAtom);
+  const [backgroundFetching] = useAtom(backgroundFetchingAtom);
+  const [pendingTxs] = useAtom(pendingTxsAtom);
+
+  // Only show skeleton loader when we're in initial loading state and have no transactions
+  if (loadingState.transactions && pendingTxs.length === 0) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="space-y-4">
+            <Skeleton className="h-6 w-3/4" />
+            <Skeleton className="h-4 w-1/2" />
+            <Skeleton className="h-4 w-2/3" />
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-16" />
+              </div>
+              <Skeleton className="h-2 w-full" />
+            </div>
+            <div className="flex space-x-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   try {
     const now = Math.floor(Date.now() / 1000);
     const isReady = now >= Number(tx.releaseTime);
@@ -342,11 +381,13 @@ const PendingTransaction = ({ tx, onApprove, onCancel, isLoading }: PendingTrans
             <div className="flex justify-between items-center">
               <div className="text-left">
                 <div className="flex items-center gap-2">
-                
                   {tx.status === TxStatus.PENDING && <Clock className="h-4 w-4 text-yellow-500" />}
                   {tx.status === TxStatus.CANCELLED && <XCircle className="h-4 w-4 text-red-500" />}
                   {tx.status === TxStatus.COMPLETED && <CheckCircle2 className="h-4 w-4 text-green-500" />}
                   <p className="font-medium">Transaction #{tx.txId.toString()}</p>
+                  {backgroundFetching.transactions && (
+                    <Loader2 className="h-4 w-4 animate-spin ml-2 text-muted-foreground" />
+                  )}
                 </div>
                 <p className="text-sm text-muted-foreground">
                   Amount: {tx.type === "ETH" ? formatEther(amount) : formatUnits(amount, 18)} {tx.type}
@@ -881,84 +922,37 @@ function SimpleVaultUIContent({
   const [tokenBalances, setTokenBalances] = useAtom<TokenBalanceState>(tokenBalanceAtom);
   const [pendingTxs, setPendingTxs] = useAtom(pendingTxsAtom);
   const [loadingState, setLoadingState] = useAtom(loadingStateAtom);
+  const [backgroundFetching, setBackgroundFetching] = useAtom(backgroundFetchingAtom);
   const [vault, setVault] = useAtom(vaultInstanceAtom);
   const [error, setError] = useState<string | null>(null);
   const [walletBalances, setWalletBalances] = useAtom(walletBalancesAtom);
 
-  // Initialize vault instance and fetch data once
-  useEffect(() => {
-    const initializeVault = async () => {
-      console.log('Initializing vault with params:', { 
-        publicClient: !!publicClient, 
-        chain: chain?.id, 
-        contractAddress 
-      });
-      
-      if (!publicClient || !chain) {
-        console.log('Missing required dependencies:', { publicClient: !!publicClient, chain: !!chain });
-        return;
-      }
-      
-      // Skip if already initialized
-      if (vault) {
-        console.log('Vault already initialized, skipping');
-        return;
-      }
-      
-      try {
-        setLoadingState(prev => ({ ...prev, initialization: true }));
-        console.log('Creating new vault instance...');
-        const vaultInstance = new SimpleVault(publicClient, walletClient, contractAddress, chain);
-        console.log('Vault instance created successfully');
-        setVault(vaultInstance);
-        setError(null);
+  // Move fetchTransactionsInBackground to be a memoized callback
+  const fetchTransactionsInBackground = React.useCallback(async (vaultInstance: SimpleVault) => {
+    // Skip if already fetching
+    if (backgroundFetching.transactions) {
+      console.log('Already fetching transactions, skipping');
+      return;
+    }
 
-        // Fetch data once after successful initialization
-        if (!_mock) {
-          try {
-            console.log('Fetching initial vault data...');
-            // Fetch ETH balance first
-            let balance: bigint;
-            try {
-              balance = await vaultInstance.getEthBalance();
-              console.log('Initial ETH balance:', balance.toString());
-              setEthBalance(balance);
-            } catch (balanceError) {
-              console.error('Failed to fetch initial ETH balance:', balanceError);
-              // Continue with default balance
-              balance = BigInt(0);
-            }
-            
-            // Then fetch pending transactions
-            let transactions: VaultTxRecord[] = [];
-            try {
-              transactions = await vaultInstance.getPendingTransactions();
-              console.log('Initial pending transactions:', transactions);
-              setPendingTxs(transactions);
-            } catch (txError) {
-              console.error('Failed to fetch initial pending transactions:', txError);
-              // Continue with empty transactions array
-            }
-            
-            console.log('Initial vault data fetched successfully');
-          } catch (dataError: any) {
-            console.error("Failed to fetch initial vault data:", dataError);
-            setError(`Failed to fetch initial vault data: ${dataError.message || String(dataError)}`);
-          }
-        }
-      } catch (initError: any) {
-        console.error("Failed to initialize vault:", initError);
-        setError(`Failed to initialize vault contract: ${initError.message || String(initError)}`);
-        onError?.(new Error(`Failed to initialize vault contract: ${initError.message || String(initError)}`));
-      } finally {
-        setLoadingState(prev => ({ ...prev, initialization: false }));
-      }
-    };
+    console.log('Starting background transaction fetch');
+    setBackgroundFetching(prev => ({ ...prev, transactions: true }));
+    setLoadingState(prev => ({ ...prev, transactions: true }));
 
-    initializeVault();
-  }, [publicClient, walletClient, contractAddress, chain]); // Remove dependencies that cause loops
+    try {
+      const transactions = await vaultInstance.getPendingTransactions();
+      console.log('Background fetch: pending transactions:', transactions);
+      setPendingTxs(transactions);
+    } catch (error) {
+      console.error('Background fetch: Failed to fetch pending transactions:', error);
+      // Don't set error state for background failures
+    } finally {
+      setBackgroundFetching(prev => ({ ...prev, transactions: false }));
+      setLoadingState(prev => ({ ...prev, transactions: false }));
+    }
+  }, [backgroundFetching.transactions, setBackgroundFetching, setLoadingState, setPendingTxs]);
 
-  // Memoize fetchTokenBalance to prevent recreation
+  // Restore fetchTokenBalance as a memoized callback
   const fetchTokenBalance = React.useCallback(async (tokenAddress: Address) => {
     if (!vault) {
       console.log('No vault instance available for fetching token balance');
@@ -1014,8 +1008,92 @@ function SimpleVaultUIContent({
     } finally {
       setLoadingState((prev: LoadingState) => ({ ...prev, tokenBalance: false }));
     }
-  }, [vault, tokenBalances]);
+  }, [vault, tokenBalances, setLoadingState, setTokenBalances, setError]);
 
+  // Add an effect to periodically fetch transactions
+  useEffect(() => {
+    if (!vault || _mock) {
+      console.log('Skipping transaction polling setup - no vault or using mock');
+      return;
+    }
+
+    console.log('Setting up transaction polling');
+    
+    // Initial fetch
+    fetchTransactionsInBackground(vault);
+
+    // Set up periodic fetching every 30 seconds
+    const interval = setInterval(() => {
+      console.log('Polling: fetching transactions');
+      fetchTransactionsInBackground(vault);
+    }, 30000);
+
+    return () => {
+      console.log('Cleaning up transaction polling');
+      clearInterval(interval);
+    };
+  }, [vault, fetchTransactionsInBackground, _mock]);
+
+  // Initialize vault instance and fetch data once
+  useEffect(() => {
+    const initializeVault = async () => {
+      console.log('Initializing vault with params:', { 
+        publicClient: !!publicClient, 
+        chain: chain?.id, 
+        contractAddress 
+      });
+      
+      if (!publicClient || !chain) {
+        console.log('Missing required dependencies:', { publicClient: !!publicClient, chain: !!chain });
+        return;
+      }
+      
+      // Skip if already initialized
+      if (vault) {
+        console.log('Vault already initialized, skipping');
+        return;
+      }
+      
+      try {
+        setLoadingState(prev => ({ ...prev, initialization: true }));
+        console.log('Creating new vault instance...');
+        const vaultInstance = new SimpleVault(publicClient, walletClient, contractAddress, chain);
+        console.log('Vault instance created successfully');
+        setVault(vaultInstance);
+        setError(null);
+
+        // Fetch data once after successful initialization
+        if (!_mock) {
+          try {
+            console.log('Fetching initial vault data...');
+            // Fetch ETH balance first
+            let balance: bigint;
+            try {
+              balance = await vaultInstance.getEthBalance();
+              console.log('Initial ETH balance:', balance.toString());
+              setEthBalance(balance);
+            } catch (balanceError) {
+              console.error('Failed to fetch initial ETH balance:', balanceError);
+              balance = BigInt(0);
+            }
+          } catch (dataError: any) {
+            console.error("Failed to fetch initial vault data:", dataError);
+            setError(`Failed to fetch initial vault data: ${dataError.message || String(dataError)}`);
+          }
+        }
+      } catch (initError: any) {
+        console.error("Failed to initialize vault:", initError);
+        setError(`Failed to initialize vault contract: ${initError.message || String(initError)}`);
+        onError?.(new Error(`Failed to initialize vault contract: ${initError.message || String(initError)}`));
+      } finally {
+        setLoadingState(prev => ({ ...prev, initialization: false }));
+      }
+    };
+
+    initializeVault();
+  }, [publicClient, walletClient, contractAddress, chain, vault, setVault, setLoadingState, setError, setEthBalance, _mock]);
+
+  // Update fetchVaultData to use the memoized fetchTransactionsInBackground
   const fetchVaultData = React.useCallback(async () => {
     if (!vault || _mock) {
       console.log("Skipping fetchVaultData: vault not initialized or using mock data");
@@ -1032,28 +1110,18 @@ function SimpleVaultUIContent({
       console.log("ETH balance fetched:", balance.toString());
       setEthBalance(balance);
       
-      // Then fetch pending transactions
-      console.log("Fetching pending transactions...");
-      let transactions: VaultTxRecord[] = [];
-      try {
-        transactions = await vault.getPendingTransactions();
-        console.log("Pending transactions fetched:", transactions);
-      } catch (txError) {
-        console.error("Error fetching pending transactions:", txError);
-        // Don't fail the entire operation if just transactions fail
-      }
+      // Trigger background transaction fetch
+      fetchTransactionsInBackground(vault);
       
-      setPendingTxs(transactions);
       setError(null);
     } catch (err: any) {
       console.error("Failed to fetch vault data:", err);
-      // Don't update state if there was an error fetching the balance
       setError("Failed to fetch vault data: " + (err.message || String(err)));
       onError?.(new Error("Failed to fetch vault data: " + (err.message || String(err))));
     } finally {
       setLoadingState(prev => ({ ...prev, ethBalance: false }));
     }
-  }, [vault, setLoadingState, setEthBalance, setPendingTxs, _mock, onError]);
+  }, [vault, setLoadingState, setEthBalance, _mock, onError, fetchTransactionsInBackground]);
 
   const handleWithdrawal = async (to: Address, amount: bigint, token?: Address) => {
     if (!address || !vault) {
