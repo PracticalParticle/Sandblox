@@ -25,7 +25,13 @@
 }
 
 .mobile-menu {
-  @apply border-t glass; /* Mobile menu styles */
+  @apply border-t glass md:hidden w-64 absolute bg-background; /* Set width and position */
+  left: -100%; /* Start off-screen */
+  transition: left 0.3s ease; /* Smooth transition */
+}
+
+.mobile-menu.open {
+  left: 0; /* Slide in */
 }
 
 .mobile-menu a {

@@ -32,9 +32,7 @@ export const Footer: FC = () => {
             Discord
           </a>
           <a
-            href="https://docs.particlecs.com"
-            target="_blank"
-            rel="noopener noreferrer"
+            href="/docs"
             className="text-sm text-muted-foreground hover:text-foreground"
           >
             Documentation
