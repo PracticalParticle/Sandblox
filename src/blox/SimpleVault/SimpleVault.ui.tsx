@@ -745,6 +745,103 @@ const WithdrawalFormWrapper = React.memo(({
 
 WithdrawalFormWrapper.displayName = 'WithdrawalFormWrapper';
 
+// Add MetaTxPendingTransaction component
+const MetaTxPendingTransaction = ({ tx, onCancel, isLoading }: Omit<PendingTransactionProps, 'onApprove'>) => {
+  try {
+    const amount = tx.amount !== undefined ? BigInt(tx.amount) : 0n;
+
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <div className="text-left">
+                <div className="flex items-center gap-2">
+                  {tx.status === TxStatus.PENDING && <Clock className="h-4 w-4 text-yellow-500" />}
+                  {tx.status === TxStatus.CANCELLED && <XCircle className="h-4 w-4 text-red-500" />}
+                  {tx.status === TxStatus.COMPLETED && <CheckCircle2 className="h-4 w-4 text-green-500" />}
+                  <p className="font-medium">Transaction #{tx.txId.toString()}</p>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Amount: {tx.type === "ETH" ? formatEther(amount) : formatUnits(amount, 18)} {tx.type}
+                </p>
+                <p className="text-sm text-muted-foreground">To: {tx.target}</p>
+              </div>
+            </div>
+            <div className="flex space-x-2">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex-1">
+                      <Button
+                        disabled={true}
+                        className="w-full transition-all duration-200 flex items-center justify-center
+                          bg-slate-50 text-slate-600 hover:bg-slate-100 
+                          dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 
+                          border border-slate-200 dark:border-slate-700
+                          disabled:opacity-50 disabled:cursor-not-allowed"
+                        variant="outline"
+                        aria-label={`Approve transaction #${tx.txId} (not available)`}
+                      >
+                        <span>Approve (Coming Soon)</span>
+                      </Button>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    Meta-transaction approval coming soon
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex-1">
+                      <Button
+                        onClick={() => onCancel(Number(tx.txId))}
+                        disabled={isLoading || tx.status !== TxStatus.PENDING}
+                        className="w-full transition-all duration-200 flex items-center justify-center
+                          bg-rose-50 text-rose-700 hover:bg-rose-100 
+                          dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
+                          border border-rose-200 dark:border-rose-800
+                          disabled:opacity-50 disabled:cursor-not-allowed 
+                          disabled:bg-slate-50 disabled:text-slate-400 
+                          disabled:dark:bg-slate-900 disabled:dark:text-slate-500"
+                        variant="outline"
+                        aria-label={`Cancel transaction #${tx.txId}`}
+                      >
+                        {isLoading ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            <span>Processing...</span>
+                          </>
+                        ) : (
+                          <>
+                            <X className="h-4 w-4 mr-2" />
+                            <span>Cancel</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    {tx.status !== TxStatus.PENDING 
+                      ? "This transaction cannot be cancelled" 
+                      : "Cancel this withdrawal request"}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  } catch (error) {
+    console.error("Error rendering MetaTxPendingTransaction:", error);
+    return <div>Error rendering transaction details.</div>;
+  }
+};
+
 function SimpleVaultUIContent({ 
   contractAddress, 
   contractInfo, 
@@ -1520,28 +1617,61 @@ function SimpleVaultUIContent({
                         <CardTitle>Pending Withdrawals</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="space-y-4">
-                          {pendingTxs.length === 0 ? (
-                            <Card className="bg-muted">
-                              <CardContent className="pt-6">
-                                <h3 className="font-semibold">No Pending Transactions</h3>
-                                <p className="text-sm text-muted-foreground">
-                                  There are currently no pending withdrawal requests
-                                </p>
-                              </CardContent>
-                            </Card>
-                          ) : (
-                            pendingTxs.map((tx) => (
-                              <PendingTransaction
-                                key={tx.txId}
-                                tx={tx}
-                                onApprove={handleApproveWithdrawal}
-                                onCancel={handleCancelWithdrawal}
-                                isLoading={loadingState.approval[Number(tx.txId)] || loadingState.cancellation[Number(tx.txId)]}
-                              />
-                            ))
-                          )}
-                        </div>
+                        <Tabs defaultValue="timelock" className="w-full">
+                          <TabsList className="grid w-full grid-cols-2 bg-background p-1 rounded-lg">
+                            <TabsTrigger value="timelock" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">TimeLock</TabsTrigger>
+                            <TabsTrigger value="metatx" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">MetaTx</TabsTrigger>
+                          </TabsList>
+
+                          <TabsContent value="timelock" className="mt-4">
+                            <div className="space-y-4">
+                              {pendingTxs.length === 0 ? (
+                                <Card className="bg-muted">
+                                  <CardContent className="pt-6">
+                                    <h3 className="font-semibold">No Pending Transactions</h3>
+                                    <p className="text-sm text-muted-foreground">
+                                      There are currently no pending withdrawal requests
+                                    </p>
+                                  </CardContent>
+                                </Card>
+                              ) : (
+                                pendingTxs.map((tx) => (
+                                  <PendingTransaction
+                                    key={tx.txId}
+                                    tx={tx}
+                                    onApprove={handleApproveWithdrawal}
+                                    onCancel={handleCancelWithdrawal}
+                                    isLoading={loadingState.approval[Number(tx.txId)] || loadingState.cancellation[Number(tx.txId)]}
+                                  />
+                                ))
+                              )}
+                            </div>
+                          </TabsContent>
+
+                          <TabsContent value="metatx" className="mt-4">
+                            <div className="space-y-4">
+                              {pendingTxs.length === 0 ? (
+                                <Card className="bg-muted">
+                                  <CardContent className="pt-6">
+                                    <h3 className="font-semibold">No Pending Transactions</h3>
+                                    <p className="text-sm text-muted-foreground">
+                                      There are currently no pending withdrawal requests
+                                    </p>
+                                  </CardContent>
+                                </Card>
+                              ) : (
+                                pendingTxs.map((tx) => (
+                                  <MetaTxPendingTransaction
+                                    key={tx.txId}
+                                    tx={tx}
+                                    onCancel={handleCancelWithdrawal}
+                                    isLoading={loadingState.cancellation[Number(tx.txId)]}
+                                  />
+                                ))
+                              )}
+                            </div>
+                          </TabsContent>
+                        </Tabs>
                       </CardContent>
                     </Card>
                   </TabsContent>
