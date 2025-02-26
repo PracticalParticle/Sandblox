@@ -28,7 +28,7 @@ import { useSecureContract } from '@/hooks/useSecureContract'
 import { useToast } from '../components/ui/use-toast'
 import { Input } from '../components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '../components/ui/dialog'
-import type { SecureContractInfo, SecurityOperationEvent, SecurityOperationDetails } from '@/lib/types'
+import { SecureContractInfo } from '@/lib/types'
 import { Address } from 'viem'
 import { SingleWalletManagerProvider, useSingleWallet } from '@/components/SingleWalletManager'
 import { formatAddress, isValidEthereumAddress } from '@/lib/utils'
@@ -39,7 +39,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
-import { OperationHistory, TxRecord, SecurityOperationType, TxStatus } from '@/components/OperationHistory'
+import { OperationHistory, UITxRecord } from '@/components/OperationHistory'
+import { TxStatus } from '@/particle-core/sdk/typescript/types/lib.index'
+import { TxRecord as CoreTxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
 
 const container = {
   hidden: { opacity: 0 },
@@ -87,88 +89,64 @@ const formatTimeValue = (value: string | number): string => {
   return `${numValue} days`;
 };
 
-const formatValue = (value: string, type: SecurityOperationType): string => {
-  // Handle empty or invalid values
+const formatValue = (value: string, type: string): string => {
   if (!value || value === '0x0' || value === '0x') return '-';
 
   switch (type) {
-    case SecurityOperationType.OWNERSHIP_UPDATE:
-    case SecurityOperationType.BROADCASTER_UPDATE:
-    case SecurityOperationType.RECOVERY_UPDATE:
+    case 'ownership_update':
+    case 'broadcaster_update':
+    case 'recovery_update':
       return formatHexValue(value);
-    case SecurityOperationType.TIMELOCK_UPDATE:
+    case 'timelock_update':
       return formatTimeValue(value);
     default:
       return formatHexValue(value);
   }
 };
 
-const getOperationTitle = (event: TxRecord): string => {
+const getOperationTitle = (event: UITxRecord): string => {
   switch (event.type) {
-    case SecurityOperationType.OWNERSHIP_UPDATE:
+    case 'ownership_update':
       return 'Ownership Transfer';
-    case SecurityOperationType.BROADCASTER_UPDATE:
+    case 'broadcaster_update':
       return 'Broadcaster Update';
-    case SecurityOperationType.RECOVERY_UPDATE:
+    case 'recovery_update':
       return 'Recovery Update';
-    case SecurityOperationType.TIMELOCK_UPDATE:
+    case 'timelock_update':
       return 'TimeLock Update';
     default:
       return 'Unknown Operation';
   }
 };
 
-const getOperationDescription = (event: TxRecord): string => {
+const getOperationDescription = (event: UITxRecord): string => {
   const newValue = formatValue(event.details.newValue, event.type);
   switch (event.type) {
-    case SecurityOperationType.OWNERSHIP_UPDATE:
+    case 'ownership_update':
       return `Transfer ownership to ${newValue}`;
-    case SecurityOperationType.BROADCASTER_UPDATE:
+    case 'broadcaster_update':
       return `Update broadcaster to ${newValue}`;
-    case SecurityOperationType.RECOVERY_UPDATE:
+    case 'recovery_update':
       return `Update recovery address to ${newValue}`;
-    case SecurityOperationType.TIMELOCK_UPDATE:
+    case 'timelock_update':
       return `Update timelock period to ${newValue}`;
     default:
       return event.description;
   }
 };
 
-const getOperationIcon = (type: SecurityOperationType) => {
+const getOperationIcon = (type: string) => {
   switch (type) {
-    case SecurityOperationType.OWNERSHIP_UPDATE:
+    case 'ownership_update':
       return <Key className="h-3 w-3" />;
-    case SecurityOperationType.BROADCASTER_UPDATE:
+    case 'broadcaster_update':
       return <Radio className="h-3 w-3" />;
-    case SecurityOperationType.RECOVERY_UPDATE:
+    case 'recovery_update':
       return <Shield className="h-3 w-3" />;
-    case SecurityOperationType.TIMELOCK_UPDATE:
+    case 'timelock_update':
       return <Clock className="h-3 w-3" />;
     default:
       return null;
-  }
-};
-
-const getStatusColor = (status: TxStatus): { bg: string; text: string; icon: JSX.Element } => {
-  switch (status) {
-    case TxStatus.COMPLETED:
-      return {
-        bg: 'bg-green-500/10',
-        text: 'text-green-500',
-        icon: <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-      };
-    case TxStatus.PENDING:
-      return {
-        bg: 'bg-yellow-500/10',
-        text: 'text-yellow-500',
-        icon: <AlertCircle className="h-3.5 w-3.5 text-yellow-500" />
-      };
-    case TxStatus.CANCELLED:
-      return {
-        bg: 'bg-red-500/10',
-        text: 'text-red-500',
-        icon: <XCircle className="h-3.5 w-3.5 text-red-500" />
-      };
   }
 };
 
@@ -524,6 +502,35 @@ function BroadcasterUpdateDialog({
   )
 }
 
+// Core event types
+interface CoreOperationEvent {
+  txId: bigint;
+  timestamp: bigint;
+  status: number;
+  type: string;
+  requester: Address;
+  target: Address;
+  details: {
+    oldValue: string | bigint;
+    newValue: string | bigint;
+    remainingTime: bigint;
+  };
+  description?: string;
+}
+
+// Event types from the contract
+interface ContractEvent {
+  status: string;
+  type: string;
+  timestamp: string | number;
+  description?: string;
+  details: {
+    oldValue: string;
+    newValue: string;
+    remainingTime?: string | number;
+  };
+}
+
 export function SecurityDetails() {
   const { address } = useParams<{ address: string }>()
   const { isConnected } = useAccount()
@@ -547,7 +554,7 @@ export function SecurityDetails() {
   const [showBroadcasterDialog, setShowBroadcasterDialog] = useState(false)
   const [showBroadcasterApproveDialog, setShowBroadcasterApproveDialog] = useState(false)
   const [showBroadcasterCancelDialog, setShowBroadcasterCancelDialog] = useState(false)
-  const [operationHistory, setOperationHistory] = useState<TxRecord[]>([])
+  const [operationHistory, setOperationHistory] = useState<UITxRecord[]>([])
 
   useEffect(() => {
     if (!isConnected) {
@@ -595,39 +602,73 @@ export function SecurityDetails() {
       // Convert contract events to TxRecord format
       const pendingOps = info.pendingOperations || [];
       const recentOps = info.recentEvents || [];
-      const allEvents: SecurityOperationEvent[] = [...pendingOps, ...recentOps];
+      
+      // Map events to CoreOperationEvent format with explicit typing
+      const allEvents: CoreOperationEvent[] = [...pendingOps, ...recentOps].map((event: ContractEvent) => {
+        // Convert status string to number
+        let statusNum: number;
+        switch (event.status.toLowerCase()) {
+          case 'pending':
+            statusNum = TxStatus.PENDING;
+            break;
+          case 'completed':
+            statusNum = TxStatus.COMPLETED;
+            break;
+          case 'cancelled':
+            statusNum = TxStatus.CANCELLED;
+            break;
+          case 'failed':
+            statusNum = TxStatus.FAILED;
+            break;
+          case 'rejected':
+            statusNum = TxStatus.REJECTED;
+            break;
+          default:
+            statusNum = TxStatus.UNDEFINED;
+        }
+
+        return {
+          txId: BigInt(event.details.newValue),
+          timestamp: BigInt(event.timestamp),
+          status: statusNum,
+          type: event.type.toLowerCase(),
+          requester: address as Address,
+          target: address as Address,
+          details: {
+            oldValue: event.details.oldValue,
+            newValue: event.details.newValue,
+            remainingTime: BigInt(event.details.remainingTime || 0)
+          },
+          description: event.description
+        };
+      });
       
       // Convert timeLockPeriodInDays to number first
       const timeLockPeriodInDays = convertBigIntToNumber(info.timeLockPeriodInDays);
       const timeLockPeriodInSeconds = timeLockPeriodInDays * 24 * 60 * 60;
       
-      const history: TxRecord[] = allEvents
-        .filter((event): event is SecurityOperationEvent & { details: Required<SecurityOperationDetails> } => 
+      const history: UITxRecord[] = allEvents
+        .filter(event => 
           event.details !== undefined &&
-          typeof event.details.oldValue !== 'undefined' &&
-          typeof event.details.newValue !== 'undefined' &&
-          typeof event.details.remainingTime !== 'undefined'
+          event.details.oldValue !== undefined &&
+          event.details.newValue !== undefined &&
+          event.details.remainingTime !== undefined
         )
-        .map(event => {
-          // Convert timestamp to number first
-          const timestamp = convertBigIntToNumber(event.timestamp);
-          
-          return {
-            txId: typeof event.details.newValue === 'bigint' ? 
-              Number(event.details.newValue) : 
-              parseInt(event.details.newValue.toString()) || Date.now(),
-            type: event.type as SecurityOperationType,
-            description: event.description,
-            status: event.status as TxStatus,
-            releaseTime: timestamp + timeLockPeriodInSeconds,
-            timestamp: timestamp,
-            details: {
-              oldValue: event.details.oldValue.toString(),
-              newValue: event.details.newValue.toString(),
-              remainingTime: convertBigIntToNumber(event.details.remainingTime)
-            }
-          };
-        });
+        .map((event) => ({
+          txId: Number(event.txId),
+          type: event.type,
+          description: '', // This will be generated by OperationHistory component
+          status: event.status,
+          releaseTime: Number(event.timestamp) + timeLockPeriodInSeconds,
+          timestamp: Number(event.timestamp),
+          details: {
+            oldValue: event.details.oldValue.toString(),
+            newValue: event.details.newValue.toString(),
+            remainingTime: convertBigIntToNumber(event.details.remainingTime),
+            requester: event.requester,
+            target: event.target
+          }
+        }));
 
       setOperationHistory(history);
       setError(null);
@@ -802,12 +843,12 @@ export function SecurityDetails() {
   }
 
   // Handle operation actions
-  const handleOperationApprove = async (txId: number, type: SecurityOperationType) => {
+  const handleOperationApprove = async (txId: number, type: string) => {
     setShowBroadcasterApproveDialog(true)
     setSelectedTxId(txId.toString())
   }
 
-  const handleOperationCancel = async (txId: number, type: SecurityOperationType) => {
+  const handleOperationCancel = async (txId: number, type: string) => {
     setShowBroadcasterCancelDialog(true)
     setSelectedTxId(txId.toString())
   }

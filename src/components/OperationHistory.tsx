@@ -33,35 +33,56 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 
-// Types
-export enum TxStatus {
-  PENDING = 'pending',
-  COMPLETED = 'completed',
-  CANCELLED = 'cancelled'
-}
+// Import types from the core SDK
+import { TxStatus } from '@/particle-core/sdk/typescript/types/lib.index'
+import { TxRecord as CoreTxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
+import { OPERATION_TYPES, OperationType } from '@/particle-core/sdk/typescript/types/core.access.index'
+import { Address } from 'viem'
 
-export enum SecurityOperationType {
-  OWNERSHIP_UPDATE = 'ownership',
-  BROADCASTER_UPDATE = 'broadcaster',
-  RECOVERY_UPDATE = 'recovery',
-  TIMELOCK_UPDATE = 'timelock'
-}
-
-export interface SecurityOperationDetails {
+// UI-specific types that extend core types
+export interface UISecurityOperationDetails {
   oldValue: string
   newValue: string
   remainingTime: number
+  requester?: Address
+  target?: Address
 }
 
-export interface TxRecord {
+export interface UITxRecord {
   txId: number
-  type: SecurityOperationType
+  type: string  // Changed from OperationType to string to match core type
   description: string
-  status: TxStatus
+  status: number
   releaseTime: number
   timestamp: number
-  details: Required<SecurityOperationDetails>
+  details: Required<UISecurityOperationDetails>
 }
+
+// Mapping functions between core types and UI types
+const mapCoreStatusToUIStatus = (status: number): number => {
+  return status;
+};
+
+export const mapCoreTxRecordToUITxRecord = (
+  coreTxRecord: CoreTxRecord, 
+  details: UISecurityOperationDetails
+): UITxRecord => {
+  return {
+    txId: Number(coreTxRecord.txId),
+    type: coreTxRecord.operationType,
+    description: getOperationDescription(coreTxRecord.operationType, details.newValue),
+    status: Number(coreTxRecord.status),
+    releaseTime: Number(coreTxRecord.releaseTime),
+    timestamp: Math.floor(Date.now() / 1000),
+    details: {
+      oldValue: details.oldValue,
+      newValue: details.newValue,
+      remainingTime: details.remainingTime,
+      requester: coreTxRecord.requester,
+      target: coreTxRecord.target
+    }
+  };
+};
 
 // Utility functions
 const formatHexValue = (value: string): string => {
@@ -83,68 +104,68 @@ const formatTimeValue = (value: string | number): string => {
   return `${numValue} days`;
 };
 
-const formatValue = (value: string, type: SecurityOperationType): string => {
+const formatValue = (value: string, type: string): string => {
   if (!value || value === '0x0' || value === '0x') return '-';
 
   switch (type) {
-    case SecurityOperationType.OWNERSHIP_UPDATE:
-    case SecurityOperationType.BROADCASTER_UPDATE:
-    case SecurityOperationType.RECOVERY_UPDATE:
+    case 'OWNERSHIP_UPDATE':
+    case 'BROADCASTER_UPDATE':
+    case 'RECOVERY_UPDATE':
       return formatHexValue(value);
-    case SecurityOperationType.TIMELOCK_UPDATE:
+    case 'TIMELOCK_UPDATE':
       return formatTimeValue(value);
     default:
       return formatHexValue(value);
   }
 };
 
-const getOperationTitle = (event: TxRecord): string => {
-  switch (event.type) {
-    case SecurityOperationType.OWNERSHIP_UPDATE:
+const getOperationTitle = (type: string): string => {
+  switch (type) {
+    case 'OWNERSHIP_UPDATE':
       return 'Ownership Transfer';
-    case SecurityOperationType.BROADCASTER_UPDATE:
+    case 'BROADCASTER_UPDATE':
       return 'Broadcaster Update';
-    case SecurityOperationType.RECOVERY_UPDATE:
+    case 'RECOVERY_UPDATE':
       return 'Recovery Update';
-    case SecurityOperationType.TIMELOCK_UPDATE:
+    case 'TIMELOCK_UPDATE':
       return 'TimeLock Update';
     default:
       return 'Unknown Operation';
   }
 };
 
-const getOperationDescription = (event: TxRecord): string => {
-  const newValue = formatValue(event.details.newValue, event.type);
-  switch (event.type) {
-    case SecurityOperationType.OWNERSHIP_UPDATE:
-      return `Transfer ownership to ${newValue}`;
-    case SecurityOperationType.BROADCASTER_UPDATE:
-      return `Update broadcaster to ${newValue}`;
-    case SecurityOperationType.RECOVERY_UPDATE:
-      return `Update recovery address to ${newValue}`;
-    case SecurityOperationType.TIMELOCK_UPDATE:
-      return `Update timelock period to ${newValue}`;
+const getOperationDescription = (type: string, newValue: string): string => {
+  const formattedValue = formatValue(newValue, type);
+  switch (type) {
+    case 'OWNERSHIP_UPDATE':
+      return `Transfer ownership to ${formattedValue}`;
+    case 'BROADCASTER_UPDATE':
+      return `Update broadcaster to ${formattedValue}`;
+    case 'RECOVERY_UPDATE':
+      return `Update recovery address to ${formattedValue}`;
+    case 'TIMELOCK_UPDATE':
+      return `Update timelock period to ${formattedValue}`;
     default:
-      return event.description;
+      return 'Unknown operation';
   }
 };
 
-const getOperationIcon = (type: SecurityOperationType) => {
+const getOperationIcon = (type: string) => {
   switch (type) {
-    case SecurityOperationType.OWNERSHIP_UPDATE:
+    case 'OWNERSHIP_UPDATE':
       return <Key className="h-3 w-3" />;
-    case SecurityOperationType.BROADCASTER_UPDATE:
+    case 'BROADCASTER_UPDATE':
       return <Radio className="h-3 w-3" />;
-    case SecurityOperationType.RECOVERY_UPDATE:
+    case 'RECOVERY_UPDATE':
       return <Shield className="h-3 w-3" />;
-    case SecurityOperationType.TIMELOCK_UPDATE:
+    case 'TIMELOCK_UPDATE':
       return <Clock className="h-3 w-3" />;
     default:
       return null;
   }
 };
 
-const getStatusColor = (status: TxStatus): { bg: string; text: string; icon: JSX.Element } => {
+const getStatusColor = (status: number): { bg: string; text: string; icon: JSX.Element } => {
   switch (status) {
     case TxStatus.COMPLETED:
       return {
@@ -164,16 +185,59 @@ const getStatusColor = (status: TxStatus): { bg: string; text: string; icon: JSX
         text: 'text-red-500',
         icon: <XCircle className="h-3.5 w-3.5 text-red-500" />
       };
+    case TxStatus.FAILED:
+      return {
+        bg: 'bg-red-500/10',
+        text: 'text-red-500',
+        icon: <XCircle className="h-3.5 w-3.5 text-red-500" />
+      };
+    case TxStatus.REJECTED:
+      return {
+        bg: 'bg-orange-500/10',
+        text: 'text-orange-500',
+        icon: <XCircle className="h-3.5 w-3.5 text-orange-500" />
+      };
+    case TxStatus.UNDEFINED:
+    default:
+      return {
+        bg: 'bg-gray-500/10',
+        text: 'text-gray-500',
+        icon: <AlertCircle className="h-3.5 w-3.5 text-gray-500" />
+      };
   }
 };
 
+const getStatusVariant = (status: number): "default" | "secondary" | "destructive" | "outline" => {
+  switch (status) {
+    case TxStatus.COMPLETED:
+      return "default";
+    case TxStatus.PENDING:
+      return "secondary";
+    case TxStatus.CANCELLED:
+    case TxStatus.FAILED:
+      return "destructive";
+    case TxStatus.REJECTED:
+      return "destructive";
+    case TxStatus.UNDEFINED:
+    default:
+      return "outline";
+  }
+};
+
+const getStatusName = (status: number): string => {
+  return Object.entries(TxStatus)
+    .find(([_, value]) => value === status)?.[0]
+    ?.toLowerCase() || 'unknown';
+};
+
 interface OperationHistoryProps {
-  operations: TxRecord[]
+  operations: UITxRecord[]
   title?: string
   showFilters?: boolean
-  onApprove?: (txId: number, type: SecurityOperationType) => void
-  onCancel?: (txId: number, type: SecurityOperationType) => void
+  onApprove?: (txId: number, type: string) => Promise<void>
+  onCancel?: (txId: number, type: string) => Promise<void>
   className?: string
+  isLoading?: boolean
 }
 
 export function OperationHistory({
@@ -182,11 +246,19 @@ export function OperationHistory({
   showFilters = true,
   onApprove,
   onCancel,
-  className = ""
+  className = "",
+  isLoading = false
 }: OperationHistoryProps) {
   const { toast } = useToast()
-  const [statusFilter, setStatusFilter] = useState<TxStatus[]>([])
-  const [typeFilter, setTypeFilter] = useState<SecurityOperationType[]>([])
+  const [statusFilter, setStatusFilter] = useState<number[]>([])
+  const [typeFilter, setTypeFilter] = useState<string[]>([])
+
+  const statusEntries = Object.entries(TxStatus)
+    .filter(([key]) => !isNaN(Number(key)))
+    .map(([key, value]) => ({ key: Number(key), value }))
+
+  const typeEntries = Object.entries(OPERATION_TYPES)
+    .map(([key, value]) => ({ key, value }))
 
   const filteredOperations = operations.filter(op => {
     const matchesStatus = statusFilter.length === 0 || statusFilter.includes(op.status)
@@ -202,7 +274,7 @@ export function OperationHistory({
     })
   }
 
-  const toggleStatusFilter = (status: TxStatus) => {
+  const toggleStatusFilter = (status: number) => {
     setStatusFilter(prev => 
       prev.includes(status)
         ? prev.filter(s => s !== status)
@@ -210,7 +282,7 @@ export function OperationHistory({
     )
   }
 
-  const toggleTypeFilter = (type: SecurityOperationType) => {
+  const toggleTypeFilter = (type: string) => {
     setTypeFilter(prev => 
       prev.includes(type)
         ? prev.filter(t => t !== type)
@@ -233,16 +305,16 @@ export function OperationHistory({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  {Object.values(TxStatus).map((status) => (
+                  {statusEntries.map(({ key, value }) => (
                     <DropdownMenuItem
-                      key={status}
-                      onClick={() => toggleStatusFilter(status)}
+                      key={key}
+                      onClick={() => toggleStatusFilter(key)}
                       className="flex items-center gap-2"
                     >
                       <div className="w-4 h-4 border rounded flex items-center justify-center">
-                        {statusFilter.includes(status) && "✓"}
+                        {statusFilter.includes(key) && "✓"}
                       </div>
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                      {value.toString().charAt(0).toUpperCase() + value.toString().slice(1).toLowerCase()}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -256,16 +328,16 @@ export function OperationHistory({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  {Object.values(SecurityOperationType).map((type) => (
+                  {typeEntries.map(({ key, value }) => (
                     <DropdownMenuItem
-                      key={type}
-                      onClick={() => toggleTypeFilter(type)}
+                      key={key}
+                      onClick={() => toggleTypeFilter(key)}
                       className="flex items-center gap-2"
                     >
                       <div className="w-4 h-4 border rounded flex items-center justify-center">
-                        {typeFilter.includes(type) && "✓"}
+                        {typeFilter.includes(key) && "✓"}
                       </div>
-                      {type.split('_').map(word => 
+                      {key.split('_').map(word => 
                         word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
                       ).join(' ')}
                     </DropdownMenuItem>
@@ -278,7 +350,17 @@ export function OperationHistory({
       </CardHeader>
 
       <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
-        {filteredOperations.length > 0 ? (
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+            >
+              <History className="h-12 w-12 mb-4 opacity-50" />
+            </motion.div>
+            <p className="text-sm font-medium">Loading operations...</p>
+          </div>
+        ) : filteredOperations.length > 0 ? (
           filteredOperations
             .sort((a, b) => b.timestamp - a.timestamp)
             .map((event) => {
@@ -296,17 +378,13 @@ export function OperationHistory({
                           <div className="min-w-0 text-left">
                             <div className="flex items-center gap-2 flex-wrap">
                               <h3 className="text-sm font-semibold truncate">
-                                {getOperationTitle(event)}
+                                {getOperationTitle(event.type)}
                               </h3>
                               <Badge 
-                                variant={
-                                  event.status === TxStatus.COMPLETED ? "default" :
-                                  event.status === TxStatus.PENDING ? "secondary" :
-                                  "destructive"
-                                }
+                                variant={getStatusVariant(event.status)}
                                 className="capitalize"
                               >
-                                {event.status}
+                                {getStatusName(event.status)}
                               </Badge>
                               {event.status === TxStatus.PENDING && event.details.remainingTime > 0 && (
                                 <span className="flex items-center gap-1 text-xs text-yellow-500">
@@ -360,7 +438,7 @@ export function OperationHistory({
                     <CollapsibleContent>
                       <div className="px-4 pb-3 pt-1">
                         <p className="text-sm text-muted-foreground mb-3">
-                          {getOperationDescription(event)}
+                          {getOperationDescription(event.type, event.details.newValue)}
                         </p>
                         
                         <div className="flex items-center gap-3 px-4 py-3 bg-muted/30 rounded-lg">
