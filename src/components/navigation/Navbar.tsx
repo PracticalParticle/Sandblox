@@ -17,16 +17,7 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b glass transition-colors duration-300">
-      <div className="fixed right-4 top-4 z-50 flex items-center gap-2">
-        <ConnectButton
-          showBalance={false}
-          chainStatus="icon"
-        />
-        <div className="hidden md:block">
-          <ThemeToggle />
-        </div>
-      </div>
-      <nav className="container flex h-16 items-center">
+      <nav className="container flex h-16 items-center justify-between relative">
         {/* Logo & Desktop Navigation */}
         <div className="flex items-center gap-6">
           <a
@@ -63,29 +54,34 @@ export function Navbar() {
             </DropdownMenu>
             <a
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
-              href="https://docs.particlecs.com"
-              target="_blank"
-              rel="noopener noreferrer"
+              href="/docs"
             >
               Docs
             </a>
             <a
-            href="https://github.com/particlecs-com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden md:flex rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground glow-primary"
-          >
-            <Github className="h-5 w-5" />
-          </a>
+              href="https://github.com/particlecs-com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden md:flex rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground glow-primary"
+            >
+              <Github className="h-5 w-5" />
+            </a>
           </div>
         </div>
 
-        {/* Right side icons */}
-        <div className="ml-auto flex items-center gap-4">
-          
+        {/* Right side items - reorganized */}
+        <div className="flex items-center gap-2">
+          <ConnectButton
+            showBalance={false}
+            chainStatus="icon"
+          />
+          <div className="hidden md:block">
+            <ThemeToggle />
+          </div>
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="rounded-lg p-2 hover:bg-accent md:hidden hover-lift"
+            className="rounded-lg p-2 hover:bg-accent md:hidden"
+            aria-label="Toggle mobile menu"
           >
             {isMobileMenuOpen ? (
               <X className="h-6 w-6" />
@@ -96,14 +92,14 @@ export function Navbar() {
         </div>
       </nav>
 
-      {/* Mobile Menu */}
+      {/* Mobile Menu - Updated positioning */}
       <AnimatePresence>
         {isMobileMenuOpen && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="border-t glass md:hidden"
+            initial={{ left: '-100%' }}
+            animate={{ left: '0' }}
+            exit={{ left: '-100%' }}
+            className={`mobile-menu ${isMobileMenuOpen ? 'open' : ''}`}
           >
             <div className="container flex flex-col space-y-4 py-4">
               {isConnected && (
@@ -132,9 +128,7 @@ export function Navbar() {
               </a>
               <a
                 className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
-                href="https://docs.particlecs.com"
-                target="_blank"
-                rel="noopener noreferrer"
+                href="/docs"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Docs

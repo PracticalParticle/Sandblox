@@ -11,6 +11,7 @@ import { Footer } from './components/navigation/Footer';
 import BloxMiniApp from './pages/BloxMiniApp';
 import Blockchains from './pages/Blockchains';
 import BlockchainDetails from './pages/BlockchainDetails';
+import Documentation from './pages/Documentation';
 
 export default function App() {
   return (
@@ -28,6 +29,8 @@ export default function App() {
               <Route path="/blox/:type/:address" element={<BloxMiniApp />} />
               <Route path="/blockchains" element={<Blockchains />} />
               <Route path="/blockchains/:id" element={<BlockchainDetails />} />
+              <Route path="/docs" element={<Documentation />} />
+              <Route path="/docs/:slug" element={<Documentation />} />
             </Routes>
           </div>
         </main>

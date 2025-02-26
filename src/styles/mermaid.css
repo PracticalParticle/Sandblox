@@ -1,0 +1,72 @@
+.mermaid-wrapper {
+    @apply relative w-full rounded-lg shadow-lg overflow-auto;
+    @apply bg-background/95 dark:bg-background/95;
+}
+
+.mermaid {
+    @apply w-full transition-colors;
+    min-height: 300px;
+    height: 400px;
+    overflow-x: auto;
+    overflow-y: auto;
+    margin: 0;
+    padding: 1rem;
+}
+
+.mermaid svg {
+    @apply mx-auto;
+    width: auto !important;
+    height: auto !important;
+}
+
+/* Light mode styles */
+:root[class='light'] .mermaid .node rect,
+:root[class='light'] .mermaid .node circle,
+:root[class='light'] .mermaid .node ellipse,
+:root[class='light'] .mermaid .node polygon {
+    fill: var(--color-surface2-light) !important;
+    stroke: var(--primary-color) !important;
+}
+
+/* Dark mode styles */
+:root[class='dark'] .mermaid .node rect,
+:root[class='dark'] .mermaid .node circle,
+:root[class='dark'] .mermaid .node ellipse,
+:root[class='dark'] .mermaid .node polygon {
+    fill: var(--background-dark) !important;
+    stroke: var(--primary-color) !important;
+}
+
+.mermaid .label text,
+.mermaid text {
+    @apply text-gray-900 dark:text-white;
+    font-size: 14px !important;
+}
+
+.expand-button {
+    @apply absolute bottom-4 right-4 px-4 py-2 text-sm rounded-md shadow-md transition-colors;
+    @apply bg-primary hover:bg-primary/90 text-white;
+}
+
+/* Expanded state */
+.mermaid-wrapper.expanded {
+    @apply fixed inset-0 z-50 m-0 p-4;
+    @apply bg-background/95 dark:bg-background/95;
+}
+
+.mermaid-wrapper.expanded .mermaid {
+    @apply h-full max-h-screen;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    .mermaid {
+        @apply p-2;
+    }
+    
+    .mermaid .label text,
+    .mermaid text {
+        @apply text-xs;
+    }
+}
+  
