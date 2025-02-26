@@ -339,32 +339,6 @@ const PendingTransaction = ({ tx, onApprove, onCancel, isLoading }: PendingTrans
   const [backgroundFetching] = useAtom(backgroundFetchingAtom);
   const [pendingTxs] = useAtom(pendingTxsAtom);
 
-  // Only show skeleton loader when we're in initial loading state and have no transactions
-  if (loadingState.transactions && pendingTxs.length === 0) {
-    return (
-      <Card>
-        <CardContent className="pt-6">
-          <div className="space-y-4">
-            <Skeleton className="h-6 w-3/4" />
-            <Skeleton className="h-4 w-1/2" />
-            <Skeleton className="h-4 w-2/3" />
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-4 w-16" />
-              </div>
-              <Skeleton className="h-2 w-full" />
-            </div>
-            <div className="flex space-x-2">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
   try {
     const now = Math.floor(Date.now() / 1000);
     const isReady = now >= Number(tx.releaseTime);
@@ -385,9 +359,6 @@ const PendingTransaction = ({ tx, onApprove, onCancel, isLoading }: PendingTrans
                   {tx.status === TxStatus.CANCELLED && <XCircle className="h-4 w-4 text-red-500" />}
                   {tx.status === TxStatus.COMPLETED && <CheckCircle2 className="h-4 w-4 text-green-500" />}
                   <p className="font-medium">Transaction #{tx.txId.toString()}</p>
-                  {backgroundFetching.transactions && (
-                    <Loader2 className="h-4 w-4 animate-spin ml-2 text-muted-foreground" />
-                  )}
                 </div>
                 <p className="text-sm text-muted-foreground">
                   Amount: {tx.type === "ETH" ? formatEther(amount) : formatUnits(amount, 18)} {tx.type}
@@ -1010,7 +981,7 @@ function SimpleVaultUIContent({
     }
   }, [vault, tokenBalances, setLoadingState, setTokenBalances, setError]);
 
-  // Add an effect to periodically fetch transactions
+  // Update the effect that sets up transaction polling to properly handle loading states
   useEffect(() => {
     if (!vault || _mock) {
       console.log('Skipping transaction polling setup - no vault or using mock');
@@ -1019,8 +990,14 @@ function SimpleVaultUIContent({
 
     console.log('Setting up transaction polling');
     
+    // Set loading state before initial fetch
+    setLoadingState(prev => ({ ...prev, transactions: true }));
+    
     // Initial fetch
-    fetchTransactionsInBackground(vault);
+    fetchTransactionsInBackground(vault).then(() => {
+      // Ensure loading state is false after initial fetch
+      setLoadingState(prev => ({ ...prev, transactions: false }));
+    });
 
     // Set up periodic fetching every 30 seconds
     const interval = setInterval(() => {
@@ -1032,7 +1009,7 @@ function SimpleVaultUIContent({
       console.log('Cleaning up transaction polling');
       clearInterval(interval);
     };
-  }, [vault, fetchTransactionsInBackground, _mock]);
+  }, [vault, fetchTransactionsInBackground, _mock, setLoadingState]);
 
   // Initialize vault instance and fetch data once
   useEffect(() => {
@@ -1693,7 +1670,11 @@ function SimpleVaultUIContent({
 
                           <TabsContent value="timelock" className="mt-4">
                             <div className="space-y-4">
-                              {pendingTxs.length === 0 ? (
+                              {loadingState.transactions ? (
+                                <div className="flex items-center justify-center py-8">
+                                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                                </div>
+                              ) : pendingTxs.length === 0 ? (
                                 <Card className="bg-muted">
                                   <CardContent className="pt-6">
                                     <h3 className="font-semibold">No Pending Transactions</h3>
