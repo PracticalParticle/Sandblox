@@ -363,11 +363,11 @@ export function OperationHistory({
         ) : filteredOperations.length > 0 ? (
           filteredOperations
             .sort((a, b) => b.timestamp - a.timestamp)
-            .map((event) => {
+            .map((event, index) => {
               const statusStyle = getStatusColor(event.status);
               const icon = getOperationIcon(event.type);
               return (
-                <Collapsible key={event.txId}>
+                <Collapsible key={`${event.txId}-${index}`}>
                   <div className="group border rounded-lg bg-background">
                     <CollapsibleTrigger className="w-full">
                       <div className="flex items-center justify-between p-3 hover:bg-accent/5 transition-colors">
@@ -412,10 +412,8 @@ export function OperationHistory({
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                                <div
+                                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleCopyTxId(event.txId);
@@ -423,7 +421,7 @@ export function OperationHistory({
                                 >
                                   <span className="sr-only">Copy transaction ID</span>
                                   <Copy className="h-4 w-4" />
-                                </Button>
+                                </div>
                               </TooltipTrigger>
                               <TooltipContent>
                                 <p>Copy transaction ID</p>
