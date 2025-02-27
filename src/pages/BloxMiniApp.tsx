@@ -16,6 +16,7 @@ import { getContractDetails } from '@/lib/catalog';
 import type { BloxContract } from '@/lib/catalog/types';
 import { initializeUIComponents, getUIComponent, type BloxUIProps, type BloxSidebarProps } from '@/lib/catalog/bloxUIComponents';
 import { useConfig, useChainId, useConnect } from 'wagmi'
+import React from 'react';
 
 interface Message {
   type: 'error' | 'warning' | 'info' | 'success';
@@ -65,6 +66,9 @@ const BloxMiniApp: React.FC = () => {
     if (!address || !type || !uiInitialized) return;
 
     const loadContractInfo = async () => {
+      // Skip if we already have the contract info for this address
+      if (contractInfo?.address === address) return;
+
       setLoading(true);
       setError(null);
 
@@ -77,7 +81,7 @@ const BloxMiniApp: React.FC = () => {
         const targetChain = config.chains.find(c => c.id === info.chainId);
         const targetChainName = targetChain?.name || 'Unknown Network';
 
-        // Validate chain ID
+        // Only show network warning if chain is wrong
         if (chainId !== info.chainId) {
           addMessage({
             type: 'warning',
@@ -95,10 +99,7 @@ const BloxMiniApp: React.FC = () => {
               });
             } catch (error) {
               console.error('Failed to switch network:', error);
-              throw new Error(`Please manually switch to ${targetChainName} network to interact with this contract.`);
             }
-          } else {
-            throw new Error(`Please manually switch to ${targetChainName} network to interact with this contract.`);
           }
         }
 
@@ -122,15 +123,27 @@ const BloxMiniApp: React.FC = () => {
     };
 
     loadContractInfo();
-  }, [address, type, uiInitialized, chainId]);
+  }, [address, type, uiInitialized, chainId, validateAndLoadContract]);
 
   // Function to add messages that can be called from child components
-  const addMessage = (message: Omit<Message, 'timestamp'>) => {
-    setMessages(prev => [{
-      ...message,
-      timestamp: new Date()
-    }, ...prev]);
-  };
+  const addMessage = React.useCallback((message: Omit<Message, 'timestamp'>) => {
+    setMessages(prev => {
+      // Check if this exact message already exists in the last 5 seconds
+      const now = new Date();
+      const recentDuplicate = prev.find(m => 
+        m.type === message.type &&
+        m.title === message.title &&
+        m.description === message.description &&
+        (now.getTime() - m.timestamp.getTime()) < 5000
+      );
+      
+      if (recentDuplicate) return prev;
+      return [{
+        ...message,
+        timestamp: now
+      }, ...prev];
+    });
+  }, []);
 
   const formatAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -201,6 +214,21 @@ const BloxMiniApp: React.FC = () => {
     const chain = config.chains.find(c => c.id === chainId);
     return chain?.name || 'Unknown Network';
   };
+
+  // Modify the chain ID warning effect to prevent repeated warnings
+  useEffect(() => {
+    if (!contractInfo || !chainId) return;
+    
+    // Only show warning if chain changes after initial load
+    if (chainId !== contractInfo.chainId) {
+      const targetChain = config.chains.find(c => c.id === contractInfo.chainId);
+      addMessage({
+        type: 'warning',
+        title: 'Wrong Network',
+        description: `This contract is deployed on ${targetChain?.name || 'Unknown Network'}. Please switch networks.`
+      });
+    }
+  }, [chainId, contractInfo?.chainId]);
 
   return (
     <div className="flex flex-col flex-1">

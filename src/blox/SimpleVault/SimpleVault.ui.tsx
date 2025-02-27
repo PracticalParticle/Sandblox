@@ -906,11 +906,11 @@ function SimpleVaultUIContent({
       return;
     }
 
-    console.log('Starting background transaction fetch');
-    setBackgroundFetching(prev => ({ ...prev, transactions: true }));
-    setLoadingState(prev => ({ ...prev, transactions: true }));
-
     try {
+      setBackgroundFetching(prev => ({ ...prev, transactions: true }));
+      setLoadingState(prev => ({ ...prev, transactions: true }));
+
+      console.log('Starting background transaction fetch');
       const transactions = await vaultInstance.getPendingTransactions();
       console.log('Background fetch: pending transactions:', transactions);
       setPendingTxs(transactions);
@@ -921,7 +921,100 @@ function SimpleVaultUIContent({
       setBackgroundFetching(prev => ({ ...prev, transactions: false }));
       setLoadingState(prev => ({ ...prev, transactions: false }));
     }
-  }, [backgroundFetching.transactions, setBackgroundFetching, setLoadingState, setPendingTxs]);
+  }, []); // Empty dependency array since we use function setters
+
+  // Update the effect that sets up transaction polling to properly handle loading states
+  useEffect(() => {
+    if (!vault || _mock) {
+      console.log('Skipping transaction polling setup - no vault or using mock');
+      return;
+    }
+
+    let mounted = true;
+    const controller = new AbortController();
+
+    const pollTransactions = async () => {
+      if (!mounted || controller.signal.aborted) return;
+      
+      try {
+        await fetchTransactionsInBackground(vault);
+      } catch (error) {
+        console.error('Error in transaction polling:', error);
+      }
+    };
+
+    // Initial fetch
+    pollTransactions();
+
+    // Set up periodic fetching every 30 seconds
+    const interval = setInterval(pollTransactions, 30000);
+
+    return () => {
+      mounted = false;
+      controller.abort();
+      clearInterval(interval);
+      console.log('Cleaning up transaction polling');
+    };
+  }, [vault, _mock]); // Only depend on vault and _mock
+
+  // Restore the vault initialization effect
+  useEffect(() => {
+    const initializeVault = async () => {
+      console.log('Initializing vault with params:', { 
+        publicClient: !!publicClient, 
+        chain: chain?.id, 
+        contractAddress 
+      });
+      
+      if (!publicClient || !chain) {
+        console.log('Missing required dependencies:', { publicClient: !!publicClient, chain: !!chain });
+        return;
+      }
+      
+      // Skip if already initialized
+      if (vault) {
+        console.log('Vault already initialized, skipping');
+        return;
+      }
+      
+      try {
+        setLoadingState(prev => ({ ...prev, initialization: true }));
+        console.log('Creating new vault instance...');
+        const vaultInstance = new SimpleVault(publicClient, walletClient, contractAddress, chain);
+        console.log('Vault instance created successfully');
+        setVault(vaultInstance);
+        setError(null);
+
+        // Fetch data once after successful initialization
+        if (!_mock) {
+          try {
+            console.log('Fetching initial vault data...');
+            // Fetch ETH balance first
+            let balance: bigint;
+            try {
+              balance = await vaultInstance.getEthBalance();
+              console.log('Initial ETH balance:', balance.toString());
+              setEthBalance(balance);
+            } catch (balanceError) {
+              console.error('Failed to fetch initial ETH balance:', balanceError);
+              balance = BigInt(0);
+            }
+          } catch (dataError: any) {
+            console.error("Failed to fetch initial vault data:", dataError);
+            setError(`Failed to fetch initial vault data: ${dataError.message || String(dataError)}`);
+          }
+        }
+      } catch (initError: any) {
+        console.error("Failed to initialize vault:", initError);
+        setError(`Failed to initialize vault contract: ${initError.message || String(initError)}`);
+        onError?.(new Error(`Failed to initialize vault contract: ${initError.message || String(initError)}`));
+      } finally {
+        setLoadingState(prev => ({ ...prev, initialization: false }));
+      }
+    };
+
+    initializeVault();
+  }, [publicClient, walletClient, contractAddress, chain, vault, setVault, setLoadingState, setError, setEthBalance, _mock, onError]);
 
   // Restore fetchTokenBalance as a memoized callback
   const fetchTokenBalance = React.useCallback(async (tokenAddress: Address) => {
@@ -980,95 +1073,6 @@ function SimpleVaultUIContent({
       setLoadingState((prev: LoadingState) => ({ ...prev, tokenBalance: false }));
     }
   }, [vault, tokenBalances, setLoadingState, setTokenBalances, setError]);
-
-  // Update the effect that sets up transaction polling to properly handle loading states
-  useEffect(() => {
-    if (!vault || _mock) {
-      console.log('Skipping transaction polling setup - no vault or using mock');
-      return;
-    }
-
-    console.log('Setting up transaction polling');
-    
-    // Set loading state before initial fetch
-    setLoadingState(prev => ({ ...prev, transactions: true }));
-    
-    // Initial fetch
-    fetchTransactionsInBackground(vault).then(() => {
-      // Ensure loading state is false after initial fetch
-      setLoadingState(prev => ({ ...prev, transactions: false }));
-    });
-
-    // Set up periodic fetching every 30 seconds
-    const interval = setInterval(() => {
-      console.log('Polling: fetching transactions');
-      fetchTransactionsInBackground(vault);
-    }, 30000);
-
-    return () => {
-      console.log('Cleaning up transaction polling');
-      clearInterval(interval);
-    };
-  }, [vault, fetchTransactionsInBackground, _mock, setLoadingState]);
-
-  // Initialize vault instance and fetch data once
-  useEffect(() => {
-    const initializeVault = async () => {
-      console.log('Initializing vault with params:', { 
-        publicClient: !!publicClient, 
-        chain: chain?.id, 
-        contractAddress 
-      });
-      
-      if (!publicClient || !chain) {
-        console.log('Missing required dependencies:', { publicClient: !!publicClient, chain: !!chain });
-        return;
-      }
-      
-      // Skip if already initialized
-      if (vault) {
-        console.log('Vault already initialized, skipping');
-        return;
-      }
-      
-      try {
-        setLoadingState(prev => ({ ...prev, initialization: true }));
-        console.log('Creating new vault instance...');
-        const vaultInstance = new SimpleVault(publicClient, walletClient, contractAddress, chain);
-        console.log('Vault instance created successfully');
-        setVault(vaultInstance);
-        setError(null);
-
-        // Fetch data once after successful initialization
-        if (!_mock) {
-          try {
-            console.log('Fetching initial vault data...');
-            // Fetch ETH balance first
-            let balance: bigint;
-            try {
-              balance = await vaultInstance.getEthBalance();
-              console.log('Initial ETH balance:', balance.toString());
-              setEthBalance(balance);
-            } catch (balanceError) {
-              console.error('Failed to fetch initial ETH balance:', balanceError);
-              balance = BigInt(0);
-            }
-          } catch (dataError: any) {
-            console.error("Failed to fetch initial vault data:", dataError);
-            setError(`Failed to fetch initial vault data: ${dataError.message || String(dataError)}`);
-          }
-        }
-      } catch (initError: any) {
-        console.error("Failed to initialize vault:", initError);
-        setError(`Failed to initialize vault contract: ${initError.message || String(initError)}`);
-        onError?.(new Error(`Failed to initialize vault contract: ${initError.message || String(initError)}`));
-      } finally {
-        setLoadingState(prev => ({ ...prev, initialization: false }));
-      }
-    };
-
-    initializeVault();
-  }, [publicClient, walletClient, contractAddress, chain, vault, setVault, setLoadingState, setError, setEthBalance, _mock]);
 
   // Update fetchVaultData to use the memoized fetchTransactionsInBackground
   const fetchVaultData = React.useCallback(async () => {
