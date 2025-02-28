@@ -9,7 +9,7 @@ import {
 } from 'viem';
 import SimpleVaultABIJson from './SimpleVault.abi.json';
 import SecureOwnable from '../../particle-core/sdk/typescript/SecureOwnable';
-import { TxRecord, MetaTransaction } from '../../particle-core/sdk/typescript/interfaces/lib.index';
+import { TxRecord, MetaTransaction, MetaTxParams, ReadableOperationType } from '../../particle-core/sdk/typescript/interfaces/lib.index';
 import { TransactionOptions, TransactionResult } from '../../particle-core/sdk/typescript/interfaces/base.index';
 import { TxStatus } from '../../particle-core/sdk/typescript/types/lib.index';
 import { ContractValidations } from '../../particle-core/sdk/typescript/utils/validations';
@@ -184,8 +184,8 @@ export default class SimpleVault extends SecureOwnable {
     const owner = await this.owner();
     await this.validations.validateRole(options.from, owner, "owner");
 
-    const operation = await this.getOperation(txId);
-    if (operation.status !== SecureOwnable.TxStatus.PENDING) {
+    const operation = await this.getOperation(BigInt(txId));
+    if (operation.status !== TxStatus.PENDING) {
       throw new Error("Can only approve pending requests");
     }
 
@@ -199,7 +199,7 @@ export default class SimpleVault extends SecureOwnable {
       address: this.address,
       abi: SimpleVaultABI,
       functionName: 'approveWithdrawalAfterDelay',
-      args: [txId],
+      args: [BigInt(txId)],
       account: options.from
     });
 
@@ -225,8 +225,8 @@ export default class SimpleVault extends SecureOwnable {
     const owner = await this.owner();
     await this.validations.validateRole(options.from, owner, "owner");
 
-    const operation = await this.getOperation(txId);
-    if (operation.status !== SecureOwnable.TxStatus.PENDING) {
+    const operation = await this.getOperation(BigInt(txId));
+    if (operation.status !== TxStatus.PENDING) {
       throw new Error("Can only cancel pending requests");
     }
 
@@ -241,7 +241,7 @@ export default class SimpleVault extends SecureOwnable {
       address: this.address,
       abi: SimpleVaultABI,
       functionName: 'cancelWithdrawal',
-      args: [txId],
+      args: [BigInt(txId)],
       account: options.from
     });
 
@@ -290,7 +290,7 @@ export default class SimpleVault extends SecureOwnable {
    */
   async getTransaction(txId: number): Promise<VaultTxRecord> {
     try {
-      const tx = await this.getOperation(txId);
+      const tx = await this.getOperation(BigInt(txId));
       if (!tx) throw new Error("Transaction not found");
 
       // Map the status directly from the transaction
@@ -303,9 +303,9 @@ export default class SimpleVault extends SecureOwnable {
       let type: "ETH" | "TOKEN" = "ETH";
       
       // Determine transaction type based on operation type
-      if (tx.operationType === SimpleVault.WITHDRAW_ETH) {
+      if (tx.params.operationType === SimpleVault.WITHDRAW_ETH) {
         type = "ETH";
-      } else if (tx.operationType === SimpleVault.WITHDRAW_TOKEN) {
+      } else if (tx.params.operationType === SimpleVault.WITHDRAW_TOKEN) {
         type = "TOKEN";
       }
       
@@ -321,22 +321,6 @@ export default class SimpleVault extends SecureOwnable {
         type,
         token
       };
-      
-      // Try to extract additional information if available, but don't rely on complex decoding
-      try {
-        // For debugging purposes
-        if (tx.executionOptions) {
-          console.log(`Transaction ${txId} execution options:`, 
-            typeof tx.executionOptions, 
-            tx.executionOptions.toString().substring(0, 50) + '...');
-        }
-        
-        // If we have more specific information about the transaction from other sources,
-        // we could add it here. For now, we'll return the basic record.
-      } catch (error) {
-        console.log(`Non-critical error extracting additional info for txId ${txId}:`, error);
-        // Continue with the basic record
-      }
       
       return vaultTx;
     } catch (error) {
@@ -414,7 +398,7 @@ export default class SimpleVault extends SecureOwnable {
       // Filter for pending operations, with additional validation
       const pendingOps = operations.filter(op => {
         if (!op || typeof op !== 'object') return false;
-        return op.status === SecureOwnable.TxStatus.PENDING;
+        return op.status === TxStatus.PENDING;
       });
       
       console.log("Filtered pending operations count:", pendingOps.length);
@@ -685,5 +669,20 @@ export default class SimpleVault extends SecureOwnable {
       hash,
       wait: () => this.publicClient.waitForTransactionReceipt({ hash })
     };
+  }
+
+  /**
+   * @notice Generate unsigned meta-transaction for withdrawal approval
+   * @param txId Transaction ID of the withdrawal request
+   */
+  async generateUnsignedWithdrawalMetaTxApproval(
+    txId: bigint
+  ): Promise<MetaTransaction> {
+    return await this.publicClient.readContract({
+      address: this.address,
+      abi: SimpleVaultABI,
+      functionName: 'generateUnsignedWithdrawalMetaTxApproval',
+      args: [txId]
+    }) as MetaTransaction;
   }
 }
