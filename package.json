@@ -99,8 +99,5 @@
       "prettier --write",
       "eslint --fix"
     ]
-  },
-  "workspaces": [
-    "src/particle-core"
-  ]
+  }
 }
