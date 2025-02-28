@@ -37,7 +37,7 @@ contract SimpleVault is SecureOwnable {
         address recovery,
         uint256 timeLockPeriodInDays     
     ) SecureOwnable(initialOwner, broadcaster, recovery, timeLockPeriodInDays) {
-        require(timeLockPeriodInDays < 30, "Time lock period must be less than 30 days");
+        require(timeLockPeriodInDays < 90, "Time lock period must be less than 90 days");
         
         // Add operation types with human-readable names
         MultiPhaseSecureOperation.ReadableOperationType memory ethWithdraw = MultiPhaseSecureOperation.ReadableOperationType({
