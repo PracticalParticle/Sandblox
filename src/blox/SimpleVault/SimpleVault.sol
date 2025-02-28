@@ -201,20 +201,17 @@ contract SimpleVault is SecureOwnable {
      * @param txId The ID of the existing withdrawal transaction
      * @return MetaTransaction The unsigned meta-transaction ready for signing
      */
-    function generateUnsignedWithdrawalMetaTx(uint256 txId) public view returns (MultiPhaseSecureOperation.MetaTransaction memory) {
-        // Get the meta-transaction structure from the library
-        MultiPhaseSecureOperation.MetaTransaction memory metaTx = MultiPhaseSecureOperation.generateUnsignedForExistingMetaTx(
-            _getSecureState(),
-            txId
+    function generateUnsignedWithdrawalMetaTxApproval(uint256 txId) public view returns (MultiPhaseSecureOperation.MetaTransaction memory) {
+        // Create meta-transaction parameters using the parent contract's function
+        MultiPhaseSecureOperation.MetaTxParams memory metaTxParams = createMetaTxParams(
+            address(this),
+            this.approveWithdrawalWithMetaTx.selector,
+            block.timestamp + 1 hours,
+            block.basefee * 2,
+            owner()
         );
 
-        // Set the handler-specific parameters
-        metaTx.params.handlerContract = address(this);
-        metaTx.params.handlerSelector = this.approveWithdrawalWithMetaTx.selector;
-        metaTx.params.deadline = block.timestamp + 1 hours;
-        metaTx.params.maxGasPrice = block.basefee * 2;
-        metaTx.params.signer = owner();
-
-        return metaTx;
+        // Generate the unsigned meta-transaction using the parent contract's function
+        return generateUnsignedMetaTransactionForExisting(txId, metaTxParams);
     }
 }
