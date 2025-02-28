@@ -1,6 +1,6 @@
 ---
 title: Scalability & Performance Optimization
-description: Guide to optimizing OpenBlox performance and scaling enterprise blockchain solutions
+description: Guide to optimizing SandBlox performance and scaling enterprise blockchain solutions
 author:  Particle CS Team
 lastUpdated: 2024-03-15
 tags: [scalability, performance, optimization, enterprise]
@@ -9,11 +9,11 @@ category: Enterprise Solutions
 
 ## Overview
 
-This guide covers strategies and techniques for optimizing performance and scaling OpenBlox implementations in enterprise environments.
+This guide covers strategies and techniques for optimizing performance and scaling SandBlox implementations in enterprise environments.
 
 ```mermaid
 graph TD
-    A[Application Layer] -->|Load Balancer| B[OpenBlox Nodes]
+    A[Application Layer] -->|Load Balancer| B[SandBlox Nodes]
     B -->|Optimization| C[Cache Layer]
     B -->|Scaling| D[Blockchain Network]
     C -->|Performance| E[Smart Contracts]
@@ -28,8 +28,8 @@ graph TD
 // contracts/OptimizedContract.sol
 pragma solidity ^0.8.17;
 
-import "@openblox/optimization/StorageOptimized.sol";
-import "@openblox/security/SecureContract.sol";
+import "@sandblox/optimization/StorageOptimized.sol";
+import "@sandblox/security/SecureContract.sol";
 
 contract OptimizedContract is StorageOptimized, SecureContract {
     // Use packed storage for gas optimization
@@ -63,7 +63,7 @@ contract OptimizedContract is StorageOptimized, SecureContract {
 
 ```typescript
 // src/cache/strategy.ts
-import { CacheManager } from '@openblox/cache';
+import { CacheManager } from '@sandblox/cache';
 
 const cacheConfig = {
   layers: {
@@ -179,7 +179,7 @@ class TransactionBatchProcessor {
     const batch = this.queue.splice(0, this.maxBatchSize);
     
     try {
-      await this.openblox.submitBatch(batch, {
+      await this.sandblox.submitBatch(batch, {
         optimization: {
           gasPrice: 'optimal',
           nonce: 'batch'

@@ -1,6 +1,6 @@
 ---
 title: Implementing Blockchain Payments
-description: Guide to implementing secure blockchain payment systems with OpenBlox
+description: Guide to implementing secure blockchain payment systems with SandBlox
 author:  Particle CS Team
 lastUpdated: 2024-03-15
 tags: [payments, blockchain, integration, security]
@@ -9,7 +9,7 @@ category: Developer Guide
 
 ## Overview
 
-This guide covers implementing secure blockchain payment systems using OpenBlox's payment infrastructure and Particle's security features.
+This guide covers implementing secure blockchain payment systems using SandBlox's payment infrastructure and Particle's security features.
 
 ```mermaid
 graph TD
@@ -28,10 +28,10 @@ graph TD
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import "@openblox/security/contracts/OpenBloxSecured.sol";
-import "@openblox/payments/contracts/IPaymentProcessor.sol";
+import "@sandblox/security/contracts/SandBloxSecured.sol";
+import "@sandblox/payments/contracts/IPaymentProcessor.sol";
 
-contract SecurePayment is OpenBloxSecured, IPaymentProcessor {
+contract SecurePayment is SandBloxSecured, IPaymentProcessor {
     mapping(address => uint256) private balances;
     
     event PaymentProcessed(address from, address to, uint256 amount);
@@ -54,8 +54,8 @@ contract SecurePayment is OpenBloxSecured, IPaymentProcessor {
 ### 2. Payment Integration
 
 ```typescript
-import { OpenBlox } from '@openblox/sdk';
-import { PaymentProcessor } from '@openblox/payments';
+import { SandBlox } from '@sandblox/sdk';
+import { PaymentProcessor } from '@sandblox/payments';
 
 // Initialize payment processor
 const payments = new PaymentProcessor({
@@ -109,7 +109,7 @@ const securityConfig = {
 
 // Implement payment validation
 async function validatePayment(payment) {
-  const validation = await openblox.security.validatePayment({
+  const validation = await sandblox.security.validatePayment({
     amount: payment.amount,
     recipient: payment.to,
     type: payment.type
@@ -123,7 +123,7 @@ async function validatePayment(payment) {
 
 ```typescript
 // Setup payment monitoring
-const monitor = openblox.payments.createMonitor({
+const monitor = sandblox.payments.createMonitor({
   alertThresholds: {
     amount: '5 ETH',
     frequency: 10 // transactions per hour
@@ -132,7 +132,7 @@ const monitor = openblox.payments.createMonitor({
 });
 
 monitor.on('suspicious', async (tx) => {
-  await openblox.security.freezePayments(tx.sender);
+  await sandblox.security.freezePayments(tx.sender);
   await notifyAdmins(tx);
 });
 ```

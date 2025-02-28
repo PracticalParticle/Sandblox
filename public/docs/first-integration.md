@@ -1,6 +1,6 @@
 ---
 title: First Blockchain Integration
-description: Guide to your first blockchain integration with OpenBlox
+description: Guide to your first blockchain integration with SandBlox
 author: Particle CS Team
 lastUpdated: 2024-03-15
 tags: [integration, blockchain, tutorial, getting-started]
@@ -9,11 +9,11 @@ category: Getting Started
 
 ## Overview
 
-This guide walks you through creating your first blockchain integration using OpenBlox. We'll create a simple smart contract and integrate it with security features.
+This guide walks you through creating your first blockchain integration using SandBlox. We'll create a simple smart contract and integrate it with security features.
 
 ```mermaid
 graph TD
-    A[Your Application] -->|SDK| B[OpenBlox Layer]
+    A[Your Application] -->|SDK| B[SandBlox Layer]
     B -->|Security| C[Particle Security]
     B -->|Blockchain| D[Smart Contracts]
     C -->|Monitor| D
@@ -30,9 +30,9 @@ Create a new file `contracts/SimpleStorage.sol`:
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import "@openblox/security/contracts/OpenBloxSecured.sol";
+import "@sandblox/security/contracts/SandBloxSecured.sol";
 
-contract SimpleStorage is OpenBloxSecured {
+contract SimpleStorage is SandBloxSecured {
     uint256 private value;
     event ValueChanged(uint256 oldValue, uint256 newValue);
     
@@ -53,16 +53,16 @@ contract SimpleStorage is OpenBloxSecured {
 Create a deployment script `scripts/deploy.ts`:
 
 ```typescript
-import { OpenBlox } from '@openblox/sdk';
+import { SandBlox } from '@sandblox/sdk';
 
 async function main() {
-  const openblox = new OpenBlox({
-    apiKey: process.env.OPENBLOX_API_KEY,
+  const sandblox = new SandBlox({
+    apiKey: process.env.SANDBLOX_API_KEY,
     network: 'testnet'
   });
 
   // Deploy with security features
-  const contract = await openblox.deploy('SimpleStorage', {
+  const contract = await sandblox.deploy('SimpleStorage', {
     security: {
       timelock: true,
       monitoring: true
@@ -72,7 +72,7 @@ async function main() {
   console.log('Contract deployed to:', contract.address);
   
   // Verify contract on explorer
-  await openblox.verify(contract.address, {
+  await sandblox.verify(contract.address, {
     contract: 'SimpleStorage'
   });
 }
@@ -91,7 +91,7 @@ main()
 
 ```typescript
 // Configure security for your contract
-const security = await openblox.security.configure({
+const security = await sandblox.security.configure({
   contract: contract.address,
   features: {
     mfa: {
@@ -121,7 +121,7 @@ contract.on('ValueChanged', async (oldValue, newValue) => {
   console.log(`Value changed from ${oldValue} to ${newValue}`);
   
   // Validate change through security layer
-  const validationResult = await openblox.security.validateChange({
+  const validationResult = await sandblox.security.validateChange({
     type: 'value',
     old: oldValue,
     new: newValue,
@@ -148,7 +148,7 @@ try {
   const tx = await contract.setValue(42);
   
   // Wait for security confirmations
-  await openblox.security.waitForConfirmation(tx.hash);
+  await sandblox.security.waitForConfirmation(tx.hash);
   
   console.log('Value updated successfully');
 } catch (error) {
@@ -188,7 +188,7 @@ describe('SimpleStorage', () => {
     await contract.setValue(newValue);
     
     // Wait for timelock if enabled
-    await openblox.security.waitForTimelock(contract.address);
+    await sandblox.security.waitForTimelock(contract.address);
     
     const value = await contract.getValue();
     expect(value).to.equal(newValue);

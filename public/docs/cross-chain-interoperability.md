@@ -1,6 +1,6 @@
 ---
 title: Cross-Chain Interoperability
-description: Guide to implementing cross-chain functionality with OpenBlox
+description: Guide to implementing cross-chain functionality with SandBlox
 author:  Particle CS Team
 lastUpdated: 2024-03-15
 tags: [cross-chain, interoperability, blockchain, integration]
@@ -9,11 +9,11 @@ category: Developer Guide
 
 ## Overview
 
-This guide covers implementing secure cross-chain operations using OpenBlox's interoperability features. Learn how to build applications that can seamlessly interact across multiple blockchain networks.
+This guide covers implementing secure cross-chain operations using SandBlox's interoperability features. Learn how to build applications that can seamlessly interact across multiple blockchain networks.
 
 ```mermaid
 graph TD
-    A[Source Chain] -->|Bridge| B[OpenBlox Protocol]
+    A[Source Chain] -->|Bridge| B[SandBlox Protocol]
     B -->|Security Layer| C[Particle Security]
     B -->|Cross-Chain Message| D[Target Chain]
     C -->|Validate| B
@@ -22,7 +22,7 @@ graph TD
 
 ## Supported Networks
 
-OpenBlox supports cross-chain operations across major networks:
+SandBlox supports cross-chain operations across major networks:
 
 ```typescript
 const supportedNetworks = {
@@ -53,8 +53,8 @@ const supportedNetworks = {
 // contracts/CrossChainBridge.sol
 pragma solidity ^0.8.17;
 
-import "@openblox/bridge/contracts/BridgeBase.sol";
-import "@openblox/security/CrossChainSecured.sol";
+import "@sandblox/bridge/contracts/BridgeBase.sol";
+import "@sandblox/security/CrossChainSecured.sol";
 
 contract CrossChainBridge is BridgeBase, CrossChainSecured {
     event BridgeInitiated(bytes32 indexed messageId, address sender);
@@ -99,9 +99,9 @@ contract CrossChainBridge is BridgeBase, CrossChainSecured {
 
 ```typescript
 // src/bridge/config.ts
-import { OpenBloxBridge } from '@openblox/bridge';
+import { SandBloxBridge } from '@sandblox/bridge';
 
-const bridge = new OpenBloxBridge({
+const bridge = new SandBloxBridge({
   networks: {
     ethereum: {
       rpc: process.env.ETH_RPC_URL,

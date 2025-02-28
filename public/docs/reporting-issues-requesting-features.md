@@ -1,6 +1,6 @@
 ---
 title: Reporting Issues & Requesting Features
-description: Guide to reporting issues and requesting features for OpenBlox
+description: Guide to reporting issues and requesting features for SandBlox
 author:  Particle CS Team
 lastUpdated: 2024-03-15
 tags: [reporting, issues, features, support]
@@ -9,7 +9,7 @@ category: Troubleshooting & Support
 
 ## Overview
 
-This guide outlines the process for reporting issues and requesting new features for OpenBlox, ensuring that your feedback is heard and addressed.
+This guide outlines the process for reporting issues and requesting new features for SandBlox, ensuring that your feedback is heard and addressed.
 
 ```mermaid
 graph TD
@@ -26,13 +26,13 @@ Before reporting an issue, gather all relevant information to help the team unde
 
 - **Description:** Clearly describe the issue.
 - **Steps to Reproduce:** List the steps to reproduce the issue.
-- **Environment:** Specify the version of OpenBlox and the environment (e.g., testnet, mainnet).
+- **Environment:** Specify the version of SandBlox and the environment (e.g., testnet, mainnet).
 
 ### 2. Submit an Issue
 
 Submit your issue through the official issue tracker.
 
-- **GitHub Issues:** [OpenBlox GitHub](https://github.com/openblox/openblox/issues)
+- **GitHub Issues:** [SandBlox GitHub](https://github.com/sandblox/sandblox/issues)
 
 ### 3. Follow Up
 
@@ -55,7 +55,7 @@ It would be beneficial to support additional networks such as Avalanche and Fant
 
 Feature requests can also be submitted through the issue tracker.
 
-- **GitHub Feature Requests:** [OpenBlox GitHub](https://github.com/openblox/openblox/issues)
+- **GitHub Feature Requests:** [SandBlox GitHub](https://github.com/sandblox/sandblox/issues)
 
 ## Best Practices
 
@@ -70,7 +70,7 @@ Feature requests can also be submitted through the issue tracker.
 
 ## Next Steps
 
-1. Report any issues you encounter with OpenBlox.
+1. Report any issues you encounter with SandBlox.
 2. Submit feature requests for enhancements you would like to see.
 3. Engage with the community for support and collaboration.
 

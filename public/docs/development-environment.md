@@ -1,6 +1,6 @@
 ---
 title: Setting Up Your Development Environment
-description: Configure your development environment for OpenBlox
+description: Configure your development environment for SandBlox
 author:  Particle CS Team
 lastUpdated: 2024-03-15
 tags: [setup, environment, configuration, development]
@@ -11,7 +11,7 @@ category: Getting Started
 
 ### Overview
 
-OpenBlox development follows a structured workflow from local development through to production deployment. This guide will help you set up a secure and efficient development environment.
+SandBlox development follows a structured workflow from local development through to production deployment. This guide will help you set up a secure and efficient development environment.
 
 ```mermaid
 graph TD
@@ -90,8 +90,8 @@ Recommended Visual Studio Code settings:
   "solidity.packageDefaultDependenciesContractsDirectory": "src/contracts",
   "solidity.packageDefaultDependenciesDirectory": "node_modules",
   "solidity.compileUsingRemoteVersion": "v0.8.17",
-  "openblox.autoComplete": true,
-  "openblox.security.enabled": true
+  "sandblox.autoComplete": true,
+  "sandblox.security.enabled": true
 }
 ```
 
@@ -101,10 +101,10 @@ Set up a local blockchain for testing:
 
 ```bash
 # Start local blockchain
-openblox network start
+sandblox network start
 
 # Deploy test contracts
-openblox deploy --network local
+sandblox deploy --network local
 ```
 
 Configure test environment:
@@ -126,7 +126,7 @@ export const testConfig = {
 ### Development Monitoring
 
 ```typescript
-const monitor = openblox.createMonitor({
+const monitor = sandblox.createMonitor({
   level: 'development',
   metrics: {
     gas: true,

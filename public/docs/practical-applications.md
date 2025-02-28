@@ -1,6 +1,6 @@
 ---
 title: Practical Applications
-description: Real-world use cases and applications of OpenBlox
+description: Real-world use cases and applications of SandBlox
 author:  Particle CS Team
 lastUpdated: 2024-03-15
 tags: [use-cases, applications, implementation]

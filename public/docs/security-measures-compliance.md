@@ -1,6 +1,6 @@
 ---
 title: Security Measures and Compliance Standards
-description: Guide to security measures and compliance standards for OpenBlox implementations
+description: Guide to security measures and compliance standards for SandBlox implementations
 author:  Particle CS Team
 lastUpdated: 2024-03-15
 tags: [security, compliance, standards, enterprise]
@@ -9,7 +9,7 @@ category: Security & Compliance
 
 ## Overview
 
-This guide outlines the essential security measures and compliance standards that OpenBlox implementations should adhere to, ensuring robust protection against threats and regulatory compliance.
+This guide outlines the essential security measures and compliance standards that SandBlox implementations should adhere to, ensuring robust protection against threats and regulatory compliance.
 
 ```mermaid
 graph TD
@@ -92,7 +92,7 @@ const complianceConfig = {
   },
   reporting: {
     frequency: 'monthly',
-    responsible: 'compliance@openblox.org'
+    responsible: 'compliance@sandblox.org'
   }
 };
 ```
@@ -125,7 +125,7 @@ const incidentResponsePlan = {
     'Recover systems',
     'Notify affected parties'
   ],
-  responsibleTeam: 'security@openblox.org'
+  responsibleTeam: 'security@sandblox.org'
 };
 ```
 

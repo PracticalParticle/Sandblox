@@ -1,6 +1,6 @@
 ---
 title: Privacy Policy
-description: Privacy policy and data handling practices for OpenBlox
+description: Privacy policy and data handling practices for SandBlox
 author:  Particle CS Team
 lastUpdated: 2024-03-15
 tags: [privacy, data protection, security]
@@ -123,5 +123,5 @@ const complianceStandards = {
 ## Contact Information
 
 Privacy concerns:
-- DPO: privacy@openblox.org
-- Support: support@openblox.org 
+- DPO: privacy@sandblox.org
+- Support: support@sandblox.org 

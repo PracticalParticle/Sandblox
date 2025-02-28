@@ -5,7 +5,7 @@ A modern Web3 UI application built with React, Vite, and RainbowKit for blockcha
 ## Project Structure
 
 ```
-open-blox-ui/
+sand-blox/
 ├── src/
 │   ├── test/
 │   │   ├── test-utils.tsx    # Testing utilities and providers

@@ -1,15 +1,15 @@
 ---
-title: Overview of OpenBlox
-description: Introduction to OpenBlox platform and its core capabilities
+title: Overview of SandBlox
+description: Introduction to SandBlox platform and its core capabilities
 author:  Particle CS Team
 lastUpdated: 2024-03-15
-tags: [OpenBlox, blockchain, integration]
+tags: [SandBlox, blockchain, integration]
 category: Introduction
 ---
 
 ## Overview
 
-OpenBlox is a cutting-edge integration platform designed specifically for blockchain solutions. It empowers developers and organizations to seamlessly integrate blockchain technology into their applications while ensuring robust security features and user control over data.
+SandBlox is a cutting-edge integration platform designed specifically for blockchain solutions. It empowers developers and organizations to seamlessly integrate blockchain technology into their applications while ensuring robust security features and user control over data.
 
 ## Key Features
 

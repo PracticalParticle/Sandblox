@@ -1,6 +1,6 @@
 ---
-title: Integrating OpenBlox with Existing Systems
-description: Guide to integrating OpenBlox with enterprise systems and legacy infrastructure
+title: Integrating SandBlox with Existing Systems
+description: Guide to integrating SandBlox with enterprise systems and legacy infrastructure
 author:  Particle CS Team
 lastUpdated: 2024-03-15
 tags: [enterprise, integration, systems, infrastructure]
@@ -9,12 +9,12 @@ category: Enterprise Solutions
 
 ## Overview
 
-This guide covers strategies and best practices for integrating OpenBlox with existing enterprise systems, ensuring seamless operation with legacy infrastructure.
+This guide covers strategies and best practices for integrating SandBlox with existing enterprise systems, ensuring seamless operation with legacy infrastructure.
 
 ```mermaid
 graph TD
     A[Enterprise System] -->|API Gateway| B[Integration Layer]
-    B -->|Adapter| C[OpenBlox SDK]
+    B -->|Adapter| C[SandBlox SDK]
     C -->|Security| D[Particle Security]
     C -->|Blockchain| E[Smart Contracts]
     B -->|Events| F[Event Bus]
@@ -27,7 +27,7 @@ graph TD
 
 ```typescript
 // config/integration.config.ts
-import { IntegrationConfig } from '@openblox/enterprise';
+import { IntegrationConfig } from '@sandblox/enterprise';
 
 export const config: IntegrationConfig = {
   adapters: {
@@ -67,8 +67,8 @@ export const config: IntegrationConfig = {
 // contracts/DataMapping.sol
 pragma solidity ^0.8.17;
 
-import "@openblox/enterprise/contracts/DataAdapter.sol";
-import "@openblox/security/EnterpriseSecured.sol";
+import "@sandblox/enterprise/contracts/DataAdapter.sol";
+import "@sandblox/security/EnterpriseSecured.sol";
 
 contract DataMapping is DataAdapter, EnterpriseSecured {
     struct ExternalSystemRef {
@@ -109,7 +109,7 @@ contract DataMapping is DataAdapter, EnterpriseSecured {
 ```typescript
 class EnterpriseIntegrationService {
   constructor(
-    private openblox: OpenBlox,
+    private sandblox: SandBlox,
     private config: IntegrationConfig
   ) {}
 

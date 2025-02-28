@@ -1,6 +1,6 @@
 ---
 title: Supported Blockchains
-description: Comprehensive list of blockchain networks supported by OpenBlox
+description: Comprehensive list of blockchain networks supported by SandBlox
 author:  Particle CS Team
 lastUpdated: 2024-03-15
 tags: [blockchains, networks, compatibility]
@@ -9,7 +9,7 @@ category: Introduction
 
 ## Supported Networks
 
-OpenBlox provides comprehensive support for major blockchain networks, ensuring wide compatibility for your applications.
+SandBlox provides comprehensive support for major blockchain networks, ensuring wide compatibility for your applications.
 
 ### 1. **Ethereum Ecosystem**
 - Ethereum Mainnet

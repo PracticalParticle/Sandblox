@@ -878,8 +878,8 @@ export function SecurityDetails() {
             projectId={projectId}
             autoConnect={false}
             metadata={{
-              name: 'OpenBlox Recovery',
-              description: 'OpenBlox Recovery Wallet Connection',
+              name: 'SandBlox Recovery',
+              description: 'SandBlox Recovery Wallet Connection',
               url: window.location.origin,
               icons: ['https://avatars.githubusercontent.com/u/37784886']
             }}
@@ -1131,8 +1131,8 @@ export function SecurityDetails() {
                         projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
                         autoConnect={false}
                         metadata={{
-                          name: 'OpenBlox Broadcaster',
-                          description: 'OpenBlox Broadcaster Wallet Connection',
+                          name: 'SandBlox Broadcaster',
+                          description: 'SandBlox Broadcaster Wallet Connection',
                           url: window.location.origin,
                           icons: ['https://avatars.githubusercontent.com/u/37784886']
                         }}
@@ -1218,8 +1218,8 @@ export function SecurityDetails() {
                         projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
                         autoConnect={false}
                         metadata={{
-                          name: 'OpenBlox Broadcaster',
-                          description: 'OpenBlox Broadcaster Wallet Connection',
+                          name: 'SandBlox Broadcaster',
+                          description: 'SandBlox Broadcaster Wallet Connection',
                           url: window.location.origin,
                           icons: ['https://avatars.githubusercontent.com/u/37784886']
                         }}

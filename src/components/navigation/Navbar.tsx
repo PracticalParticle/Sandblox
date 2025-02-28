@@ -27,7 +27,7 @@ export function Navbar() {
             <div className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/50 text-primary-foreground">
               OB
             </div>
-            <span className="hidden sm:inline-block bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent font-bold">OpenBlox</span>
+            <span className="hidden sm:inline-block bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent font-bold">SandBlox</span>
           </a>
           <div className="hidden md:flex md:items-center md:gap-6">
             {isConnected && (

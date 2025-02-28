@@ -21,7 +21,7 @@ transports[localDevnet.id] = http(localDevnet.rpcUrls.default.http[0]);
 const availableChains = [localDevnet, mainnet, sepolia] as const;
 
 const wagmiConfig = getDefaultConfig({
-  appName: import.meta.env.VITE_APP_NAME || 'OpenBlox UI',
+  appName: import.meta.env.VITE_APP_NAME || 'SandBlox UI',
   projectId: import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID || '',
   chains: availableChains,
   transports,

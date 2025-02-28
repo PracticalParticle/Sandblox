@@ -23,7 +23,7 @@ export function Home() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
               >
-                <span className="gradient-text">OpenBlox</span>
+                <span className="gradient-text">SandBlox</span>
                 <br />
                 <span className="mt-4 block text-2xl sm:text-4xl">
                   Build Secure Smart Contract Systems

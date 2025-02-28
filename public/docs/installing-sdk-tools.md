@@ -1,6 +1,6 @@
 ---
-title: Installing OpenBlox SDKs & Tools
-description: Guide to installing OpenBlox development tools and SDKs
+title: Installing SandBlox SDKs & Tools
+description: Guide to installing SandBlox development tools and SDKs
 author:  Particle CS Team
 lastUpdated: 2024-03-15
 tags: [installation, setup, tools, sdk]
@@ -9,7 +9,7 @@ category: Getting Started
 
 ## Prerequisites
 
-Before installing OpenBlox tools, ensure you have:
+Before installing SandBlox tools, ensure you have:
 - Node.js 16+ installed
 - npm or yarn package manager
 - Git version control
@@ -19,14 +19,14 @@ Before installing OpenBlox tools, ensure you have:
 
 ### 1. Install Core SDK
 
-First, install the OpenBlox core SDK using npm or yarn:
+First, install the SandBlox core SDK using npm or yarn:
 
 ```bash
 # Using npm
-npm install @openblox/sdk
+npm install @sandblox/sdk
 
 # Or using yarn
-yarn add @openblox/sdk
+yarn add @sandblox/sdk
 ```
 
 ### 2. Install Security Extensions
@@ -34,32 +34,32 @@ yarn add @openblox/sdk
 Install required security modules:
 
 ```bash
-npm install @openblox/security @particle/paa-sdk
+npm install @sandblox/security @particle/paa-sdk
 ```
 
 ### 3. Install CLI Tools
 
-Install the OpenBlox CLI globally:
+Install the SandBlox CLI globally:
 
 ```bash
-npm install -g @openblox/cli
+npm install -g @sandblox/cli
 ```
 
 Verify the installation:
 
 ```bash
-openblox --version
+sandblox --version
 ```
 
 ## Basic Configuration
 
-Create a new OpenBlox project and configure the SDK:
+Create a new SandBlox project and configure the SDK:
 
 ```typescript
-import { OpenBlox } from '@openblox/sdk';
+import { SandBlox } from '@sandblox/sdk';
 
-// Initialize OpenBlox
-const openblox = new OpenBlox({
+// Initialize SandBlox
+const sandblox = new SandBlox({
   apiKey: 'your-api-key',
   environment: 'testnet',
   security: {
@@ -69,7 +69,7 @@ const openblox = new OpenBlox({
 });
 
 // Configure security features
-await openblox.security.configure({
+await sandblox.security.configure({
   timelock: 24 * 60 * 60, // 24 hours
   approvals: {
     required: 2,
@@ -85,11 +85,11 @@ Test your installation with this simple verification:
 ```typescript
 async function verifySetup() {
   // Check SDK status
-  const status = await openblox.checkStatus();
-  console.log('OpenBlox Status:', status);
+  const status = await sandblox.checkStatus();
+  console.log('SandBlox Status:', status);
 
   // Verify security features
-  const securityStatus = await openblox.security.verify();
+  const securityStatus = await sandblox.security.verify();
   console.log('Security Status:', securityStatus);
 }
 ```
@@ -99,14 +99,14 @@ async function verifySetup() {
 After installation, your project structure should look like this:
 
 ```
-my-openblox-project/
+my-sandblox-project/
 ├── node_modules/
 ├── src/
 │   ├── contracts/
 │   ├── config/
 │   └── index.ts
 ├── package.json
-└── openblox.config.js
+└── sandblox.config.js
 ```
 
 ## Next Steps
@@ -129,4 +129,4 @@ Common installation issues and solutions:
 | Network issues | Check firewall settings |
 | SDK conflicts | Clear npm cache and reinstall |
 
-For additional help, visit our [support forum](https://forum.openblox.org) or [GitHub repository](https://github.com/openblox/sdk). 
+For additional help, visit our [support forum](https://forum.sandblox.org) or [GitHub repository](https://github.com/sandblox/sdk). 

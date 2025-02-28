@@ -1,6 +1,6 @@
 ---
-title: Building dApps with OpenBlox
-description: Comprehensive guide to developing decentralized applications using OpenBlox
+title: Building dApps with SandBlox
+description: Comprehensive guide to developing decentralized applications using SandBlox
 author: Particle CS Team
 lastUpdated: 2024-03-15
 tags: [dapps, development, blockchain, web3]
@@ -9,11 +9,11 @@ category: Developer Guide
 
 ## Overview
 
-This guide covers building secure and scalable decentralized applications (dApps) using OpenBlox's development framework and security features.
+This guide covers building secure and scalable decentralized applications (dApps) using SandBlox's development framework and security features.
 
 ```mermaid
 graph TD
-    A[Frontend] -->|Web3| B[OpenBlox SDK]
+    A[Frontend] -->|Web3| B[SandBlox SDK]
     B -->|Security| C[Particle Security]
     B -->|Smart Contracts| D[Blockchain]
     B -->|State Management| E[dApp Logic]
@@ -26,18 +26,18 @@ graph TD
 
 ```bash
 # Create new dApp project
-npx openblox create-dapp my-dapp
+npx sandblox create-dapp my-dapp
 cd my-dapp
 
 # Install dependencies
-npm install @openblox/dapp-sdk @openblox/security @particle/defender-sdk
+npm install @sandblox/dapp-sdk @sandblox/security @particle/defender-sdk
 ```
 
 ### 2. Basic Configuration
 
 ```typescript
 // config/dapp.config.ts
-import { DAppConfig } from '@openblox/dapp-sdk';
+import { DAppConfig } from '@sandblox/dapp-sdk';
 
 export const config: DAppConfig = {
   name: 'My DApp',
@@ -62,8 +62,8 @@ export const config: DAppConfig = {
 // contracts/DAppLogic.sol
 pragma solidity ^0.8.17;
 
-import "@openblox/contracts/DAppBase.sol";
-import "@openblox/security/Secured.sol";
+import "@sandblox/contracts/DAppBase.sol";
+import "@sandblox/security/Secured.sol";
 
 contract DAppLogic is DAppBase, Secured {
     struct AppState {
@@ -93,13 +93,13 @@ contract DAppLogic is DAppBase, Secured {
 
 ```typescript
 // src/services/dapp.ts
-import { OpenBloxDApp } from '@openblox/dapp-sdk';
+import { SandBloxDApp } from '@sandblox/dapp-sdk';
 
 class DAppService {
-  private dapp: OpenBloxDApp;
+  private dapp: SandBloxDApp;
   
   constructor() {
-    this.dapp = new OpenBloxDApp({
+    this.dapp = new SandBloxDApp({
       contracts: {
         logic: 'DAppLogic'
       },
@@ -124,7 +124,7 @@ class DAppService {
 
 ```typescript
 // src/storage/ipfs.ts
-import { IPFSStorage } from '@openblox/storage';
+import { IPFSStorage } from '@sandblox/storage';
 
 const storage = new IPFSStorage({
   pinning: true,
@@ -141,7 +141,7 @@ async function storeData(data: any) {
 
 ```typescript
 // src/state/sync.ts
-import { StateSync } from '@openblox/dapp-sdk';
+import { StateSync } from '@sandblox/dapp-sdk';
 
 const sync = new StateSync({
   contract: 'DAppLogic',
@@ -164,7 +164,7 @@ sync.on('stateChanged', async (key, newState) => {
 
 ```typescript
 // src/auth/index.ts
-import { DAppAuth } from '@openblox/auth';
+import { DAppAuth } from '@sandblox/auth';
 
 const auth = new DAppAuth({
   methods: ['wallet', 'email'],
@@ -202,10 +202,10 @@ const securityConfig = {
 };
 
 async function secureTransaction(tx: Transaction) {
-  const validation = await openblox.security.validateTx(tx);
+  const validation = await sandblox.security.validateTx(tx);
   
   if (validation.requiresTimelock) {
-    await openblox.security.enforceTimelock(tx);
+    await sandblox.security.enforceTimelock(tx);
   }
   
   return validation.isValid;

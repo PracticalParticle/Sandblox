@@ -1,6 +1,6 @@
 ---
 title: Terms of Use
-description: Terms and conditions for using OpenBlox platform
+description: Terms and conditions for using SandBlox platform
 author:  Particle CS Team
 lastUpdated: 2024-03-15
 tags: [legal, terms, conditions, usage]
@@ -11,7 +11,7 @@ category: Security & Compliance
 
 ### 1. Acceptance of Terms
 
-By accessing or using OpenBlox ("the Platform"), you agree to comply with and be bound by these Terms of Use. The Platform is an open-source blockchain integration solution provided "as is" without warranties of any kind.
+By accessing or using SandBlox ("the Platform"), you agree to comply with and be bound by these Terms of Use. The Platform is an open-source blockchain integration solution provided "as is" without warranties of any kind.
 
 ### 2. Open Source License
 
@@ -122,5 +122,5 @@ We reserve the right to:
 ## Contact Information
 
 For legal inquiries:
-- Email: legal@openblox.org
-- Support: support@openblox.org 
+- Email: legal@sandblox.org
+- Support: support@sandblox.org 

@@ -1,6 +1,6 @@
 ---
 title: Debugging & Error Handling
-description: Guide to debugging and error handling in OpenBlox applications
+description: Guide to debugging and error handling in SandBlox applications
 author:  Particle CS Team
 lastUpdated: 2024-03-15
 tags: [debugging, error handling, troubleshooting]
@@ -9,7 +9,7 @@ category: Troubleshooting & Support
 
 ## Overview
 
-This guide provides strategies and best practices for debugging and handling errors in OpenBlox applications, ensuring a smooth development experience.
+This guide provides strategies and best practices for debugging and handling errors in SandBlox applications, ensuring a smooth development experience.
 
 ```mermaid
 graph TD
