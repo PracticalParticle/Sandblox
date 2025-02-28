@@ -1,4 +1,4 @@
-// SPDX-License-Identifier:
+// SPDX-License-Identifier: MPL-2.0
 pragma solidity ^0.8.0;
 
 // OpenZeppelin imports
@@ -15,6 +15,10 @@ contract SimpleVault is SecureOwnable {
     bytes32 public constant WITHDRAW_ETH = keccak256("WITHDRAW_ETH");
     bytes32 public constant WITHDRAW_TOKEN = keccak256("WITHDRAW_TOKEN");
 
+    // Function selector constants
+    bytes4 private constant WITHDRAW_ETH_SELECTOR = bytes4(keccak256("_withdrawEth(address,uint256)"));
+    bytes4 private constant WITHDRAW_TOKEN_SELECTOR = bytes4(keccak256("_withdrawToken(address,address,uint256)"));
+
     // Events
     event EthWithdrawn(address indexed to, uint256 amount);
     event TokenWithdrawn(address indexed token, address indexed to, uint256 amount);
@@ -23,20 +27,30 @@ contract SimpleVault is SecureOwnable {
     /**
      * @notice Constructor to initialize SimpleVault
      * @param initialOwner The initial owner address
-     * @param recoveryAddr The recovery address
-     * @param timeLockPeriodInDays The timelock period in days
      * @param broadcaster The broadcaster address
+     * @param recovery The recovery address
+     * @param timeLockPeriodInDays The timelock period in days
      */
     constructor(
         address initialOwner,
-        address recoveryAddr,
-        uint256 timeLockPeriodInDays,
-        address broadcaster
-    ) SecureOwnable(initialOwner, recoveryAddr, timeLockPeriodInDays, broadcaster) {
+        address broadcaster,
+        address recovery,
+        uint256 timeLockPeriodInDays     
+    ) SecureOwnable(initialOwner, broadcaster, recovery, timeLockPeriodInDays) {
         require(timeLockPeriodInDays < 30, "Time lock period must be less than 30 days");
         
-        MultiPhaseSecureOperation.addOperationType(_getSecureState(), WITHDRAW_ETH);
-        MultiPhaseSecureOperation.addOperationType(_getSecureState(), WITHDRAW_TOKEN);
+        // Add operation types with human-readable names
+        MultiPhaseSecureOperation.ReadableOperationType memory ethWithdraw = MultiPhaseSecureOperation.ReadableOperationType({
+            operationType: WITHDRAW_ETH,
+            name: "Withdraw ETH"
+        });
+        MultiPhaseSecureOperation.ReadableOperationType memory tokenWithdraw = MultiPhaseSecureOperation.ReadableOperationType({
+            operationType: WITHDRAW_TOKEN,
+            name: "Withdraw Token"
+        });
+        
+        MultiPhaseSecureOperation.addOperationType(_getSecureState(), ethWithdraw);
+        MultiPhaseSecureOperation.addOperationType(_getSecureState(), tokenWithdraw);
     }
 
     /**
@@ -70,20 +84,20 @@ contract SimpleVault is SecureOwnable {
         require(to != address(0), "Invalid recipient");
         require(amount <= getEthBalance(), "Insufficient balance");
 
-        bytes memory executionOptions = abi.encode(MultiPhaseSecureOperation.StandardExecutionOptions({
-            functionSelector: bytes4(keccak256("_withdrawEth(address,uint256)")),
-            params: abi.encode(to, amount)
-        }));
+        bytes memory executionOptions = MultiPhaseSecureOperation.createStandardExecutionOptions(
+            WITHDRAW_ETH_SELECTOR,
+            abi.encode(to, amount)
+        );
 
         MultiPhaseSecureOperation.TxRecord memory txRecord = MultiPhaseSecureOperation.txRequest(
             _getSecureState(),
             msg.sender,
             address(this),
+            0, // No ETH should be sent with withdrawal request
+            gasleft(),
             WITHDRAW_ETH,
             MultiPhaseSecureOperation.ExecutionType.STANDARD,
-            executionOptions,
-            0, // No ETH should be sent with withdrawal request
-            gasleft()
+            executionOptions     
         );
 
         addOperation(txRecord);
@@ -101,20 +115,20 @@ contract SimpleVault is SecureOwnable {
         require(to != address(0), "Invalid recipient");
         require(amount <= getTokenBalance(token), "Insufficient balance");
 
-        bytes memory executionOptions = abi.encode(MultiPhaseSecureOperation.StandardExecutionOptions({
-            functionSelector: bytes4(keccak256("_withdrawToken(address,address,uint256)")),
-            params: abi.encode(token, to, amount)
-        }));
+        bytes memory executionOptions = MultiPhaseSecureOperation.createStandardExecutionOptions(
+            WITHDRAW_TOKEN_SELECTOR,
+            abi.encode(token, to, amount)
+        );
 
         MultiPhaseSecureOperation.TxRecord memory txRecord = MultiPhaseSecureOperation.txRequest(
             _getSecureState(),
             msg.sender,
             address(this),
+            0,
+            gasleft(),
             WITHDRAW_TOKEN,
             MultiPhaseSecureOperation.ExecutionType.STANDARD,
-            executionOptions,
-            0,
-            gasleft()
+            executionOptions
         );
 
         addOperation(txRecord);
@@ -180,5 +194,27 @@ contract SimpleVault is SecureOwnable {
     function _withdrawToken(address token, address to, uint256 amount) internal {
         IERC20(token).safeTransfer(to, amount);
         emit TokenWithdrawn(token, to, amount);
+    }
+
+    /**
+     * @notice Generates an unsigned meta-transaction for an existing withdrawal request
+     * @param txId The ID of the existing withdrawal transaction
+     * @return MetaTransaction The unsigned meta-transaction ready for signing
+     */
+    function generateUnsignedWithdrawalMetaTx(uint256 txId) public view returns (MultiPhaseSecureOperation.MetaTransaction memory) {
+        // Get the meta-transaction structure from the library
+        MultiPhaseSecureOperation.MetaTransaction memory metaTx = MultiPhaseSecureOperation.generateUnsignedForExistingMetaTx(
+            _getSecureState(),
+            txId
+        );
+
+        // Set the handler-specific parameters
+        metaTx.params.handlerContract = address(this);
+        metaTx.params.handlerSelector = this.approveWithdrawalWithMetaTx.selector;
+        metaTx.params.deadline = block.timestamp + 1 hours;
+        metaTx.params.maxGasPrice = block.basefee * 2;
+        metaTx.params.signer = owner();
+
+        return metaTx;
     }
 }
