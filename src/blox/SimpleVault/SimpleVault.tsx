@@ -1,4 +1,4 @@
-import { Address, PublicClient, WalletClient, Chain, Abi } from 'viem';
+import { Address, PublicClient, WalletClient, Chain, Abi, Hex } from 'viem';
 import SimpleVaultABIJson from './SimpleVault.abi.json';
 import SecureOwnable from '../../particle-core/sdk/typescript/SecureOwnable';
 import { TxRecord, MetaTransaction, MetaTxParams, ReadableOperationType } from '../../particle-core/sdk/typescript/interfaces/lib.index';
@@ -280,23 +280,36 @@ export default class SimpleVault extends SecureOwnable {
       // Map the status directly from the transaction
       const status = tx.status;
       
-      // Default values
+      // Extract data from tx.params based on operation type
       let to: Address = '0x0000000000000000000000000000000000000000';
       let amount: bigint = BigInt(0);
       let token: Address | undefined = undefined;
       let type: "ETH" | "TOKEN" = "ETH";
       
-      // Determine transaction type based on operation type
-      if (tx.params.operationType === SimpleVault.WITHDRAW_ETH) {
+      // Validate operation type exists
+      const operationType = tx.params.operationType as Hex;
+      const operationTypes = await this.getVaultOperationTypes();
+      
+      if (!operationTypes.has(operationType)) {
+        throw new Error(`Unsupported operation type: ${operationType}`);
+      }
+
+      // Decode parameters based on operation type name
+      const operationName = operationTypes.get(operationType);
+      if (operationName === 'WITHDRAW_ETH') {
         type = "ETH";
-      } else if (tx.params.operationType === SimpleVault.WITHDRAW_TOKEN) {
+        // For ETH withdrawals, params should contain 'to' and 'amount'
+        to = tx.params.target as Address;
+        amount = tx.params.value;
+      } else if (operationName === 'WITHDRAW_TOKEN') {
         type = "TOKEN";
+        // For token withdrawals, params should contain 'token', 'to', and 'amount'
+        to = tx.params.target as Address;
+        amount = tx.params.value;
+        token = tx.params.target;
       }
       
-      // Instead of trying to decode complex data structures, we'll use a simpler approach
-      // that's more resilient to malformed data
-      
-      // Create a VaultTxRecord with the information we have
+      // Create a VaultTxRecord with the decoded information
       const vaultTx: VaultTxRecord = {
         ...tx,
         status,
@@ -668,5 +681,10 @@ export default class SimpleVault extends SecureOwnable {
       functionName: 'generateUnsignedWithdrawalMetaTxApproval',
       args: [txId]
     }) as MetaTransaction;
+  }
+
+  async getVaultOperationTypes(): Promise<Map<Hex, string>> {
+    const operations = await this.getSupportedOperationTypes();
+    return new Map(operations.map(op => [op.operationType, op.name]));
   }
 }

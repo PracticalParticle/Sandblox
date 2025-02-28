@@ -42,11 +42,11 @@ contract SimpleVault is SecureOwnable {
         // Add operation types with human-readable names
         MultiPhaseSecureOperation.ReadableOperationType memory ethWithdraw = MultiPhaseSecureOperation.ReadableOperationType({
             operationType: WITHDRAW_ETH,
-            name: "Withdraw ETH"
+            name: "WITHDRAW_ETH"
         });
         MultiPhaseSecureOperation.ReadableOperationType memory tokenWithdraw = MultiPhaseSecureOperation.ReadableOperationType({
             operationType: WITHDRAW_TOKEN,
-            name: "Withdraw Token"
+            name: "WITHDRAW_TOKEN"
         });
         
         MultiPhaseSecureOperation.addOperationType(_getSecureState(), ethWithdraw);
