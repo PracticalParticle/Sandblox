@@ -12,6 +12,7 @@ import BloxMiniApp from './pages/BloxMiniApp';
 import Blockchains from './pages/Blockchains';
 import BlockchainDetails from './pages/BlockchainDetails';
 import Documentation from './pages/Documentation';
+import BugHunt from './pages/BugHunt';
 
 export default function App() {
   return (
@@ -31,6 +32,8 @@ export default function App() {
               <Route path="/blockchains/:id" element={<BlockchainDetails />} />
               <Route path="/docs" element={<Documentation />} />
               <Route path="/docs/:slug" element={<Documentation />} />
+              <Route path="/bug-hunt" element={<BugHunt />} />
+              <Route path="/bug-hunt/:type/:address" element={<BugHunt />} />
             </Routes>
           </div>
         </main>

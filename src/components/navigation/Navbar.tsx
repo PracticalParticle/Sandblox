@@ -50,6 +50,9 @@ export function Navbar() {
                 <DropdownMenuItem asChild>
                   <a href="/blockchains">Blockchains</a>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <a href="/bug-hunt">Bug Hunt</a>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <a
@@ -125,6 +128,13 @@ export function Navbar() {
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Blockchains
+              </a>
+              <a
+                className="pl-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
+                href="/bug-hunt"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                Bug Hunt
               </a>
               <a
                 className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
