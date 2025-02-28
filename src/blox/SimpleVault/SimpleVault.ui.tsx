@@ -363,7 +363,7 @@ const PendingTransaction = ({ tx, onApprove, onCancel, isLoading }: PendingTrans
                 <p className="text-sm text-muted-foreground">
                   Amount: {tx.type === "ETH" ? formatEther(amount) : formatUnits(amount, 18)} {tx.type}
                 </p>
-                <p className="text-sm text-muted-foreground">To: {tx.target}</p>
+                <p className="text-sm text-muted-foreground">To: {tx.params.target}</p>
               </div>
             </div>
             <div className="space-y-2">
@@ -777,7 +777,7 @@ const MetaTxPendingTransaction = ({ tx, onCancel, isLoading }: Omit<PendingTrans
                 <p className="text-sm text-muted-foreground">
                   Amount: {tx.type === "ETH" ? formatEther(amount) : formatUnits(amount, 18)} {tx.type}
                 </p>
-                <p className="text-sm text-muted-foreground">To: {tx.target}</p>
+                <p className="text-sm text-muted-foreground">To: {tx.params.target}</p>
               </div>
             </div>
             <div className="flex space-x-2">
