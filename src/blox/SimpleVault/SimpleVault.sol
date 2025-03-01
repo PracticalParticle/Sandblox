@@ -16,8 +16,8 @@ contract SimpleVault is SecureOwnable {
     bytes32 public constant WITHDRAW_TOKEN = keccak256("WITHDRAW_TOKEN");
 
     // Function selector constants
-    bytes4 private constant WITHDRAW_ETH_SELECTOR = bytes4(keccak256("_withdrawEth(address,uint256)"));
-    bytes4 private constant WITHDRAW_TOKEN_SELECTOR = bytes4(keccak256("_withdrawToken(address,address,uint256)"));
+    bytes4 private constant WITHDRAW_ETH_SELECTOR = bytes4(keccak256("executeWithdrawEth(address,uint256)"));
+    bytes4 private constant WITHDRAW_TOKEN_SELECTOR = bytes4(keccak256("executeWithdrawToken(address,address,uint256)"));
 
     // Timelock period constants (in minutes)
     uint256 private constant MIN_TIMELOCK_PERIOD = 24 * 60; // 1 day
@@ -177,6 +177,27 @@ contract SimpleVault is SecureOwnable {
             txId
         );
         return txRecord;
+    }
+
+    /**
+     * @dev External function that can only be called by the contract itself to execute ETH withdrawal
+     * @param to Recipient address
+     * @param amount Amount to withdraw
+     */
+    function executeWithdrawEth(address to, uint256 amount) external {
+        require(msg.sender == address(this), "Only callable by contract itself");
+        _withdrawEth(to, amount);
+    }
+
+    /**
+     * @dev External function that can only be called by the contract itself to execute token withdrawal
+     * @param token Token address
+     * @param to Recipient address
+     * @param amount Amount to withdraw
+     */
+    function executeWithdrawToken(address token, address to, uint256 amount) external {
+        require(msg.sender == address(this), "Only callable by contract itself");
+        _withdrawToken(token, to, amount);
     }
 
     /**
