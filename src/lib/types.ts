@@ -34,7 +34,7 @@ export type SecureContractInfo = {
   owner: Address
   broadcaster: Address
   recoveryAddress: Address
-  timeLockPeriodInDays: number
+  timeLockPeriodInMinutes: number
   pendingOperations: SecurityOperationEvent[]
   recentEvents: SecurityOperationEvent[]
   chainId: number

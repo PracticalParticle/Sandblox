@@ -37,11 +37,11 @@ export class SecureOwnableManager {
   async loadContractInfo(): Promise<SecureContractInfo> {
     try {
       // Fetch contract details using Promise.all for better performance
-      const [owner, broadcaster, recoveryAddress, timeLockPeriodInDays] = await Promise.all([
+      const [owner, broadcaster, recoveryAddress, timeLockPeriodInMinutes] = await Promise.all([
         this.contract.owner(),
         this.contract.getBroadcaster(),
         this.contract.getRecoveryAddress(),
-        this.contract.getTimeLockPeriodInDays()
+        this.contract.getTimeLockPeriodInMinutes()
       ]);
 
       // Get operation history
@@ -86,7 +86,7 @@ export class SecureOwnableManager {
         owner,
         broadcaster,
         recoveryAddress,
-        timeLockPeriodInDays,
+        timeLockPeriodInMinutes: Number(timeLockPeriodInMinutes),
         pendingOperations: events.filter(e => e.status === 'pending'),
         recentEvents: events.filter(e => e.status !== 'pending').slice(0, 5),
         chainId,
@@ -143,8 +143,8 @@ export class SecureOwnableManager {
   }
 
   // TimeLock Management
-  async updateTimeLockPeriod(newPeriodInDays: number, options: { from: Address }): Promise<Hash> {
-    const executionOptions = await this.contract.updateTimeLockExecutionOptions(newPeriodInDays);
+  async updateTimeLockPeriod(newPeriodInMinutes: number, options: { from: Address }): Promise<Hash> {
+    const executionOptions = await this.contract.updateTimeLockExecutionOptions(newPeriodInMinutes);
     const metaTx = await this.generateMetaTransaction(
       options.from,
       'TIMELOCK_UPDATE',

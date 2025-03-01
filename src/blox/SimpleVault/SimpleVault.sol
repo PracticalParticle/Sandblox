@@ -19,6 +19,10 @@ contract SimpleVault is SecureOwnable {
     bytes4 private constant WITHDRAW_ETH_SELECTOR = bytes4(keccak256("_withdrawEth(address,uint256)"));
     bytes4 private constant WITHDRAW_TOKEN_SELECTOR = bytes4(keccak256("_withdrawToken(address,address,uint256)"));
 
+    // Timelock period constants (in minutes)
+    uint256 private constant MIN_TIMELOCK_PERIOD = 24 * 60; // 1 day
+    uint256 private constant MAX_TIMELOCK_PERIOD = 90 * 24 * 60; // 90 days
+
     // Events
     event EthWithdrawn(address indexed to, uint256 amount);
     event TokenWithdrawn(address indexed token, address indexed to, uint256 amount);
@@ -29,15 +33,16 @@ contract SimpleVault is SecureOwnable {
      * @param initialOwner The initial owner address
      * @param broadcaster The broadcaster address
      * @param recovery The recovery address
-     * @param timeLockPeriodInDays The timelock period in days
+     * @param timeLockPeriodInMinutes The timelock period in minutes
      */
     constructor(
         address initialOwner,
         address broadcaster,
         address recovery,
-        uint256 timeLockPeriodInDays     
-    ) SecureOwnable(initialOwner, broadcaster, recovery, timeLockPeriodInDays) {
-        require(timeLockPeriodInDays < 90, "Time lock period must be less than 90 days");
+        uint256 timeLockPeriodInMinutes     
+    ) SecureOwnable(initialOwner, broadcaster, recovery, timeLockPeriodInMinutes) {
+        require(timeLockPeriodInMinutes >= MIN_TIMELOCK_PERIOD, "Time lock period must be at least 1 day (1440 minutes)");
+        require(timeLockPeriodInMinutes <= MAX_TIMELOCK_PERIOD, "Time lock period must be less than 90 days (129600 minutes)");
         
         // Add operation types with human-readable names
         MultiPhaseSecureOperation.ReadableOperationType memory ethWithdraw = MultiPhaseSecureOperation.ReadableOperationType({
@@ -165,7 +170,7 @@ contract SimpleVault is SecureOwnable {
      */
     function cancelWithdrawal(uint256 txId) public onlyOwner returns (MultiPhaseSecureOperation.TxRecord memory) {
         MultiPhaseSecureOperation.TxRecord memory currentTxRecord = MultiPhaseSecureOperation.getTxRecord(_getSecureState(), txId);
-        require(block.timestamp >= currentTxRecord.releaseTime - (_getSecureState().timeLockPeriodInDays * 1 days) + 1 hours, "Cannot cancel within first hour");
+        require(block.timestamp >= currentTxRecord.releaseTime - (_getSecureState().timeLockPeriodInMinutes * 1 minutes) + 1 hours, "Cannot cancel within first hour");
 
         MultiPhaseSecureOperation.TxRecord memory txRecord = MultiPhaseSecureOperation.txCancellation(
             _getSecureState(),
@@ -213,5 +218,15 @@ contract SimpleVault is SecureOwnable {
 
         // Generate the unsigned meta-transaction using the parent contract's function
         return generateUnsignedMetaTransactionForExisting(txId, metaTxParams);
+    }
+
+    /**
+     * @dev Internal function to update the timelock period with validation
+     * @param newTimeLockPeriodInMinutes The new timelock period in minutes
+     */
+    function _updateTimeLockPeriod(uint256 newTimeLockPeriodInMinutes) internal virtual override {
+        require(newTimeLockPeriodInMinutes >= MIN_TIMELOCK_PERIOD, "Time lock period must be at least 1 day (1440 minutes)");
+        require(newTimeLockPeriodInMinutes <= MAX_TIMELOCK_PERIOD, "Time lock period must be less than 90 days (129600 minutes)");
+        super._updateTimeLockPeriod(newTimeLockPeriodInMinutes);
     }
 }

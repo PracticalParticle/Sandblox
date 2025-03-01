@@ -99,9 +99,12 @@ const formatTimeValue = (value: string | number): string => {
   const numValue = typeof value === 'string' ? parseInt(value) : value;
   if (isNaN(numValue)) return value.toString();
   
-  if (numValue === 0) return '0 days';
-  if (numValue === 1) return '1 day';
-  return `${numValue} days`;
+  if (numValue === 0) return '0 minutes';
+  if (numValue < 60) return `${numValue} minute${numValue === 1 ? '' : 's'}`;
+  if (numValue < 1440) return `${Math.floor(numValue / 60)} hour${Math.floor(numValue / 60) === 1 ? '' : 's'}${numValue % 60 > 0 ? ` ${numValue % 60} minute${numValue % 60 === 1 ? '' : 's'}` : ''}`;
+  const days = Math.floor(numValue / 1440);
+  const remainingMinutes = numValue % 1440;
+  return `${days} day${days === 1 ? '' : 's'}${remainingMinutes > 0 ? ` ${remainingMinutes} minute${remainingMinutes === 1 ? '' : 's'}` : ''}`;
 };
 
 const formatValue = (value: string, type: string): string => {

@@ -481,7 +481,7 @@ const BloxMiniApp: React.FC = () => {
                           </div>
                           <div className="flex items-center gap-1">
                             <span className="text-xs text-muted-foreground">
-                              {contractInfo.timeLockPeriodInDays} days
+                              {Math.floor(contractInfo.timeLockPeriodInMinutes / 1440)} days {contractInfo.timeLockPeriodInMinutes % 1440 > 0 ? `${contractInfo.timeLockPeriodInMinutes % 1440} minutes` : ''}
                             </span>
                           </div>
                         </div>

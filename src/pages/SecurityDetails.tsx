@@ -42,6 +42,9 @@ import { Badge } from "@/components/ui/badge"
 import { OperationHistory, UITxRecord } from '@/components/OperationHistory'
 import { TxStatus } from '@/particle-core/sdk/typescript/types/lib.index'
 import { TxRecord as CoreTxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
+import { Label } from '@/components/ui/label'
+import { TIMELOCK_PERIODS } from '@/constants/contract'
+import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
 
 const container = {
   hidden: { opacity: 0 },
@@ -84,9 +87,12 @@ const formatTimeValue = (value: string | number): string => {
   const numValue = typeof value === 'string' ? parseInt(value) : value;
   if (isNaN(numValue)) return value.toString();
   
-  if (numValue === 0) return '0 days';
-  if (numValue === 1) return '1 day';
-  return `${numValue} days`;
+  if (numValue === 0) return '0 minutes';
+  if (numValue < 60) return `${numValue} minute${numValue === 1 ? '' : 's'}`;
+  if (numValue < 1440) return `${Math.floor(numValue / 60)} hour${Math.floor(numValue / 60) === 1 ? '' : 's'}${numValue % 60 > 0 ? ` ${numValue % 60} minute${numValue % 60 === 1 ? '' : 's'}` : ''}`;
+  const days = Math.floor(numValue / 1440);
+  const remainingMinutes = numValue % 1440;
+  return `${days} day${days === 1 ? '' : 's'}${remainingMinutes > 0 ? ` ${remainingMinutes} minute${remainingMinutes === 1 ? '' : 's'}` : ''}`;
 };
 
 const formatValue = (value: string, type: string): string => {
@@ -238,6 +244,9 @@ function TimeLockWalletContent({
 }) {
   const { session, isConnecting, connect, disconnect } = useSingleWallet()
   const [isOwnerWalletConnected, setIsOwnerWalletConnected] = useState(false)
+  const [newTimeLockPeriod, setNewTimeLockPeriod] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { toast } = useToast()
 
   useEffect(() => {
     if (session && contractInfo) {
@@ -249,56 +258,90 @@ function TimeLockWalletContent({
     }
   }, [session, contractInfo])
 
+  const handleSubmit = async () => {
+    if (!contractInfo) return
+    if (!newTimeLockPeriod) {
+      toast({
+        title: "Error",
+        description: "Please enter a new time lock period",
+        variant: "destructive"
+      })
+      return
+    }
+
+    const minutes = parseInt(newTimeLockPeriod)
+    if (isNaN(minutes) || minutes < TIMELOCK_PERIODS.MIN || minutes > TIMELOCK_PERIODS.MAX) {
+      toast({
+        title: "Error",
+        description: `Time lock period must be between ${formatTimeValue(TIMELOCK_PERIODS.MIN)} and ${formatTimeValue(TIMELOCK_PERIODS.MAX)}`,
+        variant: "destructive"
+      })
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      await onSuccess()
+      toast({
+        title: "Success",
+        description: "Time lock period update request submitted"
+      })
+      onClose()
+    } catch (error) {
+      console.error('Failed to update time lock period:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update time lock period",
+        variant: "destructive"
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center space-x-2">
-        <div className="flex-1">
-          {session ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between rounded-lg border p-3">
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm font-medium">Connected Wallet</span>
-                  <span className="text-xs text-muted-foreground">
-                    {formatAddress(session.account)}
-                  </span>
-                </div>
-                <Button
-                  onClick={() => void disconnect()}
-                  variant="ghost"
-                  size="sm"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              {!isOwnerWalletConnected && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Connected wallet does not match the owner address. Please connect the correct wallet.
-                  </AlertDescription>
-                </Alert>
-              )}
-              {isOwnerWalletConnected && (
-                <Alert>
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                  <AlertDescription className="text-green-500">
-                    Owner wallet connected successfully!
-                  </AlertDescription>
-                </Alert>
-              )}
-            </div>
-          ) : (
-            <Button
-              onClick={() => void connect()}
-              disabled={isConnecting}
-              className="w-full"
-              variant="outline"
-            >
-              <Wallet className="mr-2 h-4 w-4" />
-              {isConnecting ? 'Connecting...' : 'Connect Owner Wallet'}
-            </Button>
-          )}
+    <div className="space-y-4 p-4">
+      <div className="p-4 rounded-lg bg-muted">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Current Period</span>
+            <span className="text-sm">
+              {contractInfo ? formatTimeValue(contractInfo.timeLockPeriodInMinutes) : '-'}
+            </span>
+          </div>
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="newTimeLockPeriod">New Time Lock Period</Label>
+        <Input
+          id="newTimeLockPeriod"
+          type="number"
+          min={TIMELOCK_PERIODS.MIN}
+          max={TIMELOCK_PERIODS.MAX}
+          placeholder={`Enter minutes (${TIMELOCK_PERIODS.MIN}-${TIMELOCK_PERIODS.MAX})`}
+          value={newTimeLockPeriod}
+          onChange={(e) => setNewTimeLockPeriod(e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">
+          Time lock period must be between {formatTimeValue(TIMELOCK_PERIODS.MIN)} and {formatTimeValue(TIMELOCK_PERIODS.MAX)}
+        </p>
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button onClick={handleSubmit} disabled={isSubmitting}>
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Updating...
+            </>
+          ) : (
+            'Update Period'
+          )}
+        </Button>
       </div>
     </div>
   )
@@ -516,6 +559,22 @@ interface CoreOperationEvent {
     remainingTime: bigint;
   };
   description?: string;
+  params?: {
+    requester: Address;
+    target: Address;
+    value: bigint;
+    gasLimit: bigint;
+    operationType: string;
+    executionType: number;
+    executionOptions: string;
+  };
+  result?: string;
+  payment?: {
+    recipient: Address;
+    nativeTokenAmount: bigint;
+    erc20TokenAddress: Address;
+    erc20TokenAmount: bigint;
+  };
 }
 
 // Event types from the contract
@@ -524,6 +583,14 @@ interface ContractEvent {
   type: string;
   timestamp: string | number;
   description?: string;
+  details: {
+    oldValue: string;
+    newValue: string;
+    remainingTime?: string | number;
+  };
+}
+
+interface TimeLockUpdateEvent extends ContractEvent {
   details: {
     oldValue: string;
     newValue: string;
@@ -643,9 +710,9 @@ export function SecurityDetails() {
         };
       });
       
-      // Convert timeLockPeriodInDays to number first
-      const timeLockPeriodInDays = convertBigIntToNumber(info.timeLockPeriodInDays);
-      const timeLockPeriodInSeconds = timeLockPeriodInDays * 24 * 60 * 60;
+      // Convert timeLockPeriodInMinutes to number first
+      const timeLockPeriodInMinutes = convertBigIntToNumber(info.timeLockPeriodInMinutes);
+      const timeLockPeriodInSeconds = timeLockPeriodInMinutes * 60;
       
       const history: UITxRecord[] = allEvents
         .filter(event => 
@@ -657,14 +724,23 @@ export function SecurityDetails() {
         .map((event) => ({
           txId: Number(event.txId),
           type: event.type,
-          description: '', // This will be generated by OperationHistory component
+          description: event.description || getOperationDescription({
+            type: event.type,
+            details: {
+              oldValue: event.details.oldValue.toString(),
+              newValue: event.details.newValue.toString(),
+              remainingTime: Number(event.details.remainingTime),
+              requester: event.requester,
+              target: event.target
+            }
+          } as UITxRecord),
           status: event.status,
           releaseTime: Number(event.timestamp) + timeLockPeriodInSeconds,
           timestamp: Number(event.timestamp),
           details: {
             oldValue: event.details.oldValue.toString(),
             newValue: event.details.newValue.toString(),
-            remainingTime: convertBigIntToNumber(event.details.remainingTime),
+            remainingTime: Number(event.details.remainingTime),
             requester: event.requester,
             target: event.target
           }
@@ -1007,7 +1083,7 @@ export function SecurityDetails() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Timelock Period</p>
-                  <p className="font-medium">{contractInfo.timeLockPeriodInDays} days</p>
+                  <p className="font-medium">{contractInfo.timeLockPeriodInMinutes} minutes</p>
                 </div>
               </div>
             </div>
@@ -1189,10 +1265,10 @@ export function SecurityDetails() {
                       <DialogTitle>Update TimeLock Period</DialogTitle>
                       <div className="p-2 bg-muted rounded-lg text-sm">
                         <p className="font-medium">Current TimeLock Period:</p>
-                        <p className="text-xs">{contractInfo.timeLockPeriodInDays} days</p>
+                        <p className="text-xs">{formatTimeValue(contractInfo.timeLockPeriodInMinutes)}</p>
                       </div>
                       <DialogDescription>
-                        Enter a new time lock period between 1 and 30 days.
+                        Enter a new time lock period between 1 and 30 minutes.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-3">
@@ -1201,7 +1277,7 @@ export function SecurityDetails() {
                           type="number"
                           min="1"
                           max="30"
-                          placeholder="New TimeLock Period (1-30 days)"
+                          placeholder="New TimeLock Period (1-30 minutes)"
                           value={newTimeLockPeriod}
                           onChange={(e) => {
                             const value = parseInt(e.target.value);
@@ -1211,7 +1287,7 @@ export function SecurityDetails() {
                           }}
                         />
                         {newTimeLockPeriod && (parseInt(newTimeLockPeriod) <= 0 || parseInt(newTimeLockPeriod) > 30) && (
-                          <p className="text-sm text-destructive">Time lock period must be between 1 and 30 days</p>
+                          <p className="text-sm text-destructive">Time lock period must be between 1 and 30 minutes</p>
                         )}
                       </div>
                       <SingleWalletManagerProvider

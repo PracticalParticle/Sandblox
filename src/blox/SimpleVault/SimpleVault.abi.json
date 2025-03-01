@@ -13,7 +13,7 @@
         },
         {
           "internalType": "uint256",
-          "name": "timeLockPeriodInDays",
+          "name": "timeLockPeriodInMinutes",
           "type": "uint256"
         },
         {
@@ -950,7 +950,7 @@
     },
     {
       "inputs": [],
-      "name": "getTimeLockPeriodInDays",
+      "name": "getTimeLockPeriodInMinutes",
       "outputs": [
         {
           "internalType": "uint256",
@@ -2780,7 +2780,7 @@
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "newTimeLockPeriodInDays",
+          "name": "newTimeLockPeriodInMinutes",
           "type": "uint256"
         }
       ],
