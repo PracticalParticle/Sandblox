@@ -69,8 +69,8 @@ export const mapCoreTxRecordToUITxRecord = (
 ): UITxRecord => {
   return {
     txId: Number(coreTxRecord.txId),
-    type: coreTxRecord.operationType,
-    description: getOperationDescription(coreTxRecord.operationType, details.newValue),
+    type: coreTxRecord.params.operationType,
+    description: getOperationDescription(coreTxRecord.params.operationType, details.newValue),
     status: Number(coreTxRecord.status),
     releaseTime: Number(coreTxRecord.releaseTime),
     timestamp: Math.floor(Date.now() / 1000),
@@ -78,8 +78,8 @@ export const mapCoreTxRecordToUITxRecord = (
       oldValue: details.oldValue,
       newValue: details.newValue,
       remainingTime: details.remainingTime,
-      requester: coreTxRecord.requester,
-      target: coreTxRecord.target
+      requester: coreTxRecord.params.requester,
+      target: coreTxRecord.params.target
     }
   };
 };
