@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useState } from "react";
-import { Address } from "viem";
+import { Address, Hex } from "viem";
 import { formatEther, formatUnits } from "viem";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,8 @@ import { TxStatus } from "../../../particle-core/sdk/typescript/types/lib.index"
 import { useChain } from "@/hooks/useChain";
 import SimpleVault from "../SimpleVault";
 import { createWalletClient, http } from "viem";
-import { Hex } from "viem";
+import { MetaTransaction } from "../../../particle-core/sdk/typescript/interfaces/lib.index";
+import { useToast } from "@/components/ui/use-toast";
 
 // Import the ContractInfo type from the MetaTxApprovalDialog
 interface ContractInfo {
@@ -64,24 +65,28 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
 }) => {
   const [showBroadcasterDialog, setShowBroadcasterDialog] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
+  const [isSigning, setIsSigning] = useState(false);
+  const [signedMetaTx, setSignedMetaTx] = useState<MetaTransaction | null>(null);
   const chain = useChain();
   const { address } = useAccount();
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
+  const { toast } = useToast();
 
   const handleNotification = (message: NotificationMessage) => {
     if (addMessage) {
       addMessage(message);
     } else {
-      console.log('Notification:', message);
+      toast({
+        title: message.title,
+        description: message.description,
+        variant: message.type === 'error' ? 'destructive' : 
+                 message.type === 'success' ? 'default' : 'secondary'
+      });
     }
   };
 
   const handleApproveWithMetaTx = async () => {
-    setShowBroadcasterDialog(true);
-  };
-
-  const handleBroadcasterConnected = async (broadcasterAddress: string) => {
     if (!tx || !contractInfo || !chain || !publicClient || !walletClient || !address) {
       handleNotification({
         type: 'error',
@@ -91,8 +96,7 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
       return;
     }
     
-    setShowBroadcasterDialog(false);
-    setIsApproving(true);
+    setIsSigning(true);
     
     try {
       // Create vault instance
@@ -112,6 +116,12 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
       if (!address) {
         throw new Error("Owner wallet not connected");
       }
+      
+      handleNotification({
+        type: 'info',
+        title: "Signing Transaction",
+        description: "Please sign the transaction with your wallet"
+      });
       
       // Create a typed data signature
       const signature = await walletClient.signTypedData({
@@ -146,6 +156,43 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
         signature: signature as Hex
       };
       
+      // Store the signed meta transaction
+      setSignedMetaTx(metaTx);
+      
+      handleNotification({
+        type: 'success',
+        title: "Transaction Signed",
+        description: "Transaction signed successfully. Please connect your broadcaster wallet to submit it."
+      });
+      
+      // Now show the broadcaster dialog
+      setShowBroadcasterDialog(true);
+    } catch (error: any) {
+      console.error("Meta transaction signing failed:", error);
+      handleNotification({
+        type: 'error',
+        title: "Signing Failed",
+        description: error.message || "Failed to sign the meta transaction"
+      });
+    } finally {
+      setIsSigning(false);
+    }
+  };
+
+  const handleBroadcasterConnected = async (broadcasterAddress: string) => {
+    if (!signedMetaTx || !contractInfo || !chain || !publicClient) {
+      handleNotification({
+        type: 'error',
+        title: "Error",
+        description: "Missing signed transaction or required dependencies"
+      });
+      return;
+    }
+    
+    setShowBroadcasterDialog(false);
+    setIsApproving(true);
+    
+    try {
       // 4. Broadcast the meta transaction using the broadcaster wallet
       const broadcasterWalletClient = createWalletClient({
         account: broadcasterAddress as Address,
@@ -160,8 +207,14 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
         chain
       );
       
+      handleNotification({
+        type: 'info',
+        title: "Broadcasting Transaction",
+        description: "Submitting the signed transaction to the blockchain"
+      });
+      
       const result = await broadcastVault.approveWithdrawalWithMetaTx(
-        metaTx,
+        signedMetaTx,
         { from: broadcasterAddress as Address }
       );
       
@@ -192,6 +245,8 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
       });
     } finally {
       setIsApproving(false);
+      // Clear the signed transaction
+      setSignedMetaTx(null);
     }
   };
 
@@ -226,7 +281,7 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
                       <div className="flex-1">
                         <Button
                           onClick={handleApproveWithMetaTx}
-                          disabled={isLoading || isApproving || tx.status !== TxStatus.PENDING}
+                          disabled={isLoading || isApproving || isSigning || tx.status !== TxStatus.PENDING}
                           className={`w-full transition-all duration-200 flex items-center justify-center
                             bg-emerald-50 text-emerald-700 hover:bg-emerald-100 
                             dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 
@@ -238,7 +293,12 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
                           variant="outline"
                           aria-label={`Approve transaction #${tx.txId} with meta transaction`}
                         >
-                          {isApproving ? (
+                          {isSigning ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              <span>Signing...</span>
+                            </>
+                          ) : isApproving ? (
                             <>
                               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                               <span>Processing...</span>
@@ -302,16 +362,16 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
           </CardContent>
         </Card>
         
-        {contractInfo && (
+        {contractInfo && signedMetaTx && (
           <MetaTxApprovalDialog
             contractInfo={contractInfo}
             isOpen={showBroadcasterDialog}
             onOpenChange={setShowBroadcasterDialog}
             onSuccess={handleBroadcasterConnected}
             txId={Number(tx.txId)}
-            title="Approve Transaction with Meta-Transaction"
-            description="Connect the broadcaster wallet to approve this withdrawal request without requiring the owner to pay gas fees."
-            actionLabel="Approve Transaction"
+            title="Connect Broadcaster Wallet"
+            description="Transaction has been signed. Now connect your broadcaster wallet to submit it to the blockchain without paying gas fees."
+            actionLabel="Submit Transaction"
             walletType="broadcaster"
             contractAddress={contractAddress}
           />

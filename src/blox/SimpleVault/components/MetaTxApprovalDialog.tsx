@@ -353,43 +353,6 @@ function WalletConnectionContent({
                       <p><strong>Required:</strong> {formatAddress(broadcasterAddress || '')}</p>
                     </div>
                   </AlertDescription>
-                  <Button
-                    onClick={async () => {
-                      const requiredAddress = await getRequiredAddress();
-                      console.log("Debug info:");
-                      console.log("Session account:", session?.account);
-                      console.log("Required address:", requiredAddress);
-                      console.log("Normalized session account:", normalizeAddress(session?.account));
-                      console.log("Normalized required address:", normalizeAddress(requiredAddress));
-                      console.log("Addresses match:", compareAddresses(session?.account, requiredAddress));
-                      
-                      // Force a re-check
-                      if (session?.account && requiredAddress) {
-                        const match = compareAddresses(session.account, requiredAddress);
-                        setIsWalletConnected(match);
-                        console.log("Forced re-check result:", match);
-                      }
-                    }}
-                    variant="outline"
-                    size="sm"
-                    className="mt-2"
-                  >
-                    Debug Address Comparison
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      // Force the connection for testing purposes
-                      console.log("Forcing connection with address:", session?.account);
-                      if (session?.account) {
-                        setIsWalletConnected(true);
-                      }
-                    }}
-                    variant="outline"
-                    size="sm"
-                    className="mt-2 ml-2"
-                  >
-                    Force Connect (Testing)
-                  </Button>
                 </Alert>
               )}
               {isWalletConnected && (
