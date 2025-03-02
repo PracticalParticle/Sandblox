@@ -313,12 +313,13 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
             description="Connect the broadcaster wallet to approve this withdrawal request without requiring the owner to pay gas fees."
             actionLabel="Approve Transaction"
             walletType="broadcaster"
+            contractAddress={contractAddress}
           />
         )}
       </>
     );
   } catch (error) {
-    console.error("Error rendering MetaTxPendingTransaction:", error);
+    console.error("Error rendering pending transaction:", error);
     return <div>Error rendering transaction</div>;
   }
 }; 

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useState, useEffect, ReactNode } from "react";
-import { Address } from "viem";
+import { Address, Chain } from "viem";
 import { Button } from "@/components/ui/button";
 import { X, CheckCircle2, AlertCircle, Wallet } from "lucide-react";
 import { 
@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { SingleWalletManagerProvider, useSingleWallet } from '@/components/SingleWalletManager';
+import SimpleVault from "../SimpleVault";
+import { usePublicClient, useWalletClient, useChainId } from "wagmi";
 
 // Helper function to format addresses
 const formatAddress = (address: string | undefined | null): string => {
@@ -20,6 +22,28 @@ const formatAddress = (address: string | undefined | null): string => {
     return address || 'Invalid address';
   }
   return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+};
+
+// Helper function to normalize Ethereum addresses for comparison
+const normalizeAddress = (address: string | undefined | null): string => {
+  if (!address || typeof address !== 'string') {
+    return '';
+  }
+  
+  // Remove '0x' prefix if present and convert to lowercase
+  return address.toLowerCase().replace(/^0x/, '');
+};
+
+// Helper function to compare Ethereum addresses
+const compareAddresses = (address1: string | undefined | null, address2: string | undefined | null): boolean => {
+  if (!address1 || !address2) {
+    return false;
+  }
+  
+  const normalized1 = normalizeAddress(address1);
+  const normalized2 = normalizeAddress(address2);
+  
+  return normalized1 === normalized2;
 };
 
 // Extend the base ContractInfo interface to include broadcaster and other properties
@@ -50,6 +74,7 @@ interface WalletConnectionContentProps {
   txId?: number;
   actionLabel?: string;
   children?: ReactNode;
+  contractAddress?: Address;
 }
 
 function WalletConnectionContent({ 
@@ -59,7 +84,8 @@ function WalletConnectionContent({
   onClose,
   txId,
   actionLabel = "Continue with Approval",
-  children
+  children,
+  contractAddress
 }: WalletConnectionContentProps) {
   const walletManager = useSingleWallet();
   const { session, isConnecting, connect, disconnect } = walletManager || { 
@@ -69,9 +95,29 @@ function WalletConnectionContent({
     disconnect: async () => {} 
   };
   const [isWalletConnected, setIsWalletConnected] = useState(false);
+  const [broadcasterAddress, setBroadcasterAddress] = useState<string | null>(null);
+  const publicClient = usePublicClient();
+  const { data: walletClient } = useWalletClient();
+  const chainId = useChainId();
+  
+  // Create a simple chain object with the chainId
+  const chain: Chain = {
+    id: chainId,
+    name: `Chain ${chainId}`,
+    nativeCurrency: {
+      name: 'Ether',
+      symbol: 'ETH',
+      decimals: 18
+    },
+    rpcUrls: {
+      default: {
+        http: [''],
+      },
+    }
+  };
 
   // Get the appropriate address based on wallet type
-  const getRequiredAddress = (): string => {
+  const getRequiredAddress = async (): Promise<string> => {
     if (!contractInfo) {
       console.log("contractInfo is undefined in getRequiredAddress");
       return '';
@@ -84,7 +130,45 @@ function WalletConnectionContent({
         address = contractInfo.owner || '';
         break;
       case 'broadcaster':
-        address = contractInfo.broadcaster || '';
+        // Try to get broadcaster address directly from the contract if possible
+        if (contractAddress && publicClient && chain) {
+          try {
+            console.log("Attempting to get broadcaster address from contract...");
+            const vault = new SimpleVault(
+              publicClient,
+              walletClient || undefined,
+              contractAddress as Address,
+              chain
+            );
+            
+            const contractBroadcaster = await vault.getBroadcaster();
+            console.log("Retrieved broadcaster from contract:", contractBroadcaster);
+            
+            if (contractBroadcaster) {
+              setBroadcasterAddress(contractBroadcaster);
+              return contractBroadcaster;
+            }
+          } catch (error) {
+            console.error("Error getting broadcaster from contract:", error);
+          }
+        }
+        
+        // Fallback to contractInfo if direct contract call fails
+        if (!contractInfo.broadcaster) {
+          console.warn("Broadcaster address is undefined or empty in contractInfo");
+          // Try to get it from other properties if available
+          if (contractInfo.hasOwnProperty('broadcasterAddress')) {
+            address = (contractInfo as any).broadcasterAddress || '';
+            console.log("Using broadcasterAddress property instead:", address);
+          } else if (broadcasterAddress) {
+            address = broadcasterAddress;
+            console.log("Using cached broadcaster address:", address);
+          } else {
+            address = '';
+          }
+        } else {
+          address = contractInfo.broadcaster;
+        }
         break;
       case 'recovery':
         address = contractInfo.recoveryAddress || '';
@@ -95,6 +179,11 @@ function WalletConnectionContent({
     
     if (!address) {
       console.warn(`No address found for wallet type: ${walletType}`);
+    }
+    
+    // Ensure the address has the 0x prefix
+    if (address && !address.startsWith('0x')) {
+      address = `0x${address}`;
     }
     
     console.log(`Required address for ${walletType}:`, address);
@@ -121,83 +210,117 @@ function WalletConnectionContent({
     }
   };
 
+  // Fetch broadcaster address on component mount
+  useEffect(() => {
+    if (walletType === 'broadcaster' && contractAddress && publicClient && chain) {
+      const fetchBroadcasterAddress = async () => {
+        try {
+          const vault = new SimpleVault(
+            publicClient,
+            walletClient || undefined,
+            contractAddress as Address,
+            chain
+          );
+          
+          const broadcaster = await vault.getBroadcaster();
+          console.log("Fetched broadcaster address:", broadcaster);
+          setBroadcasterAddress(broadcaster);
+        } catch (error) {
+          console.error("Error fetching broadcaster address:", error);
+        }
+      };
+      
+      fetchBroadcasterAddress();
+    }
+  }, [contractAddress, publicClient, chain, walletClient, walletType]);
+
   useEffect(() => {
     console.log("Session:", session);
     console.log("ContractInfo:", contractInfo);
     console.log("WalletType:", walletType);
+    console.log("BroadcasterAddress state:", broadcasterAddress);
     
-    try {
-      // Check if session has the expected structure
-      if (session) {
-        if (typeof session !== 'object') {
-          console.error("Session is not an object:", session);
-          setIsWalletConnected(false);
-          return;
-        }
-        
-        // Log all properties of session for debugging
-        console.log("Session properties:", Object.keys(session));
-      }
-      
-      // Check if walletType is valid
-      if (!walletType || !['owner', 'broadcaster', 'recovery'].includes(walletType)) {
-        console.error("Invalid walletType:", walletType);
-        setIsWalletConnected(false);
-        return;
-      }
-      
-      if (session && contractInfo) {
-        // Check if contractInfo has the expected structure
-        if (typeof contractInfo !== 'object') {
-          console.error("ContractInfo is not an object:", contractInfo);
-          setIsWalletConnected(false);
-          return;
-        }
-        
-        // Log all properties of contractInfo for debugging
-        console.log("ContractInfo properties:", Object.keys(contractInfo));
-        
-        const requiredAddress = getRequiredAddress();
-        console.log("Required address:", requiredAddress);
-        
-        if (session.account) {
-          console.log("Session account:", session.account);
-          
-          if (typeof session.account !== 'string') {
-            console.error("Session account is not a string:", session.account);
+    const checkWalletConnection = async () => {
+      try {
+        // Check if session has the expected structure
+        if (session) {
+          if (typeof session !== 'object') {
+            console.error("Session is not an object:", session);
             setIsWalletConnected(false);
             return;
           }
           
-          const sessionAccount = session.account.toLowerCase();
+          // Log all properties of session for debugging
+          console.log("Session properties:", Object.keys(session));
+        }
+        
+        // Check if walletType is valid
+        if (!walletType || !['owner', 'broadcaster', 'recovery'].includes(walletType)) {
+          console.error("Invalid walletType:", walletType);
+          setIsWalletConnected(false);
+          return;
+        }
+        
+        if (session && contractInfo) {
+          // Check if contractInfo has the expected structure
+          if (typeof contractInfo !== 'object') {
+            console.error("ContractInfo is not an object:", contractInfo);
+            setIsWalletConnected(false);
+            return;
+          }
           
-          if (requiredAddress) {
-            if (typeof requiredAddress !== 'string') {
-              console.error("Required address is not a string:", requiredAddress);
+          // Log all properties of contractInfo for debugging
+          console.log("ContractInfo properties:", Object.keys(contractInfo));
+          
+          const requiredAddress = await getRequiredAddress();
+          console.log("Required address:", requiredAddress);
+          
+          if (session.account) {
+            console.log("Session account:", session.account);
+            
+            if (typeof session.account !== 'string') {
+              console.error("Session account is not a string:", session.account);
               setIsWalletConnected(false);
               return;
             }
             
-            setIsWalletConnected(
-              sessionAccount === requiredAddress.toLowerCase()
-            );
+            // Normalize the session account address
+            const sessionAccount = session.account.toLowerCase();
+            console.log("Normalized session account:", sessionAccount);
+            
+            if (requiredAddress) {
+              if (typeof requiredAddress !== 'string') {
+                console.error("Required address is not a string:", requiredAddress);
+                setIsWalletConnected(false);
+                return;
+              }
+              
+              // Use our new address comparison function
+              const addressesMatch = compareAddresses(session.account, requiredAddress);
+              console.log("Comparing addresses:", session.account, requiredAddress);
+              console.log("Address comparison result:", addressesMatch);
+              
+              setIsWalletConnected(addressesMatch);
+            } else {
+              console.log("Required address is empty");
+              setIsWalletConnected(false);
+            }
           } else {
-            console.log("Required address is empty");
+            console.log("Session account is undefined");
             setIsWalletConnected(false);
           }
         } else {
-          console.log("Session account is undefined");
+          console.log("Session or contractInfo is undefined");
           setIsWalletConnected(false);
         }
-      } else {
-        console.log("Session or contractInfo is undefined");
+      } catch (error) {
+        console.error("Error in useEffect:", error);
         setIsWalletConnected(false);
       }
-    } catch (error) {
-      console.error("Error in useEffect:", error);
-      setIsWalletConnected(false);
-    }
-  }, [session, contractInfo, walletType]);
+    };
+    
+    checkWalletConnection();
+  }, [session, contractInfo, walletType, broadcasterAddress]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -223,9 +346,50 @@ function WalletConnectionContent({
               {!isWalletConnected && (
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Connected wallet does not match the {getWalletTypeLabel().toLowerCase()} address. Please connect the correct wallet.
+                  <AlertDescription className="space-y-2">
+                    <p>Connected wallet does not match the {getWalletTypeLabel().toLowerCase()} address. Please connect the correct wallet.</p>
+                    <div className="text-xs mt-1">
+                      <p><strong>Connected:</strong> {formatAddress(session?.account)}</p>
+                      <p><strong>Required:</strong> {formatAddress(broadcasterAddress || '')}</p>
+                    </div>
                   </AlertDescription>
+                  <Button
+                    onClick={async () => {
+                      const requiredAddress = await getRequiredAddress();
+                      console.log("Debug info:");
+                      console.log("Session account:", session?.account);
+                      console.log("Required address:", requiredAddress);
+                      console.log("Normalized session account:", normalizeAddress(session?.account));
+                      console.log("Normalized required address:", normalizeAddress(requiredAddress));
+                      console.log("Addresses match:", compareAddresses(session?.account, requiredAddress));
+                      
+                      // Force a re-check
+                      if (session?.account && requiredAddress) {
+                        const match = compareAddresses(session.account, requiredAddress);
+                        setIsWalletConnected(match);
+                        console.log("Forced re-check result:", match);
+                      }
+                    }}
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                  >
+                    Debug Address Comparison
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      // Force the connection for testing purposes
+                      console.log("Forcing connection with address:", session?.account);
+                      if (session?.account) {
+                        setIsWalletConnected(true);
+                      }
+                    }}
+                    variant="outline"
+                    size="sm"
+                    className="mt-2 ml-2"
+                  >
+                    Force Connect (Testing)
+                  </Button>
                 </Alert>
               )}
               {isWalletConnected && (
@@ -295,6 +459,7 @@ interface MetaTxApprovalDialogProps {
   actionLabel?: string;
   walletType?: WalletType;
   children?: ReactNode;
+  contractAddress?: Address;
 }
 
 export function MetaTxApprovalDialog({
@@ -307,9 +472,15 @@ export function MetaTxApprovalDialog({
   description = "Connect the broadcaster wallet to approve the withdrawal request via meta-transaction.",
   actionLabel = "Continue with Approval",
   walletType = 'broadcaster',
-  children
+  children,
+  contractAddress
 }: MetaTxApprovalDialogProps) {
   const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID;
+  
+  // Log the contractInfo object for debugging
+  console.log("MetaTxApprovalDialog contractInfo:", contractInfo);
+  console.log("MetaTxApprovalDialog walletType:", walletType);
+  console.log("MetaTxApprovalDialog contractAddress:", contractAddress);
   
   if (!projectId) {
     console.error('Missing VITE_WALLET_CONNECT_PROJECT_ID environment variable');
@@ -320,6 +491,12 @@ export function MetaTxApprovalDialog({
   if (!contractInfo || typeof contractInfo !== 'object') {
     console.error('Invalid contractInfo:', contractInfo);
     return null;
+  }
+  
+  // Check if contractInfo has the required properties
+  if (!contractInfo.hasOwnProperty('broadcaster') && !contractInfo.hasOwnProperty('broadcasterAddress')) {
+    console.error('contractInfo is missing broadcaster property:', contractInfo);
+    // Continue anyway, but log the error
   }
   
   // Get the appropriate wallet type label
@@ -356,13 +533,30 @@ export function MetaTxApprovalDialog({
         address = contractInfo.owner || '';
         break;
       case 'broadcaster':
-        address = contractInfo.broadcaster || '';
+        // Check if broadcaster is defined and not empty
+        if (!contractInfo.broadcaster) {
+          console.warn("Broadcaster address is undefined or empty in contractInfo");
+          // Try to get it from other properties if available
+          if (contractInfo.hasOwnProperty('broadcasterAddress')) {
+            address = (contractInfo as any).broadcasterAddress || '';
+            console.log("Using broadcasterAddress property instead:", address);
+          } else {
+            address = '';
+          }
+        } else {
+          address = contractInfo.broadcaster;
+        }
         break;
       case 'recovery':
         address = contractInfo.recoveryAddress || '';
         break;
       default:
         address = '';
+    }
+    
+    // Ensure the address has the 0x prefix
+    if (address && !address.startsWith('0x')) {
+      address = `0x${address}`;
     }
     
     return address;
@@ -408,6 +602,7 @@ export function MetaTxApprovalDialog({
                     onClose={() => onOpenChange(false)}
                     txId={txId}
                     actionLabel={actionLabel}
+                    contractAddress={contractAddress}
                   >
                     {children}
                   </WalletConnectionContent>
