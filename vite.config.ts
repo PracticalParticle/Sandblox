@@ -37,33 +37,18 @@ export default defineConfig({
     strictPort: true,
     host: true,
     open: true,
+    middlewareMode: false,
+    cors: true,
+    proxy: {
+      '/local-node': {
+        target: 'http://127.0.0.1:8545',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/local-node/, '')
+      }
+    },
     headers: {
-      'Content-Security-Policy': `
-        default-src 'self';
-        script-src 'self' 'unsafe-inline' 'unsafe-eval';
-        style-src 'self' 'unsafe-inline' https://rsms.me;
-        connect-src 'self' 
-          https://*.walletconnect.org 
-          wss://*.walletconnect.org 
-          https://*.walletconnect.com 
-          wss://*.walletconnect.com 
-          https://explorer-api.walletconnect.com 
-          https://remote-ganache-1.tailb0865.ts.net
-          https://*.merkle.io;
-        font-src 'self' data: https://fonts.googleapis.com https://rsms.me;
-        img-src 'self' data: https: blob;
-        media-src 'self' blob:;
-        worker-src 'self' blob:;
-        frame-src 'self' 
-          https://*.walletconnect.org 
-          https://*.walletconnect.com;
-        object-src 'none';
-        base-uri 'self';
-        form-action 'self';
-        frame-ancestors 'none';
-        block-all-mixed-content;
-        upgrade-insecure-requests;
-      `.replace(/\n\s+/g, ' ').trim()
+      'Access-Control-Allow-Origin': '*',
+      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://rsms.me; connect-src 'self' http://127.0.0.1:8545/ ws://127.0.0.1:8545/ http://localhost:8545/ ws://localhost:8545/ http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:* https://*.walletconnect.org wss://*.walletconnect.org https://*.walletconnect.com wss://*.walletconnect.com https://explorer-api.walletconnect.com https://remote-ganache-1.tailb0865.ts.net https://*.merkle.io; font-src 'self' data: https://fonts.googleapis.com https://rsms.me; img-src 'self' data: https: blob:; media-src 'self' blob:; worker-src 'self' blob:; frame-src 'self' https://*.walletconnect.org https://*.walletconnect.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';"
     }
   },
   preview: {
