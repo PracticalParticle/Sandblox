@@ -3,7 +3,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from './ui/button'
 import { useContractDeployment } from '../lib/deployment'
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react'
-import { useChainId, useConfig, useWalletClient } from 'wagmi'
+import { useChainId, useConfig, useWalletClient, useAccount } from 'wagmi'
+import { Input } from './ui/input'
+import { Label } from './ui/label'
+import { isAddress } from 'viem'
+import { env } from '@/config/env'
 
 interface DeploymentDialogProps {
   isOpen: boolean
@@ -12,10 +16,25 @@ interface DeploymentDialogProps {
   contractName: string
 }
 
+interface FormData {
+  initialOwner: string
+  broadcaster: string
+  recovery: string
+  timeLockPeriodInDays: string
+}
+
 export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: DeploymentDialogProps) {
   const chainId = useChainId()
   const config = useConfig()
+  const { address } = useAccount()
   const [deploymentStarted, setDeploymentStarted] = useState(false)
+  const [formData, setFormData] = useState<FormData>({
+    initialOwner: address || '',
+    broadcaster: '',
+    recovery: '',
+    timeLockPeriodInDays: '7'
+  })
+  const [formErrors, setFormErrors] = useState<Partial<FormData>>({})
   
   const { data: walletClient } = useWalletClient()
 
@@ -26,17 +45,52 @@ export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: 
     error,
     isSuccess,
     hash,
+    address: contractAddress,
   } = useContractDeployment({
     contractId,
+    libraries: {
+      MultiPhaseSecureOperation: env.LIBRARY_MULTI_PHASE_SECURE_OPERATION as `0x${string}`
+    }
   })
 
+  const validateForm = () => {
+    const errors: Partial<FormData> = {}
+    
+    if (!isAddress(formData.initialOwner)) {
+      errors.initialOwner = 'Invalid address'
+    }
+    if (!isAddress(formData.broadcaster)) {
+      errors.broadcaster = 'Invalid address'
+    }
+    if (!isAddress(formData.recovery)) {
+      errors.recovery = 'Invalid address'
+    }
+    
+    const days = parseInt(formData.timeLockPeriodInDays)
+    if (isNaN(days) || days < 1) {
+      errors.timeLockPeriodInDays = 'Must be a positive number'
+    }
+
+    setFormErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
   const handleDeploy = async () => {
+    if (!validateForm()) return
+    
     setDeploymentStarted(true)
     try {
       if (!walletClient) {
         throw new Error("Wallet client is not available")
       }
-      await deploy()
+      
+      await deploy([
+        formData.initialOwner,
+        formData.broadcaster,
+        formData.recovery,
+        parseInt(formData.timeLockPeriodInDays)
+      ])
+      
       console.log("Transaction sent")
     } catch (err) {
       console.error("Deployment error:", err)
@@ -71,8 +125,64 @@ export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: 
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 You are about to deploy the {contractName} contract to {getChainName()}.
-                This action cannot be undone.
+                Please configure the constructor parameters below.
               </p>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="initialOwner">Initial Owner</Label>
+                  <Input
+                    id="initialOwner"
+                    value={formData.initialOwner}
+                    onChange={(e) => setFormData(prev => ({ ...prev, initialOwner: e.target.value }))}
+                    placeholder="0x..."
+                  />
+                  {formErrors.initialOwner && (
+                    <p className="text-sm text-destructive">{formErrors.initialOwner}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="broadcaster">Broadcaster</Label>
+                  <Input
+                    id="broadcaster"
+                    value={formData.broadcaster}
+                    onChange={(e) => setFormData(prev => ({ ...prev, broadcaster: e.target.value }))}
+                    placeholder="0x..."
+                  />
+                  {formErrors.broadcaster && (
+                    <p className="text-sm text-destructive">{formErrors.broadcaster}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="recovery">Recovery Address</Label>
+                  <Input
+                    id="recovery"
+                    value={formData.recovery}
+                    onChange={(e) => setFormData(prev => ({ ...prev, recovery: e.target.value }))}
+                    placeholder="0x..."
+                  />
+                  {formErrors.recovery && (
+                    <p className="text-sm text-destructive">{formErrors.recovery}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="timeLockPeriodInDays">Time Lock Period (days)</Label>
+                  <Input
+                    id="timeLockPeriodInDays"
+                    type="number"
+                    min="1"
+                    value={formData.timeLockPeriodInDays}
+                    onChange={(e) => setFormData(prev => ({ ...prev, timeLockPeriodInDays: e.target.value }))}
+                  />
+                  {formErrors.timeLockPeriodInDays && (
+                    <p className="text-sm text-destructive">{formErrors.timeLockPeriodInDays}</p>
+                  )}
+                </div>
+              </div>
+
               <div className="flex justify-end gap-3">
                 <Button variant="outline" onClick={onClose}>
                   Cancel
@@ -115,6 +225,9 @@ export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: 
                     <p className="font-semibold">Deployment Successful!</p>
                     <p className="text-sm text-muted-foreground">
                       Your contract has been deployed successfully.
+                    </p>
+                    <p className="mt-2 font-mono text-sm">
+                      Contract Address: {contractAddress}
                     </p>
                   </div>
                   <div className="flex gap-3">

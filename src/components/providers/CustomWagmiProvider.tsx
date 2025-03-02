@@ -3,7 +3,7 @@ import { WagmiProvider, http } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RainbowKitProvider, getDefaultConfig } from '@rainbow-me/rainbowkit';
 import { mainnet, sepolia } from 'wagmi/chains';
-import { localDevnet } from '@/config/chains';
+import { devnet } from '@/config/chains';
 import { Transport } from 'wagmi';
 
 // Create a new QueryClient instance
@@ -15,10 +15,10 @@ const transports: Record<number, Transport> = {
   [sepolia.id]: http()
 };
 
-// Always add local devnet transport
-transports[localDevnet.id] = http(localDevnet.rpcUrls.default.http[0]);
+// Add devnet transport
+transports[devnet.id] = http(devnet.rpcUrls.default.http[0]);
 
-const availableChains = [localDevnet, mainnet, sepolia] as const;
+const availableChains = [devnet, mainnet, sepolia] as const;
 
 const wagmiConfig = getDefaultConfig({
   appName: import.meta.env.VITE_APP_NAME || 'SandBlox UI',

@@ -10,10 +10,17 @@
     "Emergency pause functionality",
     "Event logging"
   ],
-  "requirements": [
+ "requirements": [
     "Ethereum wallet",
     "ETH for gas fees"
   ],
   "deployments": 1234,
-  "lastUpdated": "2024-02-15"
+  "lastUpdated": "2024-02-15",
+  "libraries": {
+    "MultiPhaseSecureOperation": {
+      "name": "MultiPhaseSecureOperation",
+      "description": "Library for implementing secure multi-phase operations with time-locks and meta-transactions",
+      "address": "0x9c7bF8CD650436D53481B08A88dE07cde1c9813b"
+    }
+  }
 } 

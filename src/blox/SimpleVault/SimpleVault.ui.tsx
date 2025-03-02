@@ -30,6 +30,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getContract } from 'viem';
 import { erc20Abi } from "viem";
+import { DeploymentForm } from './components/DeploymentForm'
+import { useContractDeployment } from '@/lib/deployment'
 
 // State atoms following .cursorrules state management guidelines
 const pendingTxsAtom = atom<VaultTxRecord[]>([]);
@@ -672,9 +674,10 @@ type NotificationMessage = {
 };
 
 interface SimpleVaultUIProps {
-  contractAddress: Address;
-  contractInfo: ContractInfo;
+  contractAddress?: Address;  // Make contractAddress optional
+  contractInfo?: ContractInfo;  // Make contractInfo optional
   onError?: (error: Error) => void;
+  onDeployed?: (address: Address) => void;  // Add callback for deployment success
   _mock?: {
     account: { address: Address; isConnected: boolean };
     publicClient: any;
@@ -858,6 +861,7 @@ function SimpleVaultUIContent({
   contractAddress, 
   contractInfo, 
   onError,
+  onDeployed,
   _mock, 
   dashboardMode = false,
   renderSidebar = false,
@@ -869,7 +873,8 @@ function SimpleVaultUIContent({
   const chain = _mock?.chain || useChain();
   const navigate = useNavigate();
   
-  const isCorrectChain = chain?.id === contractInfo.chainId;
+  // Add null check for contractInfo
+  const isCorrectChain = chain?.id === contractInfo?.chainId;
   
   const handleNotification = React.useCallback((message: NotificationMessage): void => {
     if (addMessage) {
@@ -880,14 +885,14 @@ function SimpleVaultUIContent({
   }, [addMessage]);
 
   useEffect(() => {
-    if (!isCorrectChain && chain?.id) {
+    if (!isCorrectChain && chain?.id && contractInfo) {
       handleNotification({
         type: 'warning',
         title: "Wrong Network",
         description: `This vault was deployed on ${contractInfo.chainName}. Please switch networks.`
       });
     }
-  }, [chain?.id, contractInfo.chainName, isCorrectChain, handleNotification]);
+  }, [chain?.id, contractInfo?.chainName, isCorrectChain, handleNotification]);
 
   const [ethBalance, setEthBalance] = useState<bigint>(_mock?.initialData?.ethBalance || BigInt(0));
   const [tokenBalances, setTokenBalances] = useAtom<TokenBalanceState>(tokenBalanceAtom);
@@ -897,6 +902,96 @@ function SimpleVaultUIContent({
   const [vault, setVault] = useAtom(vaultInstanceAtom);
   const [error, setError] = useState<string | null>(null);
   const [walletBalances, setWalletBalances] = useAtom(walletBalancesAtom);
+
+  // Add deployment hook
+  const deployment = useContractDeployment({
+    contractId: 'simple-vault',
+    libraries: {
+      MultiPhaseSecureOperation: "0x4D21415e9798573AE50242BDeD0cd4B583f31a19" as Address
+    }
+  })
+
+  // Handle deployment
+  const handleDeploy = async (params: {
+    initialOwner: Address,
+    broadcaster: Address,
+    recovery: Address,
+    timeLockPeriodInDays: number
+  }) => {
+    try {
+      // Validate parameters
+      if (!params.initialOwner || !params.broadcaster || !params.recovery) {
+        throw new Error('All addresses must be provided')
+      }
+
+      if (params.timeLockPeriodInDays >= 90 || params.timeLockPeriodInDays <= 0) {
+        throw new Error('Time lock period must be between 1 and 89 days')
+      }
+
+      // Deploy with constructor arguments
+      await deployment.deploy([
+        params.initialOwner,
+        params.broadcaster,
+        params.recovery,
+        params.timeLockPeriodInDays
+      ])
+
+      if (deployment.address && onDeployed) {
+        onDeployed(deployment.address)
+      }
+
+      handleNotification({
+        type: 'success',
+        title: 'Deployment Successful',
+        description: `SimpleVault deployed to ${deployment.address}`
+      })
+    } catch (error: any) {
+      console.error('Deployment failed:', error)
+      handleNotification({
+        type: 'error',
+        title: 'Deployment Failed',
+        description: error.message
+      })
+      throw error
+    }
+  }
+
+  // If no contract address is provided, show deployment form
+  if (!contractAddress) {
+    return (
+      <div className="container mx-auto p-4 max-w-2xl">
+        <DeploymentForm
+          onDeploy={handleDeploy}
+          isLoading={deployment.isLoading}
+        />
+      </div>
+    )
+  }
+
+  // Require contractInfo when contractAddress is provided
+  if (!contractInfo) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>Contract information is required but not provided</AlertDescription>
+      </Alert>
+    )
+  }
+
+  // Type assertion to help TypeScript understand contractInfo is defined
+  const info = contractInfo as NonNullable<typeof contractInfo>
+  const chainMatch = chain?.id === info.chainId
+  
+  useEffect(() => {
+    if (!chainMatch && chain?.id) {
+      handleNotification({
+        type: 'warning',
+        title: "Wrong Network",
+        description: `This vault was deployed on ${info.chainName}. Please switch networks.`
+      })
+    }
+  }, [chain?.id, info.chainName, chainMatch, handleNotification])
 
   // Move fetchTransactionsInBackground to be a memoized callback
   const fetchTransactionsInBackground = React.useCallback(async (vaultInstance: SimpleVault) => {

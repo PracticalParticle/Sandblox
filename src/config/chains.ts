@@ -1,8 +1,9 @@
-import { Chain } from 'viem';
+import type { Chain } from 'viem';
+import { env } from './env';
 
-export const localDevnet = {
-  id: Number(import.meta.env.VITE_LOCAL_DEVNET_CHAIN_ID),
-  name: import.meta.env.VITE_LOCAL_DEVNET_NAME,
+export const devnet = {
+  id: env.DEVNET_CHAIN_ID,
+  name: env.DEVNET_NAME,
   nativeCurrency: {
     decimals: 18,
     name: 'Ethereum',
@@ -10,14 +11,14 @@ export const localDevnet = {
   },
   rpcUrls: {
     default: {
-      http: [import.meta.env.VITE_LOCAL_DEVNET_RPC_URL],
+      http: [env.DEVNET_RPC_URL],
     },
     public: {
-      http: [import.meta.env.VITE_LOCAL_DEVNET_RPC_URL],
+      http: [env.DEVNET_RPC_URL],
     },
   },
-  blockExplorers: {
-    default: { name: 'Local Explorer', url: '#' },
-  },
+  blockExplorers: env.DEVNET_EXPLORER_URL ? {
+    default: { name: env.DEVNET_NAME, url: env.DEVNET_EXPLORER_URL },
+  } : undefined,
   testnet: true,
 } as const satisfies Chain; 
