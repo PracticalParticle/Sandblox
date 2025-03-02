@@ -69,7 +69,7 @@ export function WalletConnectionContent({
   }
 
   useEffect(() => {
-    if (session && contractInfo) {
+    if (session && contractInfo && session.account) {
       const requiredAddress = getRequiredAddress()
       setIsWalletConnected(
         session.account.toLowerCase() === requiredAddress.toLowerCase()
@@ -89,7 +89,7 @@ export function WalletConnectionContent({
                 <div className="flex flex-col gap-1">
                   <span className="text-sm font-medium">Connected Wallet</span>
                   <span className="text-xs text-muted-foreground">
-                    {formatAddress(session.account)}
+                    {session && session.account ? formatAddress(session.account) : 'No account'}
                   </span>
                 </div>
                 <Button

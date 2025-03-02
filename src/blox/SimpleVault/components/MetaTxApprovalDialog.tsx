@@ -1,10 +1,8 @@
 import * as React from "react";
-import { useState, useEffect } from "react";
-import { Address, Hex, Chain } from "viem";
-import { createWalletClient } from "viem";
-import { http } from "viem";
+import { useState, useEffect, ReactNode } from "react";
+import { Address } from "viem";
 import { Button } from "@/components/ui/button";
-import { Loader2, X, CheckCircle2, AlertCircle } from "lucide-react";
+import { X, CheckCircle2, AlertCircle, Wallet } from "lucide-react";
 import { 
   Dialog, 
   DialogContent, 
@@ -15,12 +13,12 @@ import {
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { SingleWalletManagerProvider, useSingleWallet } from '@/components/SingleWalletManager';
-import { MetaTransaction } from '../../../particle-core/sdk/typescript/interfaces/lib.index';
-import SimpleVault from "../SimpleVault";
 
 // Helper function to format addresses
-const formatAddress = (address: string): string => {
-  if (!address || address.length < 10) return address;
+const formatAddress = (address: string | undefined | null): string => {
+  if (!address || typeof address !== 'string' || address.length < 10) {
+    return address || 'Invalid address';
+  }
   return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
 };
 
@@ -41,41 +39,177 @@ type NotificationMessage = {
   description: string;
 };
 
-interface BroadcasterWalletContentProps {
+// Wallet type for the dialog
+type WalletType = 'owner' | 'broadcaster' | 'recovery';
+
+interface WalletConnectionContentProps {
   contractInfo: ContractInfo;
-  onSuccess: (broadcasterAddress: string) => void;
+  walletType: WalletType;
+  onSuccess: (walletAddress: string) => void;
   onClose: () => void;
+  txId?: number;
+  actionLabel?: string;
+  children?: ReactNode;
 }
 
-function BroadcasterWalletContent({ 
+function WalletConnectionContent({ 
   contractInfo, 
+  walletType,
   onSuccess,
-  onClose
-}: BroadcasterWalletContentProps) {
-  const { session, isConnecting, connect, disconnect } = useSingleWallet();
-  const [isBroadcasterWalletConnected, setIsBroadcasterWalletConnected] = useState(false);
+  onClose,
+  txId,
+  actionLabel = "Continue with Approval",
+  children
+}: WalletConnectionContentProps) {
+  const walletManager = useSingleWallet();
+  const { session, isConnecting, connect, disconnect } = walletManager || { 
+    session: undefined, 
+    isConnecting: false, 
+    connect: async () => {}, 
+    disconnect: async () => {} 
+  };
+  const [isWalletConnected, setIsWalletConnected] = useState(false);
+
+  // Get the appropriate address based on wallet type
+  const getRequiredAddress = (): string => {
+    if (!contractInfo) {
+      console.log("contractInfo is undefined in getRequiredAddress");
+      return '';
+    }
+    
+    let address = '';
+    
+    switch (walletType) {
+      case 'owner':
+        address = contractInfo.owner || '';
+        break;
+      case 'broadcaster':
+        address = contractInfo.broadcaster || '';
+        break;
+      case 'recovery':
+        address = contractInfo.recoveryAddress || '';
+        break;
+      default:
+        address = '';
+    }
+    
+    if (!address) {
+      console.warn(`No address found for wallet type: ${walletType}`);
+    }
+    
+    console.log(`Required address for ${walletType}:`, address);
+    return address;
+  };
+
+  // Get the appropriate wallet type label
+  const getWalletTypeLabel = (): string => {
+    if (!walletType) {
+      console.warn("walletType is undefined in getWalletTypeLabel");
+      return 'Required';
+    }
+    
+    switch (walletType) {
+      case 'owner':
+        return 'Owner';
+      case 'broadcaster':
+        return 'Broadcaster';
+      case 'recovery':
+        return 'Recovery';
+      default:
+        console.warn(`Unknown wallet type: ${walletType}`);
+        return 'Required';
+    }
+  };
 
   useEffect(() => {
-    if (session && contractInfo) {
-      setIsBroadcasterWalletConnected(
-        session.account.toLowerCase() === contractInfo.broadcaster?.toLowerCase()
-      );
-    } else {
-      setIsBroadcasterWalletConnected(false);
+    console.log("Session:", session);
+    console.log("ContractInfo:", contractInfo);
+    console.log("WalletType:", walletType);
+    
+    try {
+      // Check if session has the expected structure
+      if (session) {
+        if (typeof session !== 'object') {
+          console.error("Session is not an object:", session);
+          setIsWalletConnected(false);
+          return;
+        }
+        
+        // Log all properties of session for debugging
+        console.log("Session properties:", Object.keys(session));
+      }
+      
+      // Check if walletType is valid
+      if (!walletType || !['owner', 'broadcaster', 'recovery'].includes(walletType)) {
+        console.error("Invalid walletType:", walletType);
+        setIsWalletConnected(false);
+        return;
+      }
+      
+      if (session && contractInfo) {
+        // Check if contractInfo has the expected structure
+        if (typeof contractInfo !== 'object') {
+          console.error("ContractInfo is not an object:", contractInfo);
+          setIsWalletConnected(false);
+          return;
+        }
+        
+        // Log all properties of contractInfo for debugging
+        console.log("ContractInfo properties:", Object.keys(contractInfo));
+        
+        const requiredAddress = getRequiredAddress();
+        console.log("Required address:", requiredAddress);
+        
+        if (session.account) {
+          console.log("Session account:", session.account);
+          
+          if (typeof session.account !== 'string') {
+            console.error("Session account is not a string:", session.account);
+            setIsWalletConnected(false);
+            return;
+          }
+          
+          const sessionAccount = session.account.toLowerCase();
+          
+          if (requiredAddress) {
+            if (typeof requiredAddress !== 'string') {
+              console.error("Required address is not a string:", requiredAddress);
+              setIsWalletConnected(false);
+              return;
+            }
+            
+            setIsWalletConnected(
+              sessionAccount === requiredAddress.toLowerCase()
+            );
+          } else {
+            console.log("Required address is empty");
+            setIsWalletConnected(false);
+          }
+        } else {
+          console.log("Session account is undefined");
+          setIsWalletConnected(false);
+        }
+      } else {
+        console.log("Session or contractInfo is undefined");
+        setIsWalletConnected(false);
+      }
+    } catch (error) {
+      console.error("Error in useEffect:", error);
+      setIsWalletConnected(false);
     }
-  }, [session, contractInfo]);
+  }, [session, contractInfo, walletType]);
 
   return (
-    <div className="flex flex-col gap-4 py-4">
+    <div className="flex flex-col gap-4">
       <div className="flex items-center space-x-2">
         <div className="flex-1">
-          {session ? (
+          {session && typeof session === 'object' ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div className="flex flex-col gap-1">
                   <span className="text-sm font-medium">Connected Wallet</span>
                   <span className="text-xs text-muted-foreground">
-                    {formatAddress(session.account)}
+                    {session && session.account ? formatAddress(session.account) : 'No account'}
                   </span>
                 </div>
                 <Button
@@ -86,28 +220,41 @@ function BroadcasterWalletContent({
                   <X className="h-4 w-4" />
                 </Button>
               </div>
-              {!isBroadcasterWalletConnected && (
+              {!isWalletConnected && (
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    Connected wallet does not match the broadcaster address. Please connect the correct wallet.
+                    Connected wallet does not match the {getWalletTypeLabel().toLowerCase()} address. Please connect the correct wallet.
                   </AlertDescription>
                 </Alert>
               )}
-              {isBroadcasterWalletConnected && (
+              {isWalletConnected && (
                 <div className="space-y-4">
                   <Alert>
                     <CheckCircle2 className="h-4 w-4 text-green-500" />
                     <AlertDescription className="text-green-500">
-                      Broadcaster wallet connected successfully!
+                      {getWalletTypeLabel()} wallet connected successfully!
                     </AlertDescription>
                   </Alert>
+                  {txId && (
+                    <div className="p-2 bg-muted rounded-lg">
+                      <p className="text-sm font-medium">Transaction ID:</p>
+                      <code className="text-xs">#{txId.toString()}</code>
+                    </div>
+                  )}
+                  {children}
                   <Button 
-                    onClick={() => onSuccess(session.account)}
+                    onClick={() => {
+                      if (session && session.account && typeof session.account === 'string') {
+                        onSuccess(session.account);
+                      } else {
+                        console.error("Cannot call onSuccess: session.account is invalid", session);
+                      }
+                    }}
                     className="w-full"
                     variant="default"
                   >
-                    Continue with Approval
+                    {actionLabel}
                   </Button>
                 </div>
               )}
@@ -119,8 +266,8 @@ function BroadcasterWalletContent({
               className="w-full"
               variant="outline"
             >
-              <Loader2 className={`mr-2 h-4 w-4 ${isConnecting ? 'animate-spin' : ''}`} />
-              {isConnecting ? 'Connecting...' : 'Connect Broadcaster Wallet'}
+              <Wallet className="mr-2 h-4 w-4" />
+              {isConnecting ? 'Connecting...' : `Connect ${getWalletTypeLabel()} Wallet`}
             </Button>
           )}
         </div>
@@ -142,13 +289,25 @@ interface MetaTxApprovalDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: (broadcasterAddress: string) => void;
+  txId?: number;
+  title?: string;
+  description?: string;
+  actionLabel?: string;
+  walletType?: WalletType;
+  children?: ReactNode;
 }
 
 export function MetaTxApprovalDialog({
   contractInfo,
   isOpen,
   onOpenChange,
-  onSuccess
+  onSuccess,
+  txId,
+  title = "Connect Broadcaster Wallet",
+  description = "Connect the broadcaster wallet to approve the withdrawal request via meta-transaction.",
+  actionLabel = "Continue with Approval",
+  walletType = 'broadcaster',
+  children
 }: MetaTxApprovalDialogProps) {
   const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID;
   
@@ -157,199 +316,114 @@ export function MetaTxApprovalDialog({
     return null;
   }
 
-  const handleOpenChange = (open: boolean) => {
-    onOpenChange(open);
+  // Ensure we have valid contractInfo
+  if (!contractInfo || typeof contractInfo !== 'object') {
+    console.error('Invalid contractInfo:', contractInfo);
+    return null;
+  }
+  
+  // Get the appropriate wallet type label
+  const getWalletTypeLabel = (): string => {
+    if (!walletType) {
+      console.warn("walletType is undefined in getWalletTypeLabel");
+      return 'Required';
+    }
+    
+    switch (walletType) {
+      case 'owner':
+        return 'Owner';
+      case 'broadcaster':
+        return 'Broadcaster';
+      case 'recovery':
+        return 'Recovery';
+      default:
+        console.warn(`Unknown wallet type: ${walletType}`);
+        return 'Required';
+    }
+  };
+
+  // Get the appropriate address based on wallet type
+  const getWalletAddress = (): string => {
+    if (!contractInfo) {
+      console.log("contractInfo is undefined in getWalletAddress");
+      return '';
+    }
+    
+    let address = '';
+    
+    switch (walletType) {
+      case 'owner':
+        address = contractInfo.owner || '';
+        break;
+      case 'broadcaster':
+        address = contractInfo.broadcaster || '';
+        break;
+      case 'recovery':
+        address = contractInfo.recoveryAddress || '';
+        break;
+      default:
+        address = '';
+    }
+    
+    return address;
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Connect Broadcaster Wallet</DialogTitle>
+        <DialogHeader className="space-y-3">
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            Connect the broadcaster wallet to approve the withdrawal request via meta-transaction.
+            {description}
           </DialogDescription>
           {contractInfo && (
-            <div className="mt-2 p-2 bg-muted rounded-lg">
-              <p className="text-sm font-medium">Broadcaster Address:</p>
-              <code className="text-xs">{contractInfo.broadcaster}</code>
+            <div className="p-2 bg-muted rounded-lg">
+              <p className="text-sm font-medium">{getWalletTypeLabel()} Address:</p>
+              <code className="text-xs">{getWalletAddress()}</code>
             </div>
           )}
         </DialogHeader>
-        <SingleWalletManagerProvider
-          projectId={projectId}
-          autoConnect={false}
-          metadata={{
-            name: 'SandBlox Broadcaster',
-            description: 'SandBlox Broadcaster Wallet Connection',
-            url: window.location.origin,
-            icons: ['https://avatars.githubusercontent.com/u/37784886']
-          }}
-        >
-          <BroadcasterWalletContent 
-            contractInfo={contractInfo}
-            onSuccess={onSuccess}
-            onClose={() => onOpenChange(false)}
-          />
-        </SingleWalletManagerProvider>
+        
+        <div className="space-y-4">
+          {children}
+          
+          {/* Wrap in try-catch to handle any errors */}
+          {(() => {
+            try {
+              return (
+                <SingleWalletManagerProvider
+                  projectId={projectId}
+                  autoConnect={false}
+                  metadata={{
+                    name: 'SandBlox Broadcaster',
+                    description: 'SandBlox Broadcaster Wallet Connection',
+                    url: window.location.origin,
+                    icons: ['https://avatars.githubusercontent.com/u/37784886']
+                  }}
+                >
+                  <WalletConnectionContent 
+                    contractInfo={contractInfo}
+                    walletType={walletType}
+                    onSuccess={onSuccess}
+                    onClose={() => onOpenChange(false)}
+                    txId={txId}
+                    actionLabel={actionLabel}
+                  >
+                    {children}
+                  </WalletConnectionContent>
+                </SingleWalletManagerProvider>
+              );
+            } catch (error) {
+              console.error("Error rendering SingleWalletManagerProvider:", error);
+              return (
+                <div className="p-4 border border-red-500 rounded-md">
+                  <p className="text-red-500">Error initializing wallet connection. Please try again.</p>
+                </div>
+              );
+            }
+          })()}
+        </div>
       </DialogContent>
     </Dialog>
   );
-}
-
-interface MetaTxApprovalHandlerProps {
-  contractAddress: Address;
-  txId: number;
-  contractInfo: ContractInfo;
-  onSuccess?: (txHash: string) => void;
-  onError?: (error: Error) => void;
-  addMessage?: (message: NotificationMessage) => void;
-}
-
-export function useMetaTxApproval({
-  contractAddress,
-  txId,
-  contractInfo,
-  onSuccess,
-  onError,
-  addMessage
-}: MetaTxApprovalHandlerProps) {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isApproving, setIsApproving] = useState(false);
-
-  const handleNotification = (message: NotificationMessage) => {
-    if (addMessage) {
-      addMessage(message);
-    } else {
-      console.log('Notification:', message);
-    }
-  };
-
-  const startApprovalProcess = () => {
-    setIsDialogOpen(true);
-  };
-
-  const handleBroadcasterConnected = async (
-    broadcasterAddress: string,
-    publicClient: any,
-    walletClient: any,
-    chain: Chain
-  ) => {
-    if (!contractInfo || !chain) return;
-    
-    setIsDialogOpen(false);
-    setIsApproving(true);
-    
-    try {
-      // Create vault instance
-      const vault = new SimpleVault(
-        publicClient,
-        walletClient,
-        contractAddress,
-        chain
-      );
-      
-      // 1. Generate unsigned meta transaction
-      const unsignedMetaTx = await vault.generateUnsignedWithdrawalMetaTxApproval(
-        BigInt(txId)
-      );
-      
-      // 2. Get the owner to sign the meta transaction
-      const ownerAddress = walletClient.account.address;
-      if (!ownerAddress) {
-        throw new Error("Owner wallet not connected");
-      }
-      
-      // Create a typed data signature
-      const signature = await walletClient.signTypedData({
-        domain: {
-          name: 'SimpleVault',
-          version: '1',
-          chainId: chain.id,
-          verifyingContract: contractAddress
-        },
-        types: {
-          MetaTransaction: [
-            { name: 'txId', type: 'uint256' },
-            { name: 'deadline', type: 'uint256' },
-            { name: 'signer', type: 'address' }
-          ]
-        },
-        primaryType: 'MetaTransaction',
-        message: {
-          txId: unsignedMetaTx.txRecord.txId,
-          deadline: unsignedMetaTx.params.deadline,
-          signer: ownerAddress
-        }
-      });
-      
-      if (!signature) {
-        throw new Error("Failed to sign meta transaction");
-      }
-      
-      // 3. Add signature to meta transaction
-      const metaTx: MetaTransaction = {
-        ...unsignedMetaTx,
-        signature: signature as Hex
-      };
-      
-      // 4. Broadcast the meta transaction using the broadcaster wallet
-      const broadcasterWalletClient = createWalletClient({
-        account: broadcasterAddress as Address,
-        chain: chain,
-        transport: http()
-      });
-      
-      const broadcastVault = new SimpleVault(
-        publicClient,
-        broadcasterWalletClient,
-        contractAddress,
-        chain
-      );
-      
-      const result = await broadcastVault.approveWithdrawalWithMetaTx(
-        metaTx,
-        { from: broadcasterAddress as Address }
-      );
-      
-      handleNotification({
-        type: 'info',
-        title: "Meta Transaction Submitted",
-        description: `Transaction hash: ${result.hash}`
-      });
-      
-      await result.wait();
-      
-      handleNotification({
-        type: 'success',
-        title: "Withdrawal Approved",
-        description: "The withdrawal has been approved via meta transaction."
-      });
-
-      if (onSuccess) {
-        onSuccess(result.hash);
-      }
-      
-    } catch (error: any) {
-      console.error("Meta transaction approval failed:", error);
-      handleNotification({
-        type: 'error',
-        title: "Meta Transaction Failed",
-        description: error.message || "Failed to approve withdrawal via meta transaction"
-      });
-      if (onError) {
-        onError(error);
-      }
-    } finally {
-      setIsApproving(false);
-    }
-  };
-
-  return {
-    isDialogOpen,
-    setIsDialogOpen,
-    isApproving,
-    startApprovalProcess,
-    handleBroadcasterConnected
-  };
 } 

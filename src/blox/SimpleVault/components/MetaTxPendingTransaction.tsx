@@ -10,6 +10,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { MetaTxApprovalDialog } from "./MetaTxApprovalDialog";
 import { TxStatus } from "../../../particle-core/sdk/typescript/types/lib.index";
 import { useChain } from "@/hooks/useChain";
+import SimpleVault from "../SimpleVault";
+import { createWalletClient, http } from "viem";
+import { Hex } from "viem";
 
 // Import the ContractInfo type from the MetaTxApprovalDialog
 interface ContractInfo {
@@ -92,11 +95,89 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
     setIsApproving(true);
     
     try {
-      // Import the useMetaTxApproval hook functionality directly here
-      // This is because we need to handle the state in this component
+      // Create vault instance
+      const vault = new SimpleVault(
+        publicClient,
+        walletClient,
+        contractAddress,
+        chain
+      );
       
-      // The implementation is moved to the MetaTxApprovalDialog component
-      // and we're using it through the dialog props
+      // 1. Generate unsigned meta transaction
+      const unsignedMetaTx = await vault.generateUnsignedWithdrawalMetaTxApproval(
+        tx.txId
+      );
+      
+      // 2. Get the owner to sign the meta transaction
+      if (!address) {
+        throw new Error("Owner wallet not connected");
+      }
+      
+      // Create a typed data signature
+      const signature = await walletClient.signTypedData({
+        domain: {
+          name: 'SimpleVault',
+          version: '1',
+          chainId: chain.id,
+          verifyingContract: contractAddress
+        },
+        types: {
+          MetaTransaction: [
+            { name: 'txId', type: 'uint256' },
+            { name: 'deadline', type: 'uint256' },
+            { name: 'signer', type: 'address' }
+          ]
+        },
+        primaryType: 'MetaTransaction',
+        message: {
+          txId: unsignedMetaTx.txRecord.txId,
+          deadline: unsignedMetaTx.params.deadline,
+          signer: address
+        }
+      });
+      
+      if (!signature) {
+        throw new Error("Failed to sign meta transaction");
+      }
+      
+      // 3. Add signature to meta transaction
+      const metaTx = {
+        ...unsignedMetaTx,
+        signature: signature as Hex
+      };
+      
+      // 4. Broadcast the meta transaction using the broadcaster wallet
+      const broadcasterWalletClient = createWalletClient({
+        account: broadcasterAddress as Address,
+        chain: chain,
+        transport: http()
+      });
+      
+      const broadcastVault = new SimpleVault(
+        publicClient,
+        broadcasterWalletClient,
+        contractAddress,
+        chain
+      );
+      
+      const result = await broadcastVault.approveWithdrawalWithMetaTx(
+        metaTx,
+        { from: broadcasterAddress as Address }
+      );
+      
+      handleNotification({
+        type: 'info',
+        title: "Meta Transaction Submitted",
+        description: `Transaction hash: ${result.hash}`
+      });
+      
+      await result.wait();
+      
+      handleNotification({
+        type: 'success',
+        title: "Withdrawal Approved",
+        description: "The withdrawal has been approved via meta transaction."
+      });
       
       // After successful approval
       if (onApprovalSuccess) {
@@ -227,6 +308,11 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
             isOpen={showBroadcasterDialog}
             onOpenChange={setShowBroadcasterDialog}
             onSuccess={handleBroadcasterConnected}
+            txId={Number(tx.txId)}
+            title="Approve Transaction with Meta-Transaction"
+            description="Connect the broadcaster wallet to approve this withdrawal request without requiring the owner to pay gas fees."
+            actionLabel="Approve Transaction"
+            walletType="broadcaster"
           />
         )}
       </>
