@@ -14,11 +14,11 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import SimpleVault, { VaultTxRecord } from "./SimpleVault";
 import { useChain } from "@/hooks/useChain";
-import { atom, useAtom, Provider as JotaiProvider } from "jotai";
+import { atom, useAtom, Provider as JotaiProvider, useSetAtom } from "jotai";
 import { AlertCircle, CheckCircle2, Clock, XCircle, Loader2, Wallet, Coins, X, Shield, Info } from "lucide-react";
 import { TxStatus } from "../../particle-core/sdk/typescript/types/lib.index";
 import { useNavigate } from "react-router-dom";
-import { ContractInfo } from "@/lib/verification/index";
+import { ContractInfo as BaseContractInfo } from "@/lib/verification/index";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { mainnet } from "viem/chains";
 import { http } from "viem";
@@ -30,6 +30,25 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getContract } from 'viem';
 import { erc20Abi } from "viem";
+import { SingleWalletManagerProvider, useSingleWallet } from '@/components/SingleWalletManager';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { createWalletClient } from "viem";
+import { Hex, Chain } from "viem";
+import { MetaTransaction } from '../../particle-core/sdk/typescript/interfaces/lib.index';
+
+// Extend the base ContractInfo interface to include broadcaster and other properties
+interface ContractInfo extends BaseContractInfo {
+  owner: string;
+  broadcaster: string;
+  recoveryAddress: string;
+  timeLockPeriod: number;
+}
+
+// Helper function to format addresses
+const formatAddress = (address: string): string => {
+  if (!address || address.length < 10) return address;
+  return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+};
 
 // State atoms following .cursorrules state management guidelines
 const pendingTxsAtom = atom<VaultTxRecord[]>([]);
@@ -435,7 +454,7 @@ const PendingTransaction = ({ tx, onApprove, onCancel, isLoading }: PendingTrans
                           border border-rose-200 dark:border-rose-800
                           disabled:opacity-50 disabled:cursor-not-allowed 
                           disabled:bg-slate-50 disabled:text-slate-400 
-                          disabled:dark:bg-slate-900 disabled:dark:text-slate-500
+                          disabled:dark:bg-slate-900 disabled:dark:text-slate-500"
                         `}
                         variant="outline"
                         aria-label={`Cancel transaction #${tx.txId}`}
@@ -671,6 +690,161 @@ type NotificationMessage = {
   description: string;
 };
 
+interface BroadcasterWalletDialogProps {
+  contractInfo: ContractInfo;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess: (broadcasterAddress: string) => void;
+}
+
+function BroadcasterWalletDialog({
+  contractInfo,
+  isOpen,
+  onOpenChange,
+  onSuccess
+}: BroadcasterWalletDialogProps) {
+  const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID;
+  
+  if (!projectId) {
+    console.error('Missing VITE_WALLET_CONNECT_PROJECT_ID environment variable');
+    return null;
+  }
+
+  const handleOpenChange = (open: boolean) => {
+    onOpenChange(open);
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Connect Broadcaster Wallet</DialogTitle>
+          <DialogDescription>
+            Connect the broadcaster wallet to approve the withdrawal request via meta-transaction.
+          </DialogDescription>
+          {contractInfo && (
+            <div className="mt-2 p-2 bg-muted rounded-lg">
+              <p className="text-sm font-medium">Broadcaster Address:</p>
+              <code className="text-xs">{contractInfo.broadcaster}</code>
+            </div>
+          )}
+        </DialogHeader>
+        <SingleWalletManagerProvider
+          projectId={projectId}
+          autoConnect={false}
+          metadata={{
+            name: 'SandBlox Broadcaster',
+            description: 'SandBlox Broadcaster Wallet Connection',
+            url: window.location.origin,
+            icons: ['https://avatars.githubusercontent.com/u/37784886']
+          }}
+        >
+          <BroadcasterWalletContent 
+            contractInfo={contractInfo}
+            onSuccess={onSuccess}
+            onClose={() => onOpenChange(false)}
+          />
+        </SingleWalletManagerProvider>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Add BroadcasterWalletContent component
+function BroadcasterWalletContent({ 
+  contractInfo, 
+  onSuccess,
+  onClose
+}: { 
+  contractInfo: ContractInfo;
+  onSuccess: (broadcasterAddress: string) => void;
+  onClose: () => void;
+}) {
+  const { session, isConnecting, connect, disconnect } = useSingleWallet();
+  const [isBroadcasterWalletConnected, setIsBroadcasterWalletConnected] = useState(false);
+
+  useEffect(() => {
+    if (session && contractInfo) {
+      setIsBroadcasterWalletConnected(
+        session.account.toLowerCase() === contractInfo.broadcaster?.toLowerCase()
+      );
+    } else {
+      setIsBroadcasterWalletConnected(false);
+    }
+  }, [session, contractInfo]);
+
+  return (
+    <div className="flex flex-col gap-4 py-4">
+      <div className="flex items-center space-x-2">
+        <div className="flex-1">
+          {session ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm font-medium">Connected Wallet</span>
+                  <span className="text-xs text-muted-foreground">
+                    {formatAddress(session.account)}
+                  </span>
+                </div>
+                <Button
+                  onClick={() => void disconnect()}
+                  variant="ghost"
+                  size="sm"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              {!isBroadcasterWalletConnected && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Connected wallet does not match the broadcaster address. Please connect the correct wallet.
+                  </AlertDescription>
+                </Alert>
+              )}
+              {isBroadcasterWalletConnected && (
+                <div className="space-y-4">
+                  <Alert>
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    <AlertDescription className="text-green-500">
+                      Broadcaster wallet connected successfully!
+                    </AlertDescription>
+                  </Alert>
+                  <Button 
+                    onClick={() => onSuccess(session.account)}
+                    className="w-full"
+                    variant="default"
+                  >
+                    Continue with Approval
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <Button
+              onClick={() => void connect()}
+              disabled={isConnecting}
+              className="w-full"
+              variant="outline"
+            >
+              <Wallet className="mr-2 h-4 w-4" />
+              {isConnecting ? 'Connecting...' : 'Connect Broadcaster Wallet'}
+            </Button>
+          )}
+        </div>
+      </div>
+      <DialogFooter className="sm:justify-between">
+        <Button
+          variant="ghost"
+          onClick={onClose}
+        >
+          Cancel
+        </Button>
+      </DialogFooter>
+    </div>
+  );
+}
+
 interface SimpleVaultUIProps {
   contractAddress: Address;
   contractInfo: ContractInfo;
@@ -757,100 +931,255 @@ const WithdrawalFormWrapper = React.memo(({
 
 WithdrawalFormWrapper.displayName = 'WithdrawalFormWrapper';
 
+// Create atoms for contract info and notifications
+const contractInfoAtom = atom<ContractInfo | null>(null);
+const addMessageAtom = atom<((message: NotificationMessage) => void) | null>(null);
+
 // Add MetaTxPendingTransaction component
 const MetaTxPendingTransaction = ({ tx, onCancel, isLoading }: Omit<PendingTransactionProps, 'onApprove'>) => {
+  const [loadingState, setLoadingState] = useAtom(loadingStateAtom);
+  const [showBroadcasterDialog, setShowBroadcasterDialog] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
+  const { chain } = useAccount();
+  const { address } = useAccount();
+  const { data: walletClient } = useWalletClient();
+  const publicClient = usePublicClient();
+  const [contractInfo] = useAtom(contractInfoAtom);
+  const [addMessageState] = useAtom(addMessageAtom);
+
+  const handleNotification = (message: NotificationMessage) => {
+    if (addMessageState) {
+      addMessageState(message);
+    }
+  };
+
+  const handleApproveWithMetaTx = async () => {
+    setShowBroadcasterDialog(true);
+  };
+
+  const handleBroadcasterConnected = async (broadcasterAddress: string) => {
+    if (!tx || !contractInfo || !chain) return;
+    
+    setShowBroadcasterDialog(false);
+    setIsApproving(true);
+    
+    try {
+      // Create vault instance
+      const vault = new SimpleVault(
+        publicClient as any,
+        walletClient as any,
+        tx.params.target as Address,
+        chain as Chain
+      );
+      
+      // 1. Generate unsigned meta transaction
+      const unsignedMetaTx = await vault.generateUnsignedWithdrawalMetaTxApproval(
+        BigInt(tx.txId)
+      );
+      
+      // 2. Get the owner to sign the meta transaction
+      if (!address) {
+        throw new Error("Owner wallet not connected");
+      }
+      
+      // Create a typed data signature
+      const signature = await walletClient?.signTypedData({
+        domain: {
+          name: 'SimpleVault',
+          version: '1',
+          chainId: chain?.id,
+          verifyingContract: tx.params.target as Address
+        },
+        types: {
+          MetaTransaction: [
+            { name: 'txId', type: 'uint256' },
+            { name: 'deadline', type: 'uint256' },
+            { name: 'signer', type: 'address' }
+          ]
+        },
+        primaryType: 'MetaTransaction',
+        message: {
+          txId: unsignedMetaTx.txRecord.txId,
+          deadline: unsignedMetaTx.params.deadline,
+          signer: address
+        }
+      });
+      
+      if (!signature) {
+        throw new Error("Failed to sign meta transaction");
+      }
+      
+      // 3. Add signature to meta transaction
+      const metaTx: MetaTransaction = {
+        ...unsignedMetaTx,
+        signature: signature as Hex
+      };
+      
+      // 4. Broadcast the meta transaction using the broadcaster wallet
+      const broadcasterWalletClient = createWalletClient({
+        account: broadcasterAddress as Address,
+        chain: chain,
+        transport: http()
+      });
+      
+      const broadcastVault = new SimpleVault(
+        publicClient as any,
+        broadcasterWalletClient as any,
+        tx.params.target as Address,
+        chain as Chain
+      );
+      
+      const result = await broadcastVault.approveWithdrawalWithMetaTx(
+        metaTx,
+        { from: broadcasterAddress as Address }
+      );
+      
+      handleNotification({
+        type: 'info',
+        title: "Meta Transaction Submitted",
+        description: `Transaction hash: ${result.hash}`
+      });
+      
+      await result.wait();
+      
+      handleNotification({
+        type: 'success',
+        title: "Withdrawal Approved",
+        description: "The withdrawal has been approved via meta transaction."
+      });
+      
+    } catch (error: any) {
+      console.error("Meta transaction approval failed:", error);
+      handleNotification({
+        type: 'error',
+        title: "Meta Transaction Failed",
+        description: error.message || "Failed to approve withdrawal via meta transaction"
+      });
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
   try {
+    // Ensure amount is a BigInt and handle undefined
     const amount = tx.amount !== undefined ? BigInt(tx.amount) : 0n;
 
     return (
-      <Card>
-        <CardContent className="pt-6">
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <div className="text-left">
-                <div className="flex items-center gap-2">
-                  {tx.status === TxStatus.PENDING && <Clock className="h-4 w-4 text-yellow-500" />}
-                  {tx.status === TxStatus.CANCELLED && <XCircle className="h-4 w-4 text-red-500" />}
-                  {tx.status === TxStatus.COMPLETED && <CheckCircle2 className="h-4 w-4 text-green-500" />}
-                  <p className="font-medium">Transaction #{tx.txId.toString()}</p>
+      <>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <div className="text-left">
+                  <div className="flex items-center gap-2">
+                    {tx.status === TxStatus.PENDING && <Clock className="h-4 w-4 text-yellow-500" />}
+                    {tx.status === TxStatus.CANCELLED && <XCircle className="h-4 w-4 text-red-500" />}
+                    {tx.status === TxStatus.COMPLETED && <CheckCircle2 className="h-4 w-4 text-green-500" />}
+                    <p className="font-medium">Transaction #{tx.txId.toString()}</p>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Amount: {tx.type === "ETH" ? formatEther(amount) : formatUnits(amount, 18)} {tx.type}
+                  </p>
+                  <p className="text-sm text-muted-foreground">To: {tx.params.target}</p>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Amount: {tx.type === "ETH" ? formatEther(amount) : formatUnits(amount, 18)} {tx.type}
-                </p>
-                <p className="text-sm text-muted-foreground">To: {tx.params.target}</p>
+              </div>
+              
+              <div className="flex space-x-2">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex-1">
+                        <Button
+                          onClick={handleApproveWithMetaTx}
+                          disabled={isLoading || isApproving || tx.status !== TxStatus.PENDING}
+                          className={`w-full transition-all duration-200 flex items-center justify-center
+                            bg-emerald-50 text-emerald-700 hover:bg-emerald-100 
+                            dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 
+                            border border-emerald-200 dark:border-emerald-800
+                            disabled:opacity-50 disabled:cursor-not-allowed 
+                            disabled:bg-slate-50 disabled:text-slate-400 
+                            disabled:dark:bg-slate-900 disabled:dark:text-slate-500
+                          `}
+                          variant="outline"
+                          aria-label={`Approve transaction #${tx.txId} with meta transaction`}
+                        >
+                          {isApproving ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              <span>Processing...</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="h-4 w-4 mr-2" />
+                              <span>Approve</span>
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      Approve this withdrawal request using a meta-transaction
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex-1">
+                        <Button
+                          onClick={() => onCancel(Number(tx.txId))}
+                          disabled={isLoading || tx.status !== TxStatus.PENDING}
+                          className={`w-full transition-all duration-200 flex items-center justify-center
+                            bg-rose-50 text-rose-700 hover:bg-rose-100 
+                            dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
+                            border border-rose-200 dark:border-rose-800
+                            disabled:opacity-50 disabled:cursor-not-allowed 
+                            disabled:bg-slate-50 disabled:text-slate-400 
+                            disabled:dark:bg-slate-900 disabled:dark:text-slate-500"
+                          `}
+                          variant="outline"
+                          aria-label={`Cancel transaction #${tx.txId}`}
+                        >
+                          {isLoading ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              <span>Processing...</span>
+                            </>
+                          ) : (
+                            <>
+                              <X className="h-4 w-4 mr-2" />
+                              <span>Cancel</span>
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      {tx.status !== TxStatus.PENDING 
+                        ? "This transaction cannot be cancelled" 
+                        : "Cancel this withdrawal request"}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </div>
-            <div className="flex space-x-2">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex-1">
-                      <Button
-                        disabled={true}
-                        className="w-full transition-all duration-200 flex items-center justify-center
-                          bg-slate-50 text-slate-600 hover:bg-slate-100 
-                          dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 
-                          border border-slate-200 dark:border-slate-700
-                          disabled:opacity-50 disabled:cursor-not-allowed"
-                        variant="outline"
-                        aria-label={`Approve transaction #${tx.txId} (not available)`}
-                      >
-                        <span>Approve (Coming Soon)</span>
-                      </Button>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    Meta-transaction approval coming soon
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex-1">
-                      <Button
-                        onClick={() => onCancel(Number(tx.txId))}
-                        disabled={isLoading || tx.status !== TxStatus.PENDING}
-                        className="w-full transition-all duration-200 flex items-center justify-center
-                          bg-rose-50 text-rose-700 hover:bg-rose-100 
-                          dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
-                          border border-rose-200 dark:border-rose-800
-                          disabled:opacity-50 disabled:cursor-not-allowed 
-                          disabled:bg-slate-50 disabled:text-slate-400 
-                          disabled:dark:bg-slate-900 disabled:dark:text-slate-500"
-                        variant="outline"
-                        aria-label={`Cancel transaction #${tx.txId}`}
-                      >
-                        {isLoading ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            <span>Processing...</span>
-                          </>
-                        ) : (
-                          <>
-                            <X className="h-4 w-4 mr-2" />
-                            <span>Cancel</span>
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    {tx.status !== TxStatus.PENDING 
-                      ? "This transaction cannot be cancelled" 
-                      : "Cancel this withdrawal request"}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+        
+        {contractInfo && (
+          <BroadcasterWalletDialog
+            contractInfo={contractInfo}
+            isOpen={showBroadcasterDialog}
+            onOpenChange={setShowBroadcasterDialog}
+            onSuccess={handleBroadcasterConnected}
+          />
+        )}
+      </>
     );
   } catch (error) {
     console.error("Error rendering MetaTxPendingTransaction:", error);
-    return <div>Error rendering transaction details.</div>;
+    return <div>Error rendering transaction</div>;
   }
 };
 
@@ -1289,8 +1618,8 @@ function SimpleVaultUIContent({
       onError?.(error);
       handleNotification({
         type: 'error',
-        title: "Error",
-        description: error.message
+        title: "Approval Failed",
+        description: error.message || "Failed to approve withdrawal"
       });
     } finally {
       setLoadingState((prev: LoadingState) => ({ ...prev, approval: { ...prev.approval, [txId]: false } }));
@@ -1323,8 +1652,8 @@ function SimpleVaultUIContent({
       onError?.(error);
       handleNotification({
         type: 'error',
-        title: "Error",
-        description: error.message
+        title: "Cancellation Failed",
+        description: error.message || "Failed to cancel withdrawal"
       });
     } finally {
       setLoadingState((prev: LoadingState) => ({ ...prev, cancellation: { ...prev.cancellation, [txId]: false } }));
@@ -1412,6 +1741,18 @@ function SimpleVaultUIContent({
       fetchWalletBalance(tokenAddress as Address);
     });
   }, [address, tokenBalances, fetchWalletBalance]);
+
+  // Set contract info and addMessage in atoms for global access
+  const setContractInfoAtom = useSetAtom(contractInfoAtom);
+  const setAddMessageAtom = useSetAtom(addMessageAtom);
+  
+  useEffect(() => {
+    setContractInfoAtom(contractInfo);
+  }, [contractInfo, setContractInfoAtom]);
+  
+  useEffect(() => {
+    setAddMessageAtom(addMessage || null);
+  }, [addMessage, setAddMessageAtom]);
 
   // Render sidebar content
   if (renderSidebar) {
@@ -1777,15 +2118,25 @@ const queryClient = new QueryClient({
 
 // Main export with proper providers
 export default function SimpleVaultUI(props: SimpleVaultUIProps) {
-  // If using mock data, render without providers
-  if (props._mock) {
-    return <SimpleVaultUIContent {...props} />;
+  const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID;
+  
+  if (!projectId) {
+    console.error('Missing VITE_WALLET_CONNECT_PROJECT_ID environment variable');
+    return <div>Error: Missing WalletConnect project ID</div>;
   }
-
-  // Use the parent provider context directly
+  
   return (
-    <JotaiProvider>
+    <SingleWalletManagerProvider 
+      projectId={projectId}
+      autoConnect={false}
+      metadata={{
+        name: 'SandBlox Broadcaster',
+        description: 'SandBlox Broadcaster Wallet Connection',
+        url: window.location.origin,
+        icons: ['https://avatars.githubusercontent.com/u/37784886']
+      }}
+    >
       <SimpleVaultUIContent {...props} />
-    </JotaiProvider>
+    </SingleWalletManagerProvider>
   );
 }
