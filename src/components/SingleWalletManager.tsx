@@ -487,7 +487,7 @@ export function WalletConnectButton() {
             <div className="text-sm">
               <p className="font-medium">Connected to: {session.peerMetadata?.name}</p>
               <p className="text-muted-foreground">
-                {session.account.slice(0, 6)}...{session.account.slice(-4)}
+                {session.account ? `${session.account.slice(0, 6)}...${session.account.slice(-4)}` : 'No account'}
               </p>
             </div>
             <Button 

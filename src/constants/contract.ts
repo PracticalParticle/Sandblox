@@ -19,9 +19,9 @@ export const CONTRACT_ERRORS = {
 } as const
 
 export const TIMELOCK_PERIODS = {
-  MIN: 1, // Minimum 1 day
-  MAX: 30, // Maximum 30 days
-  DEFAULT: 7 // Default 7 days
+  MIN: 1440, // Minimum 1 day (1440 minutes)
+  MAX: 43200, // Maximum 30 days (43200 minutes)
+  DEFAULT: 10080 // Default 7 days (10080 minutes)
 } as const
 
 export const GAS_LIMITS = {

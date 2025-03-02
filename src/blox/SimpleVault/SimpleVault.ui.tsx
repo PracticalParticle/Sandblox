@@ -14,24 +14,42 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import SimpleVault, { VaultTxRecord } from "./SimpleVault";
 import { useChain } from "@/hooks/useChain";
-import { atom, useAtom, Provider as JotaiProvider } from "jotai";
+import { atom, useAtom, Provider as JotaiProvider, useSetAtom } from "jotai";
 import { AlertCircle, CheckCircle2, Clock, XCircle, Loader2, Wallet, Coins, X, Shield, Info } from "lucide-react";
 import { TxStatus } from "../../particle-core/sdk/typescript/types/lib.index";
 import { useNavigate } from "react-router-dom";
-import { ContractInfo } from "@/lib/verification/index";
+import { ContractInfo as BaseContractInfo } from "@/lib/verification/index";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { mainnet } from "viem/chains";
 import { http } from "viem";
 import { injected } from "wagmi/connectors";
-import { TokenList } from "./components/TokenList";
-import { AddTokenDialog } from "./components/AddTokenDialog";
-import type { TokenMetadata, TokenState, TokenBalanceState } from "./components/TokenList";
+import { TokenList, AddTokenDialog, MetaTxPendingTransaction } from "./components";
+import type { TokenMetadata, TokenState, TokenBalanceState } from "./components";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getContract } from 'viem';
 import { erc20Abi } from "viem";
 import { DeploymentForm } from './components/DeploymentForm'
 import { useContractDeployment } from '@/lib/deployment'
+import { SingleWalletManagerProvider, useSingleWallet } from '@/components/SingleWalletManager';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { createWalletClient } from "viem";
+import { Hex, Chain } from "viem";
+import { MetaTransaction } from '../../particle-core/sdk/typescript/interfaces/lib.index';
+
+// Extend the base ContractInfo interface to include broadcaster and other properties
+interface ContractInfo extends BaseContractInfo {
+  owner: string;
+  broadcaster: string;
+  recoveryAddress: string;
+  timeLockPeriod: number;
+}
+
+// Helper function to format addresses
+const formatAddress = (address: string): string => {
+  if (!address || address.length < 10) return address;
+  return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+};
 
 // State atoms following .cursorrules state management guidelines
 const pendingTxsAtom = atom<VaultTxRecord[]>([]);
@@ -437,7 +455,7 @@ const PendingTransaction = ({ tx, onApprove, onCancel, isLoading }: PendingTrans
                           border border-rose-200 dark:border-rose-800
                           disabled:opacity-50 disabled:cursor-not-allowed 
                           disabled:bg-slate-50 disabled:text-slate-400 
-                          disabled:dark:bg-slate-900 disabled:dark:text-slate-500
+                          disabled:dark:bg-slate-900 disabled:dark:text-slate-500"
                         `}
                         variant="outline"
                         aria-label={`Cancel transaction #${tx.txId}`}
@@ -693,6 +711,10 @@ interface SimpleVaultUIProps {
   addMessage?: (message: NotificationMessage) => void;
 }
 
+// Create atoms for contract info and notifications
+const contractInfoAtom = atom<ContractInfo | null>(null);
+const addMessageAtom = atom<((message: NotificationMessage) => void) | null>(null);
+
 // Move WithdrawalFormWrapper outside of SimpleVaultUIContent
 const WithdrawalFormWrapper = React.memo(({ 
   handleWithdrawal, 
@@ -760,109 +782,12 @@ const WithdrawalFormWrapper = React.memo(({
 
 WithdrawalFormWrapper.displayName = 'WithdrawalFormWrapper';
 
-// Add MetaTxPendingTransaction component
-const MetaTxPendingTransaction = ({ tx, onCancel, isLoading }: Omit<PendingTransactionProps, 'onApprove'>) => {
-  try {
-    const amount = tx.amount !== undefined ? BigInt(tx.amount) : 0n;
-
-    return (
-      <Card>
-        <CardContent className="pt-6">
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <div className="text-left">
-                <div className="flex items-center gap-2">
-                  {tx.status === TxStatus.PENDING && <Clock className="h-4 w-4 text-yellow-500" />}
-                  {tx.status === TxStatus.CANCELLED && <XCircle className="h-4 w-4 text-red-500" />}
-                  {tx.status === TxStatus.COMPLETED && <CheckCircle2 className="h-4 w-4 text-green-500" />}
-                  <p className="font-medium">Transaction #{tx.txId.toString()}</p>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Amount: {tx.type === "ETH" ? formatEther(amount) : formatUnits(amount, 18)} {tx.type}
-                </p>
-                <p className="text-sm text-muted-foreground">To: {tx.params.target}</p>
-              </div>
-            </div>
-            <div className="flex space-x-2">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex-1">
-                      <Button
-                        disabled={true}
-                        className="w-full transition-all duration-200 flex items-center justify-center
-                          bg-slate-50 text-slate-600 hover:bg-slate-100 
-                          dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 
-                          border border-slate-200 dark:border-slate-700
-                          disabled:opacity-50 disabled:cursor-not-allowed"
-                        variant="outline"
-                        aria-label={`Approve transaction #${tx.txId} (not available)`}
-                      >
-                        <span>Approve (Coming Soon)</span>
-                      </Button>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    Meta-transaction approval coming soon
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex-1">
-                      <Button
-                        onClick={() => onCancel(Number(tx.txId))}
-                        disabled={isLoading || tx.status !== TxStatus.PENDING}
-                        className="w-full transition-all duration-200 flex items-center justify-center
-                          bg-rose-50 text-rose-700 hover:bg-rose-100 
-                          dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
-                          border border-rose-200 dark:border-rose-800
-                          disabled:opacity-50 disabled:cursor-not-allowed 
-                          disabled:bg-slate-50 disabled:text-slate-400 
-                          disabled:dark:bg-slate-900 disabled:dark:text-slate-500"
-                        variant="outline"
-                        aria-label={`Cancel transaction #${tx.txId}`}
-                      >
-                        {isLoading ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            <span>Processing...</span>
-                          </>
-                        ) : (
-                          <>
-                            <X className="h-4 w-4 mr-2" />
-                            <span>Cancel</span>
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    {tx.status !== TxStatus.PENDING 
-                      ? "This transaction cannot be cancelled" 
-                      : "Cancel this withdrawal request"}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  } catch (error) {
-    console.error("Error rendering MetaTxPendingTransaction:", error);
-    return <div>Error rendering transaction details.</div>;
-  }
-};
-
 function SimpleVaultUIContent({ 
   contractAddress, 
   contractInfo, 
   onError,
   onDeployed,
-  _mock, 
+  _mock,
   dashboardMode = false,
   renderSidebar = false,
   addMessage
@@ -982,7 +907,7 @@ function SimpleVaultUIContent({
   // Type assertion to help TypeScript understand contractInfo is defined
   const info = contractInfo as NonNullable<typeof contractInfo>
   const chainMatch = chain?.id === info.chainId
-  
+
   useEffect(() => {
     if (!chainMatch && chain?.id) {
       handleNotification({
@@ -1384,8 +1309,8 @@ function SimpleVaultUIContent({
       onError?.(error);
       handleNotification({
         type: 'error',
-        title: "Error",
-        description: error.message
+        title: "Approval Failed",
+        description: error.message || "Failed to approve withdrawal"
       });
     } finally {
       setLoadingState((prev: LoadingState) => ({ ...prev, approval: { ...prev.approval, [txId]: false } }));
@@ -1418,8 +1343,8 @@ function SimpleVaultUIContent({
       onError?.(error);
       handleNotification({
         type: 'error',
-        title: "Error",
-        description: error.message
+        title: "Cancellation Failed",
+        description: error.message || "Failed to cancel withdrawal"
       });
     } finally {
       setLoadingState((prev: LoadingState) => ({ ...prev, cancellation: { ...prev.cancellation, [txId]: false } }));
@@ -1507,6 +1432,18 @@ function SimpleVaultUIContent({
       fetchWalletBalance(tokenAddress as Address);
     });
   }, [address, tokenBalances, fetchWalletBalance]);
+
+  // Set contract info and addMessage in atoms for global access
+  const setContractInfoAtom = useSetAtom(contractInfoAtom);
+  const setAddMessageAtom = useSetAtom(addMessageAtom);
+
+  useEffect(() => {
+    setContractInfoAtom(contractInfo);
+  }, [contractInfo, setContractInfoAtom]);
+
+  useEffect(() => {
+    setAddMessageAtom(addMessage || null);
+  }, [addMessage, setAddMessageAtom]);
 
   // Render sidebar content
   if (renderSidebar) {
@@ -1814,6 +1751,10 @@ function SimpleVaultUIContent({
                                     tx={tx}
                                     onCancel={handleCancelWithdrawal}
                                     isLoading={loadingState.cancellation[Number(tx.txId)]}
+                                    contractInfo={contractInfo}
+                                    contractAddress={contractAddress}
+                                    addMessage={addMessage}
+                                    onApprovalSuccess={fetchVaultData}
                                   />
                                 ))
                               )}
@@ -1872,15 +1813,25 @@ const queryClient = new QueryClient({
 
 // Main export with proper providers
 export default function SimpleVaultUI(props: SimpleVaultUIProps) {
-  // If using mock data, render without providers
-  if (props._mock) {
-    return <SimpleVaultUIContent {...props} />;
+  const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID;
+
+  if (!projectId) {
+    console.error('Missing VITE_WALLET_CONNECT_PROJECT_ID environment variable');
+    return <div>Error: Missing WalletConnect project ID</div>;
   }
 
-  // Use the parent provider context directly
   return (
-    <JotaiProvider>
+    <SingleWalletManagerProvider
+      projectId={projectId}
+      autoConnect={false}
+      metadata={{
+        name: 'SandBlox Broadcaster',
+        description: 'SandBlox Broadcaster Wallet Connection',
+        url: window.location.origin,
+        icons: ['https://avatars.githubusercontent.com/u/37784886']
+      }}
+    >
       <SimpleVaultUIContent {...props} />
-    </JotaiProvider>
+    </SingleWalletManagerProvider>
   );
 }

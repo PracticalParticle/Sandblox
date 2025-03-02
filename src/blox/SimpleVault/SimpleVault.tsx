@@ -214,7 +214,7 @@ export default class SimpleVault extends SecureOwnable {
       throw new Error("Can only cancel pending requests");
     }
 
-    const timeLockPeriod = await this.getTimeLockPeriodInDays();
+    const timeLockPeriod = await this.getTimeLockPeriodInMinutes();
     const currentTimestamp = BigInt(Math.floor(Date.now() / 1000));
     if (currentTimestamp < operation.releaseTime - (BigInt(timeLockPeriod) * 24n * 60n * 60n) + 3600n) {
       throw new Error("Cannot cancel within first hour");

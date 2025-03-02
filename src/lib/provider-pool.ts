@@ -86,8 +86,8 @@ export class ProviderPool {
       const modal = new WalletConnectModal({
         projectId,
         themeMode: 'dark',
-        explorerRecommendedWalletIds: undefined,
-        explorerExcludedWalletIds: undefined,
+        explorerRecommendedWalletIds: [],
+        explorerExcludedWalletIds: [],
         chains: chains.map(id => `eip155:${id}`),
         mobileWallets: [],
         desktopWallets: [],

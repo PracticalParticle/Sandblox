@@ -3,7 +3,8 @@ import {
   PublicClient, 
   WalletClient,
   Chain,
-  Hash
+  Hash,
+  Hex
 } from 'viem';
 import { 
   SecureContractInfo, 
@@ -13,6 +14,7 @@ import {
 } from './types';
 import { getChainName } from './utils';
 import SecureOwnable from '../particle-core/sdk/typescript/SecureOwnable';
+import { ExecutionType, TxStatus } from '../particle-core/sdk/typescript/types/lib.index';
 
 export class SecureOwnableManager {
   private contract: SecureOwnable;
@@ -37,31 +39,51 @@ export class SecureOwnableManager {
   async loadContractInfo(): Promise<SecureContractInfo> {
     try {
       // Fetch contract details using Promise.all for better performance
-      const [owner, broadcaster, recoveryAddress, timeLockPeriodInDays] = await Promise.all([
+      const [owner, broadcaster, recoveryAddress, timeLockPeriodInMinutes] = await Promise.all([
         this.contract.owner(),
         this.contract.getBroadcaster(),
         this.contract.getRecoveryAddress(),
-        this.contract.getTimeLockPeriodInDays()
+        this.contract.getTimeLockPeriodInMinutes()
       ]);
 
       // Get operation history
       const history = await this.contract.getOperationHistory();
       const events: SecurityOperationEvent[] = history.map(op => {
         try {
-          const operationType = op.operationType ? 
-            Buffer.from(op.operationType.slice(2), 'hex')
+          const operationType = op.params.operationType ? 
+            Buffer.from(op.params.operationType.slice(2), 'hex')
               .toString('utf8')
               .replace(/\0/g, '') : '';
 
-          const status = op.status === 0 ? 'pending' :
-                       op.status === 1 ? 'completed' : 'cancelled';
+          // Map numeric status to string using TxStatus enum
+          const status = (() => {
+            switch (Number(op.status)) {
+              case TxStatus.PENDING:
+                return 'pending';
+              case TxStatus.COMPLETED:
+                return 'completed';
+              case TxStatus.CANCELLED:
+                return 'cancelled';
+              case TxStatus.FAILED:
+                return 'failed';
+              case TxStatus.REJECTED:
+                return 'rejected';
+              case TxStatus.UNDEFINED:
+              default:
+                return 'undefined';
+            }
+          })();
 
-          const timestamp = Number(op.releaseTime);
+          // Handle time calculations with bigint
+          const releaseTimeBigInt = BigInt(op.releaseTime.toString()); // Ensure it's bigint
+          const currentTimeBigInt = BigInt(Math.floor(Date.now() / 1000));
+          const remainingTime = releaseTimeBigInt > currentTimeBigInt ? 
+            Number(releaseTimeBigInt - currentTimeBigInt) : 0;
+
           const details: SecurityOperationDetails = {
-            oldValue: op.executionOptions,
-            newValue: op.value.toString(),
-            remainingTime: Number(op.releaseTime) > Date.now() / 1000 ? 
-              Math.floor(Number(op.releaseTime) - Date.now() / 1000) : 0
+            oldValue: op.params.executionOptions,
+            newValue: op.params.value.toString(),
+            remainingTime
           };
 
           return {
@@ -69,7 +91,7 @@ export class SecureOwnableManager {
                   operationType === 'BROADCASTER_UPDATE' ? 'broadcaster' :
                   operationType === 'RECOVERY_UPDATE' ? 'recovery' : 'timelock',
             status,
-            timestamp,
+            timestamp: Number(op.releaseTime),
             description: `${operationType.replace(/_/g, ' ')} operation`,
             details
           };
@@ -86,7 +108,7 @@ export class SecureOwnableManager {
         owner,
         broadcaster,
         recoveryAddress,
-        timeLockPeriodInDays,
+        timeLockPeriodInMinutes: Number(timeLockPeriodInMinutes),
         pendingOperations: events.filter(e => e.status === 'pending'),
         recentEvents: events.filter(e => e.status !== 'pending').slice(0, 5),
         chainId,
@@ -100,83 +122,92 @@ export class SecureOwnableManager {
 
   // Ownership Management
   async transferOwnership(options: { from: Address }): Promise<Hash> {
-    const result = await this.contract.transferOwnershipRequest({ from: options.from });
+    const result = await this.contract.transferOwnershipRequest(options);
     return result.hash;
   }
 
-  async approveOwnershipTransfer(txId: number, options: { from: Address }): Promise<Hash> {
-    const result = await this.contract.transferOwnershipDelayedApproval(txId, { from: options.from });
+  async approveOwnershipTransfer(txId: bigint, options: { from: Address }): Promise<Hash> {
+    const result = await this.contract.transferOwnershipDelayedApproval(txId, options);
     return result.hash;
   }
 
-  async cancelOwnershipTransfer(txId: number, options: { from: Address }): Promise<Hash> {
-    const result = await this.contract.transferOwnershipCancellation(txId, { from: options.from });
+  async cancelOwnershipTransfer(txId: bigint, options: { from: Address }): Promise<Hash> {
+    const result = await this.contract.transferOwnershipCancellation(txId, options);
     return result.hash;
   }
 
   // Broadcaster Management
   async updateBroadcaster(newBroadcaster: Address, options: { from: Address }): Promise<Hash> {
-    const result = await this.contract.updateBroadcasterRequest(newBroadcaster, { from: options.from });
+    const result = await this.contract.updateBroadcasterRequest(newBroadcaster, options);
     return result.hash;
   }
 
-  async approveBroadcasterUpdate(txId: number, options: { from: Address }): Promise<Hash> {
-    const result = await this.contract.updateBroadcasterDelayedApproval(txId, { from: options.from });
+  async approveBroadcasterUpdate(txId: bigint, options: { from: Address }): Promise<Hash> {
+    const result = await this.contract.updateBroadcasterDelayedApproval(txId, options);
     return result.hash;
   }
 
-  async cancelBroadcasterUpdate(txId: number, options: { from: Address }): Promise<Hash> {
-    const result = await this.contract.updateBroadcasterCancellation(txId, { from: options.from });
+  async cancelBroadcasterUpdate(txId: bigint, options: { from: Address }): Promise<Hash> {
+    const result = await this.contract.updateBroadcasterCancellation(txId, options);
     return result.hash;
   }
 
   // Recovery Management
   async updateRecoveryAddress(newRecoveryAddress: Address, options: { from: Address }): Promise<Hash> {
-    const executionOptions = await this.contract.updateRecoveryExecutionOptions(newRecoveryAddress);
-    const metaTx = await this.generateMetaTransaction(
+    const executionOptions = await this.contract.updateRecoveryExecutionOptions(newRecoveryAddress, options);
+    const metaTxParams = await this.generateMetaTxParams(options.from);
+    const metaTx = await this.generateUnsignedMetaTransactionForNew(
       options.from,
       'RECOVERY_UPDATE',
-      executionOptions
+      executionOptions,
+      metaTxParams
     );
-    const result = await this.contract.updateRecoveryRequestAndApprove(metaTx, { from: options.from });
+    const result = await this.contract.updateRecoveryRequestAndApprove(metaTx, options);
     return result.hash;
   }
 
   // TimeLock Management
-  async updateTimeLockPeriod(newPeriodInDays: number, options: { from: Address }): Promise<Hash> {
-    const executionOptions = await this.contract.updateTimeLockExecutionOptions(newPeriodInDays);
-    const metaTx = await this.generateMetaTransaction(
+  async updateTimeLockPeriod(newPeriodInMinutes: bigint, options: { from: Address }): Promise<Hash> {
+    const executionOptions = await this.contract.updateTimeLockExecutionOptions(newPeriodInMinutes, options);
+    const metaTxParams = await this.generateMetaTxParams(options.from);
+    const metaTx = await this.generateUnsignedMetaTransactionForNew(
       options.from,
       'TIMELOCK_UPDATE',
-      executionOptions
+      executionOptions,
+      metaTxParams
     );
-    const result = await this.contract.updateTimeLockRequestAndApprove(metaTx, { from: options.from });
+    const result = await this.contract.updateTimeLockRequestAndApprove(metaTx, options);
     return result.hash;
   }
 
-  private async generateMetaTransaction(
+  private async generateMetaTxParams(signer: Address) {
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600); // 1 hour from now
+    return this.contract.createMetaTxParams(
+      this.address,
+      '0x' as Hex, // Will be set by the contract
+      deadline,
+      0n, // No max gas price limit
+      signer
+    );
+  }
+
+  private async generateUnsignedMetaTransactionForNew(
     requester: Address,
     operationType: string,
-    executionOptions: string
+    executionOptions: Hex,
+    metaTxParams: any
   ) {
-    const txRecord = await this.contract.createNewTxRecord(
+    const operationTypeHex = ('0x' + Buffer.from(operationType, 'utf8').toString('hex')) as Hex;
+    
+    return this.contract.generateUnsignedMetaTransactionForNew(
       requester,
       this.address,
-      operationType,
-      SecureOwnable.ExecutionType.STANDARD,
+      0n, // no value
+      500000n, // gas limit
+      operationTypeHex,
+      ExecutionType.STANDARD,
       executionOptions,
-      0,
-      500000
-    );
-
-    const deadline = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
-    return this.contract.generateUnsignedMetaTransaction(
-      txRecord,
-      this.address,
-      '0x',
-      deadline,
-      0,
-      requester
+      metaTxParams
     );
   }
 } 
