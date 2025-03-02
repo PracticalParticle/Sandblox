@@ -45,6 +45,7 @@ import { TxRecord as CoreTxRecord } from '@/particle-core/sdk/typescript/interfa
 import { Label } from '@/components/ui/label'
 import { TIMELOCK_PERIODS } from '@/constants/contract'
 import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
+import { MetaTxDialog } from '@/components/MetaTxDialog'
 
 const container = {
   hidden: { opacity: 0 },
@@ -156,293 +157,6 @@ const getOperationIcon = (type: string) => {
   }
 };
 
-function RecoveryWalletContent({ 
-  contractInfo, 
-  onSuccess,
-  onClose 
-}: { 
-  contractInfo: SecureContractInfo | null,
-  onSuccess: () => void,
-  onClose: () => void
-}) {
-  const { session, isConnecting, connect, disconnect } = useSingleWallet()
-  const [isRecoveryWalletConnected, setIsRecoveryWalletConnected] = useState(false)
-
-  useEffect(() => {
-    if (session && contractInfo) {
-      setIsRecoveryWalletConnected(
-        session.account.toLowerCase() === contractInfo.recoveryAddress.toLowerCase()
-      )
-    } else {
-      setIsRecoveryWalletConnected(false)
-    }
-  }, [session, contractInfo])
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center space-x-2">
-        <div className="flex-1">
-          {session ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between rounded-lg border p-3">
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm font-medium">Connected Wallet</span>
-                  <span className="text-xs text-muted-foreground">
-                    {formatAddress(session.account)}
-                  </span>
-                </div>
-                <Button
-                  onClick={() => void disconnect()}
-                  variant="ghost"
-                  size="sm"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              {!isRecoveryWalletConnected && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Connected wallet does not match the recovery address. Please connect the correct wallet.
-                  </AlertDescription>
-                </Alert>
-              )}
-              {isRecoveryWalletConnected && (
-                <Alert>
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                  <AlertDescription className="text-green-500">
-                    Recovery wallet connected successfully!
-                  </AlertDescription>
-                </Alert>
-              )}
-            </div>
-          ) : (
-            <Button
-              onClick={() => void connect()}
-              disabled={isConnecting}
-              className="w-full"
-              variant="outline"
-            >
-              <Wallet className="mr-2 h-4 w-4" />
-              {isConnecting ? 'Connecting...' : 'Connect Recovery Wallet'}
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function TimeLockWalletContent({ 
-  contractInfo, 
-  onSuccess,
-  onClose 
-}: { 
-  contractInfo: SecureContractInfo | null,
-  onSuccess: () => void,
-  onClose: () => void
-}) {
-  const { session, isConnecting, connect, disconnect } = useSingleWallet()
-  const [isOwnerWalletConnected, setIsOwnerWalletConnected] = useState(false)
-  const [newTimeLockPeriod, setNewTimeLockPeriod] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const { toast } = useToast()
-
-  useEffect(() => {
-    if (session && contractInfo) {
-      setIsOwnerWalletConnected(
-        session.account.toLowerCase() === contractInfo.owner.toLowerCase()
-      )
-    } else {
-      setIsOwnerWalletConnected(false)
-    }
-  }, [session, contractInfo])
-
-  const handleSubmit = async () => {
-    if (!contractInfo) return
-    if (!newTimeLockPeriod) {
-      toast({
-        title: "Error",
-        description: "Please enter a new time lock period",
-        variant: "destructive"
-      })
-      return
-    }
-
-    const minutes = parseInt(newTimeLockPeriod)
-    if (isNaN(minutes) || minutes < TIMELOCK_PERIODS.MIN || minutes > TIMELOCK_PERIODS.MAX) {
-      toast({
-        title: "Error",
-        description: `Time lock period must be between ${formatTimeValue(TIMELOCK_PERIODS.MIN)} and ${formatTimeValue(TIMELOCK_PERIODS.MAX)}`,
-        variant: "destructive"
-      })
-      return
-    }
-
-    setIsSubmitting(true)
-    try {
-      await onSuccess()
-      toast({
-        title: "Success",
-        description: "Time lock period update request submitted"
-      })
-      onClose()
-    } catch (error) {
-      console.error('Failed to update time lock period:', error)
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update time lock period",
-        variant: "destructive"
-      })
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  return (
-    <div className="space-y-4 p-4">
-      <div className="p-4 rounded-lg bg-muted">
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Current Period</span>
-            <span className="text-sm">
-              {contractInfo ? formatTimeValue(contractInfo.timeLockPeriodInMinutes) : '-'}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="newTimeLockPeriod">New Time Lock Period</Label>
-        <Input
-          id="newTimeLockPeriod"
-          type="number"
-          min={TIMELOCK_PERIODS.MIN}
-          max={TIMELOCK_PERIODS.MAX}
-          placeholder={`Enter minutes (${TIMELOCK_PERIODS.MIN}-${TIMELOCK_PERIODS.MAX})`}
-          value={newTimeLockPeriod}
-          onChange={(e) => setNewTimeLockPeriod(e.target.value)}
-        />
-        <p className="text-xs text-muted-foreground">
-          Time lock period must be between {formatTimeValue(TIMELOCK_PERIODS.MIN)} and {formatTimeValue(TIMELOCK_PERIODS.MAX)}
-        </p>
-      </div>
-
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button onClick={handleSubmit} disabled={isSubmitting}>
-          {isSubmitting ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Updating...
-            </>
-          ) : (
-            'Update Period'
-          )}
-        </Button>
-      </div>
-    </div>
-  )
-}
-
-function BroadcasterWalletContent({ 
-  contractInfo, 
-  onSuccess,
-  onClose,
-  actionLabel = "Confirm Update",
-  newValue = ""
-}: { 
-  contractInfo: SecureContractInfo | null,
-  onSuccess: () => void,
-  onClose: () => void,
-  actionLabel?: string,
-  newValue?: string
-}) {
-  const { session, isConnecting, connect, disconnect } = useSingleWallet()
-  const [isBroadcasterWalletConnected, setIsBroadcasterWalletConnected] = useState(false)
-
-  useEffect(() => {
-    if (session && contractInfo) {
-      setIsBroadcasterWalletConnected(
-        session.account.toLowerCase() === contractInfo.broadcaster.toLowerCase()
-      )
-    } else {
-      setIsBroadcasterWalletConnected(false)
-    }
-  }, [session, contractInfo])
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center space-x-2">
-        <div className="flex-1">
-          {session ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between rounded-lg border p-3">
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm font-medium">Connected Wallet</span>
-                  <span className="text-xs text-muted-foreground">
-                    {formatAddress(session.account)}
-                  </span>
-                </div>
-                <Button
-                  onClick={() => void disconnect()}
-                  variant="ghost"
-                  size="sm"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              {!isBroadcasterWalletConnected && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Connected wallet does not match the broadcaster address. Please connect the correct wallet.
-                  </AlertDescription>
-                </Alert>
-              )}
-              {isBroadcasterWalletConnected && (
-                <div className="space-y-4">
-                  <Alert>
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    <AlertDescription className="text-green-500">
-                      Broadcaster wallet connected successfully!
-                    </AlertDescription>
-                  </Alert>
-                  {newValue && (
-                    <div className="p-2 bg-muted rounded-lg">
-                      <p className="text-sm font-medium">New Value:</p>
-                      <code className="text-xs">{newValue}</code>
-                    </div>
-                  )}
-                  <Button 
-                    onClick={onSuccess}
-                    className="w-full"
-                    variant="default"
-                  >
-                    {actionLabel}
-                  </Button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <Button
-              onClick={() => void connect()}
-              disabled={isConnecting}
-              className="w-full"
-              variant="outline"
-            >
-              <Wallet className="mr-2 h-4 w-4" />
-              {isConnecting ? 'Connecting...' : 'Connect Broadcaster Wallet'}
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function BroadcasterUpdateDialog({
   contractInfo,
   isOpen,
@@ -455,12 +169,11 @@ function BroadcasterUpdateDialog({
   onSubmit: (address: string) => Promise<void>
 }) {
   const [newBroadcasterAddress, setNewBroadcasterAddress] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const { address } = useAccount()
+  const { toast } = useToast()
 
   const isOwner = address?.toLowerCase() === contractInfo?.owner.toLowerCase()
   const isValidAddress = isValidEthereumAddress(newBroadcasterAddress)
-  const showAddressError = newBroadcasterAddress !== '' && !isValidAddress
 
   // Clear input when dialog closes
   useEffect(() => {
@@ -469,79 +182,52 @@ function BroadcasterUpdateDialog({
     }
   }, [isOpen])
 
-  const handleSubmit = async () => {
-    if (!isOwner || !isValidAddress) return
-    
-    try {
-      setIsSubmitting(true)
-      await onSubmit(newBroadcasterAddress)
-      setNewBroadcasterAddress('') // Clear input after successful submission
-      onOpenChange(false)
-    } catch (error) {
-      console.error('Error submitting update:', error)
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  const handleOpenChange = (open: boolean) => {
-    if (!open) {
-      setNewBroadcasterAddress('') // Clear input when manually closing
-    }
-    onOpenChange(open)
-  }
-
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader className="space-y-3">
-          <DialogTitle>Request Broadcaster Update</DialogTitle>
-          <div className="p-2 bg-muted rounded-lg text-sm">
-            <p className="font-medium">Current Broadcaster:</p>
-            <code className="text-xs">{contractInfo?.broadcaster}</code>
-          </div>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-2">
-            <Input
-              placeholder="New Broadcaster Address"
-              value={newBroadcasterAddress}
-              onChange={(e) => setNewBroadcasterAddress(e.target.value)}
-              className={showAddressError ? "border-destructive" : ""}
-            />
-            {showAddressError && (
-              <p className="text-sm text-destructive">
-                Please enter a valid Ethereum address
-              </p>
-            )}
-          </div>
-          {!isOwner && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Only the owner can request broadcaster updates
-              </AlertDescription>
-            </Alert>
-          )}
-          {isOwner && (
-            <Button 
-              onClick={() => void handleSubmit()}
-              className="w-full"
-              disabled={!isValidAddress || !newBroadcasterAddress || isSubmitting}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                'Submit Update Request'
-              )}
-            </Button>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+    <MetaTxDialog
+      isOpen={isOpen}
+      onOpenChange={onOpenChange}
+      title="Request Broadcaster Update"
+      contractInfo={contractInfo}
+      walletType="owner"
+      currentValue={contractInfo?.broadcaster}
+      currentValueLabel="Current Broadcaster"
+      actionLabel="Submit Update Request"
+      newValue={newBroadcasterAddress}
+      onSubmit={async () => {
+        if (!isOwner || !isValidAddress) {
+          toast({
+            title: "Error",
+            description: "Please ensure you are the owner and have entered a valid address",
+            variant: "destructive"
+          })
+          return
+        }
+        
+        await onSubmit(newBroadcasterAddress)
+      }}
+    >
+      <div className="space-y-2">
+        <Input
+          placeholder="New Broadcaster Address"
+          value={newBroadcasterAddress}
+          onChange={(e) => setNewBroadcasterAddress(e.target.value)}
+          className={!isValidAddress && newBroadcasterAddress !== "" ? "border-destructive" : ""}
+        />
+        {!isValidAddress && newBroadcasterAddress !== "" && (
+          <p className="text-sm text-destructive">
+            Please enter a valid Ethereum address
+          </p>
+        )}
+        {!isOwner && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Only the owner can request broadcaster updates
+            </AlertDescription>
+          </Alert>
+        )}
+      </div>
+    </MetaTxDialog>
   )
 }
 
@@ -615,13 +301,15 @@ export function SecurityDetails() {
   const [newTimeLockPeriod, setNewTimeLockPeriod] = useState('')
   const [selectedTxId, setSelectedTxId] = useState('')
 
-  const { session, connect, disconnect } = useSingleWallet()
-  const [isRecoveryWalletConnected, setIsRecoveryWalletConnected] = useState(false)
   const [showConnectRecoveryDialog, setShowConnectRecoveryDialog] = useState(false)
   const [showBroadcasterDialog, setShowBroadcasterDialog] = useState(false)
   const [showBroadcasterApproveDialog, setShowBroadcasterApproveDialog] = useState(false)
   const [showBroadcasterCancelDialog, setShowBroadcasterCancelDialog] = useState(false)
   const [operationHistory, setOperationHistory] = useState<UITxRecord[]>([])
+  const [showRecoveryDialog, setShowRecoveryDialog] = useState(false)
+  const [showTimeLockDialog, setShowTimeLockDialog] = useState(false)
+  const [pendingOperation, setPendingOperation] = useState<UITxRecord | null>(null)
+  const [operationType, setOperationType] = useState<'approve' | 'cancel' | null>(null)
 
   useEffect(() => {
     if (!isConnected) {
@@ -642,16 +330,6 @@ export function SecurityDetails() {
 
     loadContractInfo()
   }, [isConnected, address])
-
-  useEffect(() => {
-    if (session && contractInfo) {
-      setIsRecoveryWalletConnected(
-        session.account.toLowerCase() === contractInfo.recoveryAddress.toLowerCase()
-      )
-    } else {
-      setIsRecoveryWalletConnected(false)
-    }
-  }, [session, contractInfo])
 
   const loadContractInfo = async () => {
     if (!address) return;
@@ -765,32 +443,39 @@ export function SecurityDetails() {
 
   // Action handlers
   const handleTransferOwnershipRequest = async () => {
-    if (!contractInfo) return
+    if (!contractInfo || !newOwnerAddress) return
 
     try {
-      if (!session) {
-        setShowConnectRecoveryDialog(true)
-        return
-      }
-
-      if (!isRecoveryWalletConnected) {
-        // If wrong wallet is connected, disconnect it first
-        await disconnect()
-        setShowConnectRecoveryDialog(true)
+      if (!isValidEthereumAddress(newOwnerAddress)) {
+        toast({
+          title: "Error",
+          description: "Please enter a valid Ethereum address",
+          variant: "destructive"
+        })
         return
       }
 
       // Implementation with connected recovery wallet
+      // TODO: Implement the actual transfer ownership request
       toast({
         title: "Request submitted",
         description: "Transfer ownership request has been submitted.",
       })
+      
+      // Add a small delay before reloading contract info to allow transaction to be mined
+      setTimeout(async () => {
+        await loadContractInfo();
+      }, 2000);
+      
+      return true
     } catch (error) {
+      console.error('Error submitting transfer ownership request:', error)
       toast({
         title: "Error",
         description: "Failed to submit transfer ownership request.",
         variant: "destructive"
       })
+      return false
     }
   }
 
@@ -920,58 +605,21 @@ export function SecurityDetails() {
 
   // Handle operation actions
   const handleOperationApprove = async (txId: number, type: string) => {
+    const operation = operationHistory.find(op => op.txId === txId)
+    if (!operation) return
+    
+    setPendingOperation(operation)
+    setOperationType('approve')
     setShowBroadcasterApproveDialog(true)
-    setSelectedTxId(txId.toString())
   }
 
   const handleOperationCancel = async (txId: number, type: string) => {
+    const operation = operationHistory.find(op => op.txId === txId)
+    if (!operation) return
+    
+    setPendingOperation(operation)
+    setOperationType('cancel')
     setShowBroadcasterCancelDialog(true)
-    setSelectedTxId(txId.toString())
-  }
-
-  const RecoveryWalletDialog = () => {
-    const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID;
-    if (!projectId) {
-      throw new Error('Missing VITE_WALLET_CONNECT_PROJECT_ID environment variable');
-    }
-
-    return (
-      <Dialog open={showConnectRecoveryDialog} onOpenChange={setShowConnectRecoveryDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Connect Recovery Wallet</DialogTitle>
-            <DialogDescription>
-              Please connect the recovery wallet to proceed with the ownership transfer request.
-            </DialogDescription>
-            {contractInfo && (
-              <div className="mt-2 p-2 bg-muted rounded-lg">
-                <p className="text-sm font-medium">Recovery Address:</p>
-                <code className="text-xs">{contractInfo.recoveryAddress}</code>
-              </div>
-            )}
-          </DialogHeader>
-          <SingleWalletManagerProvider
-            projectId={projectId}
-            autoConnect={false}
-            metadata={{
-              name: 'SandBlox Recovery',
-              description: 'SandBlox Recovery Wallet Connection',
-              url: window.location.origin,
-              icons: ['https://avatars.githubusercontent.com/u/37784886']
-            }}
-          >
-            <RecoveryWalletContent 
-              contractInfo={contractInfo}
-              onSuccess={() => {
-                setShowConnectRecoveryDialog(false)
-                handleTransferOwnershipRequest()
-              }}
-              onClose={() => setShowConnectRecoveryDialog(false)}
-            />
-          </SingleWalletManagerProvider>
-        </DialogContent>
-      </Dialog>
-    )
   }
 
   if (!address || error) {
@@ -1113,13 +761,45 @@ export function SecurityDetails() {
               </CardHeader>
               <CardContent>
                 <Button 
-                  onClick={handleTransferOwnershipRequest}
+                  onClick={() => {
+                    setNewOwnerAddress('');
+                    setShowConnectRecoveryDialog(true);
+                  }}
                   className="flex items-center gap-2 w-full"
                   size="sm"
                 >
                   <Wallet className="h-4 w-4" />
                   Request Transfer
                 </Button>
+                
+                <MetaTxDialog
+                  isOpen={showConnectRecoveryDialog}
+                  onOpenChange={setShowConnectRecoveryDialog}
+                  title="Transfer Ownership"
+                  description="Please connect the recovery wallet to proceed with the ownership transfer request."
+                  contractInfo={contractInfo}
+                  walletType="recovery"
+                  currentValue={contractInfo?.owner}
+                  currentValueLabel="Current Owner"
+                  actionLabel="Request Transfer"
+                  newValue={newOwnerAddress}
+                  onSubmit={async () => {
+                    await handleTransferOwnershipRequest();
+                    setShowConnectRecoveryDialog(false);
+                  }}
+                >
+                  <Input
+                    placeholder="New Owner Address"
+                    value={newOwnerAddress}
+                    onChange={(e) => setNewOwnerAddress(e.target.value)}
+                    className={!isValidEthereumAddress(newOwnerAddress) && newOwnerAddress !== "" ? "border-destructive" : ""}
+                  />
+                  {!isValidEthereumAddress(newOwnerAddress) && newOwnerAddress !== "" && (
+                    <p className="text-sm text-destructive">
+                      Please enter a valid Ethereum address
+                    </p>
+                  )}
+                </MetaTxDialog>
               </CardContent>
             </Card>
 
@@ -1182,53 +862,45 @@ export function SecurityDetails() {
                 </div>
               </CardHeader>
               <CardContent>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button className="flex items-center gap-2 w-full" size="sm">
-                      <Key className="h-4 w-4" />
-                      Update
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-md">
-                    <DialogHeader className="space-y-3">
-                      <DialogTitle>Update Recovery Address</DialogTitle>
-                      <div className="p-2 bg-muted rounded-lg text-sm">
-                        <p className="font-medium">Current Recovery Address:</p>
-                        <code className="text-xs">{contractInfo.recoveryAddress}</code>
-                      </div>
-                    </DialogHeader>
-                    <div className="space-y-3">
-                      <Input
-                        placeholder="New Recovery Address"
-                        value={newRecoveryAddress}
-                        onChange={(e) => setNewRecoveryAddress(e.target.value)}
-                      />
-                      <SingleWalletManagerProvider
-                        projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
-                        autoConnect={false}
-                        metadata={{
-                          name: 'SandBlox Broadcaster',
-                          description: 'SandBlox Broadcaster Wallet Connection',
-                          url: window.location.origin,
-                          icons: ['https://avatars.githubusercontent.com/u/37784886']
-                        }}
-                      >
-                        <BroadcasterWalletContent 
-                          contractInfo={contractInfo}
-                          onSuccess={() => {
-                            handleUpdateRecoveryRequest(newRecoveryAddress)
-                            setShowBroadcasterDialog(false)
-                          }}
-                          onClose={() => {
-                            setShowBroadcasterDialog(false)
-                          }}
-                          actionLabel="Submit Update Request"
-                          newValue={newRecoveryAddress}
-                        />
-                      </SingleWalletManagerProvider>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                <Button 
+                  onClick={() => {
+                    setNewRecoveryAddress('');
+                    setShowRecoveryDialog(true);
+                  }}
+                  className="flex items-center gap-2 w-full" 
+                  size="sm"
+                >
+                  <Key className="h-4 w-4" />
+                  Update
+                </Button>
+                
+                <MetaTxDialog
+                  isOpen={showRecoveryDialog}
+                  onOpenChange={setShowRecoveryDialog}
+                  title="Update Recovery Address"
+                  contractInfo={contractInfo}
+                  walletType="broadcaster"
+                  currentValue={contractInfo.recoveryAddress}
+                  currentValueLabel="Current Recovery Address"
+                  actionLabel="Submit Update Request"
+                  newValue={newRecoveryAddress}
+                  onSubmit={async () => {
+                    await handleUpdateRecoveryRequest(newRecoveryAddress);
+                    setShowRecoveryDialog(false);
+                  }}
+                >
+                  <Input
+                    placeholder="New Recovery Address"
+                    value={newRecoveryAddress}
+                    onChange={(e) => setNewRecoveryAddress(e.target.value)}
+                    className={!isValidEthereumAddress(newRecoveryAddress) && newRecoveryAddress !== "" ? "border-destructive" : ""}
+                  />
+                  {!isValidEthereumAddress(newRecoveryAddress) && newRecoveryAddress !== "" && (
+                    <p className="text-sm text-destructive">
+                      Please enter a valid Ethereum address
+                    </p>
+                  )}
+                </MetaTxDialog>
               </CardContent>
             </Card>
 
@@ -1253,68 +925,59 @@ export function SecurityDetails() {
                 </div>
               </CardHeader>
               <CardContent>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button className="flex items-center gap-2 w-full" size="sm">
-                      <Clock className="h-4 w-4" />
-                      Update
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-md">
-                    <DialogHeader className="space-y-3">
-                      <DialogTitle>Update TimeLock Period</DialogTitle>
-                      <div className="p-2 bg-muted rounded-lg text-sm">
-                        <p className="font-medium">Current TimeLock Period:</p>
-                        <p className="text-xs">{formatTimeValue(contractInfo.timeLockPeriodInMinutes)}</p>
-                      </div>
-                      <DialogDescription>
-                        Enter a new time lock period between 1 and 30 minutes.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-3">
-                      <div className="space-y-2">
-                        <Input
-                          type="number"
-                          min="1"
-                          max="30"
-                          placeholder="New TimeLock Period (1-30 minutes)"
-                          value={newTimeLockPeriod}
-                          onChange={(e) => {
-                            const value = parseInt(e.target.value);
-                            if (!isNaN(value) && value > 0 && value <= 30) {
-                              setNewTimeLockPeriod(e.target.value);
-                            }
-                          }}
-                        />
-                        {newTimeLockPeriod && (parseInt(newTimeLockPeriod) <= 0 || parseInt(newTimeLockPeriod) > 30) && (
-                          <p className="text-sm text-destructive">Time lock period must be between 1 and 30 minutes</p>
-                        )}
-                      </div>
-                      <SingleWalletManagerProvider
-                        projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
-                        autoConnect={false}
-                        metadata={{
-                          name: 'SandBlox Broadcaster',
-                          description: 'SandBlox Broadcaster Wallet Connection',
-                          url: window.location.origin,
-                          icons: ['https://avatars.githubusercontent.com/u/37784886']
-                        }}
-                      >
-                        <BroadcasterWalletContent 
-                          contractInfo={contractInfo}
-                          onSuccess={() => {
-                            if (parseInt(newTimeLockPeriod) > 0 && parseInt(newTimeLockPeriod) <= 30) {
-                              handleUpdateTimeLockRequest(newTimeLockPeriod);
-                            }
-                          }}
-                          onClose={() => {}}
-                          actionLabel="Submit Update Request"
-                          newValue={newTimeLockPeriod}
-                        />
-                      </SingleWalletManagerProvider>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                <Button 
+                  onClick={() => {
+                    setNewTimeLockPeriod('');
+                    setShowTimeLockDialog(true);
+                  }}
+                  className="flex items-center gap-2 w-full" 
+                  size="sm"
+                >
+                  <Clock className="h-4 w-4" />
+                  Update
+                </Button>
+                
+                <MetaTxDialog
+                  isOpen={showTimeLockDialog}
+                  onOpenChange={setShowTimeLockDialog}
+                  title="Update TimeLock Period"
+                  description={`Enter a new time lock period between ${TIMELOCK_PERIODS.MIN} and ${TIMELOCK_PERIODS.MAX} minutes.`}
+                  contractInfo={contractInfo}
+                  walletType="broadcaster"
+                  currentValue={formatTimeValue(contractInfo.timeLockPeriodInMinutes)}
+                  currentValueLabel="Current TimeLock Period"
+                  actionLabel="Submit Update Request"
+                  newValue={newTimeLockPeriod}
+                  onSubmit={async () => {
+                    if (parseInt(newTimeLockPeriod) > 0 && parseInt(newTimeLockPeriod) <= TIMELOCK_PERIODS.MAX) {
+                      await handleUpdateTimeLockRequest(newTimeLockPeriod);
+                      setShowTimeLockDialog(false);
+                    }
+                  }}
+                >
+                  <div className="space-y-2">
+                    <Input
+                      type="number"
+                      min={TIMELOCK_PERIODS.MIN}
+                      max={TIMELOCK_PERIODS.MAX}
+                      placeholder={`New TimeLock Period (${TIMELOCK_PERIODS.MIN}-${TIMELOCK_PERIODS.MAX} minutes)`}
+                      value={newTimeLockPeriod}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value);
+                        if (!isNaN(value) && value >= TIMELOCK_PERIODS.MIN && value <= TIMELOCK_PERIODS.MAX) {
+                          setNewTimeLockPeriod(e.target.value);
+                        } else {
+                          setNewTimeLockPeriod(e.target.value);
+                        }
+                      }}
+                    />
+                    {newTimeLockPeriod && (parseInt(newTimeLockPeriod) < TIMELOCK_PERIODS.MIN || parseInt(newTimeLockPeriod) > TIMELOCK_PERIODS.MAX) && (
+                      <p className="text-sm text-destructive">
+                        Time lock period must be between {TIMELOCK_PERIODS.MIN} and {TIMELOCK_PERIODS.MAX} minutes
+                      </p>
+                    )}
+                  </div>
+                </MetaTxDialog>
               </CardContent>
             </Card>
           </div>
@@ -1336,8 +999,67 @@ export function SecurityDetails() {
           />
         </motion.div>
 
-        {/* Recovery Wallet Connection Dialog */}
-        <RecoveryWalletDialog />
+        {/* Approval Dialog */}
+        <MetaTxDialog
+          isOpen={showBroadcasterApproveDialog}
+          onOpenChange={setShowBroadcasterApproveDialog}
+          title={`Approve ${pendingOperation ? getOperationTitle(pendingOperation) : 'Operation'}`}
+          description="Please connect your broadcaster wallet to approve this operation."
+          contractInfo={contractInfo}
+          walletType="broadcaster"
+          currentValue={pendingOperation?.details.newValue}
+          currentValueLabel="New Value"
+          actionLabel="Approve Operation"
+          onSubmit={async () => {
+            if (!pendingOperation) return
+            
+            try {
+              if (pendingOperation.type === 'ownership_update') {
+                await handleTransferOwnershipApproval(pendingOperation.txId)
+              } else if (pendingOperation.type === 'broadcaster_update') {
+                await handleUpdateBroadcasterApproval(pendingOperation.txId)
+              }
+              // Add other operation types as needed
+              
+              setShowBroadcasterApproveDialog(false)
+              setPendingOperation(null)
+              setOperationType(null)
+            } catch (error) {
+              console.error('Error approving operation:', error)
+            }
+          }}
+        />
+
+        {/* Cancellation Dialog */}
+        <MetaTxDialog
+          isOpen={showBroadcasterCancelDialog}
+          onOpenChange={setShowBroadcasterCancelDialog}
+          title={`Cancel ${pendingOperation ? getOperationTitle(pendingOperation) : 'Operation'}`}
+          description="Please connect your broadcaster wallet to cancel this operation."
+          contractInfo={contractInfo}
+          walletType="broadcaster"
+          currentValue={pendingOperation?.details.newValue}
+          currentValueLabel="New Value"
+          actionLabel="Cancel Operation"
+          onSubmit={async () => {
+            if (!pendingOperation) return
+            
+            try {
+              if (pendingOperation.type === 'ownership_update') {
+                await handleTransferOwnershipCancellation(pendingOperation.txId)
+              } else if (pendingOperation.type === 'broadcaster_update') {
+                await handleUpdateBroadcasterCancellation(pendingOperation.txId)
+              }
+              // Add other operation types as needed
+              
+              setShowBroadcasterCancelDialog(false)
+              setPendingOperation(null)
+              setOperationType(null)
+            } catch (error) {
+              console.error('Error cancelling operation:', error)
+            }
+          }}
+        />
       </motion.div>
     </div>
   )
