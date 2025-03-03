@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Address, Hex } from "viem";
 import { formatEther, formatUnits } from "viem";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
@@ -14,16 +14,7 @@ import SimpleVault from "../SimpleVault";
 import { createWalletClient, http } from "viem";
 import { MetaTransaction } from "../../../particle-core/sdk/typescript/interfaces/lib.index";
 import { useToast } from "@/components/ui/use-toast";
-
-// Import the ContractInfo type from the MetaTxApprovalDialog
-interface ContractInfo {
-  owner: string;
-  broadcaster: string;
-  recoveryAddress: string;
-  timeLockPeriod: number;
-  chainId: number;
-  chainName: string;
-}
+import SecureOwnable from "../../../particle-core/sdk/typescript/SecureOwnable";
 
 // Notification message type
 type NotificationMessage = {
@@ -44,11 +35,19 @@ export interface VaultTxRecord {
   };
 }
 
+interface ContractSecurityInfo {
+  owner: string;
+  broadcaster: string;
+  recoveryAddress: string;
+  timeLockPeriod: bigint;
+  chainId: number;
+  chainName: string;
+}
+
 interface MetaTxPendingTransactionProps {
   tx: VaultTxRecord;
   onCancel: (txId: number) => Promise<void>;
   isLoading: boolean;
-  contractInfo: ContractInfo;
   contractAddress: Address;
   addMessage?: (message: NotificationMessage) => void;
   onApprovalSuccess?: () => Promise<void>;
@@ -58,7 +57,6 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
   tx,
   onCancel,
   isLoading,
-  contractInfo,
   contractAddress,
   addMessage,
   onApprovalSuccess
@@ -67,11 +65,53 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
   const [isApproving, setIsApproving] = useState(false);
   const [isSigning, setIsSigning] = useState(false);
   const [signedMetaTx, setSignedMetaTx] = useState<MetaTransaction | null>(null);
+  const [contractInfo, setContractInfo] = useState<ContractSecurityInfo | null>(null);
   const chain = useChain();
   const { address } = useAccount();
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
   const { toast } = useToast();
+
+  // Fetch contract security info from the contract
+  useEffect(() => {
+    const fetchContractInfo = async () => {
+      if (!publicClient || !chain || !contractAddress) return;
+
+      try {
+        const secureOwnable = new SecureOwnable(
+          publicClient,
+          walletClient || undefined,
+          contractAddress,
+          chain
+        );
+
+        const [owner, broadcaster, recoveryAddress, timeLockPeriod] = await Promise.all([
+          secureOwnable.owner(),
+          secureOwnable.getBroadcaster(),
+          secureOwnable.getRecoveryAddress(),
+          secureOwnable.getTimeLockPeriodInMinutes()
+        ]);
+
+        setContractInfo({
+          owner,
+          broadcaster,
+          recoveryAddress,
+          timeLockPeriod,
+          chainId: chain.id,
+          chainName: chain.name
+        });
+      } catch (error) {
+        console.error("Error fetching contract security info:", error);
+        handleNotification({
+          type: 'error',
+          title: "Error",
+          description: "Failed to fetch contract security information"
+        });
+      }
+    };
+
+    fetchContractInfo();
+  }, [publicClient, walletClient, chain, contractAddress]);
 
   const handleNotification = (message: NotificationMessage) => {
     if (addMessage) {
@@ -81,7 +121,7 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
         title: message.title,
         description: message.description,
         variant: message.type === 'error' ? 'destructive' : 
-                 message.type === 'success' ? 'default' : 'secondary'
+                 message.type === 'success' ? 'default' : undefined
       });
     }
   };
@@ -364,7 +404,10 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
         
         {contractInfo && signedMetaTx && (
           <MetaTxApprovalDialog
-            contractInfo={contractInfo}
+            contractInfo={{
+              ...contractInfo,
+              timeLockPeriod: Number(contractInfo.timeLockPeriod)
+            }}
             isOpen={showBroadcasterDialog}
             onOpenChange={setShowBroadcasterDialog}
             onSuccess={handleBroadcasterConnected}
