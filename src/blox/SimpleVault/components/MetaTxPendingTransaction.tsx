@@ -229,7 +229,6 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
       return;
     }
     
-    setShowBroadcasterDialog(false);
     setIsApproving(true);
     
     try {
@@ -269,7 +268,7 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
       handleNotification({
         type: 'success',
         title: "Withdrawal Approved",
-        description: "The withdrawal has been approved via meta transaction."
+        description: "The withdrawal has been approved via meta transaction. You can continue using the connected broadcaster wallet."
       });
       
       // After successful approval
@@ -285,8 +284,8 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
       });
     } finally {
       setIsApproving(false);
-      // Clear the signed transaction
-      setSignedMetaTx(null);
+      // Don't clear the signed transaction in case they want to retry
+      // setSignedMetaTx(null);
     }
   };
 

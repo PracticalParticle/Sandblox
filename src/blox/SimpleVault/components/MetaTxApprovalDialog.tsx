@@ -399,14 +399,6 @@ function WalletConnectionContent({
           )}
         </div>
       </div>
-      <DialogFooter className="sm:justify-between">
-        <Button
-          variant="ghost"
-          onClick={onClose}
-        >
-          Cancel
-        </Button>
-      </DialogFooter>
     </div>
   );
 }
@@ -439,6 +431,7 @@ export function MetaTxApprovalDialog({
   contractAddress
 }: MetaTxApprovalDialogProps) {
   const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID;
+  const { disconnect } = useSingleWallet();
   
   // Log the contractInfo object for debugging
   console.log("MetaTxApprovalDialog contractInfo:", contractInfo);
@@ -526,8 +519,30 @@ export function MetaTxApprovalDialog({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog 
+      open={isOpen} 
+      onOpenChange={(open) => {
+        // Only allow closing via the X button
+        if (!open) {
+          // Disconnect wallet when dialog is closed via X button
+          if (disconnect) {
+            void disconnect();
+          }
+          onOpenChange(open);
+        }
+      }}
+    >
+      <DialogContent 
+        className="sm:max-w-md"
+        onPointerDownOutside={(e) => {
+          // Prevent closing when clicking outside
+          e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          // Prevent closing with Escape key
+          e.preventDefault();
+        }}
+      >
         <DialogHeader className="space-y-3">
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
