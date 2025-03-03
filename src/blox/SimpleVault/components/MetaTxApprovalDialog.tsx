@@ -2,7 +2,7 @@ import * as React from "react";
 import { useState, useEffect, ReactNode } from "react";
 import { Address, Chain } from "viem";
 import { Button } from "@/components/ui/button";
-import { X, CheckCircle2, AlertCircle, Wallet } from "lucide-react";
+import { X, CheckCircle2, AlertCircle, Wallet, Loader2 } from "lucide-react";
 import { 
   Dialog, 
   DialogContent, 
@@ -322,6 +322,14 @@ function WalletConnectionContent({
     checkWalletConnection();
   }, [session, contractInfo, walletType, broadcasterAddress]);
 
+  // Effect to trigger transaction when wallet is connected and validated
+  useEffect(() => {
+    if (isWalletConnected && session?.account) {
+      // Automatically trigger the transaction
+      onSuccess(session.account);
+    }
+  }, [isWalletConnected, session?.account, onSuccess]);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center space-x-2">
@@ -360,7 +368,7 @@ function WalletConnectionContent({
                   <Alert>
                     <CheckCircle2 className="h-4 w-4 text-green-500" />
                     <AlertDescription className="text-green-500">
-                      {getWalletTypeLabel()} wallet connected successfully!
+                      {getWalletTypeLabel()} wallet connected successfully! Please approve the transaction in your wallet.
                     </AlertDescription>
                   </Alert>
                   {txId && (
@@ -371,17 +379,12 @@ function WalletConnectionContent({
                   )}
                   {children}
                   <Button 
-                    onClick={() => {
-                      if (session && session.account && typeof session.account === 'string') {
-                        onSuccess(session.account);
-                      } else {
-                        console.error("Cannot call onSuccess: session.account is invalid", session);
-                      }
-                    }}
+                    disabled={true}
                     className="w-full"
-                    variant="default"
+                    variant="outline"
                   >
-                    {actionLabel}
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Waiting for Wallet Approval
                   </Button>
                 </div>
               )}
@@ -424,7 +427,7 @@ export function MetaTxApprovalDialog({
   onSuccess,
   txId,
   title = "Connect Broadcaster Wallet",
-  description = "Connect the broadcaster wallet to approve the withdrawal request via meta-transaction.",
+  description = "Connect your broadcaster wallet to submit this transaction. The transaction will be presented for your approval once connected.",
   actionLabel = "Continue with Approval",
   walletType = 'broadcaster',
   children,

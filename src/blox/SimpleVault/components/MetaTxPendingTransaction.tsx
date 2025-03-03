@@ -232,13 +232,14 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
     setIsApproving(true);
     
     try {
-      // 4. Broadcast the meta transaction using the broadcaster wallet
+      // Create broadcaster wallet client
       const broadcasterWalletClient = createWalletClient({
         account: broadcasterAddress as Address,
         chain: chain,
         transport: http()
       });
       
+      // Initialize vault with broadcaster wallet
       const broadcastVault = new SimpleVault(
         publicClient,
         broadcasterWalletClient,
@@ -246,46 +247,37 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
         chain
       );
       
-      handleNotification({
-        type: 'info',
-        title: "Broadcasting Transaction",
-        description: "Submitting the signed transaction to the blockchain"
-      });
-      
+      // Submit the transaction - let the wallet handle the UI flow
       const result = await broadcastVault.approveWithdrawalWithMetaTx(
         signedMetaTx,
         { from: broadcasterAddress as Address }
       );
       
-      handleNotification({
-        type: 'info',
-        title: "Meta Transaction Submitted",
-        description: `Transaction hash: ${result.hash}`
-      });
+      // Wait for transaction confirmation
+      const receipt = await result.wait();
       
-      await result.wait();
-      
-      handleNotification({
-        type: 'success',
-        title: "Withdrawal Approved",
-        description: "The withdrawal has been approved via meta transaction. You can continue using the connected broadcaster wallet."
-      });
-      
-      // After successful approval
-      if (onApprovalSuccess) {
-        await onApprovalSuccess();
+      // Only notify on final success after confirmation
+      if (receipt && receipt.status === 'success') {
+        handleNotification({
+          type: 'success',
+          title: "Transaction Completed",
+          description: "The withdrawal has been approved and confirmed on the blockchain."
+        });
+        
+        // After successful approval and confirmation
+        if (onApprovalSuccess) {
+          await onApprovalSuccess();
+        }
       }
     } catch (error: any) {
-      console.error("Meta transaction approval failed:", error);
+      console.error("Transaction failed:", error);
       handleNotification({
         type: 'error',
-        title: "Meta Transaction Failed",
-        description: error.message || "Failed to approve withdrawal via meta transaction"
+        title: "Transaction Failed",
+        description: error.message || "Failed to approve withdrawal"
       });
     } finally {
       setIsApproving(false);
-      // Don't clear the signed transaction in case they want to retry
-      // setSignedMetaTx(null);
     }
   };
 
