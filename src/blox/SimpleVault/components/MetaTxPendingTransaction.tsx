@@ -16,6 +16,8 @@ import { MetaTransaction } from "../../../particle-core/sdk/typescript/interface
 import { useToast } from "@/components/ui/use-toast";
 import SecureOwnable from "../../../particle-core/sdk/typescript/SecureOwnable";
 import { useSingleWallet } from "@/components/SingleWalletManager";
+import { VaultMetaTxParams } from "../SimpleVault";
+import { getStoredMetaTxSettings, createVaultMetaTxParams } from "../SimpleVault.ui";
 
 // Notification message type
 type NotificationMessage = {
@@ -149,9 +151,14 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
         chain
       );
       
+      // Get stored meta tx settings and create params
+      const storedSettings = getStoredMetaTxSettings();
+      const metaTxParams = createVaultMetaTxParams(storedSettings);
+      
       // 1. Generate unsigned meta transaction
       const unsignedMetaTx = await vault.generateUnsignedWithdrawalMetaTxApproval(
-        tx.txId
+        tx.txId,
+        metaTxParams
       );
       
       // 2. Get the owner to sign the meta transaction

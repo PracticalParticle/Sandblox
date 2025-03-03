@@ -732,7 +732,7 @@ const DEFAULT_META_TX_SETTINGS: VaultMetaTxParams = {
 };
 
 // Initialize settings from local storage
-const getStoredMetaTxSettings = (): VaultMetaTxParams => {
+export const getStoredMetaTxSettings = (): VaultMetaTxParams => {
   try {
     const stored = localStorage.getItem(META_TX_SETTINGS_KEY);
     if (!stored) return DEFAULT_META_TX_SETTINGS;
@@ -745,6 +745,20 @@ const getStoredMetaTxSettings = (): VaultMetaTxParams => {
     console.error('Failed to load meta tx settings:', error);
     return DEFAULT_META_TX_SETTINGS;
   }
+};
+
+// Create VaultMetaTxParams from settings
+export const createVaultMetaTxParams = (settings: VaultMetaTxParams): VaultMetaTxParams => {
+  // Get current timestamp in seconds
+  const currentTimestamp = BigInt(Math.floor(Date.now() / 1000));
+  
+  // Convert deadline from seconds to actual timestamp by adding to current time
+  const deadlineTimestamp = currentTimestamp + settings.deadline;
+  
+  return {
+    deadline: deadlineTimestamp,
+    maxGasPrice: settings.maxGasPrice
+  };
 };
 
 // Update the settings atom to be writable with initial value from storage
