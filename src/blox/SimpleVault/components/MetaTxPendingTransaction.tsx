@@ -220,7 +220,7 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
   };
 
   const handleBroadcasterConnected = async (broadcasterAddress: string) => {
-    if (!signedMetaTx || !contractInfo || !chain || !publicClient) {
+    if (!signedMetaTx || !contractInfo || !chain || !publicClient || !walletClient) {
       handleNotification({
         type: 'error',
         title: "Error",
@@ -228,21 +228,47 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
       });
       return;
     }
-    
-    setShowBroadcasterDialog(false);
+
     setIsApproving(true);
     
     try {
-      // 4. Broadcast the meta transaction using the broadcaster wallet
-      const broadcasterWalletClient = createWalletClient({
-        account: broadcasterAddress as Address,
-        chain: chain,
-        transport: http()
-      });
-      
-      const broadcastVault = new SimpleVault(
+      // Ensure the wallet is connected to the correct chain
+      const currentChainId = await walletClient.getChainId();
+      if (currentChainId !== chain.id) {
+        handleNotification({
+          type: 'info',
+          title: "Switching Network",
+          description: `Switching to ${chain.name} (${chain.id})`
+        });
+        
+        try {
+          await walletClient.switchChain({ id: chain.id });
+        } catch (switchError: any) {
+          console.error("Error switching chain:", switchError);
+          handleNotification({
+            type: 'error',
+            title: "Network Switch Failed",
+            description: "Please manually switch to the correct network in your wallet."
+          });
+          return;
+        }
+      }
+
+      // Ensure the correct account is selected
+      const [account] = await walletClient.getAddresses();
+      if (!account || account.toLowerCase() !== broadcasterAddress.toLowerCase()) {
+        handleNotification({
+          type: 'error',
+          title: "Account Mismatch",
+          description: "Connected wallet address does not match the broadcaster address."
+        });
+        return;
+      }
+
+      // Create vault instance with the connected wallet
+      const vault = new SimpleVault(
         publicClient,
-        broadcasterWalletClient,
+        walletClient,
         contractAddress,
         chain
       );
@@ -250,10 +276,10 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
       handleNotification({
         type: 'info',
         title: "Broadcasting Transaction",
-        description: "Submitting the signed transaction to the blockchain"
+        description: "Please confirm the transaction in your wallet"
       });
       
-      const result = await broadcastVault.approveWithdrawalWithMetaTx(
+      const result = await vault.approveWithdrawalWithMetaTx(
         signedMetaTx,
         { from: broadcasterAddress as Address }
       );
@@ -272,21 +298,39 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
         description: "The withdrawal has been approved via meta transaction."
       });
       
+      // Only close dialog and clean up after successful transaction
+      setShowBroadcasterDialog(false);
+      setSignedMetaTx(null);
+      
       // After successful approval
       if (onApprovalSuccess) {
         await onApprovalSuccess();
       }
     } catch (error: any) {
       console.error("Meta transaction approval failed:", error);
-      handleNotification({
-        type: 'error',
-        title: "Meta Transaction Failed",
-        description: error.message || "Failed to approve withdrawal via meta transaction"
-      });
+      
+      // Handle specific error cases
+      if (error.code === 4001) {
+        handleNotification({
+          type: 'error',
+          title: "Transaction Rejected",
+          description: "You rejected the transaction in your wallet."
+        });
+      } else if (error.message?.includes('not been authorized')) {
+        handleNotification({
+          type: 'error',
+          title: "Authorization Failed",
+          description: "Please ensure you have connected the correct broadcaster wallet and approved the transaction."
+        });
+      } else {
+        handleNotification({
+          type: 'error',
+          title: "Meta Transaction Failed",
+          description: error.message || "Failed to approve withdrawal via meta transaction"
+        });
+      }
     } finally {
       setIsApproving(false);
-      // Clear the signed transaction
-      setSignedMetaTx(null);
     }
   };
 

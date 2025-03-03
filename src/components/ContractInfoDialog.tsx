@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { usePublicClient } from 'wagmi'
 import {
   Dialog,
   DialogContent,
@@ -26,6 +27,7 @@ export function ContractInfoDialog({
   const [contractInfo, setContractInfo] = useState<ContractInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const publicClient = usePublicClient()
 
   useEffect(() => {
     async function loadContractInfo() {
@@ -34,7 +36,7 @@ export function ContractInfoDialog({
       try {
         setLoading(true)
         setError(null)
-        const info = await identifyContract(address)
+        const info = await identifyContract(address, publicClient)
         setContractInfo(info)
       } catch (err) {
         setError('Failed to identify contract. Please ensure the address is valid.')
@@ -45,7 +47,7 @@ export function ContractInfoDialog({
     }
 
     loadContractInfo()
-  }, [address, open])
+  }, [address, open, publicClient])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
