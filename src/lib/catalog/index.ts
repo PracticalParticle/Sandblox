@@ -1,7 +1,11 @@
 import { BloxCatalog, BloxContract, BloxMetadata } from './types'
+import { env } from '@/config/env'
 
 // Use Vite's glob import to get all .blox.json files
 const bloxMetadataFiles = import.meta.glob('/src/blox/**/*.blox.json', { eager: true })
+
+// Use Vite's glob import to get all config.ts files
+const bloxConfigFiles = import.meta.glob('/src/blox/**/config.ts', { eager: true })
 
 // Map to store folder names by contract ID
 const contractFolderMap = new Map<string, string>()
@@ -39,6 +43,18 @@ async function loadBloxMetadata(contractId: string): Promise<BloxMetadata> {
   if (!metadata) {
     throw new Error(`Failed to load metadata for contract ${contractId}`)
   }
+
+  // Try to load dynamic configuration
+  const configPath = `/src/blox/${folderName}/config.ts`
+  const configModule = bloxConfigFiles[configPath]
+  if (configModule && typeof configModule === 'object' && 'getSimpleVaultConfig' in configModule) {
+    const dynamicConfig = await (configModule as { getSimpleVaultConfig: () => Partial<BloxContract> }).getSimpleVaultConfig()
+    return {
+      ...metadata,
+      ...dynamicConfig
+    }
+  }
+
   return metadata
 }
 
@@ -48,11 +64,24 @@ async function loadContractFiles(contractId: string): Promise<BloxContract['file
     throw new Error(`No folder found for contract ${contractId}`)
   }
 
+  // Determine which bytecode file to use based on environment
+  // If local node is enabled, use dev bytecode, otherwise use remote
+  const bytecodeFile = env.ENABLE_LOCAL_NODE ? 
+    `${folderName}.dev.bin` : 
+    `${folderName}.remote.bin`
+
+  console.log('Environment config:', {
+    isLocalNode: env.ENABLE_LOCAL_NODE,
+    isRemoteNode: env.ENABLE_REMOTE_NODE,
+    selectedBytecode: bytecodeFile
+  })
+
   return {
     metadata: `/src/blox/${folderName}/${folderName}.blox.json`,
     sol: `/src/blox/${folderName}/${folderName}.sol`,
     abi: `/src/blox/${folderName}/${folderName}.abi.json`,
-    component: `/src/blox/${folderName}/${folderName}.tsx`
+    component: `/src/blox/${folderName}/${folderName}.tsx`,
+    bytecode: `/src/blox/${folderName}/${bytecodeFile}`
   }
 }
 
@@ -132,4 +161,35 @@ export async function getContractABI(contractId: string): Promise<any> {
   }
   
   return response.json()
+}
+
+export async function getContractBytecode(contractId: string): Promise<string> {
+  const contract = await getContractDetails(contractId)
+  if (!contract) {
+    throw new Error('Contract not found')
+  }
+  
+  console.log('Environment:', {
+    isRemote: env.ENABLE_REMOTE_NODE,
+    bytecodeFile: contract.files.bytecode
+  })
+  
+  const response = await fetch(contract.files.bytecode)
+  if (!response.ok) {
+    console.error('Bytecode loading error:', {
+      status: response.status,
+      statusText: response.statusText,
+      file: contract.files.bytecode
+    })
+    throw new Error(`Failed to load contract bytecode: ${response.statusText}`)
+  }
+  
+  const bytecode = await response.text()
+  console.log('Loaded bytecode:', {
+    length: bytecode.length,
+    hasPrefix: bytecode.startsWith('0x'),
+    start: bytecode.slice(0, 64)
+  })
+  
+  return bytecode.startsWith('0x') ? bytecode : `0x${bytecode}`
 }

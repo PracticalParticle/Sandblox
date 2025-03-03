@@ -8,6 +8,13 @@ export interface BloxMetadata {
   requirements: string[]
   deployments: number
   lastUpdated: string
+  libraries?: {
+    [key: string]: {
+      name: string
+      description: string
+      address: string
+    }
+  }
 }
 
 export interface BloxContract extends BloxMetadata {
@@ -16,6 +23,7 @@ export interface BloxContract extends BloxMetadata {
     sol: string
     abi: string
     component: string
+    bytecode: string
   }
 }
 

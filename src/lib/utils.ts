@@ -1,7 +1,8 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { Chain as ViemChain } from 'viem'
-import { localDevnet } from '@/config/chains'
+import { devnet } from '@/config/chains'
+import { mainnet, sepolia } from 'wagmi/chains'
 
 /// <reference types="node" />
 
@@ -10,6 +11,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatAddress(address: string): string {
+  if (!address) return ''
   return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
 
@@ -22,11 +24,60 @@ export function isValidEthereumAddress(address: string): boolean {
 }
 
 export function formatBalance(balance: bigint, decimals: number = 18): string {
-  const divisor = BigInt(10 ** decimals)
-  const integerPart = balance / divisor
-  const fractionalPart = balance % divisor
-  const paddedFractionalPart = fractionalPart.toString().padStart(decimals, "0")
-  return `${integerPart}.${paddedFractionalPart.slice(0, 4)}`
+  if (!balance) return '0'
+  return (Number(balance) / 10 ** decimals).toFixed(4)
+}
+
+export function formatHash(hash: string): string {
+  if (!hash) return ''
+  return `${hash.slice(0, 6)}...${hash.slice(-4)}`
+}
+
+export function formatDate(date: Date): string {
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+export function formatTime(date: Date): string {
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+  })
+}
+
+export function formatDateTime(date: Date): string {
+  return `${formatDate(date)} ${formatTime(date)}`
+}
+
+export function formatDuration(ms: number): string {
+  const seconds = Math.floor(ms / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+
+  if (days > 0) return `${days}d`
+  if (hours > 0) return `${hours}h`
+  if (minutes > 0) return `${minutes}m`
+  return `${seconds}s`
+}
+
+export function formatNumber(num: number): string {
+  return num.toLocaleString('en-US')
+}
+
+export function formatCurrency(num: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(num)
+}
+
+export function formatPercentage(num: number): string {
+  return `${num.toFixed(2)}%`
 }
 
 export function classNames(...classes: (string | undefined | null | false)[]): string {
@@ -65,8 +116,8 @@ export type Chain = number
 
 // Common chain IDs
 export const COMMON_CHAINS = {
-  MAINNET: 1,
-  SEPOLIA: 11155111,
+  MAINNET: mainnet.id,
+  SEPOLIA: sepolia.id,
   GOERLI: 5,
   POLYGON: 137,
   MUMBAI: 80001,
@@ -74,21 +125,21 @@ export const COMMON_CHAINS = {
   OPTIMISM: 10,
   BSC: 56,
   AVALANCHE: 43114,
-  LOCAL: localDevnet.id
+  LOCAL: devnet.id
 } as const
 
 // Updated getChainName to work with a chains parameter
 export function getChainName(chainId: Chain, chains: ViemChain[]): string {
   const chain = chains.find(c => c.id === chainId)
   if (chain) return chain.name
-  if (chainId === localDevnet.id) return localDevnet.name
+  if (chainId === devnet.id) return devnet.name
   return "Unknown"
 }
 
 export function isTestnet(chainId: Chain, chains: ViemChain[]): boolean {
   const chain = chains.find(c => c.id === chainId)
   if (chain) return chain.testnet ?? false
-  if (chainId === localDevnet.id) return localDevnet.testnet
+  if (chainId === devnet.id) return devnet.testnet
   return false
 }
 
