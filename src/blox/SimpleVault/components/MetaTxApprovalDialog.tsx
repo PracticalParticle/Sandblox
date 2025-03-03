@@ -2,7 +2,7 @@ import * as React from "react";
 import { useState, useEffect, ReactNode } from "react";
 import { Address, Chain } from "viem";
 import { Button } from "@/components/ui/button";
-import { X, CheckCircle2, AlertCircle, Wallet, Loader2 } from "lucide-react";
+import { X, CheckCircle2, AlertCircle, Wallet } from "lucide-react";
 import { 
   Dialog, 
   DialogContent, 
@@ -95,7 +95,6 @@ function WalletConnectionContent({
     disconnect: async () => {} 
   };
   const [isWalletConnected, setIsWalletConnected] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [broadcasterAddress, setBroadcasterAddress] = useState<string | null>(null);
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
@@ -340,7 +339,6 @@ function WalletConnectionContent({
                   onClick={() => void disconnect()}
                   variant="ghost"
                   size="sm"
-                  disabled={isProcessing}
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -373,30 +371,17 @@ function WalletConnectionContent({
                   )}
                   {children}
                   <Button 
-                    onClick={async () => {
-                      if (!session || !session.account || typeof session.account !== 'string') {
+                    onClick={() => {
+                      if (session && session.account && typeof session.account === 'string') {
+                        onSuccess(session.account);
+                      } else {
                         console.error("Cannot call onSuccess: session.account is invalid", session);
-                        return;
-                      }
-                      
-                      setIsProcessing(true);
-                      try {
-                        await onSuccess(session.account);
-                      } catch (error) {
-                        console.error("Error in onSuccess:", error);
-                        setIsProcessing(false);
                       }
                     }}
                     className="w-full"
                     variant="default"
-                    disabled={isProcessing}
                   >
-                    {isProcessing ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Processing...
-                      </>
-                    ) : actionLabel}
+                    {actionLabel}
                   </Button>
                 </div>
               )}
@@ -404,7 +389,7 @@ function WalletConnectionContent({
           ) : (
             <Button
               onClick={() => void connect()}
-              disabled={isConnecting || isProcessing}
+              disabled={isConnecting}
               className="w-full"
               variant="outline"
             >
@@ -418,7 +403,6 @@ function WalletConnectionContent({
         <Button
           variant="ghost"
           onClick={onClose}
-          disabled={isProcessing}
         >
           Cancel
         </Button>
