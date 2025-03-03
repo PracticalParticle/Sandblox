@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import SimpleVault, { VaultTxRecord } from "./SimpleVault";
 import { useChain } from "@/hooks/useChain";
 import { atom, useAtom, Provider as JotaiProvider, useSetAtom } from "jotai";
-import { AlertCircle, CheckCircle2, Clock, XCircle, Loader2, Wallet, Coins, X, Shield, Info } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, XCircle, Loader2, Wallet, Coins, X, Shield, Info, Settings2 } from "lucide-react";
 import { TxStatus } from "../../particle-core/sdk/typescript/types/lib.index";
 import { useNavigate } from "react-router-dom";
 import { ContractInfo as BaseContractInfo } from "@/lib/verification/index";
@@ -36,6 +36,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { createWalletClient } from "viem";
 import { Hex, Chain } from "viem";
 import { MetaTransaction } from '../../particle-core/sdk/typescript/interfaces/lib.index';
+import { PublicClient, WalletClient } from 'viem';
+import SimpleVaultABIJson from './SimpleVault.abi.json';
+import SecureOwnable from '../../particle-core/sdk/typescript/SecureOwnable';
+import { TxRecord, MetaTxParams, ReadableOperationType } from '../../particle-core/sdk/typescript/interfaces/lib.index';
+import { TransactionOptions, TransactionResult } from '../../particle-core/sdk/typescript/interfaces/base.index';
+import { ContractValidations } from '../../particle-core/sdk/typescript/utils/validations';
+import { VaultMetaTxParams } from './SimpleVault';
 
 // Extend the base ContractInfo interface to include broadcaster and other properties
 interface ContractInfo extends BaseContractInfo {
@@ -715,6 +722,118 @@ interface SimpleVaultUIProps {
 const contractInfoAtom = atom<ContractInfo | null>(null);
 const addMessageAtom = atom<((message: NotificationMessage) => void) | null>(null);
 
+// Add storage key for meta tx settings
+const META_TX_SETTINGS_KEY = 'simpleVault.metaTxSettings';
+
+// Default values for meta tx settings
+const DEFAULT_META_TX_SETTINGS: VaultMetaTxParams = {
+  deadline: BigInt(3600), // 1 hour in seconds
+  maxGasPrice: BigInt(50000000000) // 50 gwei
+};
+
+// Initialize settings from local storage
+const getStoredMetaTxSettings = (): VaultMetaTxParams => {
+  try {
+    const stored = localStorage.getItem(META_TX_SETTINGS_KEY);
+    if (!stored) return DEFAULT_META_TX_SETTINGS;
+    const parsed = JSON.parse(stored);
+    return {
+      deadline: BigInt(parsed.deadline),
+      maxGasPrice: BigInt(parsed.maxGasPrice)
+    };
+  } catch (error) {
+    console.error('Failed to load meta tx settings:', error);
+    return DEFAULT_META_TX_SETTINGS;
+  }
+};
+
+// Update the settings atom to be writable with initial value from storage
+const metaTxSettingsAtom = atom<VaultMetaTxParams>(getStoredMetaTxSettings());
+
+// Add settings dialog component
+function MetaTxSettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const [settings, setSettings] = useAtom(metaTxSettingsAtom);
+  const [deadline, setDeadline] = useState(() => Number(settings.deadline / BigInt(3600)));
+  const [maxGasPrice, setMaxGasPrice] = useState(() => Number(settings.maxGasPrice / BigInt(1000000000)));
+
+  // Reset form when dialog opens
+  useEffect(() => {
+    if (open) {
+      setDeadline(Number(settings.deadline / BigInt(3600)));
+      setMaxGasPrice(Number(settings.maxGasPrice / BigInt(1000000000)));
+    }
+  }, [open, settings]);
+
+  const handleSave = () => {
+    // Convert hours to seconds and gwei to wei
+    const newSettings: VaultMetaTxParams = {
+      deadline: BigInt(deadline * 3600),
+      maxGasPrice: BigInt(maxGasPrice * 1000000000)
+    };
+
+    // Update state
+    setSettings(newSettings);
+    
+    // Save to local storage
+    try {
+      localStorage.setItem(META_TX_SETTINGS_KEY, JSON.stringify({
+        deadline: deadline * 3600,
+        maxGasPrice: maxGasPrice * 1000000000
+      }));
+    } catch (error) {
+      console.error('Failed to save settings to local storage:', error);
+    }
+
+    // Close the dialog
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Meta Transaction Settings</DialogTitle>
+          <DialogDescription>
+            Configure default parameters for meta-transactions
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="deadline" className="col-span-2">
+              Deadline (hours)
+            </Label>
+            <Input
+              id="deadline"
+              type="number"
+              value={deadline}
+              onChange={(e) => setDeadline(Number(e.target.value))}
+              min={1}
+              max={24}
+              className="col-span-2"
+            />
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="maxGasPrice" className="col-span-2">
+              Max Gas Price (gwei)
+            </Label>
+            <Input
+              id="maxGasPrice"
+              type="number"
+              value={maxGasPrice}
+              onChange={(e) => setMaxGasPrice(Number(e.target.value))}
+              min={1}
+              className="col-span-2"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handleSave}>Save changes</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // Move WithdrawalFormWrapper outside of SimpleVaultUIContent
 const WithdrawalFormWrapper = React.memo(({ 
   handleWithdrawal, 
@@ -827,6 +946,8 @@ function SimpleVaultUIContent({
   const [vault, setVault] = useAtom(vaultInstanceAtom);
   const [error, setError] = useState<string | null>(null);
   const [walletBalances, setWalletBalances] = useAtom(walletBalancesAtom);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [metaTxSettings] = useAtom(metaTxSettingsAtom);
 
   // Add deployment hook
   const deployment = useContractDeployment({
@@ -1629,22 +1750,47 @@ function SimpleVaultUIContent({
                 </TooltipProvider>
               </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={fetchVaultData}
-              disabled={loadingState.ethBalance || !vault}
-            >
-              {loadingState.ethBalance ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Refreshing...
-                </>
-              ) : (
-                'Refresh'
-              )}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchVaultData}
+                disabled={loadingState.ethBalance || !vault}
+              >
+                {loadingState.ethBalance ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Refreshing...
+                  </>
+                ) : (
+                  'Refresh'
+                )}
+              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSettingsOpen(true)}
+                    >
+                      <Settings2 className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Configure meta-transaction settings</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
           </CardHeader>
+
+          {/* Add settings dialog */}
+          <MetaTxSettingsDialog
+            open={settingsOpen}
+            onOpenChange={setSettingsOpen}
+          />
+
           <CardContent>
             <div className="space-y-6">
               {!dashboardMode ? (

@@ -21,6 +21,14 @@ export interface VaultTxRecord extends Omit<TxRecord, 'status'> {
 }
 
 /**
+ * Parameters for meta-transaction generation
+ */
+export interface VaultMetaTxParams {
+  deadline: bigint;
+  maxGasPrice: bigint;
+}
+
+/**
  * @title SimpleVault
  * @notice TypeScript interface for SimpleVault smart contract
  * @dev Extends SecureOwnable to provide secure vault functionality for ETH and ERC20 tokens
@@ -671,15 +679,20 @@ export default class SimpleVault extends SecureOwnable {
   /**
    * @notice Generate unsigned meta-transaction for withdrawal approval
    * @param txId Transaction ID of the withdrawal request
+   * @param metaTxParams Parameters for the meta-transaction
    */
   async generateUnsignedWithdrawalMetaTxApproval(
-    txId: bigint
+    txId: bigint,
+    metaTxParams: VaultMetaTxParams
   ): Promise<MetaTransaction> {
     return await this.client.readContract({
       address: this.contractAddress,
       abi: SimpleVaultABI,
       functionName: 'generateUnsignedWithdrawalMetaTxApproval',
-      args: [txId]
+      args: [txId, {
+        deadline: metaTxParams.deadline,
+        maxGasPrice: metaTxParams.maxGasPrice
+      }]
     }) as MetaTransaction;
   }
 
