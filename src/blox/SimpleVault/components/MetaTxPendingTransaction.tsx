@@ -15,6 +15,7 @@ import { createWalletClient, http } from "viem";
 import { MetaTransaction } from "../../../particle-core/sdk/typescript/interfaces/lib.index";
 import { useToast } from "@/components/ui/use-toast";
 import SecureOwnable from "../../../particle-core/sdk/typescript/SecureOwnable";
+import { useSingleWallet } from "@/components/SingleWalletManager";
 
 // Notification message type
 type NotificationMessage = {
@@ -71,6 +72,7 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
   const { toast } = useToast();
+  const walletManager = useSingleWallet();
 
   // Fetch contract security info from the contract
   useEffect(() => {
@@ -220,7 +222,7 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
   };
 
   const handleBroadcasterConnected = async (broadcasterAddress: string) => {
-    if (!signedMetaTx || !contractInfo || !chain || !publicClient) {
+    if (!signedMetaTx || !contractInfo || !chain || !publicClient || !walletManager) {
       handleNotification({
         type: 'error',
         title: "Error",
@@ -229,44 +231,51 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
       return;
     }
     
+    if (isApproving) {
+      console.log("Already processing transaction");
+      return;
+    }
+    
     setIsApproving(true);
     
     try {
-      // Create broadcaster wallet client
-      const broadcasterWalletClient = createWalletClient({
-        account: broadcasterAddress as Address,
-        chain: chain,
-        transport: http()
-      });
-      
-      // Initialize vault with broadcaster wallet
-      const broadcastVault = new SimpleVault(
-        publicClient,
-        broadcasterWalletClient,
-        contractAddress,
-        chain
-      );
-      
-      // Submit the transaction - let the wallet handle the UI flow
-      const result = await broadcastVault.approveWithdrawalWithMetaTx(
-        signedMetaTx,
-        { from: broadcasterAddress as Address }
-      );
+      // Verify we still have a valid session
+      if (!walletManager.session || !walletManager.session.account) {
+        throw new Error("No active wallet session");
+      }
+
+      // Verify the connected account matches the broadcaster address
+      if (walletManager.session.account.toLowerCase() !== broadcasterAddress.toLowerCase()) {
+        throw new Error("Connected wallet does not match broadcaster address");
+      }
+
+      // Send the transaction using the connected wallet
+      const result = await walletManager.sendRequest<`0x${string}`>('eth_sendTransaction', [{
+        from: broadcasterAddress,
+        to: contractAddress,
+        data: signedMetaTx.data,
+        chainId: chain.id
+      }]);
       
       // Wait for transaction confirmation
-      const receipt = await result.wait();
-      
-      // Only notify on final success after confirmation
-      if (receipt && receipt.status === 'success') {
-        handleNotification({
-          type: 'success',
-          title: "Transaction Completed",
-          description: "The withdrawal has been approved and confirmed on the blockchain."
+      if (result) {
+        const receipt = await publicClient.waitForTransactionReceipt({
+          hash: result
         });
         
-        // After successful approval and confirmation
-        if (onApprovalSuccess) {
-          await onApprovalSuccess();
+        if (receipt.status === 'success') {
+          handleNotification({
+            type: 'success',
+            title: "Transaction Completed",
+            description: "The withdrawal has been approved and confirmed on the blockchain."
+          });
+          
+          if (onApprovalSuccess) {
+            await onApprovalSuccess();
+          }
+          
+          // Close the dialog after success
+          setShowBroadcasterDialog(false);
         }
       }
     } catch (error: any) {
@@ -276,6 +285,11 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
         title: "Transaction Failed",
         description: error.message || "Failed to approve withdrawal"
       });
+      
+      // If we lost the session, show the dialog again
+      if (error.message.includes("No active wallet session")) {
+        setShowBroadcasterDialog(true);
+      }
     } finally {
       setIsApproving(false);
     }

@@ -324,11 +324,25 @@ function WalletConnectionContent({
 
   // Effect to trigger transaction when wallet is connected and validated
   useEffect(() => {
-    if (isWalletConnected && session?.account) {
-      // Automatically trigger the transaction
-      onSuccess(session.account);
-    }
-  }, [isWalletConnected, session?.account, onSuccess]);
+    const handleWalletValidation = async () => {
+      if (isWalletConnected && session?.account) {
+        try {
+          // Only trigger onSuccess if we haven't already
+          if (!isApproving) {
+            setIsApproving(true);
+            await onSuccess(session.account);
+          }
+        } catch (error) {
+          console.error("Error in wallet validation:", error);
+          setIsApproving(false);
+        }
+      }
+    };
+
+    handleWalletValidation();
+  }, [isWalletConnected, session?.account]);
+
+  const [isApproving, setIsApproving] = useState(false);
 
   return (
     <div className="flex flex-col gap-4">
