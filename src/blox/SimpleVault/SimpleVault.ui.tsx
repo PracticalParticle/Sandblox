@@ -1751,7 +1751,6 @@ function SimpleVaultUIContent({
                                     tx={tx}
                                     onCancel={handleCancelWithdrawal}
                                     isLoading={loadingState.cancellation[Number(tx.txId)]}
-                                    contractInfo={contractInfo}
                                     contractAddress={contractAddress}
                                     addMessage={addMessage}
                                     onApprovalSuccess={fetchVaultData}
