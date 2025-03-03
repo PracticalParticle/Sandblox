@@ -247,6 +247,7 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
           description: "No active wallet session. Please try connecting again."
         });
         setShowBroadcasterDialog(true);
+        setIsApproving(false);
         return;
       }
 
@@ -258,19 +259,34 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
           description: "Connected wallet does not match broadcaster address. Please connect the correct wallet."
         });
         setShowBroadcasterDialog(true);
+        setIsApproving(false);
         return;
       }
 
-      // Send the transaction using the connected wallet
-      const result = await walletManager.sendRequest<`0x${string}`>('eth_sendTransaction', [{
+      console.log("Preparing transaction with data:", {
         from: broadcasterAddress,
         to: contractAddress,
         data: signedMetaTx.data,
         chainId: chain.id
+      });
+
+      // Send the transaction using the wallet manager's sendRequest
+      const result = await walletManager.sendRequest<`0x${string}`>('eth_sendTransaction', [{
+        from: broadcasterAddress,
+        to: contractAddress,
+        data: signedMetaTx.data,
+        chainId: chain.id,
+        gas: '0x186A0' // Add a gas limit of 100,000 to ensure the transaction goes through
       }]);
       
       // Wait for transaction confirmation
       if (result) {
+        handleNotification({
+          type: 'info',
+          title: "Transaction Submitted",
+          description: "Waiting for confirmation..."
+        });
+
         const receipt = await publicClient.waitForTransactionReceipt({
           hash: result
         });
@@ -288,7 +304,8 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
           
           // Close the dialog after success
           setShowBroadcasterDialog(false);
-          setIsApproving(false);
+        } else {
+          throw new Error("Transaction failed");
         }
       }
     } catch (error: any) {

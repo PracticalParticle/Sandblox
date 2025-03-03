@@ -334,7 +334,14 @@ function WalletConnectionContent({
           if (session && session.account && requiredAddress && 
               compareAddresses(session.account, requiredAddress)) {
             setIsApproving(true);
-            await onSuccess(session.account);
+            
+            // Immediately trigger onSuccess to initiate the transaction
+            try {
+              await onSuccess(session.account);
+            } catch (error) {
+              console.error("Error in transaction submission:", error);
+              setIsApproving(false);
+            }
           }
         } catch (error) {
           console.error("Error in wallet validation:", error);
@@ -365,6 +372,7 @@ function WalletConnectionContent({
                   onClick={() => void disconnect()}
                   variant="ghost"
                   size="sm"
+                  disabled={isApproving}
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -386,7 +394,8 @@ function WalletConnectionContent({
                   <Alert>
                     <CheckCircle2 className="h-4 w-4 text-green-500" />
                     <AlertDescription className="text-green-500">
-                      {getWalletTypeLabel()} wallet connected successfully! Please approve the transaction in your wallet.
+                      {getWalletTypeLabel()} wallet connected successfully!
+                      {isApproving ? ' Please check your wallet to approve the transaction.' : ''}
                     </AlertDescription>
                   </Alert>
                   {txId && (
@@ -402,7 +411,7 @@ function WalletConnectionContent({
                     variant="outline"
                   >
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Waiting for Wallet Approval
+                    {isApproving ? 'Check your wallet to approve the transaction...' : 'Preparing Transaction...'}
                   </Button>
                 </div>
               )}
