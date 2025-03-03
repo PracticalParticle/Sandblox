@@ -381,13 +381,52 @@ export function SingleWalletManagerProvider({
     localStorage.setItem(STORAGE_KEY, encryptedSession);
 
     try {
+      console.log('Sending request to provider:', {
+        method,
+        params,
+        provider: providerRef.current
+      });
+
+      // Ensure the provider is properly connected
+      if (!providerRef.current || typeof providerRef.current.request !== 'function') {
+        console.error('Invalid provider state:', providerRef.current);
+        throw new WalletConnectError('Provider not properly initialized', ErrorCodes.PROVIDER_ERROR);
+      }
+
+      // Add a small delay to ensure the wallet is ready
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Send the request
       const result = await providerRef.current.request({
         method,
         params
       });
+
+      console.log('Provider request result:', result);
       return result as T;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Request failed:', error);
+      
+      // Check if we need to reconnect the provider
+      if (typeof error === 'object' && error?.message?.includes('not connected')) {
+        console.log('Provider disconnected, attempting to reconnect...');
+        const providerPool = ProviderPool.getInstance();
+        const { provider: wcProvider } = await providerPool.getProvider(projectId, metadata);
+        providerRef.current = wcProvider as unknown as MinimalProvider;
+        
+        // Retry the request once
+        try {
+          const result = await providerRef.current.request({
+            method,
+            params
+          });
+          return result as T;
+        } catch (retryError) {
+          console.error('Retry failed:', retryError);
+          throw WalletConnectError.fromError(retryError);
+        }
+      }
+      
       const wcError = WalletConnectError.fromError(error);
       toast({
         title: "Transaction Failed",

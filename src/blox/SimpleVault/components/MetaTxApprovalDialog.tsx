@@ -327,13 +327,23 @@ function WalletConnectionContent({
     const handleWalletValidation = async () => {
       if (isWalletConnected && session?.account && !isApproving) {
         try {
+          console.log("Wallet connected and validated, preparing to send transaction...");
+          
           // Get the required address for validation
           const requiredAddress = await getRequiredAddress();
+          console.log("Required address:", requiredAddress);
+          console.log("Session account:", session.account);
           
           // Validate the session and address match
           if (session && session.account && requiredAddress && 
               compareAddresses(session.account, requiredAddress)) {
+            
             setIsApproving(true);
+            console.log("Addresses match, waiting for wallet to be ready...");
+            
+            // Add a delay to ensure the wallet is ready
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            console.log("Delay complete, initiating transaction...");
             
             // Immediately trigger onSuccess to initiate the transaction
             try {

@@ -270,17 +270,26 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
         chainId: chain.id
       });
 
+      // Add a delay before sending the transaction request
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log("Sending transaction request to wallet...");
+
       // Send the transaction using the wallet manager's sendRequest
-      const result = await walletManager.sendRequest<`0x${string}`>('eth_sendTransaction', [{
+      const txRequest = {
         from: broadcasterAddress,
         to: contractAddress,
         data: signedMetaTx.data,
         chainId: chain.id,
-        gas: '0x186A0' // Add a gas limit of 100,000 to ensure the transaction goes through
-      }]);
+        gas: '0x186A0' // 100,000 gas limit
+      };
+
+      console.log("Calling eth_sendTransaction with params:", [txRequest]);
       
-      // Wait for transaction confirmation
+      // Send the transaction request - this should trigger the wallet confirmation
+      const result = await walletManager.sendRequest<`0x${string}`>('eth_sendTransaction', [txRequest]);
+      
       if (result) {
+        console.log("Transaction submitted with hash:", result);
         handleNotification({
           type: 'info',
           title: "Transaction Submitted",
@@ -307,6 +316,8 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
         } else {
           throw new Error("Transaction failed");
         }
+      } else {
+        throw new Error("No transaction hash returned");
       }
     } catch (error: any) {
       console.error("Transaction failed:", error);
