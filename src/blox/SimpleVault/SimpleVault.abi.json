@@ -4025,6 +4025,23 @@
         "internalType": "uint256",
         "name": "txId",
         "type": "uint256"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "deadline",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "maxGasPrice",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct SimpleVault.VaultMetaTxParams",
+        "name": "metaTxParams",
+        "type": "tuple"
       }
     ],
     "name": "generateUnsignedWithdrawalMetaTxApproval",
