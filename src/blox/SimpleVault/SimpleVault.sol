@@ -23,6 +23,12 @@ contract SimpleVault is SecureOwnable {
     uint256 private constant MIN_TIMELOCK_PERIOD = 24 * 60; // 1 day
     uint256 private constant MAX_TIMELOCK_PERIOD = 90 * 24 * 60; // 90 days
 
+    // Struct for meta-transaction parameters
+    struct VaultMetaTxParams {
+        uint256 deadline;
+        uint256 maxGasPrice;
+    }
+
     // Events
     event EthWithdrawn(address indexed to, uint256 amount);
     event TokenWithdrawn(address indexed token, address indexed to, uint256 amount);
@@ -225,15 +231,16 @@ contract SimpleVault is SecureOwnable {
     /**
      * @notice Generates an unsigned meta-transaction for an existing withdrawal request
      * @param txId The ID of the existing withdrawal transaction
+     * @param metaTxParams Parameters for the meta-transaction
      * @return MetaTransaction The unsigned meta-transaction ready for signing
      */
-    function generateUnsignedWithdrawalMetaTxApproval(uint256 txId) public view returns (MultiPhaseSecureOperation.MetaTransaction memory) {
+    function generateUnsignedWithdrawalMetaTxApproval(uint256 txId, VaultMetaTxParams memory metaTxParams) public view returns (MultiPhaseSecureOperation.MetaTransaction memory) {
         // Create meta-transaction parameters using the parent contract's function
         MultiPhaseSecureOperation.MetaTxParams memory metaTxParams = createMetaTxParams(
             address(this),
             this.approveWithdrawalWithMetaTx.selector,
-            block.timestamp + 1 hours,
-            block.basefee * 2,
+            metaTxParams.deadline,
+            metaTxParams.maxGasPrice,
             owner()
         );
 

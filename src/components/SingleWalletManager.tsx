@@ -373,6 +373,7 @@ export function SingleWalletManagerProvider({
       throw new WalletConnectError('No active provider', ErrorCodes.PROVIDER_ERROR);
     }
 
+    // Update session activity
     const updatedSession = { ...session, lastActivity: Date.now() };
     setSession(updatedSession);
     
@@ -380,14 +381,118 @@ export function SingleWalletManagerProvider({
     const encryptedSession = await encryptData(JSON.stringify(updatedSession), SECRET_KEY);
     localStorage.setItem(STORAGE_KEY, encryptedSession);
 
+    // Verify connection is still active
     try {
-      const result = await providerRef.current.request({
-        method,
-        params
-      });
-      return result as T;
+      console.log('Verifying connection status...');
+      const chainIdResult = await Promise.race([
+        providerRef.current.request({ method: 'eth_chainId', params: [] }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Connection check timed out')), 5000))
+      ]);
+      console.log('Connection verified, chain ID:', chainIdResult);
     } catch (error) {
+      console.error('Connection verification failed:', error);
+      
+      // Clear stale sessions
+      localStorage.removeItem('walletconnect');
+      const providerPool = ProviderPool.getInstance();
+      const { provider: wcProvider } = await providerPool.getProvider(projectId, metadata);
+      providerRef.current = wcProvider as unknown as MinimalProvider;
+      
+      // Attempt to reconnect
+      try {
+        await providerRef.current.connect({
+          namespaces: {
+            eip155: {
+              methods: ['eth_sendTransaction', 'eth_sign', 'personal_sign', 'eth_signTypedData'],
+              chains: [`eip155:${session.chainId}`],
+              events: ['chainChanged', 'accountsChanged']
+            }
+          }
+        });
+      } catch (reconnectError) {
+        console.error('Reconnection failed:', reconnectError);
+        throw new WalletConnectError('Failed to re-establish connection', ErrorCodes.PROVIDER_ERROR);
+      }
+    }
+
+    try {
+      console.log('Sending request to provider:', {
+        method,
+        params,
+        provider: providerRef.current
+      });
+
+      // Ensure the provider is properly connected
+      if (!providerRef.current || typeof providerRef.current.request !== 'function') {
+        console.error('Invalid provider state:', providerRef.current);
+        throw new WalletConnectError('Provider not properly initialized', ErrorCodes.PROVIDER_ERROR);
+      }
+
+      // Create a timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timed out after 30 seconds')), 30000);
+      });
+
+      // Add a small delay to ensure the wallet is ready
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Send the request with timeout
+      const result = await Promise.race([
+        providerRef.current.request({
+          method,
+          params
+        }),
+        timeoutPromise
+      ]);
+
+      console.log('Provider request result:', result);
+      return result as T;
+    } catch (error: any) {
       console.error('Request failed:', error);
+      
+      // Check for specific error conditions
+      if (error.message?.includes('timeout')) {
+        toast({
+          title: "Transaction Failed",
+          description: "Wallet confirmation dialog did not appear. Please try reconnecting your wallet.",
+          variant: "destructive"
+        });
+        throw new WalletConnectError('Transaction request timed out', ErrorCodes.TIMEOUT);
+      }
+      
+      if (typeof error === 'object' && error?.message?.includes('not connected')) {
+        console.log('Provider disconnected, attempting to reconnect...');
+        const providerPool = ProviderPool.getInstance();
+        const { provider: wcProvider } = await providerPool.getProvider(projectId, metadata);
+        providerRef.current = wcProvider as unknown as MinimalProvider;
+        
+        // Retry the request once
+        try {
+          const retryResult = await Promise.race([
+            providerRef.current.request({
+              method,
+              params
+            }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Retry timed out')), 30000))
+          ]);
+          return retryResult as T;
+        } catch (retryError) {
+          console.error('Retry failed:', retryError);
+          throw WalletConnectError.fromError(retryError);
+        }
+      }
+      
+      // Handle response errors that might indicate the transaction was sent
+      if (error.message?.includes('Missing or invalid respond() response') || 
+          error.message?.includes('Not initialized. subscription')) {
+        toast({
+          title: "Transaction Status Unknown",
+          description: "We couldn't confirm if your transaction was sent. Please check your wallet for details.",
+          variant: "default"
+        });
+        throw new WalletConnectError('Transaction status unknown', ErrorCodes.UNKNOWN_ERROR);
+      }
+      
       const wcError = WalletConnectError.fromError(error);
       toast({
         title: "Transaction Failed",

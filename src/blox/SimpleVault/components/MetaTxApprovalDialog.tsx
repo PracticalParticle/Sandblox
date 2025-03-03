@@ -2,7 +2,7 @@ import * as React from "react";
 import { useState, useEffect, ReactNode } from "react";
 import { Address, Chain } from "viem";
 import { Button } from "@/components/ui/button";
-import { X, CheckCircle2, AlertCircle, Wallet } from "lucide-react";
+import { X, CheckCircle2, AlertCircle, Wallet, Loader2 } from "lucide-react";
 import { 
   Dialog, 
   DialogContent, 
@@ -322,6 +322,49 @@ function WalletConnectionContent({
     checkWalletConnection();
   }, [session, contractInfo, walletType, broadcasterAddress]);
 
+  // Effect to trigger transaction when wallet is connected and validated
+  useEffect(() => {
+    const handleWalletValidation = async () => {
+      if (isWalletConnected && session?.account && !isApproving) {
+        try {
+          console.log("Wallet connected and validated, preparing to send transaction...");
+          
+          // Get the required address for validation
+          const requiredAddress = await getRequiredAddress();
+          console.log("Required address:", requiredAddress);
+          console.log("Session account:", session.account);
+          
+          // Validate the session and address match
+          if (session && session.account && requiredAddress && 
+              compareAddresses(session.account, requiredAddress)) {
+            
+            setIsApproving(true);
+            console.log("Addresses match, waiting for wallet to be ready...");
+            
+            // Add a delay to ensure the wallet is ready
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            console.log("Delay complete, initiating transaction...");
+            
+            // Immediately trigger onSuccess to initiate the transaction
+            try {
+              await onSuccess(session.account);
+            } catch (error) {
+              console.error("Error in transaction submission:", error);
+              setIsApproving(false);
+            }
+          }
+        } catch (error) {
+          console.error("Error in wallet validation:", error);
+          setIsApproving(false);
+        }
+      }
+    };
+
+    handleWalletValidation();
+  }, [isWalletConnected, session?.account]);
+
+  const [isApproving, setIsApproving] = useState(false);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center space-x-2">
@@ -339,6 +382,7 @@ function WalletConnectionContent({
                   onClick={() => void disconnect()}
                   variant="ghost"
                   size="sm"
+                  disabled={isApproving}
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -361,6 +405,7 @@ function WalletConnectionContent({
                     <CheckCircle2 className="h-4 w-4 text-green-500" />
                     <AlertDescription className="text-green-500">
                       {getWalletTypeLabel()} wallet connected successfully!
+                      {isApproving ? ' Please check your wallet to approve the transaction.' : ''}
                     </AlertDescription>
                   </Alert>
                   {txId && (
@@ -371,17 +416,12 @@ function WalletConnectionContent({
                   )}
                   {children}
                   <Button 
-                    onClick={() => {
-                      if (session && session.account && typeof session.account === 'string') {
-                        onSuccess(session.account);
-                      } else {
-                        console.error("Cannot call onSuccess: session.account is invalid", session);
-                      }
-                    }}
+                    disabled={true}
                     className="w-full"
-                    variant="default"
+                    variant="outline"
                   >
-                    {actionLabel}
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {isApproving ? 'Check your wallet to approve the transaction...' : 'Preparing Transaction...'}
                   </Button>
                 </div>
               )}
@@ -415,6 +455,7 @@ interface MetaTxApprovalDialogProps {
   walletType?: WalletType;
   children?: ReactNode;
   contractAddress?: Address;
+  useExistingProvider?: boolean;
 }
 
 export function MetaTxApprovalDialog({
@@ -424,11 +465,12 @@ export function MetaTxApprovalDialog({
   onSuccess,
   txId,
   title = "Connect Broadcaster Wallet",
-  description = "Connect the broadcaster wallet to approve the withdrawal request via meta-transaction.",
+  description = "Connect your broadcaster wallet to submit this transaction. The transaction will be presented for your approval once connected.",
   actionLabel = "Continue with Approval",
   walletType = 'broadcaster',
   children,
-  contractAddress
+  contractAddress,
+  useExistingProvider = false
 }: MetaTxApprovalDialogProps) {
   const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID;
   const { disconnect } = useSingleWallet();
@@ -518,6 +560,20 @@ export function MetaTxApprovalDialog({
     return address;
   };
 
+  const renderContent = () => (
+    <WalletConnectionContent 
+      contractInfo={contractInfo}
+      walletType={walletType}
+      onSuccess={onSuccess}
+      onClose={() => onOpenChange(false)}
+      txId={txId}
+      actionLabel={actionLabel}
+      contractAddress={contractAddress}
+    >
+      {children}
+    </WalletConnectionContent>
+  );
+
   return (
     <Dialog 
       open={isOpen} 
@@ -562,7 +618,9 @@ export function MetaTxApprovalDialog({
           {/* Wrap in try-catch to handle any errors */}
           {(() => {
             try {
-              return (
+              return useExistingProvider ? (
+                renderContent()
+              ) : (
                 <SingleWalletManagerProvider
                   projectId={projectId}
                   autoConnect={false}
@@ -573,17 +631,7 @@ export function MetaTxApprovalDialog({
                     icons: ['https://avatars.githubusercontent.com/u/37784886']
                   }}
                 >
-                  <WalletConnectionContent 
-                    contractInfo={contractInfo}
-                    walletType={walletType}
-                    onSuccess={onSuccess}
-                    onClose={() => onOpenChange(false)}
-                    txId={txId}
-                    actionLabel={actionLabel}
-                    contractAddress={contractAddress}
-                  >
-                    {children}
-                  </WalletConnectionContent>
+                  {renderContent()}
                 </SingleWalletManagerProvider>
               );
             } catch (error) {
