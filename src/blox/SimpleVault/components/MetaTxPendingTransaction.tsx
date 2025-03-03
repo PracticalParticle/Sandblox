@@ -241,12 +241,24 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
     try {
       // Verify we still have a valid session
       if (!walletManager.session || !walletManager.session.account) {
-        throw new Error("No active wallet session");
+        handleNotification({
+          type: 'error',
+          title: "Session Error",
+          description: "No active wallet session. Please try connecting again."
+        });
+        setShowBroadcasterDialog(true);
+        return;
       }
 
       // Verify the connected account matches the broadcaster address
       if (walletManager.session.account.toLowerCase() !== broadcasterAddress.toLowerCase()) {
-        throw new Error("Connected wallet does not match broadcaster address");
+        handleNotification({
+          type: 'error',
+          title: "Account Mismatch",
+          description: "Connected wallet does not match broadcaster address. Please connect the correct wallet."
+        });
+        setShowBroadcasterDialog(true);
+        return;
       }
 
       // Send the transaction using the connected wallet
@@ -276,6 +288,7 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
           
           // Close the dialog after success
           setShowBroadcasterDialog(false);
+          setIsApproving(false);
         }
       }
     } catch (error: any) {
@@ -422,6 +435,7 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
             actionLabel="Submit Transaction"
             walletType="broadcaster"
             contractAddress={contractAddress}
+            useExistingProvider={true}
           />
         )}
       </>

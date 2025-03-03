@@ -325,10 +325,14 @@ function WalletConnectionContent({
   // Effect to trigger transaction when wallet is connected and validated
   useEffect(() => {
     const handleWalletValidation = async () => {
-      if (isWalletConnected && session?.account) {
+      if (isWalletConnected && session?.account && !isApproving) {
         try {
-          // Only trigger onSuccess if we haven't already
-          if (!isApproving) {
+          // Get the required address for validation
+          const requiredAddress = await getRequiredAddress();
+          
+          // Validate the session and address match
+          if (session && session.account && requiredAddress && 
+              compareAddresses(session.account, requiredAddress)) {
             setIsApproving(true);
             await onSuccess(session.account);
           }
@@ -432,6 +436,7 @@ interface MetaTxApprovalDialogProps {
   walletType?: WalletType;
   children?: ReactNode;
   contractAddress?: Address;
+  useExistingProvider?: boolean;
 }
 
 export function MetaTxApprovalDialog({
@@ -445,7 +450,8 @@ export function MetaTxApprovalDialog({
   actionLabel = "Continue with Approval",
   walletType = 'broadcaster',
   children,
-  contractAddress
+  contractAddress,
+  useExistingProvider = false
 }: MetaTxApprovalDialogProps) {
   const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID;
   const { disconnect } = useSingleWallet();
@@ -535,6 +541,20 @@ export function MetaTxApprovalDialog({
     return address;
   };
 
+  const renderContent = () => (
+    <WalletConnectionContent 
+      contractInfo={contractInfo}
+      walletType={walletType}
+      onSuccess={onSuccess}
+      onClose={() => onOpenChange(false)}
+      txId={txId}
+      actionLabel={actionLabel}
+      contractAddress={contractAddress}
+    >
+      {children}
+    </WalletConnectionContent>
+  );
+
   return (
     <Dialog 
       open={isOpen} 
@@ -579,7 +599,9 @@ export function MetaTxApprovalDialog({
           {/* Wrap in try-catch to handle any errors */}
           {(() => {
             try {
-              return (
+              return useExistingProvider ? (
+                renderContent()
+              ) : (
                 <SingleWalletManagerProvider
                   projectId={projectId}
                   autoConnect={false}
@@ -590,17 +612,7 @@ export function MetaTxApprovalDialog({
                     icons: ['https://avatars.githubusercontent.com/u/37784886']
                   }}
                 >
-                  <WalletConnectionContent 
-                    contractInfo={contractInfo}
-                    walletType={walletType}
-                    onSuccess={onSuccess}
-                    onClose={() => onOpenChange(false)}
-                    txId={txId}
-                    actionLabel={actionLabel}
-                    contractAddress={contractAddress}
-                  >
-                    {children}
-                  </WalletConnectionContent>
+                  {renderContent()}
                 </SingleWalletManagerProvider>
               );
             } catch (error) {
