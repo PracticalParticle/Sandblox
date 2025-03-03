@@ -249,7 +249,7 @@ export default class SimpleVault extends SecureOwnable {
     if (!options.from) throw new Error("Sender address required");
 
     const broadcaster = await this.getBroadcaster();
-    await this.validations.validateBroadcaster(options.from, broadcaster);
+    await this.validations.validateBroadcaster(options.from.toLowerCase() as Address, broadcaster.toLowerCase() as Address);
     await this.validations.validateMetaTransaction(metaTx);
 
     const hash = await this.walletClient.writeContract({
