@@ -443,17 +443,11 @@ export function SecurityDetails() {
 
   // Action handlers
   const handleTransferOwnershipRequest = async () => {
-    if (!contractInfo || !newOwnerAddress) return
+    if (!contractInfo) return
 
     try {
-      if (!isValidEthereumAddress(newOwnerAddress)) {
-        toast({
-          title: "Error",
-          description: "Please enter a valid Ethereum address",
-          variant: "destructive"
-        })
-        return
-      }
+      // Use the recovery address directly from contractInfo
+      const recoveryAddress = contractInfo.recoveryAddress;
 
       // Implementation with connected recovery wallet
       // TODO: Implement the actual transfer ownership request
@@ -776,29 +770,24 @@ export function SecurityDetails() {
                   isOpen={showConnectRecoveryDialog}
                   onOpenChange={setShowConnectRecoveryDialog}
                   title="Transfer Ownership"
-                  description="Please connect the recovery wallet to proceed with the ownership transfer request."
+                  description="Please connect the recovery wallet to proceed with the ownership transfer request. The ownership will be transferred to the recovery address."
                   contractInfo={contractInfo}
                   walletType="recovery"
                   currentValue={contractInfo?.owner}
                   currentValueLabel="Current Owner"
                   actionLabel="Request Transfer"
-                  newValue={newOwnerAddress}
+                  newValue={contractInfo?.recoveryAddress}
                   onSubmit={async () => {
                     await handleTransferOwnershipRequest();
                     setShowConnectRecoveryDialog(false);
                   }}
                 >
-                  <Input
-                    placeholder="New Owner Address"
-                    value={newOwnerAddress}
-                    onChange={(e) => setNewOwnerAddress(e.target.value)}
-                    className={!isValidEthereumAddress(newOwnerAddress) && newOwnerAddress !== "" ? "border-destructive" : ""}
-                  />
-                  {!isValidEthereumAddress(newOwnerAddress) && newOwnerAddress !== "" && (
-                    <p className="text-sm text-destructive">
-                      Please enter a valid Ethereum address
-                    </p>
-                  )}
+                  <div className="space-y-2">
+                    <Label>New Owner Address (Recovery Address)</Label>
+                    <div className="p-3 bg-muted rounded-md">
+                      {contractInfo?.recoveryAddress}
+                    </div>
+                  </div>
                 </MetaTxDialog>
               </CardContent>
             </Card>
