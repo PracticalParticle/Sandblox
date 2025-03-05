@@ -47,6 +47,7 @@ import { TIMELOCK_PERIODS } from '@/constants/contract'
 import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
 import { MetaTxDialog } from '@/components/MetaTxDialog'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
+import * as wagmi from 'wagmi'
 
 const container = {
   hidden: { opacity: 0 },
@@ -286,8 +287,8 @@ interface TimeLockUpdateEvent extends ContractEvent {
 }
 
 export function SecurityDetails() {
-  const { address } = useParams<{ address: string }>()
-  const { isConnected } = useAccount()
+  const { address: contractAddress } = useParams<{ address: string }>()
+  const { address: connectedAddress, isConnected } = useAccount()
   const { disconnect } = useDisconnect()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
@@ -316,28 +317,28 @@ export function SecurityDetails() {
   const [isConnecting, setIsConnecting] = useState(false);
 
   useEffect(() => {
-    if (!address) {
+    if (!contractAddress) {
       navigate('/blox-security')
       return
     }
 
-    if (!address.match(/^0x[a-fA-F0-9]{40}$/)) {
+    if (!contractAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
       setError('Invalid contract address format')
       setLoading(false)
       return
     }
 
     loadContractInfo()
-  }, [address])
+  }, [contractAddress])
 
   const loadContractInfo = async () => {
-    if (!address) return;
+    if (!contractAddress) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      const info = await validateAndLoadContract(address as `0x${string}`);
+      const info = await validateAndLoadContract(contractAddress as `0x${string}`);
       if (!info) {
         throw new Error('Contract info not found');
       }
@@ -376,8 +377,8 @@ export function SecurityDetails() {
           timestamp: BigInt(event.timestamp),
           status: statusNum,
           type: event.type.toLowerCase(),
-          requester: address as Address,
-          target: address as Address,
+          requester: connectedAddress as Address,
+          target: connectedAddress as Address,
           details: {
             oldValue: event.details.oldValue,
             newValue: event.details.newValue,
@@ -474,7 +475,7 @@ export function SecurityDetails() {
 
   const handleTransferOwnershipApproval = async (txId: number) => {
     try {
-      await approveOperation(address as `0x${string}`, txId, 'ownership');
+      await approveOperation(contractAddress as `0x${string}`, txId, 'ownership');
       toast({
         title: "Approval submitted",
         description: "Transfer ownership approval has been submitted.",
@@ -491,7 +492,7 @@ export function SecurityDetails() {
 
   const handleTransferOwnershipCancellation = async (txId: number) => {
     try {
-      await cancelOperation(address as `0x${string}`, txId, 'ownership');
+      await cancelOperation(contractAddress as `0x${string}`, txId, 'ownership');
       toast({
         title: "Cancellation submitted",
         description: "Transfer ownership cancellation has been submitted.",
@@ -508,7 +509,7 @@ export function SecurityDetails() {
 
   const handleUpdateBroadcasterRequest = async (newBroadcaster: string) => {
     try {
-      await updateBroadcaster(address as `0x${string}`, newBroadcaster as `0x${string}`);
+      await updateBroadcaster(contractAddress as `0x${string}`, newBroadcaster as `0x${string}`);
       
       toast({
         title: "Request submitted",
@@ -532,7 +533,7 @@ export function SecurityDetails() {
 
   const handleUpdateBroadcasterApproval = async (txId: number) => {
     try {
-      await approveOperation(address as `0x${string}`, txId, 'broadcaster');
+      await approveOperation(contractAddress as `0x${string}`, txId, 'broadcaster');
       toast({
         title: "Approval submitted",
         description: "Broadcaster update approval has been submitted.",
@@ -549,7 +550,7 @@ export function SecurityDetails() {
 
   const handleUpdateBroadcasterCancellation = async (txId: number) => {
     try {
-      await cancelOperation(address as `0x${string}`, txId, 'broadcaster');
+      await cancelOperation(contractAddress as `0x${string}`, txId, 'broadcaster');
       toast({
         title: "Cancellation submitted",
         description: "Broadcaster update cancellation has been submitted.",
@@ -618,23 +619,15 @@ export function SecurityDetails() {
   const handleConnect = async (role: string) => {
     console.log('Attempting to connect role:', role);
     try {
-      // First disconnect the current wallet
       if (isConnected) {
         console.log('Disconnecting current wallet');
+        // Set a flag to track that we want to show connect modal after disconnect
+        setIsConnecting(true);
         disconnect();
-      }
-
-      // Use RainbowKit's connect modal
-      if (openConnectModal) {
-        console.log('Opening RainbowKit connect modal');
-        openConnectModal();
       } else {
-        console.error('RainbowKit connect modal not available');
-        toast({
-          title: "Connection Error",
-          description: "Wallet connection dialog not available",
-          variant: "destructive"
-        });
+        // If no wallet is connected, just open the modal directly
+        console.log('No wallet connected, opening connect modal directly');
+        openConnectModal?.();
       }
     } catch (error) {
       console.error('Error in wallet connection flow:', error);
@@ -646,7 +639,21 @@ export function SecurityDetails() {
     }
   };
 
-  if (!address || error) {
+  // Watch for disconnect to trigger connect modal
+  useEffect(() => {
+    if (!isConnected && isConnecting) {
+      console.log('Wallet disconnected, opening connect modal');
+      openConnectModal?.();
+      setIsConnecting(false);
+    }
+  }, [isConnected, isConnecting, openConnectModal]);
+
+  // Add role validation functions
+  const isRoleConnected = (roleAddress: string) => {
+    return connectedAddress?.toLowerCase() === roleAddress?.toLowerCase();
+  };
+
+  if (!contractAddress || error) {
     return (
       <div className="container py-8">
         <motion.div variants={container} initial="hidden" animate="show">
@@ -728,7 +735,7 @@ export function SecurityDetails() {
               <div>
                 <h1 className="text-3xl font-bold tracking-tight text-left">Security Details</h1>
                 <p className="mt-2 text-muted-foreground">
-                  Manage security settings for contract at {address}
+                  Manage security settings for contract at {contractAddress}
                 </p>
               </div>
             </div>
@@ -743,47 +750,65 @@ export function SecurityDetails() {
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <p className="text-sm text-muted-foreground">Owner</p>
-                  <p className="text-sm font-medium truncate">{contractInfo.owner}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium truncate flex-1">{contractInfo.owner}</p>
+                    {isRoleConnected(contractInfo.owner) && (
+                      <div className="h-2 w-2 rounded-full bg-green-500" />
+                    )}
+                  </div>
                   <Button 
-                    className="w-full mt-2"
-                    variant="outline"
+                    className="w-28 mt-2"
+                    variant={isRoleConnected(contractInfo.owner) ? "default" : "outline"}
                     size="sm"
+                    disabled={isRoleConnected(contractInfo.owner)}
                     onClick={() => {
                       console.log('Owner connect button clicked');
                       handleConnect('owner');
                     }}
                   >
-                    Connect Owner
+                    {isRoleConnected(contractInfo.owner) ? "Connected" : "Connect Owner"}
                   </Button>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Broadcaster</p>
-                  <p className="text-sm font-medium truncate">{contractInfo.broadcaster}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium truncate flex-1">{contractInfo.broadcaster}</p>
+                    {isRoleConnected(contractInfo.broadcaster) && (
+                      <div className="h-2 w-2 rounded-full bg-green-500" />
+                    )}
+                  </div>
                   <Button 
-                    className="w-full mt-2"
-                    variant="outline"
+                    className="w-28 mt-2"
+                    variant={isRoleConnected(contractInfo.broadcaster) ? "default" : "outline"}
                     size="sm"
+                    disabled={isRoleConnected(contractInfo.broadcaster)}
                     onClick={() => {
                       console.log('Broadcaster connect button clicked');
                       handleConnect('broadcaster');
                     }}
                   >
-                    Connect Broadcaster
+                    {isRoleConnected(contractInfo.broadcaster) ? "Connected" : "Connect Broadcaster"}
                   </Button>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Recovery Address</p>
-                  <p className="text-sm font-medium truncate">{contractInfo.recoveryAddress}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium truncate flex-1">{contractInfo.recoveryAddress}</p>
+                    {isRoleConnected(contractInfo.recoveryAddress) && (
+                      <div className="h-2 w-2 rounded-full bg-green-500" />
+                    )}
+                  </div>
                   <Button 
-                    className="w-full mt-2"
-                    variant="outline"
+                    className="w-28 mt-2"
+                    variant={isRoleConnected(contractInfo.recoveryAddress) ? "default" : "outline"}
                     size="sm"
+                    disabled={isRoleConnected(contractInfo.recoveryAddress)}
                     onClick={() => {
                       console.log('Recovery connect button clicked');
                       handleConnect('recovery');
                     }}
                   >
-                    Connect Recovery
+                    {isRoleConnected(contractInfo.recoveryAddress) ? "Connected" : "Connect Recovery"}
                   </Button>
                 </div>
                 <div>
