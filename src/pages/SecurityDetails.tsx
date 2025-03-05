@@ -50,6 +50,7 @@ import { OPERATION_TYPES, FUNCTION_SELECTORS } from '@/particle-core/sdk/typescr
 import { TemporalActionDialog } from '@/components/TemporalActionDialog'
 import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
 import { TxStatus } from '@/particle-core/sdk/typescript/types/lib.index'
+import { MetaTxActionDialog } from '@/components/MetaTxActionDialog'
 
 const container = {
   hidden: { opacity: 0 },
@@ -911,69 +912,40 @@ export function SecurityDetails() {
               <CardContent>
                 <div className="grid grid-cols-2 gap-2">
                   <Button 
-                    onClick={() => {
-                      setNewRecoveryAddress('');
-                      setShowRecoveryDialog(true);
-                    }}
+                    onClick={() => setShowRecoveryDialog(true)}
                     className="flex items-center gap-2 w-full" 
                     size="sm"
                     variant={isRoleConnected(contractInfo.owner) ? "default" : "outline"}
                     disabled={!isRoleConnected(contractInfo.owner)}
                   >
                     <Key className="h-4 w-4" />
-                    {isSigningTx ? "Signing..." : "Request Update"}
-                  </Button>
-                  <Button 
-                    onClick={() => {
-                      setNewRecoveryAddress('');
-                      setShowRecoveryDialog(true);
-                    }}
-                    className="flex items-center gap-2 w-full" 
-                    size="sm"
-                    variant={isRoleConnected(contractInfo.broadcaster) ? "default" : "outline"}
-                    disabled={!isRoleConnected(contractInfo.broadcaster)}
-                  >
-                    <Radio className="h-4 w-4" />
-                    Broadcast
+                    {isSigningTx ? "Signing..." : "Update Recovery"}
                   </Button>
                 </div>
                 
-                <RoleWalletDialog
+                <MetaTxActionDialog
                   isOpen={showRecoveryDialog}
                   onOpenChange={setShowRecoveryDialog}
                   title="Update Recovery Address"
+                  description="Update the recovery address for this contract. This will be executed via meta-transaction."
                   contractInfo={contractInfo}
-                  walletType="owner"
+                  actionType="recovery"
                   currentValue={contractInfo.recoveryAddress}
                   currentValueLabel="Current Recovery Address"
                   actionLabel={isSigningTx ? "Signing..." : "Sign Transaction"}
+                  requiredRole="owner"
+                  connectedAddress={connectedAddress}
                   newValue={newRecoveryAddress}
-                  onSubmit={async () => {
-                    if (!isValidEthereumAddress(newRecoveryAddress)) {
-                      toast({
-                        title: "Error",
-                        description: "Please enter a valid Ethereum address",
-                        variant: "destructive"
-                      });
-                      return;
-                    }
-                    await handleUpdateRecoveryRequest(newRecoveryAddress);
-                  }}
-                >
-                  <div className="space-y-2">
-                    <Input
-                      placeholder="New Recovery Address"
-                      value={newRecoveryAddress}
-                      onChange={(e) => setNewRecoveryAddress(e.target.value)}
-                      className={!isValidEthereumAddress(newRecoveryAddress) && newRecoveryAddress !== "" ? "border-destructive" : ""}
-                    />
-                    {!isValidEthereumAddress(newRecoveryAddress) && newRecoveryAddress !== "" && (
-                      <p className="text-sm text-destructive">
-                        Please enter a valid Ethereum address
-                      </p>
-                    )}
-                  </div>
-                </RoleWalletDialog>
+                  onNewValueChange={setNewRecoveryAddress}
+                  newValueLabel="New Recovery Address"
+                  newValuePlaceholder="Enter new recovery address"
+                  validateNewValue={(value) => ({
+                    isValid: isValidEthereumAddress(value),
+                    message: "Please enter a valid Ethereum address"
+                  })}
+                  isSigning={isSigningTx}
+                  onSubmit={handleUpdateRecoveryRequest}
+                />
               </CardContent>
             </Card>
 
@@ -1000,74 +972,42 @@ export function SecurityDetails() {
               <CardContent>
                 <div className="grid grid-cols-2 gap-2">
                   <Button 
-                    onClick={() => {
-                      setNewTimeLockPeriod('');
-                      setShowTimeLockDialog(true);
-                    }}
+                    onClick={() => setShowTimeLockDialog(true)}
                     className="flex items-center gap-2 w-full" 
                     size="sm"
                     variant={isRoleConnected(contractInfo.owner) ? "default" : "outline"}
                     disabled={!isRoleConnected(contractInfo.owner)}
                   >
                     <Clock className="h-4 w-4" />
-                    Request Update
-                  </Button>
-                  <Button 
-                    onClick={() => {
-                      setNewTimeLockPeriod('');
-                      setShowTimeLockDialog(true);
-                    }}
-                    className="flex items-center gap-2 w-full" 
-                    size="sm"
-                    variant={isRoleConnected(contractInfo.broadcaster) ? "default" : "outline"}
-                    disabled={!isRoleConnected(contractInfo.broadcaster)}
-                  >
-                    <Radio className="h-4 w-4" />
-                    Broadcast
+                    Update TimeLock
                   </Button>
                 </div>
                 
-                <RoleWalletDialog
+                <MetaTxActionDialog
                   isOpen={showTimeLockDialog}
                   onOpenChange={setShowTimeLockDialog}
                   title="Update TimeLock Period"
                   description={`Enter a new time lock period between ${TIMELOCK_PERIODS.MIN} and ${TIMELOCK_PERIODS.MAX} minutes.`}
                   contractInfo={contractInfo}
-                  walletType="broadcaster"
+                  actionType="timelock"
                   currentValue={formatTimeValue(contractInfo?.timeLockPeriodInMinutes)}
                   currentValueLabel="Current TimeLock Period"
-                  actionLabel="Submit Update Request"
+                  actionLabel="Sign Transaction"
+                  requiredRole="owner"
+                  connectedAddress={connectedAddress}
                   newValue={newTimeLockPeriod}
-                  onSubmit={async () => {
-                    const period = parseInt(newTimeLockPeriod)
-                    if (isNaN(period) || period < TIMELOCK_PERIODS.MIN || period > TIMELOCK_PERIODS.MAX) {
-                      toast({
-                        title: "Error",
-                        description: `Please enter a valid period between ${TIMELOCK_PERIODS.MIN} and ${TIMELOCK_PERIODS.MAX} minutes`,
-                        variant: "destructive"
-                      })
-                      return
-                    }
-                    await handleUpdateTimeLockRequest(newTimeLockPeriod);
-                    setShowTimeLockDialog(false);
+                  onNewValueChange={setNewTimeLockPeriod}
+                  newValueLabel="New TimeLock Period"
+                  newValuePlaceholder="Enter period in minutes"
+                  validateNewValue={(value) => {
+                    const period = parseInt(value);
+                    return {
+                      isValid: !isNaN(period) && period >= TIMELOCK_PERIODS.MIN && period <= TIMELOCK_PERIODS.MAX,
+                      message: `Please enter a period between ${TIMELOCK_PERIODS.MIN} and ${TIMELOCK_PERIODS.MAX} minutes`
+                    };
                   }}
-                >
-                  <div className="space-y-2">
-                    <Input
-                      type="number"
-                      placeholder="New TimeLock Period (minutes)"
-                      value={newTimeLockPeriod}
-                      onChange={(e) => setNewTimeLockPeriod(e.target.value)}
-                      min={TIMELOCK_PERIODS.MIN}
-                      max={TIMELOCK_PERIODS.MAX}
-                    />
-                    {parseInt(newTimeLockPeriod) > 0 && (parseInt(newTimeLockPeriod) < TIMELOCK_PERIODS.MIN || parseInt(newTimeLockPeriod) > TIMELOCK_PERIODS.MAX) && (
-                      <p className="text-sm text-destructive">
-                        Please enter a period between {TIMELOCK_PERIODS.MIN} and {TIMELOCK_PERIODS.MAX} minutes
-                      </p>
-                    )}
-                  </div>
-                </RoleWalletDialog>
+                  onSubmit={handleUpdateTimeLockRequest}
+                />
               </CardContent>
             </Card>
           </div>
