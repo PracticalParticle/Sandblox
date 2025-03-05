@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table"
-import { Loader2, Clock, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react'
+import { Loader2, Clock, CheckCircle2, XCircle, AlertTriangle, Filter } from 'lucide-react'
 import {
   Tooltip,
   TooltipContent,
@@ -22,6 +22,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { useOperationTypes } from '@/hooks/useOperationTypes'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 // Status badge variants mapping
 const statusVariants: { [key: number]: { variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode } } = {
@@ -73,7 +80,10 @@ const item = {
 
 export function SecurityOpHistory({ contractAddress, operations, isLoading = false }: SecurityOpHistoryProps) {
   const [sortedOperations, setSortedOperations] = useState<TxRecord[]>([])
-  const { getOperationName, loading: loadingTypes } = useOperationTypes(contractAddress)
+  const [filteredOperations, setFilteredOperations] = useState<TxRecord[]>([])
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [operationTypeFilter, setOperationTypeFilter] = useState<string>('all')
+  const { getOperationName, operationTypes, loading: loadingTypes } = useOperationTypes(contractAddress)
 
   useEffect(() => {
     // Sort operations by txId in descending order (newest first)
@@ -82,6 +92,21 @@ export function SecurityOpHistory({ contractAddress, operations, isLoading = fal
     )
     setSortedOperations(sorted)
   }, [operations])
+
+  useEffect(() => {
+    // Apply filters
+    let filtered = [...sortedOperations]
+
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(op => op.status === parseInt(statusFilter))
+    }
+
+    if (operationTypeFilter !== 'all') {
+      filtered = filtered.filter(op => op.params.operationType === operationTypeFilter)
+    }
+
+    setFilteredOperations(filtered)
+  }, [sortedOperations, statusFilter, operationTypeFilter])
 
   if (isLoading || loadingTypes) {
     return (
@@ -105,6 +130,42 @@ export function SecurityOpHistory({ contractAddress, operations, isLoading = fal
           <CardTitle>Operation History</CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="flex items-center gap-4 mb-4">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  {Object.entries(statusToHuman).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select value={operationTypeFilter} onValueChange={setOperationTypeFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter by operation" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Operations</SelectItem>
+                  {Array.from(operationTypes.entries()).map(([type, name]) => (
+                    <SelectItem key={type} value={type}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <Table>
             <TableHeader>
               <TableRow>
@@ -116,7 +177,7 @@ export function SecurityOpHistory({ contractAddress, operations, isLoading = fal
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedOperations.map((record) => (
+              {filteredOperations.map((record) => (
                 <TableRow key={record.txId.toString()}>
                   <TableCell className="font-medium">
                     {record.txId.toString()}
@@ -181,7 +242,7 @@ export function SecurityOpHistory({ contractAddress, operations, isLoading = fal
                   </TableCell>
                 </TableRow>
               ))}
-              {sortedOperations.length === 0 && (
+              {filteredOperations.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground">
                     No operations found
