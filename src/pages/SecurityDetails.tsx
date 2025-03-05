@@ -47,6 +47,7 @@ import { OpHistory } from '@/components/OpHistory'
 import { useTransactionManager } from '@/hooks/useTransactionManager'
 import { SecureOwnable } from '@/particle-core/sdk/typescript/SecureOwnable'
 import { OPERATION_TYPES, FUNCTION_SELECTORS } from '@/particle-core/sdk/typescript/types/core.access.index'
+import { TemporalActionDialog } from '@/components/TemporalActionDialog'
 
 const container = {
   hidden: { opacity: 0 },
@@ -127,72 +128,6 @@ const getOperationIcon = (type: string) => {
   }
 };
 
-function BroadcasterUpdateDialog({
-  contractInfo,
-  isOpen,
-  onOpenChange,
-  onSubmit
-}: {
-  contractInfo: SecureContractInfo | null,
-  isOpen: boolean,
-  onOpenChange: (open: boolean) => void,
-  onSubmit: (address: string) => Promise<void>
-}) {
-  const [newBroadcasterAddress, setNewBroadcasterAddress] = useState('')
-  const { address } = useAccount()
-  const { toast } = useToast()
-
-  const isOwner = address?.toLowerCase() === contractInfo?.owner.toLowerCase()
-  const isValidAddress = isValidEthereumAddress(newBroadcasterAddress)
-
-  // Clear input when dialog closes
-  useEffect(() => {
-    if (!isOpen) {
-      setNewBroadcasterAddress('')
-    }
-  }, [isOpen])
-
-  return (
-    <RoleWalletDialog
-      isOpen={isOpen}
-      onOpenChange={onOpenChange}
-      title="Request Broadcaster Update"
-      contractInfo={contractInfo}
-      walletType="owner"
-      currentValue={contractInfo?.broadcaster}
-      currentValueLabel="Current Broadcaster"
-      actionLabel="Submit Update Request"
-      newValue={newBroadcasterAddress}
-      onSubmit={async () => {
-        if (!isOwner || !isValidAddress) {
-          toast({
-            title: "Error",
-            description: "Please ensure you are the owner and have entered a valid address",
-            variant: "destructive"
-          })
-          return
-        }
-        
-        await onSubmit(newBroadcasterAddress)
-      }}
-    >
-      <div className="space-y-2">
-        <Input
-          placeholder="New Broadcaster Address"
-          value={newBroadcasterAddress}
-          onChange={(e) => setNewBroadcasterAddress(e.target.value)}
-          className={!isValidAddress && newBroadcasterAddress !== "" ? "border-destructive" : ""}
-        />
-        {!isValidAddress && newBroadcasterAddress !== "" && (
-          <p className="text-sm text-destructive">
-            Please enter a valid Ethereum address
-          </p>
-        )}
-      </div>
-    </RoleWalletDialog>
-  )
-}
-
 export function SecurityDetails() {
   const { address: contractAddress } = useParams<{ address: string }>()
   const { address: connectedAddress, isConnected } = useAccount()
@@ -221,6 +156,7 @@ export function SecurityDetails() {
   const [targetRole, setTargetRole] = useState<string | null>(null);
   const [isSigningTx, setIsSigningTx] = useState(false);
   const { transactions, storeTransaction } = useTransactionManager(contractAddress || '');
+  const [showOwnershipDialog, setShowOwnershipDialog] = useState(false)
 
   useEffect(() => {
     if (!contractAddress) {
@@ -778,10 +714,7 @@ export function SecurityDetails() {
               </CardHeader>
               <CardContent>
                 <Button 
-                  onClick={() => {
-                    setNewOwnerAddress('');
-                    setShowConnectRecoveryDialog(true);
-                  }}
+                  onClick={() => setShowOwnershipDialog(true)}
                   className="flex items-center gap-2 w-full"
                   size="sm"
                   variant={isRoleConnected(contractInfo.recoveryAddress) ? "default" : "outline"}
@@ -791,29 +724,20 @@ export function SecurityDetails() {
                   Request Transfer
                 </Button>
                 
-                <RoleWalletDialog
-                  isOpen={showConnectRecoveryDialog}
-                  onOpenChange={setShowConnectRecoveryDialog}
+                <TemporalActionDialog
+                  isOpen={showOwnershipDialog}
+                  onOpenChange={setShowOwnershipDialog}
                   title="Transfer Ownership"
                   description="Please connect the recovery wallet to proceed with the ownership transfer request. The ownership will be transferred to the recovery address."
                   contractInfo={contractInfo}
-                  walletType="recovery"
+                  actionType="ownership_transfer"
                   currentValue={contractInfo?.owner}
                   currentValueLabel="Current Owner"
                   actionLabel="Request Transfer"
-                  newValue={contractInfo?.recoveryAddress}
-                  onSubmit={async () => {
-                    await handleTransferOwnershipRequest();
-                    setShowConnectRecoveryDialog(false);
-                  }}
-                >
-                  <div className="space-y-2">
-                    <Label>New Owner Address (Recovery Address)</Label>
-                    <div className="p-3 bg-muted rounded-md">
-                      {contractInfo?.recoveryAddress}
-                    </div>
-                  </div>
-                </RoleWalletDialog>
+                  requiredRole="recovery"
+                  connectedAddress={connectedAddress}
+                  onSubmit={handleTransferOwnershipRequest}
+                />
               </CardContent>
             </Card>
 
@@ -838,12 +762,6 @@ export function SecurityDetails() {
                 </div>
               </CardHeader>
               <CardContent>
-                <BroadcasterUpdateDialog
-                  contractInfo={contractInfo}
-                  isOpen={showBroadcasterDialog}
-                  onOpenChange={setShowBroadcasterDialog}
-                  onSubmit={handleUpdateBroadcasterRequest}
-                />
                 <Button 
                   onClick={() => setShowBroadcasterDialog(true)}
                   className="flex items-center gap-2 w-full" 
@@ -854,6 +772,21 @@ export function SecurityDetails() {
                   <Wallet className="h-4 w-4" />
                   Request Update
                 </Button>
+
+                <TemporalActionDialog
+                  isOpen={showBroadcasterDialog}
+                  onOpenChange={setShowBroadcasterDialog}
+                  title="Update Broadcaster"
+                  description="Please connect the owner wallet to proceed with the broadcaster update request."
+                  contractInfo={contractInfo}
+                  actionType="broadcaster_update"
+                  currentValue={contractInfo?.broadcaster}
+                  currentValueLabel="Current Broadcaster"
+                  actionLabel="Request Update"
+                  requiredRole="owner"
+                  connectedAddress={connectedAddress}
+                  onSubmit={handleUpdateBroadcasterRequest}
+                />
               </CardContent>
             </Card>
 
