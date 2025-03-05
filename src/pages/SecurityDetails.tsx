@@ -895,6 +895,8 @@ export function SecurityDetails() {
                   }}
                   className="flex items-center gap-2 w-full"
                   size="sm"
+                  variant={isRoleConnected(contractInfo.recoveryAddress) ? "default" : "outline"}
+                  disabled={!isRoleConnected(contractInfo.recoveryAddress)}
                 >
                   <Wallet className="h-4 w-4" />
                   Request Transfer
@@ -957,6 +959,8 @@ export function SecurityDetails() {
                   onClick={() => setShowBroadcasterDialog(true)}
                   className="flex items-center gap-2 w-full" 
                   size="sm"
+                  variant={isRoleConnected(contractInfo.owner) ? "default" : "outline"}
+                  disabled={!isRoleConnected(contractInfo.owner)}
                 >
                   <Wallet className="h-4 w-4" />
                   Request Update
@@ -992,6 +996,8 @@ export function SecurityDetails() {
                   }}
                   className="flex items-center gap-2 w-full" 
                   size="sm"
+                  variant={isRoleConnected(contractInfo.broadcaster) ? "default" : "outline"}
+                  disabled={!isRoleConnected(contractInfo.broadcaster)}
                 >
                   <Key className="h-4 w-4" />
                   Update
@@ -1055,6 +1061,8 @@ export function SecurityDetails() {
                   }}
                   className="flex items-center gap-2 w-full" 
                   size="sm"
+                  variant={isRoleConnected(contractInfo.broadcaster) ? "default" : "outline"}
+                  disabled={!isRoleConnected(contractInfo.broadcaster)}
                 >
                   <Clock className="h-4 w-4" />
                   Update
