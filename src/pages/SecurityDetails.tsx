@@ -803,18 +803,18 @@ export function SecurityDetails() {
                       onOpenChange={setShowOwnershipDialog}
                       title="Transfer Ownership"
                       description={pendingOwnershipTx 
-                        ? "Please connect the owner wallet to approve the ownership transfer request."
-                        : "Please connect the recovery wallet to proceed with the ownership transfer request. The ownership will be transferred to the recovery address."
-                      }
+                        ? "Review and approve the ownership transfer to the recovery address."
+                        : "Submit a request to transfer ownership to the recovery address. This will require approval after the timelock period."}
                       contractInfo={contractInfo}
-                      actionType="ownership_transfer"
+                      actionType="ownership"
                       currentValue={contractInfo?.owner}
                       currentValueLabel="Current Owner"
                       actionLabel={pendingOwnershipTx ? "Approve Transfer" : "Request Transfer"}
                       requiredRole={pendingOwnershipTx ? "owner" : "recovery"}
                       connectedAddress={connectedAddress}
-                      pendingTx={pendingOwnershipTx}
-                      onSubmit={handleTransferOwnershipRequest}
+                      pendingTx={pendingOwnershipTx || undefined}
+                      showNewValueInput={false}
+                      onSubmit={async () => handleTransferOwnershipRequest()}
                       onApprove={handleTransferOwnershipApproval}
                       onCancel={handleTransferOwnershipCancellation}
                     />
@@ -866,17 +866,19 @@ export function SecurityDetails() {
                       onOpenChange={setShowBroadcasterDialog}
                       title="Update Broadcaster"
                       description={pendingBroadcasterTx
-                        ? "Please connect the broadcaster wallet to approve the broadcaster update request."
-                        : "Please connect the owner wallet to proceed with the broadcaster update request."
-                      }
+                        ? "Review and approve the broadcaster update request."
+                        : "Submit a new broadcaster update request. This will require approval after the timelock period."}
                       contractInfo={contractInfo}
-                      actionType="broadcaster_update"
+                      actionType="broadcaster"
                       currentValue={contractInfo?.broadcaster}
                       currentValueLabel="Current Broadcaster"
                       actionLabel={pendingBroadcasterTx ? "Approve Update" : "Request Update"}
                       requiredRole={pendingBroadcasterTx ? "broadcaster" : "owner"}
                       connectedAddress={connectedAddress}
-                      pendingTx={pendingBroadcasterTx}
+                      pendingTx={pendingBroadcasterTx || undefined}
+                      showNewValueInput={true}
+                      newValueLabel="New Broadcaster Address"
+                      newValuePlaceholder="Enter new broadcaster address"
                       onSubmit={handleUpdateBroadcasterRequest}
                       onApprove={handleUpdateBroadcasterApproval}
                       onCancel={handleUpdateBroadcasterCancellation}

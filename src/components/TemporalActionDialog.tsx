@@ -19,31 +19,34 @@ interface TemporalActionDialogProps {
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   title: string
+  description?: string
   contractInfo: {
-    owner: string
-    broadcaster: string
-    recoveryAddress: string
     timeLockPeriodInMinutes: number
     chainId: number
     chainName: string
+    [key: string]: any
   }
-  actionType: 'ownership' | 'broadcaster'
+  actionType: string
   currentValue: string
   currentValueLabel: string
   actionLabel: string
   isLoading?: boolean
-  onSubmit: (newValue: string) => Promise<void>
+  onSubmit?: (newValue: string) => Promise<void>
   onApprove?: (txId: number) => Promise<void>
   onCancel?: (txId: number) => Promise<void>
   requiredRole: string
   connectedAddress?: string
   pendingTx?: TxRecord
+  showNewValueInput?: boolean
+  newValueLabel?: string
+  newValuePlaceholder?: string
 }
 
 export function TemporalActionDialog({
   isOpen,
   onOpenChange,
   title,
+  description,
   contractInfo,
   actionType,
   currentValue,
@@ -55,7 +58,10 @@ export function TemporalActionDialog({
   onCancel,
   requiredRole,
   connectedAddress,
-  pendingTx
+  pendingTx,
+  showNewValueInput = true,
+  newValueLabel,
+  newValuePlaceholder
 }: TemporalActionDialogProps) {
   const [newValue, setNewValue] = useState("")
   const [isApproving, setIsApproving] = useState(false)
@@ -75,17 +81,18 @@ export function TemporalActionDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newValue) return
-
-    try {
-      await onSubmit(newValue)
-      setNewValue("")
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to submit request",
-        variant: "destructive",
-      })
+    if (!onSubmit) return
+    if (!showNewValueInput || newValue) {
+      try {
+        await onSubmit(newValue)
+        setNewValue("")
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to submit request",
+          variant: "destructive",
+        })
+      }
     }
   }
 
@@ -129,11 +136,33 @@ export function TemporalActionDialog({
     }
   }
 
+  const getRoleAddress = (role: string) => {
+    if (!contractInfo) return null;
+    switch (role) {
+      case 'owner':
+        return contractInfo.owner;
+      case 'broadcaster':
+        return contractInfo.broadcaster;
+      case 'recovery':
+        return contractInfo.recoveryAddress;
+      default:
+        return null;
+    }
+  };
+
   const isConnectedWalletValid = connectedAddress && 
     requiredRole && 
     contractInfo && 
-    contractInfo[requiredRole as keyof typeof contractInfo] && 
-    connectedAddress.toLowerCase() === (contractInfo[requiredRole as keyof typeof contractInfo] as string).toLowerCase()
+    getRoleAddress(requiredRole) &&
+    connectedAddress.toLowerCase() === getRoleAddress(requiredRole)?.toLowerCase();
+
+  console.log('Wallet Validation:', {
+    connectedAddress,
+    requiredRole,
+    roleAddress: getRoleAddress(requiredRole),
+    isValid: isConnectedWalletValid,
+    contractInfo
+  });
 
   const renderRequestPhase = () => (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -145,15 +174,17 @@ export function TemporalActionDialog({
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label>New {actionType === 'ownership' ? 'Owner' : 'Broadcaster'} Address</Label>
-          <Input
-            value={newValue}
-            onChange={(e) => setNewValue(e.target.value)}
-            placeholder="Enter Ethereum address"
-            disabled={isLoading}
-          />
-        </div>
+        {showNewValueInput && (
+          <div className="space-y-2">
+            <Label>{newValueLabel || `New ${actionType} Address`}</Label>
+            <Input
+              value={newValue}
+              onChange={(e) => setNewValue(e.target.value)}
+              placeholder={newValuePlaceholder || "Enter Ethereum address"}
+              disabled={isLoading}
+            />
+          </div>
+        )}
 
         {!isConnectedWalletValid && (
           <Alert variant="destructive">
@@ -165,7 +196,7 @@ export function TemporalActionDialog({
 
         <Button 
           type="submit" 
-          disabled={!newValue || !isConnectedWalletValid || isLoading}
+          disabled={showNewValueInput ? (!newValue || !isConnectedWalletValid || isLoading) : (!isConnectedWalletValid || isLoading)}
           className="w-full"
         >
           {isLoading ? (
