@@ -1,4 +1,4 @@
-import { useAccount, useDisconnect } from 'wagmi'
+import { useAccount, useDisconnect, usePublicClient, useWalletClient, useConfig } from 'wagmi'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
@@ -45,7 +45,7 @@ import { TIMELOCK_PERIODS } from '@/constants/contract'
 import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
 import { RoleWalletDialog } from '@/components/RoleWalletDialog'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
-import * as wagmi from 'wagmi'
+import { SecureOwnableManager } from '@/lib/SecureOwnableManager'
 
 const container = {
   hidden: { opacity: 0 },
@@ -287,6 +287,9 @@ export function SecurityDetails() {
   const { validateAndLoadContract, updateBroadcaster, approveOperation, cancelOperation } = useSecureContract()
   const { toast } = useToast()
   const { openConnectModal } = useConnectModal()
+  const publicClient = usePublicClient()
+  const { data: walletClient } = useWalletClient()
+  const config = useConfig()
 
   // State for input fields
   const [newOwnerAddress, setNewOwnerAddress] = useState('')
@@ -434,33 +437,41 @@ export function SecurityDetails() {
 
   // Action handlers
   const handleTransferOwnershipRequest = async () => {
-    if (!contractInfo) return
+    if (!contractInfo || !connectedAddress || !publicClient || !walletClient) return;
 
     try {
-      // Use the recovery address directly from contractInfo
-      const recoveryAddress = contractInfo.recoveryAddress;
+      const chain = config.chains.find((c) => c.id === contractInfo.chainId);
+      if (!chain) {
+        throw new Error('Chain not found');
+      }
 
-      // Implementation with connected recovery wallet
-      // TODO: Implement the actual transfer ownership request
+      const manager = new SecureOwnableManager(publicClient, walletClient, contractInfo.address, chain);
+      const tx = await manager.transferOwnership({
+        from: connectedAddress as `0x${string}`
+      });
+
+      // Wait for transaction confirmation
+      await publicClient.waitForTransactionReceipt({ hash: tx });
+
       toast({
         title: "Request submitted",
         description: "Transfer ownership request has been submitted.",
-      })
+      });
       
       // Add a small delay before reloading contract info to allow transaction to be mined
       setTimeout(async () => {
         await loadContractInfo();
       }, 2000);
       
-      return true
+      return true;
     } catch (error) {
-      console.error('Error submitting transfer ownership request:', error)
+      console.error('Error submitting transfer ownership request:', error);
       toast({
         title: "Error",
         description: "Failed to submit transfer ownership request.",
         variant: "destructive"
-      })
-      return false
+      });
+      return false;
     }
   }
 

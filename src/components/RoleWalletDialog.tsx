@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useState } from 'react'
 import { 
   Dialog, 
   DialogContent, 
@@ -8,6 +9,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { SecureContractInfo } from '@/lib/types'
+import { Loader2 } from 'lucide-react'
 
 // Main RoleWalletDialog component
 interface RoleWalletDialogProps {
@@ -37,8 +39,25 @@ export function RoleWalletDialog({
   children,
   onSubmit
 }: RoleWalletDialogProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleSubmit = async () => {
+    try {
+      setIsSubmitting(true)
+      await onSubmit()
+    } catch (error) {
+      console.error('Transaction error:', error)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!isSubmitting) {
+        onOpenChange(open)
+      }
+    }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader className="space-y-3">
           <DialogTitle>{title}</DialogTitle>
@@ -55,10 +74,18 @@ export function RoleWalletDialog({
           {children}
           
           <Button 
-            onClick={onSubmit} 
+            onClick={handleSubmit}
+            disabled={isSubmitting}
             className="w-full"
           >
-            {actionLabel}
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Confirming...
+              </>
+            ) : (
+              actionLabel
+            )}
           </Button>
         </div>
       </DialogContent>
