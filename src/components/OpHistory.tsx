@@ -29,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { TxDetailsDialog } from './TxDetailsDialog'
 
 // Status badge variants mapping
 const statusVariants: { [key: number]: { variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode } } = {
@@ -84,6 +85,8 @@ export function OpHistory({ contractAddress, operations, isLoading = false }: Op
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [operationTypeFilter, setOperationTypeFilter] = useState<string>('all')
   const { getOperationName, operationTypes, loading: loadingTypes } = useOperationTypes(contractAddress)
+  const [selectedRecord, setSelectedRecord] = useState<TxRecord | null>(null)
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false)
 
   useEffect(() => {
     // Sort operations by txId in descending order (newest first)
@@ -107,6 +110,11 @@ export function OpHistory({ contractAddress, operations, isLoading = false }: Op
 
     setFilteredOperations(filtered)
   }, [sortedOperations, statusFilter, operationTypeFilter])
+
+  const handleRowClick = (record: TxRecord) => {
+    setSelectedRecord(record)
+    setIsDetailsOpen(true)
+  }
 
   if (isLoading || loadingTypes) {
     return (
@@ -178,23 +186,18 @@ export function OpHistory({ contractAddress, operations, isLoading = false }: Op
             </TableHeader>
             <TableBody>
               {filteredOperations.map((record) => (
-                <TableRow key={record.txId.toString()}>
+                <TableRow 
+                  key={record.txId.toString()}
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => handleRowClick(record)}
+                >
                   <TableCell className="font-medium">
                     {record.txId.toString()}
                   </TableCell>
                   <TableCell>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <Badge variant="outline">
-                            {getOperationName(record.params.operationType)}
-                          </Badge>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Operation Type: {record.params.operationType}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                    <Badge variant="outline">
+                      {getOperationName(record.params.operationType)}
+                    </Badge>
                   </TableCell>
                   <TableCell>
                     <Badge 
@@ -209,36 +212,9 @@ export function OpHistory({ contractAddress, operations, isLoading = false }: Op
                     {formatTimestamp(Number(record.releaseTime))}
                   </TableCell>
                   <TableCell>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <Badge variant="secondary" className="cursor-help">
-                            View Details
-                          </Badge>
-                        </TooltipTrigger>
-                        <TooltipContent className="w-[300px]">
-                          <div className="space-y-2">
-                            <p><strong>Requester:</strong> {formatAddress(record.params.requester)}</p>
-                            <p><strong>Target:</strong> {formatAddress(record.params.target)}</p>
-                            <p><strong>Value:</strong> {record.params.value.toString()}</p>
-                            <p><strong>Gas Limit:</strong> {record.params.gasLimit.toString()}</p>
-                            <p><strong>Execution Type:</strong> {executionTypeToHuman[record.params.executionType]}</p>
-                            {record.payment && (
-                              <>
-                                <p><strong>Payment Recipient:</strong> {formatAddress(record.payment.recipient)}</p>
-                                <p><strong>Native Token Amount:</strong> {record.payment.nativeTokenAmount.toString()}</p>
-                                {record.payment.erc20TokenAmount > 0n && (
-                                  <>
-                                    <p><strong>ERC20 Token:</strong> {formatAddress(record.payment.erc20TokenAddress)}</p>
-                                    <p><strong>ERC20 Amount:</strong> {record.payment.erc20TokenAmount.toString()}</p>
-                                  </>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                    <Badge variant="secondary">
+                      View Details
+                    </Badge>
                   </TableCell>
                 </TableRow>
               ))}
@@ -251,6 +227,13 @@ export function OpHistory({ contractAddress, operations, isLoading = false }: Op
               )}
             </TableBody>
           </Table>
+
+          <TxDetailsDialog
+            record={selectedRecord}
+            isOpen={isDetailsOpen}
+            onOpenChange={setIsDetailsOpen}
+            operationName={selectedRecord ? getOperationName(selectedRecord.params.operationType) : ''}
+          />
         </CardContent>
       </Card>
     </motion.div>
