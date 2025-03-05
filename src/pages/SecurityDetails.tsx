@@ -27,10 +27,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useSecureContract } from '@/hooks/useSecureContract'
 import { useToast } from '../components/ui/use-toast'
 import { Input } from '../components/ui/input'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '../components/ui/dialog'
 import { SecureContractInfo } from '@/lib/types'
 import { Address } from 'viem'
-import { SingleWalletManagerProvider, useSingleWallet } from '@/components/SingleWalletManager'
 import { formatAddress, isValidEthereumAddress } from '@/lib/utils'
 import {
   Tooltip,
