@@ -1,4 +1,5 @@
 import { Address } from 'viem'
+import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
 
 export type OperationType = 'ownership' | 'broadcaster' | 'recovery' | 'timelock'
 
@@ -39,6 +40,7 @@ export type SecureContractInfo = {
   recentEvents: SecurityOperationEvent[]
   chainId: number
   chainName: string
+  operationHistory: TxRecord[]
 }
 
 export interface ContractInfo {

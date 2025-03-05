@@ -42,6 +42,7 @@ import { TIMELOCK_PERIODS } from '@/constants/contract'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { SecureOwnableManager } from '@/lib/SecureOwnableManager'
 import { RoleWalletDialog } from '@/components/RoleWalletDialog'
+import { SecurityOpHistory } from '@/components/SecurityOpHistory'
 
 const container = {
   hidden: { opacity: 0 },
@@ -925,6 +926,15 @@ export function SecurityDetails() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Operation History Section */}
+          <motion.div variants={item} className="mt-6">
+            <SecurityOpHistory
+              contractAddress={contractAddress as `0x${string}`}
+              operations={contractInfo?.operationHistory || []}
+              isLoading={loading}
+            />
+          </motion.div>
         </motion.div>
       </motion.div>
     </div>

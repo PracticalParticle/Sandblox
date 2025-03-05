@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { TxRecord, TxParams, PaymentDetails } from '@/particle-core/sdk/typescript/interfaces/lib.index'
+import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
 import { TxStatus, ExecutionType } from '@/particle-core/sdk/typescript/types/lib.index'
-import { OPERATION_TYPES } from '@/particle-core/sdk/typescript/types/core.access.index'
 import { Address } from 'viem'
 import { formatAddress, formatTimestamp } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
@@ -22,19 +21,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-
-// Interface for human-readable operation type mapping
-interface OperationTypeMap {
-  [key: string]: string;
-}
-
-// Operation type mapping for human-readable display
-const operationTypeToHuman: OperationTypeMap = {
-  [OPERATION_TYPES.OWNERSHIP_UPDATE]: 'Ownership Update',
-  [OPERATION_TYPES.BROADCASTER_UPDATE]: 'Broadcaster Update',
-  [OPERATION_TYPES.RECOVERY_UPDATE]: 'Recovery Update',
-  [OPERATION_TYPES.TIMELOCK_UPDATE]: 'TimeLock Update'
-}
+import { useOperationTypes } from '@/hooks/useOperationTypes'
 
 // Status badge variants mapping
 const statusVariants: { [key: number]: { variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode } } = {
@@ -86,6 +73,7 @@ const item = {
 
 export function SecurityOpHistory({ contractAddress, operations, isLoading = false }: SecurityOpHistoryProps) {
   const [sortedOperations, setSortedOperations] = useState<TxRecord[]>([])
+  const { getOperationName, loading: loadingTypes } = useOperationTypes(contractAddress)
 
   useEffect(() => {
     // Sort operations by txId in descending order (newest first)
@@ -95,7 +83,7 @@ export function SecurityOpHistory({ contractAddress, operations, isLoading = fal
     setSortedOperations(sorted)
   }, [operations])
 
-  if (isLoading) {
+  if (isLoading || loadingTypes) {
     return (
       <motion.div variants={container} initial="hidden" animate="show">
         <Card>
@@ -138,7 +126,7 @@ export function SecurityOpHistory({ contractAddress, operations, isLoading = fal
                       <Tooltip>
                         <TooltipTrigger>
                           <Badge variant="outline">
-                            {operationTypeToHuman[record.params.operationType] || 'Unknown'}
+                            {getOperationName(record.params.operationType)}
                           </Badge>
                         </TooltipTrigger>
                         <TooltipContent>

@@ -112,7 +112,8 @@ export class SecureOwnableManager {
         pendingOperations: events.filter(e => e.status === 'pending'),
         recentEvents: events.filter(e => e.status !== 'pending').slice(0, 5),
         chainId,
-        chainName: getChainName(chainId, [this.chain])
+        chainName: getChainName(chainId, [this.chain]),
+        operationHistory: history
       };
     } catch (error) {
       console.error('Contract loading error:', error);
