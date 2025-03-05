@@ -48,6 +48,8 @@ import { useTransactionManager } from '@/hooks/useTransactionManager'
 import { SecureOwnable } from '@/particle-core/sdk/typescript/SecureOwnable'
 import { OPERATION_TYPES, FUNCTION_SELECTORS } from '@/particle-core/sdk/typescript/types/core.access.index'
 import { TemporalActionDialog } from '@/components/TemporalActionDialog'
+import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
+import { TxStatus } from '@/particle-core/sdk/typescript/types/lib.index'
 
 const container = {
   hidden: { opacity: 0 },
@@ -157,6 +159,10 @@ export function SecurityDetails() {
   const [isSigningTx, setIsSigningTx] = useState(false);
   const { transactions, storeTransaction } = useTransactionManager(contractAddress || '');
   const [showOwnershipDialog, setShowOwnershipDialog] = useState(false)
+  const [pendingOwnershipTx, setPendingOwnershipTx] = useState<TxRecord | null>(null)
+  const [pendingBroadcasterTx, setPendingBroadcasterTx] = useState<TxRecord | null>(null)
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true)
+  const [operationTypeMap, setOperationTypeMap] = useState<Map<string, string>>(new Map())
 
   useEffect(() => {
     if (!contractAddress) {
@@ -174,9 +180,10 @@ export function SecurityDetails() {
   }, [contractAddress])
 
   const loadContractInfo = async () => {
-    if (!contractAddress) return;
+    if (!contractAddress || !publicClient) return;
 
     setLoading(true);
+    setIsLoadingHistory(true);
     setError(null);
 
     try {
@@ -184,7 +191,56 @@ export function SecurityDetails() {
       if (!info) {
         throw new Error('Contract info not found');
       }
+      
+      console.log('Contract info loaded:', info);
+      console.log('Operation history:', info.operationHistory);
+
+      // Get chain information
+      const chain = config.chains.find((c) => c.id === info.chainId);
+      if (!chain) {
+        throw new Error('Chain not found');
+      }
+
+      // Create contract instance to get operation types
+      const contract = new SecureOwnable(
+        publicClient,
+        undefined, // We don't need walletClient for read operations
+        contractAddress as `0x${string}`,
+        chain
+      );
+
+      // Get supported operation types
+      const supportedTypes = await contract.getSupportedOperationTypes();
+      const typeMap = new Map(
+        supportedTypes.map(({ operationType, name }) => [operationType, name])
+      );
+      setOperationTypeMap(typeMap);
+      
+      console.log('Operation type mapping:', typeMap);
+      
       setContractInfo(info);
+
+      // Find pending transactions in operation history
+      if (info.operationHistory) {
+        // Find first pending ownership transfer
+        const pendingOwnership = info.operationHistory.find(
+          tx => tx.status === TxStatus.PENDING && 
+               typeMap.get(tx.params.operationType) === 'OWNERSHIP_TRANSFER'
+        );
+
+        // Find first pending broadcaster update
+        const pendingBroadcaster = info.operationHistory.find(
+          tx => tx.status === TxStatus.PENDING && 
+               typeMap.get(tx.params.operationType) === 'BROADCASTER_UPDATE'
+        );
+
+        console.log('Found pending ownership tx:', pendingOwnership);
+        console.log('Found pending broadcaster tx:', pendingBroadcaster);
+
+        setPendingOwnershipTx(pendingOwnership || null);
+        setPendingBroadcasterTx(pendingBroadcaster || null);
+      }
+
       setError(null);
     } catch (error) {
       console.error('Error loading contract:', error);
@@ -198,11 +254,23 @@ export function SecurityDetails() {
       }
     } finally {
       setLoading(false);
+      setIsLoadingHistory(false);
     }
   };
 
+  // Add an effect to log state changes for debugging
+  useEffect(() => {
+    console.log('State update:', {
+      loading,
+      isLoadingHistory,
+      pendingOwnershipTx,
+      pendingBroadcasterTx,
+      contractInfo: contractInfo?.operationHistory?.length
+    });
+  }, [loading, isLoadingHistory, pendingOwnershipTx, pendingBroadcasterTx, contractInfo]);
+
   // Action handlers
-  const handleTransferOwnershipRequest = async () => {
+  const handleTransferOwnershipRequest = async (): Promise<void> => {
     if (!contractInfo || !connectedAddress || !publicClient || !walletClient) return;
 
     try {
@@ -229,7 +297,7 @@ export function SecurityDetails() {
         await loadContractInfo();
       }, 2000);
       
-      return true;
+      return;
     } catch (error) {
       console.error('Error submitting transfer ownership request:', error);
       toast({
@@ -237,7 +305,7 @@ export function SecurityDetails() {
         description: "Failed to submit transfer ownership request.",
         variant: "destructive"
       });
-      return false;
+      throw error;
     }
   }
 
@@ -713,31 +781,45 @@ export function SecurityDetails() {
                 </div>
               </CardHeader>
               <CardContent>
-                <Button 
-                  onClick={() => setShowOwnershipDialog(true)}
-                  className="flex items-center gap-2 w-full"
-                  size="sm"
-                  variant={isRoleConnected(contractInfo.recoveryAddress) ? "default" : "outline"}
-                  disabled={!isRoleConnected(contractInfo.recoveryAddress)}
-                >
-                  <Wallet className="h-4 w-4" />
-                  Request Transfer
-                </Button>
-                
-                <TemporalActionDialog
-                  isOpen={showOwnershipDialog}
-                  onOpenChange={setShowOwnershipDialog}
-                  title="Transfer Ownership"
-                  description="Please connect the recovery wallet to proceed with the ownership transfer request. The ownership will be transferred to the recovery address."
-                  contractInfo={contractInfo}
-                  actionType="ownership_transfer"
-                  currentValue={contractInfo?.owner}
-                  currentValueLabel="Current Owner"
-                  actionLabel="Request Transfer"
-                  requiredRole="recovery"
-                  connectedAddress={connectedAddress}
-                  onSubmit={handleTransferOwnershipRequest}
-                />
+                {isLoadingHistory ? (
+                  <div className="flex items-center justify-center py-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <>
+                    <Button 
+                      onClick={() => setShowOwnershipDialog(true)}
+                      className="flex items-center gap-2 w-full"
+                      size="sm"
+                      variant={isRoleConnected(pendingOwnershipTx ? contractInfo.owner : contractInfo.recoveryAddress) ? "default" : "outline"}
+                      disabled={!isRoleConnected(pendingOwnershipTx ? contractInfo.owner : contractInfo.recoveryAddress)}
+                    >
+                      <Wallet className="h-4 w-4" />
+                      {pendingOwnershipTx ? "Approve Transfer" : "Request Transfer"}
+                    </Button>
+                    
+                    <TemporalActionDialog
+                      isOpen={showOwnershipDialog}
+                      onOpenChange={setShowOwnershipDialog}
+                      title="Transfer Ownership"
+                      description={pendingOwnershipTx 
+                        ? "Please connect the owner wallet to approve the ownership transfer request."
+                        : "Please connect the recovery wallet to proceed with the ownership transfer request. The ownership will be transferred to the recovery address."
+                      }
+                      contractInfo={contractInfo}
+                      actionType="ownership_transfer"
+                      currentValue={contractInfo?.owner}
+                      currentValueLabel="Current Owner"
+                      actionLabel={pendingOwnershipTx ? "Approve Transfer" : "Request Transfer"}
+                      requiredRole={pendingOwnershipTx ? "owner" : "recovery"}
+                      connectedAddress={connectedAddress}
+                      pendingTx={pendingOwnershipTx}
+                      onSubmit={handleTransferOwnershipRequest}
+                      onApprove={handleTransferOwnershipApproval}
+                      onCancel={handleTransferOwnershipCancellation}
+                    />
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -762,31 +844,45 @@ export function SecurityDetails() {
                 </div>
               </CardHeader>
               <CardContent>
-                <Button 
-                  onClick={() => setShowBroadcasterDialog(true)}
-                  className="flex items-center gap-2 w-full" 
-                  size="sm"
-                  variant={isRoleConnected(contractInfo.owner) ? "default" : "outline"}
-                  disabled={!isRoleConnected(contractInfo.owner)}
-                >
-                  <Wallet className="h-4 w-4" />
-                  Request Update
-                </Button>
+                {isLoadingHistory ? (
+                  <div className="flex items-center justify-center py-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <>
+                    <Button 
+                      onClick={() => setShowBroadcasterDialog(true)}
+                      className="flex items-center gap-2 w-full" 
+                      size="sm"
+                      variant={isRoleConnected(pendingBroadcasterTx ? contractInfo.broadcaster : contractInfo.owner) ? "default" : "outline"}
+                      disabled={!isRoleConnected(pendingBroadcasterTx ? contractInfo.broadcaster : contractInfo.owner)}
+                    >
+                      <Wallet className="h-4 w-4" />
+                      {pendingBroadcasterTx ? "Approve Update" : "Request Update"}
+                    </Button>
 
-                <TemporalActionDialog
-                  isOpen={showBroadcasterDialog}
-                  onOpenChange={setShowBroadcasterDialog}
-                  title="Update Broadcaster"
-                  description="Please connect the owner wallet to proceed with the broadcaster update request."
-                  contractInfo={contractInfo}
-                  actionType="broadcaster_update"
-                  currentValue={contractInfo?.broadcaster}
-                  currentValueLabel="Current Broadcaster"
-                  actionLabel="Request Update"
-                  requiredRole="owner"
-                  connectedAddress={connectedAddress}
-                  onSubmit={handleUpdateBroadcasterRequest}
-                />
+                    <TemporalActionDialog
+                      isOpen={showBroadcasterDialog}
+                      onOpenChange={setShowBroadcasterDialog}
+                      title="Update Broadcaster"
+                      description={pendingBroadcasterTx
+                        ? "Please connect the broadcaster wallet to approve the broadcaster update request."
+                        : "Please connect the owner wallet to proceed with the broadcaster update request."
+                      }
+                      contractInfo={contractInfo}
+                      actionType="broadcaster_update"
+                      currentValue={contractInfo?.broadcaster}
+                      currentValueLabel="Current Broadcaster"
+                      actionLabel={pendingBroadcasterTx ? "Approve Update" : "Request Update"}
+                      requiredRole={pendingBroadcasterTx ? "broadcaster" : "owner"}
+                      connectedAddress={connectedAddress}
+                      pendingTx={pendingBroadcasterTx}
+                      onSubmit={handleUpdateBroadcasterRequest}
+                      onApprove={handleUpdateBroadcasterApproval}
+                      onCancel={handleUpdateBroadcasterCancellation}
+                    />
+                  </>
+                )}
               </CardContent>
             </Card>
 
