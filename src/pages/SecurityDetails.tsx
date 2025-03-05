@@ -1,4 +1,4 @@
-import { useAccount } from 'wagmi'
+import { useAccount, useDisconnect } from 'wagmi'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
@@ -46,6 +46,7 @@ import { Label } from '@/components/ui/label'
 import { TIMELOCK_PERIODS } from '@/constants/contract'
 import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
 import { MetaTxDialog } from '@/components/MetaTxDialog'
+import { useConnectModal } from '@rainbow-me/rainbowkit'
 
 const container = {
   hidden: { opacity: 0 },
@@ -287,12 +288,14 @@ interface TimeLockUpdateEvent extends ContractEvent {
 export function SecurityDetails() {
   const { address } = useParams<{ address: string }>()
   const { isConnected } = useAccount()
+  const { disconnect } = useDisconnect()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [contractInfo, setContractInfo] = useState<SecureContractInfo | null>(null)
   const { validateAndLoadContract, updateBroadcaster, approveOperation, cancelOperation } = useSecureContract()
   const { toast } = useToast()
+  const { openConnectModal } = useConnectModal()
 
   // State for input fields
   const [newOwnerAddress, setNewOwnerAddress] = useState('')
@@ -310,13 +313,9 @@ export function SecurityDetails() {
   const [showTimeLockDialog, setShowTimeLockDialog] = useState(false)
   const [pendingOperation, setPendingOperation] = useState<UITxRecord | null>(null)
   const [operationType, setOperationType] = useState<'approve' | 'cancel' | null>(null)
+  const [isConnecting, setIsConnecting] = useState(false);
 
   useEffect(() => {
-    if (!isConnected) {
-      navigate('/')
-      return
-    }
-
     if (!address) {
       navigate('/blox-security')
       return
@@ -329,7 +328,7 @@ export function SecurityDetails() {
     }
 
     loadContractInfo()
-  }, [isConnected, address])
+  }, [address])
 
   const loadContractInfo = async () => {
     if (!address) return;
@@ -616,6 +615,37 @@ export function SecurityDetails() {
     setShowBroadcasterCancelDialog(true)
   }
 
+  const handleConnect = async (role: string) => {
+    console.log('Attempting to connect role:', role);
+    try {
+      // First disconnect the current wallet
+      if (isConnected) {
+        console.log('Disconnecting current wallet');
+        disconnect();
+      }
+
+      // Use RainbowKit's connect modal
+      if (openConnectModal) {
+        console.log('Opening RainbowKit connect modal');
+        openConnectModal();
+      } else {
+        console.error('RainbowKit connect modal not available');
+        toast({
+          title: "Connection Error",
+          description: "Wallet connection dialog not available",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error in wallet connection flow:', error);
+      toast({
+        title: "Connection Error",
+        description: "Failed to handle wallet connection",
+        variant: "destructive"
+      });
+    }
+  };
+
   if (!address || error) {
     return (
       <div className="container py-8">
@@ -718,6 +748,10 @@ export function SecurityDetails() {
                     className="w-full mt-2"
                     variant="outline"
                     size="sm"
+                    onClick={() => {
+                      console.log('Owner connect button clicked');
+                      handleConnect('owner');
+                    }}
                   >
                     Connect Owner
                   </Button>
@@ -729,6 +763,10 @@ export function SecurityDetails() {
                     className="w-full mt-2"
                     variant="outline"
                     size="sm"
+                    onClick={() => {
+                      console.log('Broadcaster connect button clicked');
+                      handleConnect('broadcaster');
+                    }}
                   >
                     Connect Broadcaster
                   </Button>
@@ -740,6 +778,10 @@ export function SecurityDetails() {
                     className="w-full mt-2"
                     variant="outline"
                     size="sm"
+                    onClick={() => {
+                      console.log('Recovery connect button clicked');
+                      handleConnect('recovery');
+                    }}
                   >
                     Connect Recovery
                   </Button>
