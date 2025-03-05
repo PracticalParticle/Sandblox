@@ -82,9 +82,9 @@ export function useSecureContract() {
 
     const manager = new SecureOwnableManager(publicClient, walletClient, address, chain);
     if (operationType === 'ownership') {
-      return manager.approveOwnershipTransfer(txId, { from: walletClient.account.address });
+      return manager.approveOwnershipTransfer(BigInt(txId), { from: walletClient.account.address });
     } else {
-      return manager.approveBroadcasterUpdate(txId, { from: walletClient.account.address });
+      return manager.approveBroadcasterUpdate(BigInt(txId), { from: walletClient.account.address });
     }
   }
 
@@ -104,9 +104,9 @@ export function useSecureContract() {
 
     const manager = new SecureOwnableManager(publicClient, walletClient, address, chain);
     if (operationType === 'ownership') {
-      return manager.cancelOwnershipTransfer(txId, { from: walletClient.account.address });
+      return manager.cancelOwnershipTransfer(BigInt(txId), { from: walletClient.account.address });
     } else {
-      return manager.cancelBroadcasterUpdate(txId, { from: walletClient.account.address });
+      return manager.cancelBroadcasterUpdate(BigInt(txId), { from: walletClient.account.address });
     }
   }
 
