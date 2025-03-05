@@ -315,6 +315,7 @@ export function SecurityDetails() {
   const [pendingOperation, setPendingOperation] = useState<UITxRecord | null>(null)
   const [operationType, setOperationType] = useState<'approve' | 'cancel' | null>(null)
   const [isConnecting, setIsConnecting] = useState(false);
+  const [targetRole, setTargetRole] = useState<string | null>(null);
 
   useEffect(() => {
     if (!contractAddress) {
@@ -616,16 +617,59 @@ export function SecurityDetails() {
     setShowBroadcasterCancelDialog(true)
   }
 
+  // Add this new function to verify the connected wallet matches the intended role
+  const verifyConnectedRole = (role: string) => {
+    if (!connectedAddress || !contractInfo) return false;
+    
+    switch (role) {
+      case 'owner':
+        return connectedAddress.toLowerCase() === contractInfo.owner.toLowerCase();
+      case 'broadcaster':
+        return connectedAddress.toLowerCase() === contractInfo.broadcaster.toLowerCase();
+      case 'recovery':
+        return connectedAddress.toLowerCase() === contractInfo.recoveryAddress.toLowerCase();
+      default:
+        return false;
+    }
+  };
+
+  // Watch for successful connections
+  useEffect(() => {
+    if (isConnected && targetRole && connectedAddress) {
+      // Only verify and show notifications if we're not in the process of switching wallets
+      if (!isConnecting) {
+        const isCorrectRole = verifyConnectedRole(targetRole);
+        if (isCorrectRole) {
+          toast({
+            title: "Success",
+            description: `Successfully connected ${targetRole} wallet`,
+            variant: "default"
+          });
+        } else {
+          toast({
+            title: "Wrong Wallet",
+            description: `Connected wallet does not match the ${targetRole} address. Please try again with the correct wallet.`,
+            variant: "destructive"
+          });
+          // Optionally disconnect the wrong wallet
+          disconnect();
+        }
+        setTargetRole(null);
+      }
+    }
+  }, [isConnected, connectedAddress, targetRole, contractInfo, isConnecting]);
+
   const handleConnect = async (role: string) => {
     console.log('Attempting to connect role:', role);
     try {
+      // Set the target role we're trying to connect
+      setTargetRole(role);
+      
       if (isConnected) {
         console.log('Disconnecting current wallet');
-        // Set a flag to track that we want to show connect modal after disconnect
         setIsConnecting(true);
         disconnect();
       } else {
-        // If no wallet is connected, just open the modal directly
         console.log('No wallet connected, opening connect modal directly');
         openConnectModal?.();
       }
@@ -636,6 +680,8 @@ export function SecurityDetails() {
         description: "Failed to handle wallet connection",
         variant: "destructive"
       });
+      setTargetRole(null);
+      setIsConnecting(false);
     }
   };
 
