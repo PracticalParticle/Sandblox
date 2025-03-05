@@ -87,7 +87,7 @@ export class SecureOwnableManager {
           };
 
           return {
-            type: operationType === 'OWNERSHIP_UPDATE' ? 'ownership' :
+            type: operationType === 'OWNERSHIP_TRANSFER' ? 'ownership' :
                   operationType === 'BROADCASTER_UPDATE' ? 'broadcaster' :
                   operationType === 'RECOVERY_UPDATE' ? 'recovery' : 'timelock',
             status,

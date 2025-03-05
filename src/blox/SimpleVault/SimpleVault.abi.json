@@ -262,7 +262,7 @@
   },
   {
     "inputs": [],
-    "name": "OWNERSHIP_UPDATE",
+    "name": "OWNERSHIP_TRANSFER",
     "outputs": [
       {
         "internalType": "bytes32",

@@ -101,7 +101,7 @@ const formatValue = (value: string, type: string): string => {
   if (!value || value === '0x0' || value === '0x') return '-';
 
   switch (type) {
-    case 'ownership_update':
+    case 'ownership_transfer':
     case 'broadcaster_update':
     case 'recovery_update':
       return formatHexValue(value);
@@ -114,7 +114,7 @@ const formatValue = (value: string, type: string): string => {
 
 const getOperationIcon = (type: string) => {
   switch (type) {
-    case 'ownership_update':
+    case 'ownership_transfer':
       return <Key className="h-3 w-3" />;
     case 'broadcaster_update':
       return <Radio className="h-3 w-3" />;
