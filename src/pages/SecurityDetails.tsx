@@ -37,15 +37,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
-import { OperationHistory, UITxRecord } from '@/components/OperationHistory'
-import { TxStatus } from '@/particle-core/sdk/typescript/types/lib.index'
-import { TxRecord as CoreTxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
 import { Label } from '@/components/ui/label'
 import { TIMELOCK_PERIODS } from '@/constants/contract'
-import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
-import { RoleWalletDialog } from '@/components/RoleWalletDialog'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { SecureOwnableManager } from '@/lib/SecureOwnableManager'
+import { RoleWalletDialog } from '@/components/RoleWalletDialog'
 
 const container = {
   hidden: { opacity: 0 },
@@ -108,37 +104,6 @@ const formatValue = (value: string, type: string): string => {
       return formatTimeValue(value);
     default:
       return formatHexValue(value);
-  }
-};
-
-const getOperationTitle = (event: UITxRecord): string => {
-  switch (event.type) {
-    case 'ownership_update':
-      return 'Ownership Transfer';
-    case 'broadcaster_update':
-      return 'Broadcaster Update';
-    case 'recovery_update':
-      return 'Recovery Update';
-    case 'timelock_update':
-      return 'TimeLock Update';
-    default:
-      return 'Unknown Operation';
-  }
-};
-
-const getOperationDescription = (event: UITxRecord): string => {
-  const newValue = formatValue(event.details.newValue, event.type);
-  switch (event.type) {
-    case 'ownership_update':
-      return `Transfer ownership to ${newValue}`;
-    case 'broadcaster_update':
-      return `Update broadcaster to ${newValue}`;
-    case 'recovery_update':
-      return `Update recovery address to ${newValue}`;
-    case 'timelock_update':
-      return `Update timelock period to ${newValue}`;
-    default:
-      return event.description;
   }
 };
 
@@ -223,59 +188,6 @@ function BroadcasterUpdateDialog({
   )
 }
 
-// Core event types
-interface CoreOperationEvent {
-  txId: bigint;
-  timestamp: bigint;
-  status: number;
-  type: string;
-  requester: Address;
-  target: Address;
-  details: {
-    oldValue: string | bigint;
-    newValue: string | bigint;
-    remainingTime: bigint;
-  };
-  description?: string;
-  params?: {
-    requester: Address;
-    target: Address;
-    value: bigint;
-    gasLimit: bigint;
-    operationType: string;
-    executionType: number;
-    executionOptions: string;
-  };
-  result?: string;
-  payment?: {
-    recipient: Address;
-    nativeTokenAmount: bigint;
-    erc20TokenAddress: Address;
-    erc20TokenAmount: bigint;
-  };
-}
-
-// Event types from the contract
-interface ContractEvent {
-  status: string;
-  type: string;
-  timestamp: string | number;
-  description?: string;
-  details: {
-    oldValue: string;
-    newValue: string;
-    remainingTime?: string | number;
-  };
-}
-
-interface TimeLockUpdateEvent extends ContractEvent {
-  details: {
-    oldValue: string;
-    newValue: string;
-    remainingTime?: string | number;
-  };
-}
-
 export function SecurityDetails() {
   const { address: contractAddress } = useParams<{ address: string }>()
   const { address: connectedAddress, isConnected } = useAccount()
@@ -296,17 +208,10 @@ export function SecurityDetails() {
   const [newBroadcasterAddress, setNewBroadcasterAddress] = useState('')
   const [newRecoveryAddress, setNewRecoveryAddress] = useState('')
   const [newTimeLockPeriod, setNewTimeLockPeriod] = useState('')
-  const [selectedTxId, setSelectedTxId] = useState('')
-
   const [showConnectRecoveryDialog, setShowConnectRecoveryDialog] = useState(false)
   const [showBroadcasterDialog, setShowBroadcasterDialog] = useState(false)
-  const [showBroadcasterApproveDialog, setShowBroadcasterApproveDialog] = useState(false)
-  const [showBroadcasterCancelDialog, setShowBroadcasterCancelDialog] = useState(false)
-  const [operationHistory, setOperationHistory] = useState<UITxRecord[]>([])
   const [showRecoveryDialog, setShowRecoveryDialog] = useState(false)
   const [showTimeLockDialog, setShowTimeLockDialog] = useState(false)
-  const [pendingOperation, setPendingOperation] = useState<UITxRecord | null>(null)
-  const [operationType, setOperationType] = useState<'approve' | 'cancel' | null>(null)
   const [isConnecting, setIsConnecting] = useState(false);
   const [targetRole, setTargetRole] = useState<string | null>(null);
 
@@ -337,88 +242,6 @@ export function SecurityDetails() {
         throw new Error('Contract info not found');
       }
       setContractInfo(info);
-
-      // Convert contract events to TxRecord format
-      const pendingOps = info.pendingOperations || [];
-      const recentOps = info.recentEvents || [];
-      
-      // Map events to CoreOperationEvent format with explicit typing
-      const allEvents: CoreOperationEvent[] = [...pendingOps, ...recentOps].map((event: ContractEvent) => {
-        // Convert status string to number
-        let statusNum: number;
-        switch (event.status.toLowerCase()) {
-          case 'pending':
-            statusNum = TxStatus.PENDING;
-            break;
-          case 'completed':
-            statusNum = TxStatus.COMPLETED;
-            break;
-          case 'cancelled':
-            statusNum = TxStatus.CANCELLED;
-            break;
-          case 'failed':
-            statusNum = TxStatus.FAILED;
-            break;
-          case 'rejected':
-            statusNum = TxStatus.REJECTED;
-            break;
-          default:
-            statusNum = TxStatus.UNDEFINED;
-        }
-
-        return {
-          txId: BigInt(event.details.newValue),
-          timestamp: BigInt(event.timestamp),
-          status: statusNum,
-          type: event.type.toLowerCase(),
-          requester: connectedAddress as Address,
-          target: connectedAddress as Address,
-          details: {
-            oldValue: event.details.oldValue,
-            newValue: event.details.newValue,
-            remainingTime: BigInt(event.details.remainingTime || 0)
-          },
-          description: event.description
-        };
-      });
-      
-      // Convert timeLockPeriodInMinutes to number first
-      const timeLockPeriodInMinutes = convertBigIntToNumber(info.timeLockPeriodInMinutes);
-      const timeLockPeriodInSeconds = timeLockPeriodInMinutes * 60;
-      
-      const history: UITxRecord[] = allEvents
-        .filter(event => 
-          event.details !== undefined &&
-          event.details.oldValue !== undefined &&
-          event.details.newValue !== undefined &&
-          event.details.remainingTime !== undefined
-        )
-        .map((event) => ({
-          txId: Number(event.txId),
-          type: event.type,
-          description: event.description || getOperationDescription({
-            type: event.type,
-            details: {
-              oldValue: event.details.oldValue.toString(),
-              newValue: event.details.newValue.toString(),
-              remainingTime: Number(event.details.remainingTime),
-              requester: event.requester,
-              target: event.target
-            }
-          } as UITxRecord),
-          status: event.status,
-          releaseTime: Number(event.timestamp) + timeLockPeriodInSeconds,
-          timestamp: Number(event.timestamp),
-          details: {
-            oldValue: event.details.oldValue.toString(),
-            newValue: event.details.newValue.toString(),
-            remainingTime: Number(event.details.remainingTime),
-            requester: event.requester,
-            target: event.target
-          }
-        }));
-
-      setOperationHistory(history);
       setError(null);
     } catch (error) {
       console.error('Error loading contract:', error);
@@ -597,25 +420,6 @@ export function SecurityDetails() {
         variant: "destructive"
       })
     }
-  }
-
-  // Handle operation actions
-  const handleOperationApprove = async (txId: number, type: string) => {
-    const operation = operationHistory.find(op => op.txId === txId)
-    if (!operation) return
-    
-    setPendingOperation(operation)
-    setOperationType('approve')
-    setShowBroadcasterApproveDialog(true)
-  }
-
-  const handleOperationCancel = async (txId: number, type: string) => {
-    const operation = operationHistory.find(op => op.txId === txId)
-    if (!operation) return
-    
-    setPendingOperation(operation)
-    setOperationType('cancel')
-    setShowBroadcasterCancelDialog(true)
   }
 
   // Add this new function to verify the connected wallet matches the intended role
@@ -1121,85 +925,7 @@ export function SecurityDetails() {
               </CardContent>
             </Card>
           </div>
-
-          {/* Pending Operations */}
-          <OperationHistory
-            operations={operationHistory.filter(op => op.status === TxStatus.PENDING)}
-            title="Pending Operations"
-            onApprove={handleOperationApprove}
-            onCancel={handleOperationCancel}
-            showFilters={false}
-          />
-
-          {/* Operation History */}
-          <OperationHistory
-            operations={operationHistory}
-            title="Operation History"
-            className="bg-card"
-          />
         </motion.div>
-
-        {/* Approval Dialog */}
-        <RoleWalletDialog
-          isOpen={showBroadcasterApproveDialog}
-          onOpenChange={setShowBroadcasterApproveDialog}
-          title={`Approve ${pendingOperation ? getOperationTitle(pendingOperation) : 'Operation'}`}
-          description="Please connect your broadcaster wallet to approve this operation."
-          contractInfo={contractInfo}
-          walletType="broadcaster"
-          currentValue={pendingOperation?.details.newValue}
-          currentValueLabel="New Value"
-          actionLabel="Approve Operation"
-          onSubmit={async () => {
-            if (!pendingOperation) return
-            
-            try {
-              if (pendingOperation.type === 'ownership_update') {
-                await handleTransferOwnershipApproval(pendingOperation.txId)
-              } else if (pendingOperation.type === 'broadcaster_update') {
-                await handleUpdateBroadcasterApproval(pendingOperation.txId)
-              }
-              // Add other operation types as needed
-              
-              setShowBroadcasterApproveDialog(false)
-              setPendingOperation(null)
-              setOperationType(null)
-            } catch (error) {
-              console.error('Error approving operation:', error)
-            }
-          }}
-        />
-
-        {/* Cancellation Dialog */}
-        <RoleWalletDialog
-          isOpen={showBroadcasterCancelDialog}
-          onOpenChange={setShowBroadcasterCancelDialog}
-          title={`Cancel ${pendingOperation ? getOperationTitle(pendingOperation) : 'Operation'}`}
-          description="Please connect your broadcaster wallet to cancel this operation."
-          contractInfo={contractInfo}
-          walletType="broadcaster"
-          currentValue={pendingOperation?.details.newValue}
-          currentValueLabel="New Value"
-          actionLabel="Cancel Operation"
-          onSubmit={async () => {
-            if (!pendingOperation) return
-            
-            try {
-              if (pendingOperation.type === 'ownership_update') {
-                await handleTransferOwnershipCancellation(pendingOperation.txId)
-              } else if (pendingOperation.type === 'broadcaster_update') {
-                await handleUpdateBroadcasterCancellation(pendingOperation.txId)
-              }
-              // Add other operation types as needed
-              
-              setShowBroadcasterCancelDialog(false)
-              setPendingOperation(null)
-              setOperationType(null)
-            } catch (error) {
-              console.error('Error cancelling operation:', error)
-            }
-          }}
-        />
       </motion.div>
     </div>
   )
