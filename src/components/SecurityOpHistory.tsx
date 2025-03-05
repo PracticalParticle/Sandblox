@@ -14,7 +14,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from "./ui/table"
 import { Loader2, Clock, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react'
 import {
   Tooltip,
