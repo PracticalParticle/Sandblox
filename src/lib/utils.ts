@@ -164,4 +164,21 @@ export function formatTokenBalance(value: bigint, decimals: number = 18, display
   // Combine the parts and trim trailing zeros
   const result = `${beforeDecimal.toString()}.${significantDecimals}`;
   return result.replace(/\.?0+$/, '');
+}
+
+/**
+ * Format a Unix timestamp into a human-readable date string
+ * @param timestamp Unix timestamp in seconds
+ * @returns Formatted date string
+ */
+export function formatTimestamp(timestamp: number): string {
+  const date = new Date(timestamp * 1000) // Convert to milliseconds
+  return date.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  })
 } 

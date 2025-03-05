@@ -1,4 +1,4 @@
-import { useAccount } from 'wagmi'
+import { useAccount, useDisconnect, usePublicClient, useWalletClient, useConfig } from 'wagmi'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
@@ -19,18 +19,17 @@ import {
   Copy,
   History,
   Hash,
-  ChevronDown
+  ChevronDown,
+  SwitchCamera
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useSecureContract } from '@/hooks/useSecureContract'
 import { useToast } from '../components/ui/use-toast'
 import { Input } from '../components/ui/input'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '../components/ui/dialog'
-import { SecureContractInfo } from '@/lib/types'
-import { Address } from 'viem'
-import { SingleWalletManagerProvider, useSingleWallet } from '@/components/SingleWalletManager'
+import { ExecutionType, SecureContractInfo } from '@/lib/types'
+import { Address, isAddress } from 'viem'
 import { formatAddress, isValidEthereumAddress } from '@/lib/utils'
 import {
   Tooltip,
@@ -39,13 +38,15 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
-import { OperationHistory, UITxRecord } from '@/components/OperationHistory'
-import { TxStatus } from '@/particle-core/sdk/typescript/types/lib.index'
-import { TxRecord as CoreTxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
 import { Label } from '@/components/ui/label'
 import { TIMELOCK_PERIODS } from '@/constants/contract'
-import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
-import { MetaTxDialog } from '@/components/MetaTxDialog'
+import { useConnectModal } from '@rainbow-me/rainbowkit'
+import { SecureOwnableManager } from '@/lib/SecureOwnableManager'
+import { RoleWalletDialog } from '@/components/RoleWalletDialog'
+import { OpHistory } from '@/components/OpHistory'
+import { useTransactionManager } from '@/hooks/useTransactionManager'
+import { SecureOwnable } from '@/particle-core/sdk/typescript/SecureOwnable'
+import { OPERATION_TYPES, FUNCTION_SELECTORS } from '@/particle-core/sdk/typescript/types/core.access.index'
 
 const container = {
   hidden: { opacity: 0 },
@@ -111,37 +112,6 @@ const formatValue = (value: string, type: string): string => {
   }
 };
 
-const getOperationTitle = (event: UITxRecord): string => {
-  switch (event.type) {
-    case 'ownership_update':
-      return 'Ownership Transfer';
-    case 'broadcaster_update':
-      return 'Broadcaster Update';
-    case 'recovery_update':
-      return 'Recovery Update';
-    case 'timelock_update':
-      return 'TimeLock Update';
-    default:
-      return 'Unknown Operation';
-  }
-};
-
-const getOperationDescription = (event: UITxRecord): string => {
-  const newValue = formatValue(event.details.newValue, event.type);
-  switch (event.type) {
-    case 'ownership_update':
-      return `Transfer ownership to ${newValue}`;
-    case 'broadcaster_update':
-      return `Update broadcaster to ${newValue}`;
-    case 'recovery_update':
-      return `Update recovery address to ${newValue}`;
-    case 'timelock_update':
-      return `Update timelock period to ${newValue}`;
-    default:
-      return event.description;
-  }
-};
-
 const getOperationIcon = (type: string) => {
   switch (type) {
     case 'ownership_update':
@@ -183,7 +153,7 @@ function BroadcasterUpdateDialog({
   }, [isOpen])
 
   return (
-    <MetaTxDialog
+    <RoleWalletDialog
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       title="Request Broadcaster Update"
@@ -218,213 +188,67 @@ function BroadcasterUpdateDialog({
             Please enter a valid Ethereum address
           </p>
         )}
-        {!isOwner && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              Only the owner can request broadcaster updates
-            </AlertDescription>
-          </Alert>
-        )}
       </div>
-    </MetaTxDialog>
+    </RoleWalletDialog>
   )
 }
 
-// Core event types
-interface CoreOperationEvent {
-  txId: bigint;
-  timestamp: bigint;
-  status: number;
-  type: string;
-  requester: Address;
-  target: Address;
-  details: {
-    oldValue: string | bigint;
-    newValue: string | bigint;
-    remainingTime: bigint;
-  };
-  description?: string;
-  params?: {
-    requester: Address;
-    target: Address;
-    value: bigint;
-    gasLimit: bigint;
-    operationType: string;
-    executionType: number;
-    executionOptions: string;
-  };
-  result?: string;
-  payment?: {
-    recipient: Address;
-    nativeTokenAmount: bigint;
-    erc20TokenAddress: Address;
-    erc20TokenAmount: bigint;
-  };
-}
-
-// Event types from the contract
-interface ContractEvent {
-  status: string;
-  type: string;
-  timestamp: string | number;
-  description?: string;
-  details: {
-    oldValue: string;
-    newValue: string;
-    remainingTime?: string | number;
-  };
-}
-
-interface TimeLockUpdateEvent extends ContractEvent {
-  details: {
-    oldValue: string;
-    newValue: string;
-    remainingTime?: string | number;
-  };
-}
-
 export function SecurityDetails() {
-  const { address } = useParams<{ address: string }>()
-  const { isConnected } = useAccount()
+  const { address: contractAddress } = useParams<{ address: string }>()
+  const { address: connectedAddress, isConnected } = useAccount()
+  const { disconnect } = useDisconnect()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [contractInfo, setContractInfo] = useState<SecureContractInfo | null>(null)
   const { validateAndLoadContract, updateBroadcaster, approveOperation, cancelOperation } = useSecureContract()
   const { toast } = useToast()
+  const { openConnectModal } = useConnectModal()
+  const publicClient = usePublicClient()
+  const { data: walletClient } = useWalletClient()
+  const config = useConfig()
 
   // State for input fields
   const [newOwnerAddress, setNewOwnerAddress] = useState('')
   const [newBroadcasterAddress, setNewBroadcasterAddress] = useState('')
   const [newRecoveryAddress, setNewRecoveryAddress] = useState('')
   const [newTimeLockPeriod, setNewTimeLockPeriod] = useState('')
-  const [selectedTxId, setSelectedTxId] = useState('')
-
   const [showConnectRecoveryDialog, setShowConnectRecoveryDialog] = useState(false)
   const [showBroadcasterDialog, setShowBroadcasterDialog] = useState(false)
-  const [showBroadcasterApproveDialog, setShowBroadcasterApproveDialog] = useState(false)
-  const [showBroadcasterCancelDialog, setShowBroadcasterCancelDialog] = useState(false)
-  const [operationHistory, setOperationHistory] = useState<UITxRecord[]>([])
   const [showRecoveryDialog, setShowRecoveryDialog] = useState(false)
   const [showTimeLockDialog, setShowTimeLockDialog] = useState(false)
-  const [pendingOperation, setPendingOperation] = useState<UITxRecord | null>(null)
-  const [operationType, setOperationType] = useState<'approve' | 'cancel' | null>(null)
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [targetRole, setTargetRole] = useState<string | null>(null);
+  const [isSigningTx, setIsSigningTx] = useState(false);
+  const { transactions, storeTransaction } = useTransactionManager(contractAddress || '');
 
   useEffect(() => {
-    if (!isConnected) {
-      navigate('/')
-      return
-    }
-
-    if (!address) {
+    if (!contractAddress) {
       navigate('/blox-security')
       return
     }
 
-    if (!address.match(/^0x[a-fA-F0-9]{40}$/)) {
+    if (!contractAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
       setError('Invalid contract address format')
       setLoading(false)
       return
     }
 
     loadContractInfo()
-  }, [isConnected, address])
+  }, [contractAddress])
 
   const loadContractInfo = async () => {
-    if (!address) return;
+    if (!contractAddress) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      const info = await validateAndLoadContract(address as `0x${string}`);
+      const info = await validateAndLoadContract(contractAddress as `0x${string}`);
       if (!info) {
         throw new Error('Contract info not found');
       }
       setContractInfo(info);
-
-      // Convert contract events to TxRecord format
-      const pendingOps = info.pendingOperations || [];
-      const recentOps = info.recentEvents || [];
-      
-      // Map events to CoreOperationEvent format with explicit typing
-      const allEvents: CoreOperationEvent[] = [...pendingOps, ...recentOps].map((event: ContractEvent) => {
-        // Convert status string to number
-        let statusNum: number;
-        switch (event.status.toLowerCase()) {
-          case 'pending':
-            statusNum = TxStatus.PENDING;
-            break;
-          case 'completed':
-            statusNum = TxStatus.COMPLETED;
-            break;
-          case 'cancelled':
-            statusNum = TxStatus.CANCELLED;
-            break;
-          case 'failed':
-            statusNum = TxStatus.FAILED;
-            break;
-          case 'rejected':
-            statusNum = TxStatus.REJECTED;
-            break;
-          default:
-            statusNum = TxStatus.UNDEFINED;
-        }
-
-        return {
-          txId: BigInt(event.details.newValue),
-          timestamp: BigInt(event.timestamp),
-          status: statusNum,
-          type: event.type.toLowerCase(),
-          requester: address as Address,
-          target: address as Address,
-          details: {
-            oldValue: event.details.oldValue,
-            newValue: event.details.newValue,
-            remainingTime: BigInt(event.details.remainingTime || 0)
-          },
-          description: event.description
-        };
-      });
-      
-      // Convert timeLockPeriodInMinutes to number first
-      const timeLockPeriodInMinutes = convertBigIntToNumber(info.timeLockPeriodInMinutes);
-      const timeLockPeriodInSeconds = timeLockPeriodInMinutes * 60;
-      
-      const history: UITxRecord[] = allEvents
-        .filter(event => 
-          event.details !== undefined &&
-          event.details.oldValue !== undefined &&
-          event.details.newValue !== undefined &&
-          event.details.remainingTime !== undefined
-        )
-        .map((event) => ({
-          txId: Number(event.txId),
-          type: event.type,
-          description: event.description || getOperationDescription({
-            type: event.type,
-            details: {
-              oldValue: event.details.oldValue.toString(),
-              newValue: event.details.newValue.toString(),
-              remainingTime: Number(event.details.remainingTime),
-              requester: event.requester,
-              target: event.target
-            }
-          } as UITxRecord),
-          status: event.status,
-          releaseTime: Number(event.timestamp) + timeLockPeriodInSeconds,
-          timestamp: Number(event.timestamp),
-          details: {
-            oldValue: event.details.oldValue.toString(),
-            newValue: event.details.newValue.toString(),
-            remainingTime: Number(event.details.remainingTime),
-            requester: event.requester,
-            target: event.target
-          }
-        }));
-
-      setOperationHistory(history);
       setError(null);
     } catch (error) {
       console.error('Error loading contract:', error);
@@ -443,39 +267,47 @@ export function SecurityDetails() {
 
   // Action handlers
   const handleTransferOwnershipRequest = async () => {
-    if (!contractInfo) return
+    if (!contractInfo || !connectedAddress || !publicClient || !walletClient) return;
 
     try {
-      // Use the recovery address directly from contractInfo
-      const recoveryAddress = contractInfo.recoveryAddress;
+      const chain = config.chains.find((c) => c.id === contractInfo.chainId);
+      if (!chain) {
+        throw new Error('Chain not found');
+      }
 
-      // Implementation with connected recovery wallet
-      // TODO: Implement the actual transfer ownership request
+      const manager = new SecureOwnableManager(publicClient, walletClient, contractInfo.address, chain);
+      const tx = await manager.transferOwnership({
+        from: connectedAddress as `0x${string}`
+      });
+
+      // Wait for transaction confirmation
+      await publicClient.waitForTransactionReceipt({ hash: tx });
+
       toast({
         title: "Request submitted",
         description: "Transfer ownership request has been submitted.",
-      })
+      });
       
       // Add a small delay before reloading contract info to allow transaction to be mined
       setTimeout(async () => {
         await loadContractInfo();
       }, 2000);
       
-      return true
+      return true;
     } catch (error) {
-      console.error('Error submitting transfer ownership request:', error)
+      console.error('Error submitting transfer ownership request:', error);
       toast({
         title: "Error",
         description: "Failed to submit transfer ownership request.",
         variant: "destructive"
-      })
-      return false
+      });
+      return false;
     }
   }
 
   const handleTransferOwnershipApproval = async (txId: number) => {
     try {
-      await approveOperation(address as `0x${string}`, txId, 'ownership');
+      await approveOperation(contractAddress as `0x${string}`, txId, 'ownership');
       toast({
         title: "Approval submitted",
         description: "Transfer ownership approval has been submitted.",
@@ -492,7 +324,7 @@ export function SecurityDetails() {
 
   const handleTransferOwnershipCancellation = async (txId: number) => {
     try {
-      await cancelOperation(address as `0x${string}`, txId, 'ownership');
+      await cancelOperation(contractAddress as `0x${string}`, txId, 'ownership');
       toast({
         title: "Cancellation submitted",
         description: "Transfer ownership cancellation has been submitted.",
@@ -509,7 +341,7 @@ export function SecurityDetails() {
 
   const handleUpdateBroadcasterRequest = async (newBroadcaster: string) => {
     try {
-      await updateBroadcaster(address as `0x${string}`, newBroadcaster as `0x${string}`);
+      await updateBroadcaster(contractAddress as `0x${string}`, newBroadcaster as `0x${string}`);
       
       toast({
         title: "Request submitted",
@@ -533,7 +365,7 @@ export function SecurityDetails() {
 
   const handleUpdateBroadcasterApproval = async (txId: number) => {
     try {
-      await approveOperation(address as `0x${string}`, txId, 'broadcaster');
+      await approveOperation(contractAddress as `0x${string}`, txId, 'broadcaster');
       toast({
         title: "Approval submitted",
         description: "Broadcaster update approval has been submitted.",
@@ -550,7 +382,7 @@ export function SecurityDetails() {
 
   const handleUpdateBroadcasterCancellation = async (txId: number) => {
     try {
-      await cancelOperation(address as `0x${string}`, txId, 'broadcaster');
+      await cancelOperation(contractAddress as `0x${string}`, txId, 'broadcaster');
       toast({
         title: "Cancellation submitted",
         description: "Broadcaster update cancellation has been submitted.",
@@ -565,21 +397,86 @@ export function SecurityDetails() {
     }
   }
 
-  const handleUpdateRecoveryRequest = async (newRecovery: string) => {
+  const handleUpdateRecoveryRequest = async (newRecoveryAddress: string) => {
     try {
-      // Implementation
+      if (!contractInfo || !connectedAddress || !contractAddress || !publicClient || !walletClient) {
+        toast({
+          title: "Error",
+          description: "Missing required information",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const chain = config.chains.find((c) => c.id === contractInfo.chainId);
+      if (!chain) {
+        throw new Error('Chain not found');
+      }
+
+      setIsSigningTx(true);
+
+      // Create contract instance
+      const contract = new SecureOwnable(
+        publicClient,
+        walletClient,
+        contractAddress as `0x${string}`,
+        chain
+      );
+
+      // Get execution options for recovery update
+      const executionOptions = await contract.updateRecoveryExecutionOptions(
+        newRecoveryAddress as `0x${string}`,
+        { from: connectedAddress as `0x${string}` }
+      );
+
+      // Generate meta transaction parameters
+      const metaTxParams = await contract.createMetaTxParams(
+        contractAddress as `0x${string}`,
+        FUNCTION_SELECTORS.UPDATE_RECOVERY as `0x${string}`,
+        BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
+        BigInt(0), // No max gas price
+        connectedAddress as `0x${string}`
+      );
+
+      // Generate unsigned meta transaction
+      const unsignedMetaTx = await contract.generateUnsignedMetaTransactionForNew(
+        connectedAddress as `0x${string}`,
+        contractAddress as `0x${string}`,
+        BigInt(0), // No value
+        BigInt(0), // No gas limit
+        OPERATION_TYPES.RECOVERY_UPDATE as `0x${string}`,
+        ExecutionType.STANDARD,
+        executionOptions,
+        metaTxParams
+      );
+
+      // Store the signed transaction
+      storeTransaction(
+        '0', // txId 0 is used for single phase meta transactions
+        JSON.stringify(unsignedMetaTx),
+        {
+          type: 'RECOVERY_UPDATE',
+          newRecoveryAddress,
+          timestamp: Date.now()
+        }
+      );
+
       toast({
-        title: "Request submitted",
-        description: "Recovery address update request has been submitted.",
-      })
+        title: "Success",
+        description: "Recovery update transaction signed and stored",
+      });
+
     } catch (error) {
+      console.error('Error in recovery update:', error);
       toast({
         title: "Error",
-        description: "Failed to submit recovery address update request.",
+        description: error instanceof Error ? error.message : "Failed to update recovery address",
         variant: "destructive"
-      })
+      });
+    } finally {
+      setIsSigningTx(false);
     }
-  }
+  };
 
   const handleUpdateTimeLockRequest = async (newPeriod: string) => {
     try {
@@ -597,26 +494,89 @@ export function SecurityDetails() {
     }
   }
 
-  // Handle operation actions
-  const handleOperationApprove = async (txId: number, type: string) => {
-    const operation = operationHistory.find(op => op.txId === txId)
-    if (!operation) return
+  // Add this new function to verify the connected wallet matches the intended role
+  const verifyConnectedRole = (role: string) => {
+    if (!connectedAddress || !contractInfo) return false;
     
-    setPendingOperation(operation)
-    setOperationType('approve')
-    setShowBroadcasterApproveDialog(true)
-  }
+    switch (role) {
+      case 'owner':
+        return connectedAddress.toLowerCase() === contractInfo.owner.toLowerCase();
+      case 'broadcaster':
+        return connectedAddress.toLowerCase() === contractInfo.broadcaster.toLowerCase();
+      case 'recovery':
+        return connectedAddress.toLowerCase() === contractInfo.recoveryAddress.toLowerCase();
+      default:
+        return false;
+    }
+  };
 
-  const handleOperationCancel = async (txId: number, type: string) => {
-    const operation = operationHistory.find(op => op.txId === txId)
-    if (!operation) return
-    
-    setPendingOperation(operation)
-    setOperationType('cancel')
-    setShowBroadcasterCancelDialog(true)
-  }
+  // Watch for successful connections
+  useEffect(() => {
+    if (isConnected && targetRole && connectedAddress) {
+      // Only verify and show notifications if we're not in the process of switching wallets
+      if (!isConnecting) {
+        const isCorrectRole = verifyConnectedRole(targetRole);
+        if (isCorrectRole) {
+          toast({
+            title: "Success",
+            description: `Successfully connected ${targetRole} wallet`,
+            variant: "default"
+          });
+        } else {
+          toast({
+            title: "Wrong Wallet",
+            description: `Connected wallet does not match the ${targetRole} address. Please try again with the correct wallet.`,
+            variant: "destructive"
+          });
+          // Optionally disconnect the wrong wallet
+          disconnect();
+        }
+        setTargetRole(null);
+      }
+    }
+  }, [isConnected, connectedAddress, targetRole, contractInfo, isConnecting]);
 
-  if (!address || error) {
+  const handleConnect = async (role: string) => {
+    console.log('Attempting to connect role:', role);
+    try {
+      // Set the target role we're trying to connect
+      setTargetRole(role);
+      
+      if (isConnected) {
+        console.log('Disconnecting current wallet');
+        setIsConnecting(true);
+        disconnect();
+      } else {
+        console.log('No wallet connected, opening connect modal directly');
+        openConnectModal?.();
+      }
+    } catch (error) {
+      console.error('Error in wallet connection flow:', error);
+      toast({
+        title: "Connection Error",
+        description: "Failed to handle wallet connection",
+        variant: "destructive"
+      });
+      setTargetRole(null);
+      setIsConnecting(false);
+    }
+  };
+
+  // Watch for disconnect to trigger connect modal
+  useEffect(() => {
+    if (!isConnected && isConnecting) {
+      console.log('Wallet disconnected, opening connect modal');
+      openConnectModal?.();
+      setIsConnecting(false);
+    }
+  }, [isConnected, isConnecting, openConnectModal]);
+
+  // Add role validation functions
+  const isRoleConnected = (roleAddress: string) => {
+    return connectedAddress?.toLowerCase() === roleAddress?.toLowerCase();
+  };
+
+  if (!contractAddress || error) {
     return (
       <div className="container py-8">
         <motion.div variants={container} initial="hidden" animate="show">
@@ -698,7 +658,7 @@ export function SecurityDetails() {
               <div>
                 <h1 className="text-3xl font-bold tracking-tight text-left">Security Details</h1>
                 <p className="mt-2 text-muted-foreground">
-                  Manage security settings for contract at {address}
+                  Manage security settings for contract at {contractAddress}
                 </p>
               </div>
             </div>
@@ -710,18 +670,81 @@ export function SecurityDetails() {
           <Card className="p-6">
             <h2 className="text-xl font-bold mb-4">Contract Information</h2>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-6">
                 <div>
                   <p className="text-sm text-muted-foreground">Owner</p>
-                  <p className="font-medium">{contractInfo.owner}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium truncate flex-1">{contractInfo.owner}</p>
+                    {isRoleConnected(contractInfo.owner) ? (
+                      <div className="h-2 w-2 rounded-full bg-green-500" />
+                    ) : (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button 
+                              className="text-muted-foreground hover:text-primary transition-colors"
+                              onClick={() => handleConnect('owner')}
+                            >
+                              <SwitchCamera className="h-4 w-4" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Switch to owner wallet</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Broadcaster</p>
-                  <p className="font-medium">{contractInfo.broadcaster}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium truncate flex-1">{contractInfo.broadcaster}</p>
+                    {isRoleConnected(contractInfo.broadcaster) ? (
+                      <div className="h-2 w-2 rounded-full bg-green-500" />
+                    ) : (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button 
+                              className="text-muted-foreground hover:text-primary transition-colors"
+                              onClick={() => handleConnect('broadcaster')}
+                            >
+                              <SwitchCamera className="h-4 w-4" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Switch to broadcaster wallet</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Recovery Address</p>
-                  <p className="font-medium">{contractInfo.recoveryAddress}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium truncate flex-1">{contractInfo.recoveryAddress}</p>
+                    {isRoleConnected(contractInfo.recoveryAddress) ? (
+                      <div className="h-2 w-2 rounded-full bg-green-500" />
+                    ) : (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button 
+                              className="text-muted-foreground hover:text-primary transition-colors"
+                              onClick={() => handleConnect('recovery')}
+                            >
+                              <SwitchCamera className="h-4 w-4" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Switch to recovery wallet</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Timelock Period</p>
@@ -761,12 +784,14 @@ export function SecurityDetails() {
                   }}
                   className="flex items-center gap-2 w-full"
                   size="sm"
+                  variant={isRoleConnected(contractInfo.recoveryAddress) ? "default" : "outline"}
+                  disabled={!isRoleConnected(contractInfo.recoveryAddress)}
                 >
                   <Wallet className="h-4 w-4" />
                   Request Transfer
                 </Button>
                 
-                <MetaTxDialog
+                <RoleWalletDialog
                   isOpen={showConnectRecoveryDialog}
                   onOpenChange={setShowConnectRecoveryDialog}
                   title="Transfer Ownership"
@@ -788,7 +813,7 @@ export function SecurityDetails() {
                       {contractInfo?.recoveryAddress}
                     </div>
                   </div>
-                </MetaTxDialog>
+                </RoleWalletDialog>
               </CardContent>
             </Card>
 
@@ -823,6 +848,8 @@ export function SecurityDetails() {
                   onClick={() => setShowBroadcasterDialog(true)}
                   className="flex items-center gap-2 w-full" 
                   size="sm"
+                  variant={isRoleConnected(contractInfo.owner) ? "default" : "outline"}
+                  disabled={!isRoleConnected(contractInfo.owner)}
                 >
                   <Wallet className="h-4 w-4" />
                   Request Update
@@ -851,45 +878,71 @@ export function SecurityDetails() {
                 </div>
               </CardHeader>
               <CardContent>
-                <Button 
-                  onClick={() => {
-                    setNewRecoveryAddress('');
-                    setShowRecoveryDialog(true);
-                  }}
-                  className="flex items-center gap-2 w-full" 
-                  size="sm"
-                >
-                  <Key className="h-4 w-4" />
-                  Update
-                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button 
+                    onClick={() => {
+                      setNewRecoveryAddress('');
+                      setShowRecoveryDialog(true);
+                    }}
+                    className="flex items-center gap-2 w-full" 
+                    size="sm"
+                    variant={isRoleConnected(contractInfo.owner) ? "default" : "outline"}
+                    disabled={!isRoleConnected(contractInfo.owner)}
+                  >
+                    <Key className="h-4 w-4" />
+                    {isSigningTx ? "Signing..." : "Request Update"}
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      setNewRecoveryAddress('');
+                      setShowRecoveryDialog(true);
+                    }}
+                    className="flex items-center gap-2 w-full" 
+                    size="sm"
+                    variant={isRoleConnected(contractInfo.broadcaster) ? "default" : "outline"}
+                    disabled={!isRoleConnected(contractInfo.broadcaster)}
+                  >
+                    <Radio className="h-4 w-4" />
+                    Broadcast
+                  </Button>
+                </div>
                 
-                <MetaTxDialog
+                <RoleWalletDialog
                   isOpen={showRecoveryDialog}
                   onOpenChange={setShowRecoveryDialog}
                   title="Update Recovery Address"
                   contractInfo={contractInfo}
-                  walletType="broadcaster"
+                  walletType="owner"
                   currentValue={contractInfo.recoveryAddress}
                   currentValueLabel="Current Recovery Address"
-                  actionLabel="Submit Update Request"
+                  actionLabel={isSigningTx ? "Signing..." : "Sign Transaction"}
                   newValue={newRecoveryAddress}
                   onSubmit={async () => {
+                    if (!isValidEthereumAddress(newRecoveryAddress)) {
+                      toast({
+                        title: "Error",
+                        description: "Please enter a valid Ethereum address",
+                        variant: "destructive"
+                      });
+                      return;
+                    }
                     await handleUpdateRecoveryRequest(newRecoveryAddress);
-                    setShowRecoveryDialog(false);
                   }}
                 >
-                  <Input
-                    placeholder="New Recovery Address"
-                    value={newRecoveryAddress}
-                    onChange={(e) => setNewRecoveryAddress(e.target.value)}
-                    className={!isValidEthereumAddress(newRecoveryAddress) && newRecoveryAddress !== "" ? "border-destructive" : ""}
-                  />
-                  {!isValidEthereumAddress(newRecoveryAddress) && newRecoveryAddress !== "" && (
-                    <p className="text-sm text-destructive">
-                      Please enter a valid Ethereum address
-                    </p>
-                  )}
-                </MetaTxDialog>
+                  <div className="space-y-2">
+                    <Input
+                      placeholder="New Recovery Address"
+                      value={newRecoveryAddress}
+                      onChange={(e) => setNewRecoveryAddress(e.target.value)}
+                      className={!isValidEthereumAddress(newRecoveryAddress) && newRecoveryAddress !== "" ? "border-destructive" : ""}
+                    />
+                    {!isValidEthereumAddress(newRecoveryAddress) && newRecoveryAddress !== "" && (
+                      <p className="text-sm text-destructive">
+                        Please enter a valid Ethereum address
+                      </p>
+                    )}
+                  </div>
+                </RoleWalletDialog>
               </CardContent>
             </Card>
 
@@ -914,142 +967,90 @@ export function SecurityDetails() {
                 </div>
               </CardHeader>
               <CardContent>
-                <Button 
-                  onClick={() => {
-                    setNewTimeLockPeriod('');
-                    setShowTimeLockDialog(true);
-                  }}
-                  className="flex items-center gap-2 w-full" 
-                  size="sm"
-                >
-                  <Clock className="h-4 w-4" />
-                  Update
-                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button 
+                    onClick={() => {
+                      setNewTimeLockPeriod('');
+                      setShowTimeLockDialog(true);
+                    }}
+                    className="flex items-center gap-2 w-full" 
+                    size="sm"
+                    variant={isRoleConnected(contractInfo.owner) ? "default" : "outline"}
+                    disabled={!isRoleConnected(contractInfo.owner)}
+                  >
+                    <Clock className="h-4 w-4" />
+                    Request Update
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      setNewTimeLockPeriod('');
+                      setShowTimeLockDialog(true);
+                    }}
+                    className="flex items-center gap-2 w-full" 
+                    size="sm"
+                    variant={isRoleConnected(contractInfo.broadcaster) ? "default" : "outline"}
+                    disabled={!isRoleConnected(contractInfo.broadcaster)}
+                  >
+                    <Radio className="h-4 w-4" />
+                    Broadcast
+                  </Button>
+                </div>
                 
-                <MetaTxDialog
+                <RoleWalletDialog
                   isOpen={showTimeLockDialog}
                   onOpenChange={setShowTimeLockDialog}
                   title="Update TimeLock Period"
                   description={`Enter a new time lock period between ${TIMELOCK_PERIODS.MIN} and ${TIMELOCK_PERIODS.MAX} minutes.`}
                   contractInfo={contractInfo}
                   walletType="broadcaster"
-                  currentValue={formatTimeValue(contractInfo.timeLockPeriodInMinutes)}
+                  currentValue={formatTimeValue(contractInfo?.timeLockPeriodInMinutes)}
                   currentValueLabel="Current TimeLock Period"
                   actionLabel="Submit Update Request"
                   newValue={newTimeLockPeriod}
                   onSubmit={async () => {
-                    if (parseInt(newTimeLockPeriod) > 0 && parseInt(newTimeLockPeriod) <= TIMELOCK_PERIODS.MAX) {
-                      await handleUpdateTimeLockRequest(newTimeLockPeriod);
-                      setShowTimeLockDialog(false);
+                    const period = parseInt(newTimeLockPeriod)
+                    if (isNaN(period) || period < TIMELOCK_PERIODS.MIN || period > TIMELOCK_PERIODS.MAX) {
+                      toast({
+                        title: "Error",
+                        description: `Please enter a valid period between ${TIMELOCK_PERIODS.MIN} and ${TIMELOCK_PERIODS.MAX} minutes`,
+                        variant: "destructive"
+                      })
+                      return
                     }
+                    await handleUpdateTimeLockRequest(newTimeLockPeriod);
+                    setShowTimeLockDialog(false);
                   }}
                 >
                   <div className="space-y-2">
                     <Input
                       type="number"
+                      placeholder="New TimeLock Period (minutes)"
+                      value={newTimeLockPeriod}
+                      onChange={(e) => setNewTimeLockPeriod(e.target.value)}
                       min={TIMELOCK_PERIODS.MIN}
                       max={TIMELOCK_PERIODS.MAX}
-                      placeholder={`New TimeLock Period (${TIMELOCK_PERIODS.MIN}-${TIMELOCK_PERIODS.MAX} minutes)`}
-                      value={newTimeLockPeriod}
-                      onChange={(e) => {
-                        const value = parseInt(e.target.value);
-                        if (!isNaN(value) && value >= TIMELOCK_PERIODS.MIN && value <= TIMELOCK_PERIODS.MAX) {
-                          setNewTimeLockPeriod(e.target.value);
-                        } else {
-                          setNewTimeLockPeriod(e.target.value);
-                        }
-                      }}
                     />
-                    {newTimeLockPeriod && (parseInt(newTimeLockPeriod) < TIMELOCK_PERIODS.MIN || parseInt(newTimeLockPeriod) > TIMELOCK_PERIODS.MAX) && (
+                    {parseInt(newTimeLockPeriod) > 0 && (parseInt(newTimeLockPeriod) < TIMELOCK_PERIODS.MIN || parseInt(newTimeLockPeriod) > TIMELOCK_PERIODS.MAX) && (
                       <p className="text-sm text-destructive">
-                        Time lock period must be between {TIMELOCK_PERIODS.MIN} and {TIMELOCK_PERIODS.MAX} minutes
+                        Please enter a period between {TIMELOCK_PERIODS.MIN} and {TIMELOCK_PERIODS.MAX} minutes
                       </p>
                     )}
                   </div>
-                </MetaTxDialog>
+                </RoleWalletDialog>
               </CardContent>
             </Card>
           </div>
 
-          {/* Pending Operations */}
-          <OperationHistory
-            operations={operationHistory.filter(op => op.status === TxStatus.PENDING)}
-            title="Pending Operations"
-            onApprove={handleOperationApprove}
-            onCancel={handleOperationCancel}
-            showFilters={false}
-          />
-
-          {/* Operation History */}
-          <OperationHistory
-            operations={operationHistory}
-            title="Operation History"
-            className="bg-card"
-          />
+          {/* Operation History Section */}
+          <motion.div variants={item} className="mt-6">
+            <OpHistory
+              contractAddress={contractAddress as `0x${string}`}
+              operations={contractInfo?.operationHistory || []}
+              isLoading={loading}
+            />
+          </motion.div>
         </motion.div>
-
-        {/* Approval Dialog */}
-        <MetaTxDialog
-          isOpen={showBroadcasterApproveDialog}
-          onOpenChange={setShowBroadcasterApproveDialog}
-          title={`Approve ${pendingOperation ? getOperationTitle(pendingOperation) : 'Operation'}`}
-          description="Please connect your broadcaster wallet to approve this operation."
-          contractInfo={contractInfo}
-          walletType="broadcaster"
-          currentValue={pendingOperation?.details.newValue}
-          currentValueLabel="New Value"
-          actionLabel="Approve Operation"
-          onSubmit={async () => {
-            if (!pendingOperation) return
-            
-            try {
-              if (pendingOperation.type === 'ownership_update') {
-                await handleTransferOwnershipApproval(pendingOperation.txId)
-              } else if (pendingOperation.type === 'broadcaster_update') {
-                await handleUpdateBroadcasterApproval(pendingOperation.txId)
-              }
-              // Add other operation types as needed
-              
-              setShowBroadcasterApproveDialog(false)
-              setPendingOperation(null)
-              setOperationType(null)
-            } catch (error) {
-              console.error('Error approving operation:', error)
-            }
-          }}
-        />
-
-        {/* Cancellation Dialog */}
-        <MetaTxDialog
-          isOpen={showBroadcasterCancelDialog}
-          onOpenChange={setShowBroadcasterCancelDialog}
-          title={`Cancel ${pendingOperation ? getOperationTitle(pendingOperation) : 'Operation'}`}
-          description="Please connect your broadcaster wallet to cancel this operation."
-          contractInfo={contractInfo}
-          walletType="broadcaster"
-          currentValue={pendingOperation?.details.newValue}
-          currentValueLabel="New Value"
-          actionLabel="Cancel Operation"
-          onSubmit={async () => {
-            if (!pendingOperation) return
-            
-            try {
-              if (pendingOperation.type === 'ownership_update') {
-                await handleTransferOwnershipCancellation(pendingOperation.txId)
-              } else if (pendingOperation.type === 'broadcaster_update') {
-                await handleUpdateBroadcasterCancellation(pendingOperation.txId)
-              }
-              // Add other operation types as needed
-              
-              setShowBroadcasterCancelDialog(false)
-              setPendingOperation(null)
-              setOperationType(null)
-            } catch (error) {
-              console.error('Error cancelling operation:', error)
-            }
-          }}
-        />
       </motion.div>
     </div>
   )
-} 
+}
