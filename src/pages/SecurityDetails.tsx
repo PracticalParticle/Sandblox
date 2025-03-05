@@ -23,13 +23,13 @@ import {
   SwitchCamera
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useSecureContract } from '@/hooks/useSecureContract'
 import { useToast } from '../components/ui/use-toast'
 import { Input } from '../components/ui/input'
 import { SecureContractInfo } from '@/lib/types'
-import { Address } from 'viem'
+import { Address, isAddress } from 'viem'
 import { formatAddress, isValidEthereumAddress } from '@/lib/utils'
 import {
   Tooltip,
@@ -44,6 +44,9 @@ import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { SecureOwnableManager } from '@/lib/SecureOwnableManager'
 import { RoleWalletDialog } from '@/components/RoleWalletDialog'
 import { OpHistory } from '@/components/OpHistory'
+import { useTransactionManager } from '@/hooks/useTransactionManager'
+import { SecureOwnable } from '@/particle-core/sdk/typescript/SecureOwnable'
+import { OPERATION_TYPES, FUNCTION_SELECTORS } from '@/particle-core/sdk/typescript/types/core.access.index'
 
 const container = {
   hidden: { opacity: 0 },
@@ -216,6 +219,8 @@ export function SecurityDetails() {
   const [showTimeLockDialog, setShowTimeLockDialog] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false);
   const [targetRole, setTargetRole] = useState<string | null>(null);
+  const [isSigningTx, setIsSigningTx] = useState(false);
+  const { transactions, storeTransaction } = useTransactionManager(contractAddress || '');
 
   useEffect(() => {
     if (!contractAddress) {
@@ -392,21 +397,86 @@ export function SecurityDetails() {
     }
   }
 
-  const handleUpdateRecoveryRequest = async (newRecovery: string) => {
+  const handleUpdateRecoveryRequest = async (newRecoveryAddress: string) => {
     try {
-      // Implementation
+      if (!contractInfo || !connectedAddress || !contractAddress || !publicClient || !walletClient) {
+        toast({
+          title: "Error",
+          description: "Missing required information",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const chain = config.chains.find((c) => c.id === contractInfo.chainId);
+      if (!chain) {
+        throw new Error('Chain not found');
+      }
+
+      setIsSigningTx(true);
+
+      // Create contract instance
+      const contract = new SecureOwnable(
+        publicClient,
+        walletClient,
+        contractAddress as `0x${string}`,
+        chain
+      );
+
+      // Get execution options for recovery update
+      const executionOptions = await contract.updateRecoveryExecutionOptions(
+        newRecoveryAddress as `0x${string}`,
+        { from: connectedAddress as `0x${string}` }
+      );
+
+      // Generate meta transaction parameters
+      const metaTxParams = await contract.createMetaTxParams(
+        contractAddress as `0x${string}`,
+        FUNCTION_SELECTORS.UPDATE_RECOVERY as `0x${string}`,
+        BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
+        BigInt(0), // No max gas price
+        connectedAddress as `0x${string}`
+      );
+
+      // Generate unsigned meta transaction
+      const unsignedMetaTx = await contract.generateUnsignedMetaTransactionForNew(
+        connectedAddress as `0x${string}`,
+        contractAddress as `0x${string}`,
+        BigInt(0), // No value
+        BigInt(0), // No gas limit
+        OPERATION_TYPES.RECOVERY_UPDATE as `0x${string}`,
+        0, // Standard execution type
+        executionOptions,
+        metaTxParams
+      );
+
+      // Store the signed transaction
+      storeTransaction(
+        unsignedMetaTx.txRecord.txId.toString(),
+        JSON.stringify(unsignedMetaTx),
+        {
+          type: 'RECOVERY_UPDATE',
+          newRecoveryAddress,
+          timestamp: Date.now()
+        }
+      );
+
       toast({
-        title: "Request submitted",
-        description: "Recovery address update request has been submitted.",
-      })
+        title: "Success",
+        description: "Recovery update transaction signed and stored",
+      });
+
     } catch (error) {
+      console.error('Error in recovery update:', error);
       toast({
         title: "Error",
-        description: "Failed to submit recovery address update request.",
+        description: error instanceof Error ? error.message : "Failed to update recovery address",
         variant: "destructive"
-      })
+      });
+    } finally {
+      setIsSigningTx(false);
     }
-  }
+  };
 
   const handleUpdateTimeLockRequest = async (newPeriod: string) => {
     try {
@@ -820,7 +890,7 @@ export function SecurityDetails() {
                     disabled={!isRoleConnected(contractInfo.owner)}
                   >
                     <Key className="h-4 w-4" />
-                    Request Update
+                    {isSigningTx ? "Signing..." : "Request Update"}
                   </Button>
                   <Button 
                     onClick={() => {
@@ -842,10 +912,10 @@ export function SecurityDetails() {
                   onOpenChange={setShowRecoveryDialog}
                   title="Update Recovery Address"
                   contractInfo={contractInfo}
-                  walletType="broadcaster"
+                  walletType="owner"
                   currentValue={contractInfo.recoveryAddress}
                   currentValueLabel="Current Recovery Address"
-                  actionLabel="Submit Update Request"
+                  actionLabel={isSigningTx ? "Signing..." : "Sign Transaction"}
                   newValue={newRecoveryAddress}
                   onSubmit={async () => {
                     if (!isValidEthereumAddress(newRecoveryAddress)) {
@@ -853,24 +923,25 @@ export function SecurityDetails() {
                         title: "Error",
                         description: "Please enter a valid Ethereum address",
                         variant: "destructive"
-                      })
-                      return
+                      });
+                      return;
                     }
                     await handleUpdateRecoveryRequest(newRecoveryAddress);
-                    setShowRecoveryDialog(false);
                   }}
                 >
-                  <Input
-                    placeholder="New Recovery Address"
-                    value={newRecoveryAddress}
-                    onChange={(e) => setNewRecoveryAddress(e.target.value)}
-                    className={!isValidEthereumAddress(newRecoveryAddress) && newRecoveryAddress !== "" ? "border-destructive" : ""}
-                  />
-                  {!isValidEthereumAddress(newRecoveryAddress) && newRecoveryAddress !== "" && (
-                    <p className="text-sm text-destructive">
-                      Please enter a valid Ethereum address
-                    </p>
-                  )}
+                  <div className="space-y-2">
+                    <Input
+                      placeholder="New Recovery Address"
+                      value={newRecoveryAddress}
+                      onChange={(e) => setNewRecoveryAddress(e.target.value)}
+                      className={!isValidEthereumAddress(newRecoveryAddress) && newRecoveryAddress !== "" ? "border-destructive" : ""}
+                    />
+                    {!isValidEthereumAddress(newRecoveryAddress) && newRecoveryAddress !== "" && (
+                      <p className="text-sm text-destructive">
+                        Please enter a valid Ethereum address
+                      </p>
+                    )}
+                  </div>
                 </RoleWalletDialog>
               </CardContent>
             </Card>
