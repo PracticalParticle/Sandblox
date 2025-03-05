@@ -51,6 +51,7 @@ import { TemporalActionDialog } from '@/components/TemporalActionDialog'
 import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
 import { TxStatus } from '@/particle-core/sdk/typescript/types/lib.index'
 import { MetaTxActionDialog } from '@/components/MetaTxActionDialog'
+import { BroadcasterDialog } from '@/components/BroadcasterDialog'
 
 const container = {
   hidden: { opacity: 0 },
@@ -164,6 +165,8 @@ export function SecurityDetails() {
   const [pendingBroadcasterTx, setPendingBroadcasterTx] = useState<TxRecord | null>(null)
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
   const [operationTypeMap, setOperationTypeMap] = useState<Map<string, string>>(new Map())
+  const [showRecoveryBroadcastDialog, setShowRecoveryBroadcastDialog] = useState(false)
+  const [showTimeLockBroadcastDialog, setShowTimeLockBroadcastDialog] = useState(false)
 
   useEffect(() => {
     if (!contractAddress) {
@@ -921,6 +924,16 @@ export function SecurityDetails() {
                     <Key className="h-4 w-4" />
                     {isSigningTx ? "Signing..." : "Update Recovery"}
                   </Button>
+                  <Button 
+                    onClick={() => setShowRecoveryBroadcastDialog(true)}
+                    className="flex items-center gap-2 w-full" 
+                    size="sm"
+                    variant={isRoleConnected(contractInfo.broadcaster) ? "default" : "outline"}
+                    disabled={!isRoleConnected(contractInfo.broadcaster)}
+                  >
+                    <Radio className="h-4 w-4" />
+                    Broadcast
+                  </Button>
                 </div>
                 
                 <MetaTxActionDialog
@@ -945,6 +958,21 @@ export function SecurityDetails() {
                   })}
                   isSigning={isSigningTx}
                   onSubmit={handleUpdateRecoveryRequest}
+                />
+
+                <BroadcasterDialog
+                  isOpen={showRecoveryBroadcastDialog}
+                  onOpenChange={setShowRecoveryBroadcastDialog}
+                  title="Broadcast Recovery Update"
+                  description="Broadcast the signed recovery address update transaction."
+                  contractInfo={contractInfo}
+                  actionType="recovery"
+                  requiredRole="broadcaster"
+                  connectedAddress={connectedAddress}
+                  onBroadcast={async () => {
+                    // TODO: Implement broadcast logic
+                    console.log("Broadcasting recovery update");
+                  }}
                 />
               </CardContent>
             </Card>
@@ -979,7 +1007,17 @@ export function SecurityDetails() {
                     disabled={!isRoleConnected(contractInfo.owner)}
                   >
                     <Clock className="h-4 w-4" />
-                    Update TimeLock
+                    {isSigningTx ? "Signing..." : "Update TimeLock"}
+                  </Button>
+                  <Button 
+                    onClick={() => setShowTimeLockBroadcastDialog(true)}
+                    className="flex items-center gap-2 w-full" 
+                    size="sm"
+                    variant={isRoleConnected(contractInfo.broadcaster) ? "default" : "outline"}
+                    disabled={!isRoleConnected(contractInfo.broadcaster)}
+                  >
+                    <Radio className="h-4 w-4" />
+                    Broadcast
                   </Button>
                 </div>
                 
@@ -1007,6 +1045,21 @@ export function SecurityDetails() {
                     };
                   }}
                   onSubmit={handleUpdateTimeLockRequest}
+                />
+
+                <BroadcasterDialog
+                  isOpen={showTimeLockBroadcastDialog}
+                  onOpenChange={setShowTimeLockBroadcastDialog}
+                  title="Broadcast TimeLock Update"
+                  description="Broadcast the signed timelock period update transaction."
+                  contractInfo={contractInfo}
+                  actionType="timelock"
+                  requiredRole="broadcaster"
+                  connectedAddress={connectedAddress}
+                  onBroadcast={async () => {
+                    // TODO: Implement broadcast logic
+                    console.log("Broadcasting timelock update");
+                  }}
                 />
               </CardContent>
             </Card>
