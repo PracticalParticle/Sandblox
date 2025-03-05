@@ -710,18 +710,39 @@ export function SecurityDetails() {
           <Card className="p-6">
             <h2 className="text-xl font-bold mb-4">Contract Information</h2>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-6">
                 <div>
                   <p className="text-sm text-muted-foreground">Owner</p>
-                  <p className="font-medium">{contractInfo.owner}</p>
+                  <p className="text-sm font-medium truncate">{contractInfo.owner}</p>
+                  <Button 
+                    className="w-full mt-2"
+                    variant="outline"
+                    size="sm"
+                  >
+                    Connect Owner
+                  </Button>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Broadcaster</p>
-                  <p className="font-medium">{contractInfo.broadcaster}</p>
+                  <p className="text-sm font-medium truncate">{contractInfo.broadcaster}</p>
+                  <Button 
+                    className="w-full mt-2"
+                    variant="outline"
+                    size="sm"
+                  >
+                    Connect Broadcaster
+                  </Button>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Recovery Address</p>
-                  <p className="font-medium">{contractInfo.recoveryAddress}</p>
+                  <p className="text-sm font-medium truncate">{contractInfo.recoveryAddress}</p>
+                  <Button 
+                    className="w-full mt-2"
+                    variant="outline"
+                    size="sm"
+                  >
+                    Connect Recovery
+                  </Button>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Timelock Period</p>
