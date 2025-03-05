@@ -19,7 +19,8 @@ import {
   Copy,
   History,
   Hash,
-  ChevronDown
+  ChevronDown,
+  SwitchCamera
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -42,7 +43,7 @@ import { TIMELOCK_PERIODS } from '@/constants/contract'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { SecureOwnableManager } from '@/lib/SecureOwnableManager'
 import { RoleWalletDialog } from '@/components/RoleWalletDialog'
-import { SecurityOpHistory } from '@/components/SecurityOpHistory'
+import { OpHistory } from '@/components/OpHistory'
 
 const container = {
   hidden: { opacity: 0 },
@@ -604,64 +605,76 @@ export function SecurityDetails() {
                   <p className="text-sm text-muted-foreground">Owner</p>
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium truncate flex-1">{contractInfo.owner}</p>
-                    {isRoleConnected(contractInfo.owner) && (
+                    {isRoleConnected(contractInfo.owner) ? (
                       <div className="h-2 w-2 rounded-full bg-green-500" />
+                    ) : (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button 
+                              className="text-muted-foreground hover:text-primary transition-colors"
+                              onClick={() => handleConnect('owner')}
+                            >
+                              <SwitchCamera className="h-4 w-4" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Switch to owner wallet</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     )}
                   </div>
-                  <Button 
-                    className="w-28 mt-2"
-                    variant={isRoleConnected(contractInfo.owner) ? "default" : "outline"}
-                    size="sm"
-                    disabled={isRoleConnected(contractInfo.owner)}
-                    onClick={() => {
-                      console.log('Owner connect button clicked');
-                      handleConnect('owner');
-                    }}
-                  >
-                    {isRoleConnected(contractInfo.owner) ? "Connected" : "Connect Owner"}
-                  </Button>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Broadcaster</p>
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium truncate flex-1">{contractInfo.broadcaster}</p>
-                    {isRoleConnected(contractInfo.broadcaster) && (
+                    {isRoleConnected(contractInfo.broadcaster) ? (
                       <div className="h-2 w-2 rounded-full bg-green-500" />
+                    ) : (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button 
+                              className="text-muted-foreground hover:text-primary transition-colors"
+                              onClick={() => handleConnect('broadcaster')}
+                            >
+                              <SwitchCamera className="h-4 w-4" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Switch to broadcaster wallet</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     )}
                   </div>
-                  <Button 
-                    className="w-28 mt-2"
-                    variant={isRoleConnected(contractInfo.broadcaster) ? "default" : "outline"}
-                    size="sm"
-                    disabled={isRoleConnected(contractInfo.broadcaster)}
-                    onClick={() => {
-                      console.log('Broadcaster connect button clicked');
-                      handleConnect('broadcaster');
-                    }}
-                  >
-                    {isRoleConnected(contractInfo.broadcaster) ? "Connected" : "Connect Broadcaster"}
-                  </Button>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Recovery Address</p>
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium truncate flex-1">{contractInfo.recoveryAddress}</p>
-                    {isRoleConnected(contractInfo.recoveryAddress) && (
+                    {isRoleConnected(contractInfo.recoveryAddress) ? (
                       <div className="h-2 w-2 rounded-full bg-green-500" />
+                    ) : (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button 
+                              className="text-muted-foreground hover:text-primary transition-colors"
+                              onClick={() => handleConnect('recovery')}
+                            >
+                              <SwitchCamera className="h-4 w-4" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Switch to recovery wallet</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     )}
                   </div>
-                  <Button 
-                    className="w-28 mt-2"
-                    variant={isRoleConnected(contractInfo.recoveryAddress) ? "default" : "outline"}
-                    size="sm"
-                    disabled={isRoleConnected(contractInfo.recoveryAddress)}
-                    onClick={() => {
-                      console.log('Recovery connect button clicked');
-                      handleConnect('recovery');
-                    }}
-                  >
-                    {isRoleConnected(contractInfo.recoveryAddress) ? "Connected" : "Connect Recovery"}
-                  </Button>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Timelock Period</p>
@@ -929,7 +942,7 @@ export function SecurityDetails() {
 
           {/* Operation History Section */}
           <motion.div variants={item} className="mt-6">
-            <SecurityOpHistory
+            <OpHistory
               contractAddress={contractAddress as `0x${string}`}
               operations={contractInfo?.operationHistory || []}
               isLoading={loading}

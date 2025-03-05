@@ -57,7 +57,7 @@ const executionTypeToHuman: { [key: number]: string } = {
   [ExecutionType.RAW]: 'Raw'
 }
 
-interface SecurityOpHistoryProps {
+interface OpHistoryProps {
   contractAddress: Address
   operations: TxRecord[]
   isLoading?: boolean
@@ -78,7 +78,7 @@ const item = {
   show: { opacity: 1, y: 0 }
 }
 
-export function SecurityOpHistory({ contractAddress, operations, isLoading = false }: SecurityOpHistoryProps) {
+export function OpHistory({ contractAddress, operations, isLoading = false }: OpHistoryProps) {
   const [sortedOperations, setSortedOperations] = useState<TxRecord[]>([])
   const [filteredOperations, setFilteredOperations] = useState<TxRecord[]>([])
   const [statusFilter, setStatusFilter] = useState<string>('all')
