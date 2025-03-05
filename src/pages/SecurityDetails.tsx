@@ -28,7 +28,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useSecureContract } from '@/hooks/useSecureContract'
 import { useToast } from '../components/ui/use-toast'
 import { Input } from '../components/ui/input'
-import { SecureContractInfo } from '@/lib/types'
+import { ExecutionType, SecureContractInfo } from '@/lib/types'
 import { Address, isAddress } from 'viem'
 import { formatAddress, isValidEthereumAddress } from '@/lib/utils'
 import {
@@ -445,14 +445,14 @@ export function SecurityDetails() {
         BigInt(0), // No value
         BigInt(0), // No gas limit
         OPERATION_TYPES.RECOVERY_UPDATE as `0x${string}`,
-        0, // Standard execution type
+        ExecutionType.STANDARD,
         executionOptions,
         metaTxParams
       );
 
       // Store the signed transaction
       storeTransaction(
-        unsignedMetaTx.txRecord.txId.toString(),
+        '0', // txId 0 is used for single phase meta transactions
         JSON.stringify(unsignedMetaTx),
         {
           type: 'RECOVERY_UPDATE',
