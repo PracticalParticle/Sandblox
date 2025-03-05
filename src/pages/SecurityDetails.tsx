@@ -43,7 +43,7 @@ import { TxRecord as CoreTxRecord } from '@/particle-core/sdk/typescript/interfa
 import { Label } from '@/components/ui/label'
 import { TIMELOCK_PERIODS } from '@/constants/contract'
 import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
-import { MetaTxDialog } from '@/components/MetaTxDialog'
+import { RoleWalletDialog } from '@/components/RoleWalletDialog'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import * as wagmi from 'wagmi'
 
@@ -183,7 +183,7 @@ function BroadcasterUpdateDialog({
   }, [isOpen])
 
   return (
-    <MetaTxDialog
+    <RoleWalletDialog
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       title="Request Broadcaster Update"
@@ -218,16 +218,8 @@ function BroadcasterUpdateDialog({
             Please enter a valid Ethereum address
           </p>
         )}
-        {!isOwner && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              Only the owner can request broadcaster updates
-            </AlertDescription>
-          </Alert>
-        )}
       </div>
-    </MetaTxDialog>
+    </RoleWalletDialog>
   )
 }
 
@@ -900,7 +892,7 @@ export function SecurityDetails() {
                   Request Transfer
                 </Button>
                 
-                <MetaTxDialog
+                <RoleWalletDialog
                   isOpen={showConnectRecoveryDialog}
                   onOpenChange={setShowConnectRecoveryDialog}
                   title="Transfer Ownership"
@@ -922,7 +914,7 @@ export function SecurityDetails() {
                       {contractInfo?.recoveryAddress}
                     </div>
                   </div>
-                </MetaTxDialog>
+                </RoleWalletDialog>
               </CardContent>
             </Card>
 
@@ -1001,7 +993,7 @@ export function SecurityDetails() {
                   Update
                 </Button>
                 
-                <MetaTxDialog
+                <RoleWalletDialog
                   isOpen={showRecoveryDialog}
                   onOpenChange={setShowRecoveryDialog}
                   title="Update Recovery Address"
@@ -1012,6 +1004,14 @@ export function SecurityDetails() {
                   actionLabel="Submit Update Request"
                   newValue={newRecoveryAddress}
                   onSubmit={async () => {
+                    if (!isValidEthereumAddress(newRecoveryAddress)) {
+                      toast({
+                        title: "Error",
+                        description: "Please enter a valid Ethereum address",
+                        variant: "destructive"
+                      })
+                      return
+                    }
                     await handleUpdateRecoveryRequest(newRecoveryAddress);
                     setShowRecoveryDialog(false);
                   }}
@@ -1027,7 +1027,7 @@ export function SecurityDetails() {
                       Please enter a valid Ethereum address
                     </p>
                   )}
-                </MetaTxDialog>
+                </RoleWalletDialog>
               </CardContent>
             </Card>
 
@@ -1066,47 +1066,47 @@ export function SecurityDetails() {
                   Update
                 </Button>
                 
-                <MetaTxDialog
+                <RoleWalletDialog
                   isOpen={showTimeLockDialog}
                   onOpenChange={setShowTimeLockDialog}
                   title="Update TimeLock Period"
                   description={`Enter a new time lock period between ${TIMELOCK_PERIODS.MIN} and ${TIMELOCK_PERIODS.MAX} minutes.`}
                   contractInfo={contractInfo}
                   walletType="broadcaster"
-                  currentValue={formatTimeValue(contractInfo.timeLockPeriodInMinutes)}
+                  currentValue={formatTimeValue(contractInfo?.timeLockPeriodInMinutes)}
                   currentValueLabel="Current TimeLock Period"
                   actionLabel="Submit Update Request"
                   newValue={newTimeLockPeriod}
                   onSubmit={async () => {
-                    if (parseInt(newTimeLockPeriod) > 0 && parseInt(newTimeLockPeriod) <= TIMELOCK_PERIODS.MAX) {
-                      await handleUpdateTimeLockRequest(newTimeLockPeriod);
-                      setShowTimeLockDialog(false);
+                    const period = parseInt(newTimeLockPeriod)
+                    if (isNaN(period) || period < TIMELOCK_PERIODS.MIN || period > TIMELOCK_PERIODS.MAX) {
+                      toast({
+                        title: "Error",
+                        description: `Please enter a valid period between ${TIMELOCK_PERIODS.MIN} and ${TIMELOCK_PERIODS.MAX} minutes`,
+                        variant: "destructive"
+                      })
+                      return
                     }
+                    await handleUpdateTimeLockRequest(newTimeLockPeriod);
+                    setShowTimeLockDialog(false);
                   }}
                 >
                   <div className="space-y-2">
                     <Input
                       type="number"
+                      placeholder="New TimeLock Period (minutes)"
+                      value={newTimeLockPeriod}
+                      onChange={(e) => setNewTimeLockPeriod(e.target.value)}
                       min={TIMELOCK_PERIODS.MIN}
                       max={TIMELOCK_PERIODS.MAX}
-                      placeholder={`New TimeLock Period (${TIMELOCK_PERIODS.MIN}-${TIMELOCK_PERIODS.MAX} minutes)`}
-                      value={newTimeLockPeriod}
-                      onChange={(e) => {
-                        const value = parseInt(e.target.value);
-                        if (!isNaN(value) && value >= TIMELOCK_PERIODS.MIN && value <= TIMELOCK_PERIODS.MAX) {
-                          setNewTimeLockPeriod(e.target.value);
-                        } else {
-                          setNewTimeLockPeriod(e.target.value);
-                        }
-                      }}
                     />
-                    {newTimeLockPeriod && (parseInt(newTimeLockPeriod) < TIMELOCK_PERIODS.MIN || parseInt(newTimeLockPeriod) > TIMELOCK_PERIODS.MAX) && (
+                    {parseInt(newTimeLockPeriod) > 0 && (parseInt(newTimeLockPeriod) < TIMELOCK_PERIODS.MIN || parseInt(newTimeLockPeriod) > TIMELOCK_PERIODS.MAX) && (
                       <p className="text-sm text-destructive">
-                        Time lock period must be between {TIMELOCK_PERIODS.MIN} and {TIMELOCK_PERIODS.MAX} minutes
+                        Please enter a period between {TIMELOCK_PERIODS.MIN} and {TIMELOCK_PERIODS.MAX} minutes
                       </p>
                     )}
                   </div>
-                </MetaTxDialog>
+                </RoleWalletDialog>
               </CardContent>
             </Card>
           </div>
@@ -1129,7 +1129,7 @@ export function SecurityDetails() {
         </motion.div>
 
         {/* Approval Dialog */}
-        <MetaTxDialog
+        <RoleWalletDialog
           isOpen={showBroadcasterApproveDialog}
           onOpenChange={setShowBroadcasterApproveDialog}
           title={`Approve ${pendingOperation ? getOperationTitle(pendingOperation) : 'Operation'}`}
@@ -1160,7 +1160,7 @@ export function SecurityDetails() {
         />
 
         {/* Cancellation Dialog */}
-        <MetaTxDialog
+        <RoleWalletDialog
           isOpen={showBroadcasterCancelDialog}
           onOpenChange={setShowBroadcasterCancelDialog}
           title={`Cancel ${pendingOperation ? getOperationTitle(pendingOperation) : 'Operation'}`}
@@ -1192,4 +1192,4 @@ export function SecurityDetails() {
       </motion.div>
     </div>
   )
-} 
+}
