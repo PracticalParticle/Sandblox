@@ -808,19 +808,34 @@ export function SecurityDetails() {
                 </div>
               </CardHeader>
               <CardContent>
-                <Button 
-                  onClick={() => {
-                    setNewRecoveryAddress('');
-                    setShowRecoveryDialog(true);
-                  }}
-                  className="flex items-center gap-2 w-full" 
-                  size="sm"
-                  variant={isRoleConnected(contractInfo.broadcaster) ? "default" : "outline"}
-                  disabled={!isRoleConnected(contractInfo.broadcaster)}
-                >
-                  <Key className="h-4 w-4" />
-                  Update
-                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button 
+                    onClick={() => {
+                      setNewRecoveryAddress('');
+                      setShowRecoveryDialog(true);
+                    }}
+                    className="flex items-center gap-2 w-full" 
+                    size="sm"
+                    variant={isRoleConnected(contractInfo.owner) ? "default" : "outline"}
+                    disabled={!isRoleConnected(contractInfo.owner)}
+                  >
+                    <Key className="h-4 w-4" />
+                    Request Update
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      setNewRecoveryAddress('');
+                      setShowRecoveryDialog(true);
+                    }}
+                    className="flex items-center gap-2 w-full" 
+                    size="sm"
+                    variant={isRoleConnected(contractInfo.broadcaster) ? "default" : "outline"}
+                    disabled={!isRoleConnected(contractInfo.broadcaster)}
+                  >
+                    <Radio className="h-4 w-4" />
+                    Broadcast
+                  </Button>
+                </div>
                 
                 <RoleWalletDialog
                   isOpen={showRecoveryDialog}
@@ -881,19 +896,34 @@ export function SecurityDetails() {
                 </div>
               </CardHeader>
               <CardContent>
-                <Button 
-                  onClick={() => {
-                    setNewTimeLockPeriod('');
-                    setShowTimeLockDialog(true);
-                  }}
-                  className="flex items-center gap-2 w-full" 
-                  size="sm"
-                  variant={isRoleConnected(contractInfo.broadcaster) ? "default" : "outline"}
-                  disabled={!isRoleConnected(contractInfo.broadcaster)}
-                >
-                  <Clock className="h-4 w-4" />
-                  Update
-                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button 
+                    onClick={() => {
+                      setNewTimeLockPeriod('');
+                      setShowTimeLockDialog(true);
+                    }}
+                    className="flex items-center gap-2 w-full" 
+                    size="sm"
+                    variant={isRoleConnected(contractInfo.owner) ? "default" : "outline"}
+                    disabled={!isRoleConnected(contractInfo.owner)}
+                  >
+                    <Clock className="h-4 w-4" />
+                    Request Update
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      setNewTimeLockPeriod('');
+                      setShowTimeLockDialog(true);
+                    }}
+                    className="flex items-center gap-2 w-full" 
+                    size="sm"
+                    variant={isRoleConnected(contractInfo.broadcaster) ? "default" : "outline"}
+                    disabled={!isRoleConnected(contractInfo.broadcaster)}
+                  >
+                    <Radio className="h-4 w-4" />
+                    Broadcast
+                  </Button>
+                </div>
                 
                 <RoleWalletDialog
                   isOpen={showTimeLockDialog}
