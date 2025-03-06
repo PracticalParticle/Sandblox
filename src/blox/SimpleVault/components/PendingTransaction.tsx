@@ -1,20 +1,14 @@
 import * as React from "react";
-import { useState, useEffect } from "react";
 import { Address, Hex } from "viem";
 import { formatEther, formatUnits } from "viem";
-import { useAccount, usePublicClient, useWalletClient } from "wagmi";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Loader2, X, CheckCircle2, Clock, XCircle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { TxStatus } from "../../../particle-core/sdk/typescript/types/lib.index";
-import { useChain } from "@/hooks/useChain";
-import SimpleVault from "../SimpleVault";
-import { useToast } from "@/components/ui/use-toast";
-import SecureOwnable from "../../../particle-core/sdk/typescript/SecureOwnable";
-import { VaultMetaTxParams } from "../SimpleVault";
-import { getStoredMetaTxSettings, createVaultMetaTxParams } from "../SimpleVault.ui";
-import { MetaTransaction } from "../../../particle-core/sdk/typescript/interfaces/lib.index";
+import { Progress } from "@/components/ui/progress";
+import { TxStatus, ExecutionType } from "../../../particle-core/sdk/typescript/types/lib.index";
+import { useMultiPhaseTemporalAction } from "@/hooks/useMultiPhaseTemporalAction";
+import { TxRecord } from "../../../particle-core/sdk/typescript/interfaces/lib.index";
 
 // Notification message type
 type NotificationMessage = {
@@ -23,230 +17,51 @@ type NotificationMessage = {
   description: string;
 };
 
-export interface VaultTxRecord {
-  txId: bigint;
-  amount: bigint;
-  releaseTime: bigint;
+export interface VaultTxRecord extends Omit<TxRecord, 'status'> {
   status: TxStatus;
-  type: string;
-  params: {
-    target: string;
-    data?: string;
-  };
-}
-
-interface ContractSecurityInfo {
-  owner: string;
-  broadcaster: string;
-  recoveryAddress: string;
-  timeLockPeriod: bigint;
-  chainId: number;
-  chainName: string;
+  amount: bigint;
+  to: Address;
+  token?: Address;
+  type: "ETH" | "TOKEN";
 }
 
 interface PendingTransactionProps {
   tx: VaultTxRecord;
+  onApprove: (txId: number) => Promise<void>;
   onCancel: (txId: number) => Promise<void>;
   isLoading: boolean;
-  contractAddress: Address;
-  addMessage?: (message: NotificationMessage) => void;
-  onApprovalSuccess?: () => Promise<void>;
 }
 
 export const PendingTransaction: React.FC<PendingTransactionProps> = ({
   tx,
+  onApprove,
   onCancel,
-  isLoading,
-  contractAddress,
-  addMessage,
-  onApprovalSuccess
+  isLoading
 }) => {
-  const [isApproving, setIsApproving] = useState(false);
-  const [isSigning, setIsSigning] = useState(false);
-  const [signedMetaTx, setSignedMetaTx] = useState<MetaTransaction | null>(null);
-  const [contractInfo, setContractInfo] = useState<ContractSecurityInfo | null>(null);
-  const chain = useChain();
-  const { address } = useAccount();
-  const { data: walletClient } = useWalletClient();
-  const publicClient = usePublicClient();
-  const { toast } = useToast();
-
-  // Fetch contract security info from the contract
-  useEffect(() => {
-    const fetchContractInfo = async () => {
-      if (!publicClient || !chain || !contractAddress) return;
-
-      try {
-        const secureOwnable = new SecureOwnable(
-          publicClient,
-          walletClient || undefined,
-          contractAddress,
-          chain
-        );
-
-        const [owner, broadcaster, recoveryAddress, timeLockPeriod] = await Promise.all([
-          secureOwnable.owner(),
-          secureOwnable.getBroadcaster(),
-          secureOwnable.getRecoveryAddress(),
-          secureOwnable.getTimeLockPeriodInMinutes()
-        ]);
-
-        setContractInfo({
-          owner,
-          broadcaster,
-          recoveryAddress,
-          timeLockPeriod,
-          chainId: chain.id,
-          chainName: chain.name
-        });
-      } catch (error) {
-        console.error("Error fetching contract security info:", error);
-        handleNotification({
-          type: 'error',
-          title: "Error",
-          description: "Failed to fetch contract security information"
-        });
-      }
-    };
-
-    fetchContractInfo();
-  }, [publicClient, walletClient, chain, contractAddress]);
-
-  const handleNotification = (message: NotificationMessage) => {
-    if (addMessage) {
-      addMessage(message);
-    } else {
-      toast({
-        title: message.title,
-        description: message.description,
-        variant: message.type === 'error' ? 'destructive' : 
-                 message.type === 'success' ? 'default' : undefined
-      });
-    }
-  };
-
-  const handleApprove = async () => {
-    if (!tx || !contractInfo || !chain || !publicClient || !walletClient || !address) {
-      handleNotification({
-        type: 'error',
-        title: "Error",
-        description: "Missing required dependencies for transaction"
-      });
-      return;
-    }
-    
-    setIsApproving(true);
-    
-    try {
-      // Create vault instance
-      const vault = new SimpleVault(
-        publicClient,
-        walletClient,
-        contractAddress,
-        chain
-      );
-      
-      // Get stored meta tx settings and create params
-      const storedSettings = getStoredMetaTxSettings();
-      const metaTxParams = createVaultMetaTxParams(storedSettings);
-      
-      // Generate and sign the transaction
-      const unsignedMetaTx = await vault.generateUnsignedWithdrawalMetaTxApproval(
-        tx.txId,
-        metaTxParams
-      );
-      
-      handleNotification({
-        type: 'info',
-        title: "Signing Transaction",
-        description: "Please sign the transaction with your wallet"
-      });
-      
-      // Create a typed data signature
-      const signature = await walletClient.signTypedData({
-        domain: {
-          name: 'SimpleVault',
-          version: '1',
-          chainId: chain.id,
-          verifyingContract: contractAddress
-        },
-        types: {
-          MetaTransaction: [
-            { name: 'txId', type: 'uint256' },
-            { name: 'deadline', type: 'uint256' },
-            { name: 'signer', type: 'address' }
-          ]
-        },
-        primaryType: 'MetaTransaction',
-        message: {
-          txId: unsignedMetaTx.txRecord.txId,
-          deadline: unsignedMetaTx.params.deadline,
-          signer: address
-        }
-      });
-      
-      if (!signature) {
-        throw new Error("Failed to sign transaction");
-      }
-      
-      // Add signature to meta transaction
-      const metaTx = {
-        ...unsignedMetaTx,
-        signature: signature as Hex
-      };
-      
-      // Send the transaction
-      const txRequest = {
-        account: address as Address,
-        to: contractAddress,
-        data: metaTx.data,
-        chain: chain
-      };
-
-      console.log("Sending transaction with params:", txRequest);
-      
-      const hash = await walletClient.sendTransaction(txRequest);
-      
-      if (hash) {
-        handleNotification({
-          type: 'info',
-          title: "Transaction Submitted",
-          description: "Waiting for confirmation..."
-        });
-
-        const receipt = await publicClient.waitForTransactionReceipt({
-          hash: hash
-        });
-        
-        if (receipt.status === 'success') {
-          handleNotification({
-            type: 'success',
-            title: "Transaction Completed",
-            description: "The withdrawal has been approved and confirmed."
-          });
-          
-          if (onApprovalSuccess) {
-            await onApprovalSuccess();
-          }
-        } else {
-          throw new Error("Transaction failed");
-        }
-      } else {
-        throw new Error("No transaction hash returned");
-      }
-    } catch (error: any) {
-      console.error("Transaction failed:", error);
-      handleNotification({
-        type: 'error',
-        title: "Transaction Failed",
-        description: error.message || "Failed to approve withdrawal"
-      });
-    } finally {
-      setIsApproving(false);
-    }
-  };
+  const {
+    isApproving,
+    isCancelling,
+    isSigning,
+    signedMetaTx,
+    handleApprove: handleApproveAction,
+    handleCancel: handleCancelAction,
+    handleMetaTxSign,
+    handleBroadcast
+  } = useMultiPhaseTemporalAction({
+    isOpen: true, // We're not using dialog functionality here
+    onOpenChange: () => {}, // No-op since we're not using dialog
+    onApprove,
+    onCancel,
+    pendingTx: tx,
+    showNewValueInput: false
+  });
 
   try {
+    const now = Math.floor(Date.now() / 1000);
+    const isReady = now >= Number(tx.releaseTime);
+    const progress = Math.min(((now - (Number(tx.releaseTime) - 24 * 3600)) / (24 * 3600)) * 100, 100);
+    const isTimeLockComplete = progress >= 100;
+
     // Ensure amount is a BigInt and handle undefined
     const amount = tx.amount !== undefined ? BigInt(tx.amount) : 0n;
 
@@ -265,42 +80,51 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
                 <p className="text-sm text-muted-foreground">
                   Amount: {tx.type === "ETH" ? formatEther(amount) : formatUnits(amount, 18)} {tx.type}
                 </p>
-                <p className="text-sm text-muted-foreground">To: {tx.params.target}</p>
+                <p className="text-sm text-muted-foreground">To: {tx.to}</p>
               </div>
             </div>
-            
+
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Time Lock Progress</span>
+                <span>{Math.round(progress)}%</span>
+              </div>
+              <Progress 
+                value={progress} 
+                className={`h-2 ${isTimeLockComplete ? 'bg-muted' : ''}`}
+                aria-label="Time lock progress"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(progress)}
+              />
+            </div>
+
             <div className="flex space-x-2">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div className="flex-1">
                       <Button
-                        onClick={handleApprove}
-                        disabled={isLoading || isApproving || isSigning || tx.status !== TxStatus.PENDING}
+                        onClick={() => handleApproveAction(Number(tx.txId))}
+                        disabled={!isReady || isLoading || tx.status !== TxStatus.PENDING || !isTimeLockComplete || isApproving || isSigning}
                         className={`w-full transition-all duration-200 flex items-center justify-center
-                          bg-emerald-50 text-emerald-700 hover:bg-emerald-100 
-                          dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 
-                          border border-emerald-200 dark:border-emerald-800
-                          disabled:opacity-50 disabled:cursor-not-allowed 
-                          disabled:bg-slate-50 disabled:text-slate-400 
-                          disabled:dark:bg-slate-900 disabled:dark:text-slate-500
+                          ${isTimeLockComplete 
+                            ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800'
+                            : 'bg-slate-50 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
+                          }
+                          disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 disabled:dark:bg-slate-900 disabled:dark:text-slate-500
                         `}
                         variant="outline"
                         aria-label={`Approve transaction #${tx.txId}`}
                       >
-                        {isSigning ? (
+                        {isApproving || isSigning ? (
                           <>
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            <span>Signing...</span>
-                          </>
-                        ) : isApproving ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            <span>Processing...</span>
+                            <span>{isSigning ? "Signing..." : "Processing..."}</span>
                           </>
                         ) : (
                           <>
-                            <CheckCircle2 className="h-4 w-4 mr-2" />
+                            {isTimeLockComplete && <CheckCircle2 className="h-4 w-4 mr-2" />}
                             <span>Approve</span>
                           </>
                         )}
@@ -308,7 +132,11 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
                     </div>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">
-                    Approve this withdrawal request
+                    {!isTimeLockComplete 
+                      ? "Time lock period not complete" 
+                      : isReady 
+                        ? "Approve this withdrawal request" 
+                        : "Not yet ready for approval"}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -318,8 +146,8 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
                   <TooltipTrigger asChild>
                     <div className="flex-1">
                       <Button
-                        onClick={() => onCancel(Number(tx.txId))}
-                        disabled={isLoading || tx.status !== TxStatus.PENDING}
+                        onClick={() => handleCancelAction(Number(tx.txId))}
+                        disabled={isLoading || tx.status !== TxStatus.PENDING || isCancelling}
                         className={`w-full transition-all duration-200 flex items-center justify-center
                           bg-rose-50 text-rose-700 hover:bg-rose-100 
                           dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
@@ -331,7 +159,7 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
                         variant="outline"
                         aria-label={`Cancel transaction #${tx.txId}`}
                       >
-                        {isLoading ? (
+                        {isCancelling ? (
                           <>
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                             <span>Processing...</span>
@@ -359,6 +187,6 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
     );
   } catch (error) {
     console.error("Error rendering pending transaction:", error);
-    return <div>Error rendering transaction</div>;
+    return <div>Error rendering transaction details.</div>;
   }
 }; 
