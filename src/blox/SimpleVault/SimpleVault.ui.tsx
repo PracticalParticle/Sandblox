@@ -782,6 +782,9 @@ const WithdrawalFormWrapper = React.memo(({
 
 WithdrawalFormWrapper.displayName = 'WithdrawalFormWrapper';
 
+// Add a new atom for the active tab
+const activeTabAtom = atom<'timelock' | 'metatx'>('timelock');
+
 function SimpleVaultUIContent({ 
   contractAddress, 
   contractInfo, 
@@ -829,6 +832,7 @@ function SimpleVaultUIContent({
   const [walletBalances, setWalletBalances] = useAtom(walletBalancesAtom);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [metaTxSettings] = useAtom(metaTxSettingsAtom);
+  const [activeTab, setActiveTab] = useState<'timelock' | 'metatx'>('timelock');
 
   // Add deployment hook
   const deployment = useContractDeployment({
@@ -945,39 +949,24 @@ function SimpleVaultUIContent({
     }
   }, []); // Empty dependency array since we use function setters
 
-  // Update the effect that sets up transaction polling to properly handle loading states
+  // Remove the polling effect and replace with a single fetch on mount
   useEffect(() => {
     if (!vault || _mock) {
-      console.log('Skipping transaction polling setup - no vault or using mock');
+      console.log('Skipping initial transaction fetch - no vault or using mock');
       return;
     }
 
-    let mounted = true;
-    const controller = new AbortController();
-
-    const pollTransactions = async () => {
-      if (!mounted || controller.signal.aborted) return;
-      
+    // Do a single fetch when the component mounts
+    const fetchInitialTransactions = async () => {
       try {
         await fetchTransactionsInBackground(vault);
       } catch (error) {
-        console.error('Error in transaction polling:', error);
+        console.error('Error in initial transaction fetch:', error);
       }
     };
 
-    // Initial fetch
-    pollTransactions();
-
-    // Set up periodic fetching every 30 seconds
-    const interval = setInterval(pollTransactions, 30000);
-
-    return () => {
-      mounted = false;
-      controller.abort();
-      clearInterval(interval);
-      console.log('Cleaning up transaction polling');
-    };
-  }, [vault, _mock]); // Only depend on vault and _mock
+    fetchInitialTransactions();
+  }, [vault, _mock, fetchTransactionsInBackground]); // Only run on mount and when vault changes
 
   // Restore the vault initialization effect
   useEffect(() => {
@@ -1726,7 +1715,7 @@ function SimpleVaultUIContent({
                         <CardTitle>Pending Withdrawals</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <Tabs defaultValue="timelock" className="w-full">
+                        <Tabs defaultValue="timelock" className="w-full" onValueChange={(value) => setActiveTab(value as 'timelock' | 'metatx')}>
                           <TabsList className="grid w-full grid-cols-2 bg-background p-1 rounded-lg">
                             <TabsTrigger value="timelock" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">TimeLock</TabsTrigger>
                             <TabsTrigger value="metatx" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">MetaTx</TabsTrigger>
@@ -1756,6 +1745,7 @@ function SimpleVaultUIContent({
                                     onCancel={handleCancelWithdrawal}
                                     isLoading={loadingState.approval[Number(tx.txId)] || loadingState.cancellation[Number(tx.txId)]}
                                     contractAddress={contractAddress as Address}
+                                    mode="timelock"
                                   />
                                 ))
                               )}
@@ -1764,7 +1754,11 @@ function SimpleVaultUIContent({
 
                           <TabsContent value="metatx" className="mt-4">
                             <div className="space-y-4">
-                              {pendingTxs.length === 0 ? (
+                              {loadingState.transactions ? (
+                                <div className="flex items-center justify-center py-8">
+                                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                                </div>
+                              ) : pendingTxs.length === 0 ? (
                                 <Card className="bg-muted">
                                   <CardContent className="pt-6">
                                     <h3 className="font-semibold">No Pending Transactions</h3>
@@ -1782,6 +1776,7 @@ function SimpleVaultUIContent({
                                     onCancel={handleCancelWithdrawal}
                                     isLoading={loadingState.cancellation[Number(tx.txId)]}
                                     contractAddress={contractAddress as Address}
+                                    mode="metatx"
                                   />
                                 ))
                               )}
