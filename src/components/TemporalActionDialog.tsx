@@ -1,9 +1,7 @@
 import * as React from "react"
-import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useToast } from "@/components/ui/use-toast"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -14,8 +12,7 @@ import { TxRecord } from "@/particle-core/sdk/typescript/interfaces/lib.index"
 import { TxStatus } from "@/particle-core/sdk/typescript/types/lib.index"
 import { formatAddress } from "@/lib/utils"
 import { Progress } from "@/components/ui/progress"
-import { useTransactionManager } from "@/contexts/TransactionManager"
-import { getMetaTransactionSignature, broadcastMetaTransaction } from "@/utils/metaTransaction"
+import { useTemporalAction } from "@/hooks/useTemporalAction"
 
 interface TemporalActionDialogProps {
   isOpen: boolean
@@ -69,141 +66,27 @@ export function TemporalActionDialog({
   newValueLabel,
   newValuePlaceholder
 }: TemporalActionDialogProps) {
-  const [newValue, setNewValue] = useState("")
-  const [isApproving, setIsApproving] = useState(false)
-  const [isCancelling, setIsCancelling] = useState(false)
-  const [isSigning, setIsSigning] = useState(false)
-  const [signedMetaTx, setSignedMetaTx] = useState<{
-    type: 'approve' | 'cancel';
-    signedData: string;
-  } | null>(null)
-  const { toast } = useToast()
-
-  // Reset state when dialog opens/closes
-  useEffect(() => {
-    if (!isOpen) {
-      setNewValue("")
-      setIsApproving(false)
-      setIsCancelling(false)
-      setIsSigning(false)
-      setSignedMetaTx(null)
-    }
-  }, [isOpen])
-
-  const transactionManager = useTransactionManager();
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!onSubmit) return
-    if (!showNewValueInput || newValue) {
-      try {
-        await onSubmit(newValue)
-        setNewValue("")
-      } catch (error: any) {
-        toast({
-          title: "Error",
-          description: error.message || "Failed to submit request",
-          variant: "destructive",
-        })
-      }
-    }
-  }
-
-  const handleApprove = async (txId: number) => {
-    if (!onApprove) return
-    setIsApproving(true)
-    try {
-      await onApprove(txId)
-      toast({
-        title: "Success",
-        description: "Transaction approved successfully",
-      })
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to approve transaction",
-        variant: "destructive",
-      })
-    } finally {
-      setIsApproving(false)
-    }
-  }
-
-  const handleCancel = async (txId: number) => {
-    if (!onCancel) return
-    setIsCancelling(true)
-    try {
-      await onCancel(txId)
-      toast({
-        title: "Success",
-        description: "Transaction cancelled successfully",
-      })
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to cancel transaction",
-        variant: "destructive",
-      })
-    } finally {
-      setIsCancelling(false)
-    }
-  }
-
-  const handleMetaTxSign = async (type: 'approve' | 'cancel') => {
-    setIsSigning(true);
-    try {
-      // Convert txId from bigint to number if needed
-      const txId = pendingTx?.txId ? parseInt(pendingTx.txId.toString()) : undefined;
-      const signedData = await getMetaTransactionSignature(type, txId);
-      
-      // Store the signed transaction
-      const metaTxId = `metatx-${type}-${txId}-${Date.now()}`;
-      await transactionManager.storeTransaction(metaTxId, signedData, {
-        type,
-        originalTxId: txId,
-        timestamp: Date.now()
-      });
-
-      setSignedMetaTx({ type, signedData });
-      
-      toast({
-        title: "Success",
-        description: `Transaction ${type} signed successfully`,
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || `Failed to sign ${type} transaction`,
-        variant: "destructive",
-      });
-    } finally {
-      setIsSigning(false);
-    }
-  };
-
-  const handleBroadcast = async (type: 'approve' | 'cancel') => {
-    if (!signedMetaTx || signedMetaTx.type !== type) return;
-    
-    try {
-      // Here you would call your broadcasting service to submit the meta transaction
-      // This is a placeholder for the actual implementation
-      await broadcastMetaTransaction(signedMetaTx.signedData);
-      
-      toast({
-        title: "Success",
-        description: `Transaction ${type} broadcasted successfully`,
-      });
-      
-      // Close the dialog after successful broadcast
-      onOpenChange(false);
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || `Failed to broadcast ${type} transaction`,
-        variant: "destructive",
-      });
-    }
-  };
+  const {
+    newValue,
+    isApproving,
+    isCancelling,
+    isSigning,
+    signedMetaTx,
+    setNewValue,
+    handleSubmit,
+    handleApprove,
+    handleCancel,
+    handleMetaTxSign,
+    handleBroadcast
+  } = useTemporalAction({
+    isOpen,
+    onOpenChange,
+    onSubmit,
+    onApprove,
+    onCancel,
+    pendingTx,
+    showNewValueInput
+  })
 
   const getRoleAddress = (role: string) => {
     if (!contractInfo) return null;
@@ -235,14 +118,6 @@ export function TemporalActionDialog({
       }
       return roleAddress?.toLowerCase() === connectedAddress.toLowerCase();
     })();
-
-  console.log('Wallet Validation:', {
-    connectedAddress,
-    requiredRole,
-    roleAddress: getRoleAddress(requiredRole),
-    isValid: isConnectedWalletValid,
-    contractInfo
-  });
 
   const renderRequestPhase = () => (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -309,20 +184,6 @@ export function TemporalActionDialog({
     
     // Hide meta transactions tab for recovery wallet in ownership actions
     const showMetaTxTab = !(isOwnershipAction && isRecoveryWallet)
-
-    console.log('Time Lock Debug:', {
-      now,
-      releaseTime,
-      timeLockPeriod,
-      startTime,
-      progress,
-      isTimeLockComplete,
-      pendingTx,
-      contractInfo,
-      isRecoveryWallet,
-      isOwnershipAction,
-      showMetaTxTab
-    })
 
     return (
       <div className="space-y-4">
