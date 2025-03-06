@@ -350,7 +350,7 @@ export function TemporalActionDialog({
                                 ) : (
                                   <>
                                     <CheckCircle2 className="mr-2 h-4 w-4" />
-                                    Sign Approve
+                                    Sign Approval
                                   </>
                                 )}
                               </Button>
