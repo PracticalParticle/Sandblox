@@ -763,7 +763,7 @@ export function SecurityDetails() {
       });
 
       // Wait for transaction confirmation
-      await publicClient.waitForTransactionReceipt({ hash });
+      await publicClient?.waitForTransactionReceipt({ hash });
 
       // Update the transaction metadata to mark as broadcasted
       storeTransaction(pendingTx.txId, pendingTx.signedData, {

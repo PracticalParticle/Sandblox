@@ -104,7 +104,7 @@ export class SecureOwnableManager {
       const chainId = await this.publicClient.getChainId();
 
       return {
-        address: this.address,
+        contractAddress: this.address,
         owner,
         broadcaster,
         recoveryAddress,
