@@ -44,6 +44,7 @@ import { TxRecord, MetaTxParams, ReadableOperationType } from '../../particle-co
 import { TransactionOptions, TransactionResult } from '../../particle-core/sdk/typescript/interfaces/base.index';
 import { ContractValidations } from '../../particle-core/sdk/typescript/utils/validations';
 import { VaultMetaTxParams } from './SimpleVault';
+import { TransactionManagerProvider } from "@/contexts/TransactionManager";
 
 // Extend the base ContractInfo interface to include broadcaster and other properties
 interface ContractInfo extends BaseContractInfo {
@@ -360,9 +361,8 @@ interface PendingTransactionProps {
   onApprove: (txId: number) => Promise<void>;
   onCancel: (txId: number) => Promise<void>;
   isLoading: boolean;
+  contractAddress: Address;
 }
-
-// Remove the local PendingTransaction component since we're importing it
 
 interface DepositFormProps {
   onSubmit: (amount: bigint, token?: Address) => Promise<void>;
@@ -719,13 +719,15 @@ const WithdrawalFormWrapper = React.memo(({
   loadingState, 
   ethBalance, 
   fetchTokenBalance,
-  tokenBalances
+  tokenBalances,
+  contractAddress
 }: { 
   handleWithdrawal: (to: Address, amount: bigint, token?: Address) => Promise<void>;
   loadingState: LoadingState;
   ethBalance: bigint;
   fetchTokenBalance: (tokenAddress: Address) => Promise<void>;
   tokenBalances: TokenBalanceState;
+  contractAddress: Address;
 }) => {
   const [selectedTokenAddress, setSelectedTokenAddress] = useState<string>("ETH");
   const lastFetchRef = useRef<string | undefined>(undefined);
@@ -1712,6 +1714,7 @@ function SimpleVaultUIContent({
                           ethBalance={ethBalance}
                           fetchTokenBalance={fetchTokenBalance}
                           tokenBalances={tokenBalances}
+                          contractAddress={contractAddress as Address}
                         />
                       </CardContent>
                     </Card>
@@ -1752,6 +1755,7 @@ function SimpleVaultUIContent({
                                     onApprove={handleApproveWithdrawal}
                                     onCancel={handleCancelWithdrawal}
                                     isLoading={loadingState.approval[Number(tx.txId)] || loadingState.cancellation[Number(tx.txId)]}
+                                    contractAddress={contractAddress as Address}
                                   />
                                 ))
                               )}
@@ -1777,6 +1781,7 @@ function SimpleVaultUIContent({
                                     onApprove={handleApproveWithdrawal}
                                     onCancel={handleCancelWithdrawal}
                                     isLoading={loadingState.cancellation[Number(tx.txId)]}
+                                    contractAddress={contractAddress as Address}
                                   />
                                 ))
                               )}
@@ -1800,6 +1805,7 @@ function SimpleVaultUIContent({
                           onApprove={handleApproveWithdrawal}
                           onCancel={handleCancelWithdrawal}
                           isLoading={loadingState.approval[Number(tx.txId)] || loadingState.cancellation[Number(tx.txId)]}
+                          contractAddress={contractAddress as Address}
                         />
                       ))}
                       {pendingTxs.length > 2 && (
@@ -1835,5 +1841,9 @@ const queryClient = new QueryClient({
 
 // Main export with proper providers
 export default function SimpleVaultUI(props: SimpleVaultUIProps) {
-  return <SimpleVaultUIContent {...props} />;
+  return (
+    <TransactionManagerProvider>
+      <SimpleVaultUIContent {...props} />
+    </TransactionManagerProvider>
+  );
 }

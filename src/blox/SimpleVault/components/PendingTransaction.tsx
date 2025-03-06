@@ -30,13 +30,15 @@ interface PendingTransactionProps {
   onApprove: (txId: number) => Promise<void>;
   onCancel: (txId: number) => Promise<void>;
   isLoading: boolean;
+  contractAddress: Address;
 }
 
 export const PendingTransaction: React.FC<PendingTransactionProps> = ({
   tx,
   onApprove,
   onCancel,
-  isLoading
+  isLoading,
+  contractAddress
 }) => {
   const {
     isApproving,
@@ -52,7 +54,7 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
     onOpenChange: () => {}, // No-op since we're not using dialog
     onApprove,
     onCancel,
-    pendingTx: tx,
+    pendingTx: { ...tx, contractAddress },
     showNewValueInput: false
   });
 
