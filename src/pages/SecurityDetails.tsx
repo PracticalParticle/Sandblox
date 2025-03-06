@@ -922,8 +922,8 @@ export function SecurityDetails() {
                         onClick={() => setShowOwnershipDialog(true)}
                         className="flex items-center justify-center gap-2 w-[200px]"
                         size="sm"
-                        variant={isRoleConnected(pendingOwnershipTx ? "owner_or_recovery" : "recovery") ? "default" : "outline"}
-                        disabled={!isRoleConnected(pendingOwnershipTx ? "owner_or_recovery" : "recovery")}
+                        variant={isRoleConnected(pendingOwnershipTx ? contractInfo.owner : contractInfo.recoveryAddress) || isRoleConnected(contractInfo.recoveryAddress) ? "default" : "outline"}
+                        disabled={!(isRoleConnected(pendingOwnershipTx ? contractInfo.owner : contractInfo.recoveryAddress) || isRoleConnected(contractInfo.recoveryAddress))}
                       >
                         <Wallet className="h-4 w-4" />
                         {pendingOwnershipTx ? "Approve Transfer" : "Request Transfer"}
