@@ -190,7 +190,7 @@ contract SimpleVault is SecureOwnable {
      * @param to Recipient address
      * @param amount Amount to withdraw
      */
-    function executeWithdrawEth(address to, uint256 amount) external {
+    function executeWithdrawEth(address payable to, uint256 amount) external {
         require(msg.sender == address(this), "Only callable by contract itself");
         _withdrawEth(to, amount);
     }
@@ -211,7 +211,7 @@ contract SimpleVault is SecureOwnable {
      * @param to Recipient address
      * @param amount Amount to withdraw
      */
-    function _withdrawEth(address to, uint256 amount) internal {
+    function _withdrawEth(address payable to, uint256 amount) internal {
         (bool success, ) = to.call{value: amount}("");
         require(success, "ETH transfer failed");
         emit EthWithdrawn(to, amount);
@@ -237,7 +237,7 @@ contract SimpleVault is SecureOwnable {
     function generateUnsignedWithdrawalMetaTxApproval(uint256 txId, VaultMetaTxParams memory metaTxParams) public view returns (MultiPhaseSecureOperation.MetaTransaction memory) {
         // Create meta-transaction parameters using the parent contract's function
         MultiPhaseSecureOperation.MetaTxParams memory metaTxParams = createMetaTxParams(
-            address(this),
+            getBroadcaster(), // Use broadcaster address as handler instead of contract address
             this.approveWithdrawalWithMetaTx.selector,
             metaTxParams.deadline,
             metaTxParams.maxGasPrice,
@@ -246,6 +246,15 @@ contract SimpleVault is SecureOwnable {
 
         // Generate the unsigned meta-transaction using the parent contract's function
         return generateUnsignedMetaTransactionForExisting(txId, metaTxParams);
+    }
+
+    /**
+     * @notice Generates a message hash for signing a meta-transaction
+     * @param metaTx The meta-transaction to generate the hash for
+     * @return bytes32 The message hash to be signed
+     */
+    function generateMessageHash(MultiPhaseSecureOperation.MetaTransaction memory metaTx) public view returns (bytes32) {
+        return MultiPhaseSecureOperation.generateMessageHash(metaTx);
     }
 
     /**
