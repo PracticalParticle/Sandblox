@@ -917,16 +917,18 @@ export function SecurityDetails() {
                   </div>
                 ) : (
                   <>
-                    <Button 
-                      onClick={() => setShowOwnershipDialog(true)}
-                      className="flex items-center gap-2 w-full"
-                      size="sm"
-                      variant={isRoleConnected(pendingOwnershipTx ? "owner_or_recovery" : "recovery") ? "default" : "outline"}
-                      disabled={!isRoleConnected(pendingOwnershipTx ? "owner_or_recovery" : "recovery")}
-                    >
-                      <Wallet className="h-4 w-4" />
-                      {pendingOwnershipTx ? "Approve Transfer" : "Request Transfer"}
-                    </Button>
+                    <div className="flex justify-center">
+                      <Button 
+                        onClick={() => setShowOwnershipDialog(true)}
+                        className="flex items-center justify-center gap-2 w-[200px]"
+                        size="sm"
+                        variant={isRoleConnected(pendingOwnershipTx ? "owner_or_recovery" : "recovery") ? "default" : "outline"}
+                        disabled={!isRoleConnected(pendingOwnershipTx ? "owner_or_recovery" : "recovery")}
+                      >
+                        <Wallet className="h-4 w-4" />
+                        {pendingOwnershipTx ? "Approve Transfer" : "Request Transfer"}
+                      </Button>
+                    </div>
                     
                     <TemporalActionDialog
                       isOpen={showOwnershipDialog}
@@ -980,16 +982,18 @@ export function SecurityDetails() {
                   </div>
                 ) : (
                   <>
-                    <Button 
-                      onClick={() => setShowBroadcasterDialog(true)}
-                      className="flex items-center gap-2 w-full" 
-                      size="sm"
-                      variant={isRoleConnected(pendingBroadcasterTx ? contractInfo.owner : contractInfo.owner) ? "default" : "outline"}
-                      disabled={!isRoleConnected(pendingBroadcasterTx ? contractInfo.owner : contractInfo.owner)}
-                    >
-                      <Wallet className="h-4 w-4" />
-                      {pendingBroadcasterTx ? "Approve Update" : "Request Update"}
-                    </Button>
+                    <div className="flex justify-center">
+                      <Button 
+                        onClick={() => setShowBroadcasterDialog(true)}
+                        className="flex items-center justify-center gap-2 w-[200px]"
+                        size="sm"
+                        variant={isRoleConnected(pendingBroadcasterTx ? contractInfo.owner : contractInfo.owner) ? "default" : "outline"}
+                        disabled={!isRoleConnected(pendingBroadcasterTx ? contractInfo.owner : contractInfo.owner)}
+                      >
+                        <Wallet className="h-4 w-4" />
+                        {pendingBroadcasterTx ? "Approve Update" : "Request Update"}
+                      </Button>
+                    </div>
 
                     <TemporalActionDialog
                       isOpen={showBroadcasterDialog}
@@ -1039,10 +1043,10 @@ export function SecurityDetails() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="flex justify-center">
                   <Button 
                     onClick={() => setShowRecoveryDialog(true)}
-                    className="flex items-center gap-2 w-full" 
+                    className="flex items-center justify-center gap-2 w-[200px]"
                     size="sm"
                     variant={isRoleConnected(contractInfo.owner) ? "default" : "outline"}
                     disabled={!isRoleConnected(contractInfo.owner)}
@@ -1099,10 +1103,10 @@ export function SecurityDetails() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="flex justify-center">
                   <Button 
                     onClick={() => setShowTimeLockDialog(true)}
-                    className="flex items-center gap-2 w-full" 
+                    className="flex items-center justify-center gap-2 w-[200px]"
                     size="sm"
                     variant={isRoleConnected(contractInfo.owner) ? "default" : "outline"}
                     disabled={!isRoleConnected(contractInfo.owner)}
