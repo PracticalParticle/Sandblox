@@ -792,8 +792,8 @@ export function SecurityDetails() {
                       onClick={() => setShowOwnershipDialog(true)}
                       className="flex items-center gap-2 w-full"
                       size="sm"
-                      variant={isRoleConnected(pendingOwnershipTx ? contractInfo.owner : contractInfo.recoveryAddress) ? "default" : "outline"}
-                      disabled={!isRoleConnected(pendingOwnershipTx ? contractInfo.owner : contractInfo.recoveryAddress)}
+                      variant={isRoleConnected(pendingOwnershipTx ? (contractInfo.owner || contractInfo.recoveryAddress) : contractInfo.recoveryAddress) ? "default" : "outline"}
+                      disabled={!isRoleConnected(pendingOwnershipTx ? (contractInfo.owner || contractInfo.recoveryAddress) : contractInfo.recoveryAddress)}
                     >
                       <Wallet className="h-4 w-4" />
                       {pendingOwnershipTx ? "Approve Transfer" : "Request Transfer"}
@@ -811,7 +811,7 @@ export function SecurityDetails() {
                       currentValue={contractInfo?.owner}
                       currentValueLabel="Current Owner"
                       actionLabel={pendingOwnershipTx ? "Approve Transfer" : "Request Transfer"}
-                      requiredRole={pendingOwnershipTx ? "owner" : "recovery"}
+                      requiredRole={pendingOwnershipTx ? "owner_or_recovery" : "recovery"}
                       connectedAddress={connectedAddress}
                       pendingTx={pendingOwnershipTx || undefined}
                       showNewValueInput={false}
@@ -855,8 +855,8 @@ export function SecurityDetails() {
                       onClick={() => setShowBroadcasterDialog(true)}
                       className="flex items-center gap-2 w-full" 
                       size="sm"
-                      variant={isRoleConnected(pendingBroadcasterTx ? contractInfo.broadcaster : contractInfo.owner) ? "default" : "outline"}
-                      disabled={!isRoleConnected(pendingBroadcasterTx ? contractInfo.broadcaster : contractInfo.owner)}
+                      variant={isRoleConnected(pendingBroadcasterTx ? contractInfo.owner : contractInfo.owner) ? "default" : "outline"}
+                      disabled={!isRoleConnected(pendingBroadcasterTx ? contractInfo.owner : contractInfo.owner)}
                     >
                       <Wallet className="h-4 w-4" />
                       {pendingBroadcasterTx ? "Approve Update" : "Request Update"}
@@ -874,7 +874,7 @@ export function SecurityDetails() {
                       currentValue={contractInfo?.broadcaster}
                       currentValueLabel="Current Broadcaster"
                       actionLabel={pendingBroadcasterTx ? "Approve Update" : "Request Update"}
-                      requiredRole={pendingBroadcasterTx ? "broadcaster" : "owner"}
+                      requiredRole={pendingBroadcasterTx ? "owner" : "owner"}
                       connectedAddress={connectedAddress}
                       pendingTx={pendingBroadcasterTx || undefined}
                       showNewValueInput={true}
