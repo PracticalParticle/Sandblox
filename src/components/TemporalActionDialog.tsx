@@ -8,12 +8,14 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
-import { Loader2, X, CheckCircle2, Clock, XCircle, Shield, Wallet } from "lucide-react"
+import { Loader2, X, CheckCircle2, Clock, XCircle, Shield, Wallet, Radio } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { TxRecord } from "@/particle-core/sdk/typescript/interfaces/lib.index"
 import { TxStatus } from "@/particle-core/sdk/typescript/types/lib.index"
 import { formatAddress } from "@/lib/utils"
 import { Progress } from "@/components/ui/progress"
+import { useTransactionManager } from "@/contexts/TransactionManager"
+import { getMetaTransactionSignature, broadcastMetaTransaction } from "@/utils/metaTransaction"
 
 interface TemporalActionDialogProps {
   isOpen: boolean
@@ -21,9 +23,13 @@ interface TemporalActionDialogProps {
   title: string
   description?: string
   contractInfo: {
+    contractAddress: string
     timeLockPeriodInMinutes: number
     chainId: number
     chainName: string
+    broadcaster: string
+    owner: string
+    recoveryAddress: string
     [key: string]: any
   }
   actionType: string
@@ -67,6 +73,10 @@ export function TemporalActionDialog({
   const [isApproving, setIsApproving] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [isSigning, setIsSigning] = useState(false)
+  const [signedMetaTx, setSignedMetaTx] = useState<{
+    type: 'approve' | 'cancel';
+    signedData: string;
+  } | null>(null)
   const { toast } = useToast()
 
   // Reset state when dialog opens/closes
@@ -76,8 +86,11 @@ export function TemporalActionDialog({
       setIsApproving(false)
       setIsCancelling(false)
       setIsSigning(false)
+      setSignedMetaTx(null)
     }
   }, [isOpen])
+
+  const transactionManager = useTransactionManager();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -135,6 +148,62 @@ export function TemporalActionDialog({
       setIsCancelling(false)
     }
   }
+
+  const handleMetaTxSign = async (type: 'approve' | 'cancel') => {
+    setIsSigning(true);
+    try {
+      // Convert txId from bigint to number if needed
+      const txId = pendingTx?.txId ? parseInt(pendingTx.txId.toString()) : undefined;
+      const signedData = await getMetaTransactionSignature(type, txId);
+      
+      // Store the signed transaction
+      const metaTxId = `metatx-${type}-${txId}-${Date.now()}`;
+      await transactionManager.storeTransaction(metaTxId, signedData, {
+        type,
+        originalTxId: txId,
+        timestamp: Date.now()
+      });
+
+      setSignedMetaTx({ type, signedData });
+      
+      toast({
+        title: "Success",
+        description: `Transaction ${type} signed successfully`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || `Failed to sign ${type} transaction`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSigning(false);
+    }
+  };
+
+  const handleBroadcast = async (type: 'approve' | 'cancel') => {
+    if (!signedMetaTx || signedMetaTx.type !== type) return;
+    
+    try {
+      // Here you would call your broadcasting service to submit the meta transaction
+      // This is a placeholder for the actual implementation
+      await broadcastMetaTransaction(signedMetaTx.signedData);
+      
+      toast({
+        title: "Success",
+        description: `Transaction ${type} broadcasted successfully`,
+      });
+      
+      // Close the dialog after successful broadcast
+      onOpenChange(false);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || `Failed to broadcast ${type} transaction`,
+        variant: "destructive",
+      });
+    }
+  };
 
   const getRoleAddress = (role: string) => {
     if (!contractInfo) return null;
@@ -393,7 +462,9 @@ export function TemporalActionDialog({
                           <TooltipTrigger asChild>
                             <div className="flex-1">
                               <Button
-                                onClick={() => handleApprove(Number(pendingTx.txId))}
+                                onClick={() => signedMetaTx?.type === 'approve' 
+                                  ? handleBroadcast('approve')
+                                  : handleMetaTxSign('approve')}
                                 disabled={isLoading || isSigning || !isConnectedWalletValid}
                                 className={`w-full transition-all duration-200 flex items-center justify-center
                                   bg-emerald-50 text-emerald-700 hover:bg-emerald-100 
@@ -405,15 +476,20 @@ export function TemporalActionDialog({
                                 `}
                                 variant="outline"
                               >
-                                {isSigning ? (
+                                {isSigning && !signedMetaTx?.type ? (
                                   <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                     Signing...
                                   </>
+                                ) : signedMetaTx?.type === 'approve' ? (
+                                  <>
+                                    <Radio className="mr-2 h-4 w-4" />
+                                    Broadcast
+                                  </>
                                 ) : (
                                   <>
                                     <CheckCircle2 className="mr-2 h-4 w-4" />
-                                    Sign & Approve
+                                    Sign Approve
                                   </>
                                 )}
                               </Button>
@@ -430,7 +506,9 @@ export function TemporalActionDialog({
                           <TooltipTrigger asChild>
                             <div className="flex-1">
                               <Button
-                                onClick={() => handleCancel(Number(pendingTx.txId))}
+                                onClick={() => signedMetaTx?.type === 'cancel' 
+                                  ? handleBroadcast('cancel')
+                                  : handleMetaTxSign('cancel')}
                                 disabled={isLoading || isCancelling || !isConnectedWalletValid}
                                 className={`w-full transition-all duration-200 flex items-center justify-center
                                   bg-rose-50 text-rose-700 hover:bg-rose-100 
@@ -442,15 +520,20 @@ export function TemporalActionDialog({
                                 `}
                                 variant="outline"
                               >
-                                {isCancelling ? (
+                                {isSigning && !signedMetaTx?.type ? (
                                   <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Processing...
+                                    Signing...
+                                  </>
+                                ) : signedMetaTx?.type === 'cancel' ? (
+                                  <>
+                                    <Radio className="mr-2 h-4 w-4" />
+                                    Broadcast
                                   </>
                                 ) : (
                                   <>
                                     <X className="mr-2 h-4 w-4" />
-                                    Cancel
+                                    Sign Cancel
                                   </>
                                 )}
                               </Button>

@@ -30,17 +30,15 @@ export type SecurityOperationEvent = {
   details: SecurityOperationDetails
 }
 
-export type SecureContractInfo = {
-  address: Address
-  owner: Address
-  broadcaster: Address
-  recoveryAddress: Address
-  timeLockPeriodInMinutes: number
-  pendingOperations: SecurityOperationEvent[]
-  recentEvents: SecurityOperationEvent[]
-  chainId: number
-  chainName: string
-  operationHistory: TxRecord[]
+export interface SecureContractInfo {
+  contractAddress: string;
+  timeLockPeriodInMinutes: number;
+  chainId: number;
+  chainName: string;
+  broadcaster: string;
+  owner: string;
+  recoveryAddress: string;
+  [key: string]: any;
 }
 
 export interface ContractInfo {
