@@ -12,7 +12,7 @@ import {
   DialogTitle 
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { SingleWalletManagerProvider, useSingleWallet } from '@/components/SingleWalletManager';
+import { useAccount, useConnect, useDisconnect } from "wagmi";
 import SimpleVault from "../SimpleVault";
 import { usePublicClient, useWalletClient, useChainId } from "wagmi";
 
@@ -87,14 +87,11 @@ function WalletConnectionContent({
   children,
   contractAddress
 }: WalletConnectionContentProps) {
-  const walletManager = useSingleWallet();
-  const { session, isConnecting, connect, disconnect } = walletManager || { 
-    session: undefined, 
-    isConnecting: false, 
-    connect: async () => {}, 
-    disconnect: async () => {} 
-  };
+  const { address, isConnecting: isAccountConnecting } = useAccount();
+  const { connectAsync, connectors } = useConnect();
+  const { disconnectAsync } = useDisconnect();
   const [isWalletConnected, setIsWalletConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [broadcasterAddress, setBroadcasterAddress] = useState<string | null>(null);
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
@@ -235,7 +232,7 @@ function WalletConnectionContent({
   }, [contractAddress, publicClient, chain, walletClient, walletType]);
 
   useEffect(() => {
-    console.log("Session:", session);
+    console.log("Session:", address);
     console.log("ContractInfo:", contractInfo);
     console.log("WalletType:", walletType);
     console.log("BroadcasterAddress state:", broadcasterAddress);
@@ -243,15 +240,15 @@ function WalletConnectionContent({
     const checkWalletConnection = async () => {
       try {
         // Check if session has the expected structure
-        if (session) {
-          if (typeof session !== 'object') {
-            console.error("Session is not an object:", session);
+        if (address) {
+          if (typeof address !== 'string') {
+            console.error("Session is not a string:", address);
             setIsWalletConnected(false);
             return;
           }
           
           // Log all properties of session for debugging
-          console.log("Session properties:", Object.keys(session));
+          console.log("Session properties:", Object.keys(address));
         }
         
         // Check if walletType is valid
@@ -261,7 +258,7 @@ function WalletConnectionContent({
           return;
         }
         
-        if (session && contractInfo) {
+        if (address && contractInfo) {
           // Check if contractInfo has the expected structure
           if (typeof contractInfo !== 'object') {
             console.error("ContractInfo is not an object:", contractInfo);
@@ -275,17 +272,17 @@ function WalletConnectionContent({
           const requiredAddress = await getRequiredAddress();
           console.log("Required address:", requiredAddress);
           
-          if (session.account) {
-            console.log("Session account:", session.account);
+          if (address) {
+            console.log("Session account:", address);
             
-            if (typeof session.account !== 'string') {
-              console.error("Session account is not a string:", session.account);
+            if (typeof address !== 'string') {
+              console.error("Session account is not a string:", address);
               setIsWalletConnected(false);
               return;
             }
             
             // Normalize the session account address
-            const sessionAccount = session.account.toLowerCase();
+            const sessionAccount = address.toLowerCase();
             console.log("Normalized session account:", sessionAccount);
             
             if (requiredAddress) {
@@ -296,8 +293,8 @@ function WalletConnectionContent({
               }
               
               // Use our new address comparison function
-              const addressesMatch = compareAddresses(session.account, requiredAddress);
-              console.log("Comparing addresses:", session.account, requiredAddress);
+              const addressesMatch = compareAddresses(address, requiredAddress);
+              console.log("Comparing addresses:", address, requiredAddress);
               console.log("Address comparison result:", addressesMatch);
               
               setIsWalletConnected(addressesMatch);
@@ -320,25 +317,25 @@ function WalletConnectionContent({
     };
     
     checkWalletConnection();
-  }, [session, contractInfo, walletType, broadcasterAddress]);
+  }, [address, contractInfo, walletType, broadcasterAddress]);
 
   // Effect to trigger transaction when wallet is connected and validated
   useEffect(() => {
     const handleWalletValidation = async () => {
-      if (isWalletConnected && session?.account && !isApproving) {
+      if (isWalletConnected && address && !isConnecting) {
         try {
           console.log("Wallet connected and validated, preparing to send transaction...");
           
           // Get the required address for validation
           const requiredAddress = await getRequiredAddress();
           console.log("Required address:", requiredAddress);
-          console.log("Session account:", session.account);
+          console.log("Session account:", address);
           
           // Validate the session and address match
-          if (session && session.account && requiredAddress && 
-              compareAddresses(session.account, requiredAddress)) {
+          if (address && requiredAddress && 
+              compareAddresses(address, requiredAddress)) {
             
-            setIsApproving(true);
+            setIsConnecting(true);
             console.log("Addresses match, waiting for wallet to be ready...");
             
             // Add a delay to ensure the wallet is ready
@@ -347,21 +344,42 @@ function WalletConnectionContent({
             
             // Immediately trigger onSuccess to initiate the transaction
             try {
-              await onSuccess(session.account);
+              await onSuccess(address);
             } catch (error) {
               console.error("Error in transaction submission:", error);
-              setIsApproving(false);
+              setIsConnecting(false);
             }
           }
         } catch (error) {
           console.error("Error in wallet validation:", error);
-          setIsApproving(false);
+          setIsConnecting(false);
         }
       }
     };
 
     handleWalletValidation();
-  }, [isWalletConnected, session?.account]);
+  }, [isWalletConnected, address]);
+
+  const handleConnect = async () => {
+    if (!connectors[0]) return;
+    
+    setIsConnecting(true);
+    try {
+      await connectAsync({ connector: connectors[0] });
+    } catch (error) {
+      console.error('Failed to connect:', error);
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      await disconnectAsync();
+    } catch (error) {
+      console.error('Failed to disconnect:', error);
+    }
+  };
 
   const [isApproving, setIsApproving] = useState(false);
 
@@ -369,17 +387,17 @@ function WalletConnectionContent({
     <div className="flex flex-col gap-4">
       <div className="flex items-center space-x-2">
         <div className="flex-1">
-          {session && typeof session === 'object' ? (
+          {address ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div className="flex flex-col gap-1">
                   <span className="text-sm font-medium">Connected Wallet</span>
                   <span className="text-xs text-muted-foreground">
-                    {session && session.account ? formatAddress(session.account) : 'No account'}
+                    {formatAddress(address)}
                   </span>
                 </div>
                 <Button
-                  onClick={() => void disconnect()}
+                  onClick={handleDisconnect}
                   variant="ghost"
                   size="sm"
                   disabled={isApproving}
@@ -393,7 +411,7 @@ function WalletConnectionContent({
                   <AlertDescription className="space-y-2">
                     <p>Connected wallet does not match the {getWalletTypeLabel().toLowerCase()} address. Please connect the correct wallet.</p>
                     <div className="text-xs mt-1">
-                      <p><strong>Connected:</strong> {formatAddress(session?.account)}</p>
+                      <p><strong>Connected:</strong> {formatAddress(address)}</p>
                       <p><strong>Required:</strong> {formatAddress(broadcasterAddress || '')}</p>
                     </div>
                   </AlertDescription>
@@ -405,7 +423,7 @@ function WalletConnectionContent({
                     <CheckCircle2 className="h-4 w-4 text-green-500" />
                     <AlertDescription className="text-green-500">
                       {getWalletTypeLabel()} wallet connected successfully!
-                      {isApproving ? ' Please check your wallet to approve the transaction.' : ''}
+                      {isConnecting ? ' Please check your wallet to approve the transaction.' : ''}
                     </AlertDescription>
                   </Alert>
                   {txId && (
@@ -421,20 +439,20 @@ function WalletConnectionContent({
                     variant="outline"
                   >
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {isApproving ? 'Check your wallet to approve the transaction...' : 'Preparing Transaction...'}
+                    {isConnecting ? 'Check your wallet to approve the transaction...' : 'Preparing Transaction...'}
                   </Button>
                 </div>
               )}
             </div>
           ) : (
             <Button
-              onClick={() => void connect()}
-              disabled={isConnecting}
+              onClick={handleConnect}
+              disabled={isConnecting || isAccountConnecting}
               className="w-full"
               variant="outline"
             >
               <Wallet className="mr-2 h-4 w-4" />
-              {isConnecting ? 'Connecting...' : `Connect ${getWalletTypeLabel()} Wallet`}
+              {isConnecting || isAccountConnecting ? 'Connecting...' : `Connect ${getWalletTypeLabel()} Wallet`}
             </Button>
           )}
         </div>
@@ -472,20 +490,13 @@ export function MetaTxApprovalDialog({
   contractAddress,
   useExistingProvider = false
 }: MetaTxApprovalDialogProps) {
-  const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID;
-  const { disconnect } = useSingleWallet();
+  const { disconnectAsync } = useDisconnect();
   
   // Log the contractInfo object for debugging
   console.log("MetaTxApprovalDialog contractInfo:", contractInfo);
   console.log("MetaTxApprovalDialog walletType:", walletType);
   console.log("MetaTxApprovalDialog contractAddress:", contractAddress);
   
-  if (!projectId) {
-    console.error('Missing VITE_WALLET_CONNECT_PROJECT_ID environment variable');
-    return null;
-  }
-
-  // Ensure we have valid contractInfo
   if (!contractInfo || typeof contractInfo !== 'object') {
     console.error('Invalid contractInfo:', contractInfo);
     return null;
@@ -577,12 +588,14 @@ export function MetaTxApprovalDialog({
   return (
     <Dialog 
       open={isOpen} 
-      onOpenChange={(open) => {
+      onOpenChange={async (open) => {
         // Only allow closing via the X button
         if (!open) {
           // Disconnect wallet when dialog is closed via X button
-          if (disconnect) {
-            void disconnect();
+          try {
+            await disconnectAsync();
+          } catch (error) {
+            console.error('Failed to disconnect:', error);
           }
           onOpenChange(open);
         }
@@ -615,34 +628,7 @@ export function MetaTxApprovalDialog({
         <div className="space-y-4">
           {children}
           
-          {/* Wrap in try-catch to handle any errors */}
-          {(() => {
-            try {
-              return useExistingProvider ? (
-                renderContent()
-              ) : (
-                <SingleWalletManagerProvider
-                  projectId={projectId}
-                  autoConnect={false}
-                  metadata={{
-                    name: 'SandBlox Broadcaster',
-                    description: 'SandBlox Broadcaster Wallet Connection',
-                    url: window.location.origin,
-                    icons: ['https://avatars.githubusercontent.com/u/37784886']
-                  }}
-                >
-                  {renderContent()}
-                </SingleWalletManagerProvider>
-              );
-            } catch (error) {
-              console.error("Error rendering SingleWalletManagerProvider:", error);
-              return (
-                <div className="p-4 border border-red-500 rounded-md">
-                  <p className="text-red-500">Error initializing wallet connection. Please try again.</p>
-                </div>
-              );
-            }
-          })()}
+          {renderContent()}
         </div>
       </DialogContent>
     </Dialog>

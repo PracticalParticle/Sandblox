@@ -15,7 +15,6 @@ import { createWalletClient, http } from "viem";
 import { MetaTransaction } from "../../../particle-core/sdk/typescript/interfaces/lib.index";
 import { useToast } from "@/components/ui/use-toast";
 import SecureOwnable from "../../../particle-core/sdk/typescript/SecureOwnable";
-import { useSingleWallet } from "@/components/SingleWalletManager";
 import { VaultMetaTxParams } from "../SimpleVault";
 import { getStoredMetaTxSettings, createVaultMetaTxParams } from "../SimpleVault.ui";
 
@@ -74,7 +73,6 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
   const { toast } = useToast();
-  const walletManager = useSingleWallet();
 
   // Fetch contract security info from the contract
   useEffect(() => {
@@ -229,7 +227,7 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
   };
 
   const handleBroadcasterConnected = async (broadcasterAddress: string) => {
-    if (!signedMetaTx || !contractInfo || !chain || !publicClient || !walletManager) {
+    if (!signedMetaTx || !contractInfo || !chain || !publicClient || !walletClient || !address) {
       handleNotification({
         type: 'error',
         title: "Error",
@@ -247,7 +245,7 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
     
     try {
       // Verify we still have a valid session
-      if (!walletManager.session || !walletManager.session.account) {
+      if (!address) {
         handleNotification({
           type: 'error',
           title: "Session Error",
@@ -259,7 +257,7 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
       }
 
       // Verify the connected account matches the broadcaster address
-      if (walletManager.session.account.toLowerCase() !== broadcasterAddress.toLowerCase()) {
+      if (address.toLowerCase() !== broadcasterAddress.toLowerCase()) {
         handleNotification({
           type: 'error',
           title: "Account Mismatch",
@@ -281,22 +279,21 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
       await new Promise(resolve => setTimeout(resolve, 1000));
       console.log("Sending transaction request to wallet...");
 
-      // Send the transaction using the wallet manager's sendRequest
+      // Send the transaction using the signer
       const txRequest = {
-        from: broadcasterAddress,
+        account: broadcasterAddress as Address,
         to: contractAddress,
         data: signedMetaTx.data,
-        chainId: chain.id,
-        gas: '0x186A0' // 100,000 gas limit
+        chain: chain
       };
 
-      console.log("Calling eth_sendTransaction with params:", [txRequest]);
+      console.log("Sending transaction with params:", txRequest);
       
-      // Send the transaction request - this should trigger the wallet confirmation
-      const result = await walletManager.sendRequest<`0x${string}`>('eth_sendTransaction', [txRequest]);
+      // Send the transaction using the signer
+      const hash = await walletClient.sendTransaction(txRequest);
       
-      if (result) {
-        console.log("Transaction submitted with hash:", result);
+      if (hash) {
+        console.log("Transaction submitted with hash:", hash);
         handleNotification({
           type: 'info',
           title: "Transaction Submitted",
@@ -304,7 +301,7 @@ export const MetaTxPendingTransaction: React.FC<MetaTxPendingTransactionProps> =
         });
 
         const receipt = await publicClient.waitForTransactionReceipt({
-          hash: result
+          hash: hash
         });
         
         if (receipt.status === 'success') {

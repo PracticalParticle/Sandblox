@@ -31,7 +31,6 @@ import { getContract } from 'viem';
 import { erc20Abi } from "viem";
 import { DeploymentForm } from './components/DeploymentForm'
 import { useContractDeployment } from '@/lib/deployment'
-import { SingleWalletManagerProvider, useSingleWallet } from '@/components/SingleWalletManager';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { createWalletClient } from "viem";
 import { Hex, Chain } from "viem";
@@ -1972,25 +1971,5 @@ const queryClient = new QueryClient({
 
 // Main export with proper providers
 export default function SimpleVaultUI(props: SimpleVaultUIProps) {
-  const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID;
-
-  if (!projectId) {
-    console.error('Missing VITE_WALLET_CONNECT_PROJECT_ID environment variable');
-    return <div>Error: Missing WalletConnect project ID</div>;
-  }
-
-  return (
-    <SingleWalletManagerProvider
-      projectId={projectId}
-      autoConnect={false}
-      metadata={{
-        name: 'SandBlox Broadcaster',
-        description: 'SandBlox Broadcaster Wallet Connection',
-        url: window.location.origin,
-        icons: ['https://avatars.githubusercontent.com/u/37784886']
-      }}
-    >
-      <SimpleVaultUIContent {...props} />
-    </SingleWalletManagerProvider>
-  );
+  return <SimpleVaultUIContent {...props} />;
 }
