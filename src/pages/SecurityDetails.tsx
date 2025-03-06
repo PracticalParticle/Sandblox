@@ -735,6 +735,55 @@ export function SecurityDetails() {
     return connectedAddress?.toLowerCase() === roleAddress?.toLowerCase();
   };
 
+  // Add this new handler function near the other handlers
+  const handleBroadcast = async (type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE') => {
+    try {
+      // Find the matching unsigned transaction
+      const pendingTx = signedTransactions.find(tx => 
+        tx.metadata?.type === type && !tx.metadata?.broadcasted
+      );
+
+      if (!pendingTx) {
+        throw new Error('No pending transaction found');
+      }
+
+      if (!walletClient || !connectedAddress) {
+        throw new Error('Wallet not connected');
+      }
+
+      // Parse the signed transaction data
+      const signedData = JSON.parse(pendingTx.signedData);
+      
+      // Send the transaction
+      const hash = await walletClient.sendTransaction(signedData);
+      
+      toast({
+        title: "Transaction Sent",
+        description: "The transaction has been broadcasted to the network.",
+      });
+
+      // Wait for transaction confirmation
+      await publicClient.waitForTransactionReceipt({ hash });
+
+      // Update the transaction metadata to mark as broadcasted
+      storeTransaction(pendingTx.txId, pendingTx.signedData, {
+        ...pendingTx.metadata,
+        broadcasted: true
+      });
+
+      // Reload contract info after broadcast
+      await loadContractInfo();
+
+    } catch (error) {
+      console.error('Broadcast error:', error);
+      toast({
+        title: "Broadcast Failed",
+        description: error instanceof Error ? error.message : "Failed to broadcast transaction",
+        variant: "destructive"
+      });
+    }
+  };
+
   if (!contractAddress || error) {
     return (
       <div className="container py-8">
@@ -967,7 +1016,7 @@ export function SecurityDetails() {
                         </Button>
                         <div className="h-6 w-[1px] bg-border" />
                         <Button 
-                          onClick={() => setShowOwnershipDialog(true)}
+                          onClick={() => handleBroadcast('OWNERSHIP_TRANSFER')}
                           className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'OWNERSHIP_TRANSFER' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
                           size="sm"
                           variant={signedTransactions.some(tx => tx.metadata?.type === 'OWNERSHIP_TRANSFER' && !tx.metadata?.broadcasted) ? "default" : "outline"}
@@ -1057,7 +1106,7 @@ export function SecurityDetails() {
                         </Button>
                         <div className="h-6 w-[1px] bg-border" />
                         <Button 
-                          onClick={() => setShowBroadcasterDialog(true)}
+                          onClick={() => handleBroadcast('BROADCASTER_UPDATE')}
                           className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'BROADCASTER_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
                           size="sm"
                           variant={signedTransactions.some(tx => tx.metadata?.type === 'BROADCASTER_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
@@ -1132,7 +1181,7 @@ export function SecurityDetails() {
                     </Button>
                     <ChevronDown className="h-4 w-4 rotate-[-90deg] text-muted-foreground" />
                     <Button 
-                      onClick={() => setShowRecoveryDialog(true)}
+                      onClick={() => handleBroadcast('RECOVERY_UPDATE')}
                       className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
                       size="sm"
                       variant={signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
@@ -1203,7 +1252,7 @@ export function SecurityDetails() {
                     </Button>
                     <ChevronDown className="h-4 w-4 rotate-[-90deg] text-muted-foreground" />
                     <Button 
-                      onClick={() => setShowTimeLockDialog(true)}
+                      onClick={() => handleBroadcast('TIMELOCK_UPDATE')}
                       className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
                       size="sm"
                       variant={signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
