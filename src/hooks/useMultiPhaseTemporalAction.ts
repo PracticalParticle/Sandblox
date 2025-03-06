@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react"
 import { useToast } from "@/components/ui/use-toast"
-import { useTransactionManager } from "@/contexts/TransactionManager"
+import { useTransactionManager } from "../contexts/TransactionManager"
 import { getMetaTransactionSignature, broadcastMetaTransaction } from "@/utils/metaTransaction"
 import { TxRecord } from "@/particle-core/sdk/typescript/interfaces/lib.index"
+import { Address } from "viem"
 
 interface UseMultiPhaseTemporalActionProps {
   isOpen: boolean
@@ -10,7 +11,7 @@ interface UseMultiPhaseTemporalActionProps {
   onSubmit?: (newValue: string) => Promise<void>
   onApprove?: (txId: number) => Promise<void>
   onCancel?: (txId: number) => Promise<void>
-  pendingTx?: TxRecord
+  pendingTx?: TxRecord & { contractAddress: Address }
   showNewValueInput?: boolean
 }
 
@@ -129,13 +130,22 @@ export function useMultiPhaseTemporalAction({
       const txId = pendingTx?.txId ? parseInt(pendingTx.txId.toString()) : undefined
       const signedData = await getMetaTransactionSignature(type, txId)
       
+      if (!pendingTx?.contractAddress) {
+        throw new Error('Contract address is required for storing meta transactions');
+      }
+
       // Store the signed transaction
       const metaTxId = `metatx-${type}-${txId}-${Date.now()}`
-      await transactionManager.storeTransaction(metaTxId, signedData, {
-        type,
-        originalTxId: txId,
-        timestamp: Date.now()
-      })
+      await transactionManager.storeSignedTransaction(
+        pendingTx.contractAddress,
+        metaTxId,
+        signedData,
+        {
+          type,
+          originalTxId: txId,
+          timestamp: Date.now()
+        }
+      );
 
       setSignedMetaTx({ type, signedData })
       

@@ -12,26 +12,27 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import SimpleVault, { VaultTxRecord } from "./SimpleVault";
+import SimpleVault from "./SimpleVault";
 import { useChain } from "@/hooks/useChain";
 import { atom, useAtom, Provider as JotaiProvider, useSetAtom } from "jotai";
 import { AlertCircle, CheckCircle2, Clock, XCircle, Loader2, Wallet, Coins, X, Shield, Info, Settings2 } from "lucide-react";
-import { TxStatus } from "../../particle-core/sdk/typescript/types/lib.index";
+import { TxStatus, ExecutionType } from "../../particle-core/sdk/typescript/types/lib.index";
 import { useNavigate } from "react-router-dom";
 import { ContractInfo as BaseContractInfo } from "@/lib/verification/index";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { mainnet } from "viem/chains";
 import { http } from "viem";
 import { injected } from "wagmi/connectors";
-import { TokenList, AddTokenDialog, MetaTxPendingTransaction } from "./components";
+import { TokenList, AddTokenDialog } from "./components";
+import { PendingTransaction } from "./components/PendingTransaction";
 import type { TokenMetadata, TokenState, TokenBalanceState } from "./components";
+import type { VaultTxRecord } from "./components/PendingTransaction";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getContract } from 'viem';
 import { erc20Abi } from "viem";
 import { DeploymentForm } from './components/DeploymentForm'
 import { useContractDeployment } from '@/lib/deployment'
-import { SingleWalletManagerProvider, useSingleWallet } from '@/components/SingleWalletManager';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { createWalletClient } from "viem";
 import { Hex, Chain } from "viem";
@@ -43,6 +44,7 @@ import { TxRecord, MetaTxParams, ReadableOperationType } from '../../particle-co
 import { TransactionOptions, TransactionResult } from '../../particle-core/sdk/typescript/interfaces/base.index';
 import { ContractValidations } from '../../particle-core/sdk/typescript/utils/validations';
 import { VaultMetaTxParams } from './SimpleVault';
+import { TransactionManagerProvider } from "@/contexts/TransactionManager";
 
 // Extend the base ContractInfo interface to include broadcaster and other properties
 interface ContractInfo extends BaseContractInfo {
@@ -359,145 +361,9 @@ interface PendingTransactionProps {
   onApprove: (txId: number) => Promise<void>;
   onCancel: (txId: number) => Promise<void>;
   isLoading: boolean;
+  contractAddress: Address;
+  onNotification: (message: NotificationMessage) => void;
 }
-
-const PendingTransaction = ({ tx, onApprove, onCancel, isLoading }: PendingTransactionProps) => {
-  const [loadingState] = useAtom(loadingStateAtom);
-  const [backgroundFetching] = useAtom(backgroundFetchingAtom);
-  const [pendingTxs] = useAtom(pendingTxsAtom);
-
-  try {
-    const now = Math.floor(Date.now() / 1000);
-    const isReady = now >= Number(tx.releaseTime);
-    const progress = Math.min(((now - (Number(tx.releaseTime) - 24 * 3600)) / (24 * 3600)) * 100, 100);
-    const isTimeLockComplete = progress >= 100;
-
-    // Ensure amount is a BigInt and handle undefined
-    const amount = tx.amount !== undefined ? BigInt(tx.amount) : 0n;
-
-    return (
-      <Card>
-        <CardContent className="pt-6">
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <div className="text-left">
-                <div className="flex items-center gap-2">
-                  {tx.status === TxStatus.PENDING && <Clock className="h-4 w-4 text-yellow-500" />}
-                  {tx.status === TxStatus.CANCELLED && <XCircle className="h-4 w-4 text-red-500" />}
-                  {tx.status === TxStatus.COMPLETED && <CheckCircle2 className="h-4 w-4 text-green-500" />}
-                  <p className="font-medium">Transaction #{tx.txId.toString()}</p>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Amount: {tx.type === "ETH" ? formatEther(amount) : formatUnits(amount, 18)} {tx.type}
-                </p>
-                <p className="text-sm text-muted-foreground">To: {tx.params.target}</p>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Time Lock Progress</span>
-                <span>{Math.round(progress)}%</span>
-              </div>
-              <Progress 
-                value={progress} 
-                className={`h-2 ${isTimeLockComplete ? 'bg-muted' : ''}`}
-                aria-label="Time lock progress"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={Math.round(progress)}
-              />
-            </div>
-            <div className="flex space-x-2">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex-1">
-                      <Button
-                        onClick={() => onApprove(Number(tx.txId))}
-                        disabled={!isReady || isLoading || tx.status !== TxStatus.PENDING || !isTimeLockComplete}
-                        className={`w-full transition-all duration-200 flex items-center justify-center
-                          ${isTimeLockComplete 
-                            ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800'
-                            : 'bg-slate-50 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
-                          }
-                          disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 disabled:dark:bg-slate-900 disabled:dark:text-slate-500
-                        `}
-                        variant="outline"
-                        aria-label={`Approve transaction #${tx.txId}`}
-                      >
-                        {isLoading ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            <span>Processing...</span>
-                          </>
-                        ) : (
-                          <>
-                            {isTimeLockComplete && <CheckCircle2 className="h-4 w-4 mr-2" />}
-                            <span>Approve</span>
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    {!isTimeLockComplete 
-                      ? "Time lock period not complete" 
-                      : isReady 
-                        ? "Approve this withdrawal request" 
-                        : "Not yet ready for approval"}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex-1">
-                      <Button
-                        onClick={() => onCancel(Number(tx.txId))}
-                        disabled={isLoading || tx.status !== TxStatus.PENDING}
-                        className={`w-full transition-all duration-200 flex items-center justify-center
-                          bg-rose-50 text-rose-700 hover:bg-rose-100 
-                          dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
-                          border border-rose-200 dark:border-rose-800
-                          disabled:opacity-50 disabled:cursor-not-allowed 
-                          disabled:bg-slate-50 disabled:text-slate-400 
-                          disabled:dark:bg-slate-900 disabled:dark:text-slate-500"
-                        `}
-                        variant="outline"
-                        aria-label={`Cancel transaction #${tx.txId}`}
-                      >
-                        {isLoading ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            <span>Processing...</span>
-                          </>
-                        ) : (
-                          <>
-                            <X className="h-4 w-4 mr-2" />
-                            <span>Cancel</span>
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    {tx.status !== TxStatus.PENDING 
-                      ? "This transaction cannot be cancelled" 
-                      : "Cancel this withdrawal request"}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  } catch (error) {
-    console.error("Error rendering PendingTransaction:", error);
-    return <div>Error rendering transaction details.</div>;
-  }
-};
 
 interface DepositFormProps {
   onSubmit: (amount: bigint, token?: Address) => Promise<void>;
@@ -854,13 +720,15 @@ const WithdrawalFormWrapper = React.memo(({
   loadingState, 
   ethBalance, 
   fetchTokenBalance,
-  tokenBalances
+  tokenBalances,
+  contractAddress
 }: { 
   handleWithdrawal: (to: Address, amount: bigint, token?: Address) => Promise<void>;
   loadingState: LoadingState;
   ethBalance: bigint;
   fetchTokenBalance: (tokenAddress: Address) => Promise<void>;
   tokenBalances: TokenBalanceState;
+  contractAddress: Address;
 }) => {
   const [selectedTokenAddress, setSelectedTokenAddress] = useState<string>("ETH");
   const lastFetchRef = useRef<string | undefined>(undefined);
@@ -915,6 +783,9 @@ const WithdrawalFormWrapper = React.memo(({
 
 WithdrawalFormWrapper.displayName = 'WithdrawalFormWrapper';
 
+// Add a new atom for the active tab
+const activeTabAtom = atom<'timelock' | 'metatx'>('timelock');
+
 function SimpleVaultUIContent({ 
   contractAddress, 
   contractInfo, 
@@ -962,6 +833,7 @@ function SimpleVaultUIContent({
   const [walletBalances, setWalletBalances] = useAtom(walletBalancesAtom);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [metaTxSettings] = useAtom(metaTxSettingsAtom);
+  const [activeTab, setActiveTab] = useState<'timelock' | 'metatx'>('timelock');
 
   // Add deployment hook
   const deployment = useContractDeployment({
@@ -1078,39 +950,24 @@ function SimpleVaultUIContent({
     }
   }, []); // Empty dependency array since we use function setters
 
-  // Update the effect that sets up transaction polling to properly handle loading states
+  // Remove the polling effect and replace with a single fetch on mount
   useEffect(() => {
     if (!vault || _mock) {
-      console.log('Skipping transaction polling setup - no vault or using mock');
+      console.log('Skipping initial transaction fetch - no vault or using mock');
       return;
     }
 
-    let mounted = true;
-    const controller = new AbortController();
-
-    const pollTransactions = async () => {
-      if (!mounted || controller.signal.aborted) return;
-      
+    // Do a single fetch when the component mounts
+    const fetchInitialTransactions = async () => {
       try {
         await fetchTransactionsInBackground(vault);
       } catch (error) {
-        console.error('Error in transaction polling:', error);
+        console.error('Error in initial transaction fetch:', error);
       }
     };
 
-    // Initial fetch
-    pollTransactions();
-
-    // Set up periodic fetching every 30 seconds
-    const interval = setInterval(pollTransactions, 30000);
-
-    return () => {
-      mounted = false;
-      controller.abort();
-      clearInterval(interval);
-      console.log('Cleaning up transaction polling');
-    };
-  }, [vault, _mock]); // Only depend on vault and _mock
+    fetchInitialTransactions();
+  }, [vault, _mock, fetchTransactionsInBackground]); // Only run on mount and when vault changes
 
   // Restore the vault initialization effect
   useEffect(() => {
@@ -1847,6 +1704,7 @@ function SimpleVaultUIContent({
                           ethBalance={ethBalance}
                           fetchTokenBalance={fetchTokenBalance}
                           tokenBalances={tokenBalances}
+                          contractAddress={contractAddress as Address}
                         />
                       </CardContent>
                     </Card>
@@ -1858,7 +1716,7 @@ function SimpleVaultUIContent({
                         <CardTitle>Pending Withdrawals</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <Tabs defaultValue="timelock" className="w-full">
+                        <Tabs defaultValue="timelock" className="w-full" onValueChange={(value) => setActiveTab(value as 'timelock' | 'metatx')}>
                           <TabsList className="grid w-full grid-cols-2 bg-background p-1 rounded-lg">
                             <TabsTrigger value="timelock" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">TimeLock</TabsTrigger>
                             <TabsTrigger value="metatx" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">MetaTx</TabsTrigger>
@@ -1887,6 +1745,9 @@ function SimpleVaultUIContent({
                                     onApprove={handleApproveWithdrawal}
                                     onCancel={handleCancelWithdrawal}
                                     isLoading={loadingState.approval[Number(tx.txId)] || loadingState.cancellation[Number(tx.txId)]}
+                                    contractAddress={contractAddress as Address}
+                                    mode="timelock"
+                                    onNotification={handleNotification}
                                   />
                                 ))
                               )}
@@ -1895,7 +1756,11 @@ function SimpleVaultUIContent({
 
                           <TabsContent value="metatx" className="mt-4">
                             <div className="space-y-4">
-                              {pendingTxs.length === 0 ? (
+                              {loadingState.transactions ? (
+                                <div className="flex items-center justify-center py-8">
+                                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                                </div>
+                              ) : pendingTxs.length === 0 ? (
                                 <Card className="bg-muted">
                                   <CardContent className="pt-6">
                                     <h3 className="font-semibold">No Pending Transactions</h3>
@@ -1906,14 +1771,15 @@ function SimpleVaultUIContent({
                                 </Card>
                               ) : (
                                 pendingTxs.map((tx) => (
-                                  <MetaTxPendingTransaction
+                                  <PendingTransaction
                                     key={tx.txId}
                                     tx={tx}
+                                    onApprove={handleApproveWithdrawal}
                                     onCancel={handleCancelWithdrawal}
                                     isLoading={loadingState.cancellation[Number(tx.txId)]}
-                                    contractAddress={contractAddress}
-                                    addMessage={addMessage}
-                                    onApprovalSuccess={fetchVaultData}
+                                    contractAddress={contractAddress as Address}
+                                    mode="metatx"
+                                    onNotification={handleNotification}
                                   />
                                 ))
                               )}
@@ -1937,6 +1803,8 @@ function SimpleVaultUIContent({
                           onApprove={handleApproveWithdrawal}
                           onCancel={handleCancelWithdrawal}
                           isLoading={loadingState.approval[Number(tx.txId)] || loadingState.cancellation[Number(tx.txId)]}
+                          contractAddress={contractAddress as Address}
+                          onNotification={handleNotification}
                         />
                       ))}
                       {pendingTxs.length > 2 && (
@@ -1972,25 +1840,9 @@ const queryClient = new QueryClient({
 
 // Main export with proper providers
 export default function SimpleVaultUI(props: SimpleVaultUIProps) {
-  const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID;
-
-  if (!projectId) {
-    console.error('Missing VITE_WALLET_CONNECT_PROJECT_ID environment variable');
-    return <div>Error: Missing WalletConnect project ID</div>;
-  }
-
   return (
-    <SingleWalletManagerProvider
-      projectId={projectId}
-      autoConnect={false}
-      metadata={{
-        name: 'SandBlox Broadcaster',
-        description: 'SandBlox Broadcaster Wallet Connection',
-        url: window.location.origin,
-        icons: ['https://avatars.githubusercontent.com/u/37784886']
-      }}
-    >
+    <TransactionManagerProvider>
       <SimpleVaultUIContent {...props} />
-    </SingleWalletManagerProvider>
+    </TransactionManagerProvider>
   );
 }

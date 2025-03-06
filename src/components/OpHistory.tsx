@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
 import { TxStatus, ExecutionType } from '@/particle-core/sdk/typescript/types/lib.index'
-import { Address } from 'viem'
+import { Address, Hex } from 'viem'
 import { formatAddress, formatTimestamp } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Badge } from './ui/badge'
@@ -21,7 +20,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { useOperationTypes } from '@/hooks/useOperationTypes'
 import {
   Select,
   SelectContent,
@@ -30,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { TxDetailsDialog } from './TxDetailsDialog'
+import { useOperationHistory, statusToHuman } from '@/hooks/useOperationHistory'
 
 // Status badge variants mapping
 const statusVariants: { [key: number]: { variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode } } = {
@@ -39,23 +38,6 @@ const statusVariants: { [key: number]: { variant: "default" | "secondary" | "des
   [TxStatus.COMPLETED]: { variant: "default", icon: <CheckCircle2 className="h-3 w-3" /> },
   [TxStatus.FAILED]: { variant: "destructive", icon: <XCircle className="h-3 w-3" /> },
   [TxStatus.REJECTED]: { variant: "destructive", icon: <XCircle className="h-3 w-3" /> }
-}
-
-// Status to human-readable text
-const statusToHuman: { [key: number]: string } = {
-  [TxStatus.UNDEFINED]: 'Undefined',
-  [TxStatus.PENDING]: 'Pending',
-  [TxStatus.CANCELLED]: 'Cancelled',
-  [TxStatus.COMPLETED]: 'Completed',
-  [TxStatus.FAILED]: 'Failed',
-  [TxStatus.REJECTED]: 'Rejected'
-}
-
-// Execution type to human-readable text
-const executionTypeToHuman: { [key: number]: string } = {
-  [ExecutionType.NONE]: 'None',
-  [ExecutionType.STANDARD]: 'Standard',
-  [ExecutionType.RAW]: 'Raw'
 }
 
 interface OpHistoryProps {
@@ -80,41 +62,24 @@ const item = {
 }
 
 export function OpHistory({ contractAddress, operations, isLoading = false }: OpHistoryProps) {
-  const [sortedOperations, setSortedOperations] = useState<TxRecord[]>([])
-  const [filteredOperations, setFilteredOperations] = useState<TxRecord[]>([])
-  const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [operationTypeFilter, setOperationTypeFilter] = useState<string>('all')
-  const { getOperationName, operationTypes, loading: loadingTypes } = useOperationTypes(contractAddress)
-  const [selectedRecord, setSelectedRecord] = useState<TxRecord | null>(null)
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false)
-
-  useEffect(() => {
-    // Sort operations by txId in descending order (newest first)
-    const sorted = [...operations].sort((a, b) => 
-      Number(b.txId - a.txId)
-    )
-    setSortedOperations(sorted)
-  }, [operations])
-
-  useEffect(() => {
-    // Apply filters
-    let filtered = [...sortedOperations]
-
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(op => op.status === parseInt(statusFilter))
-    }
-
-    if (operationTypeFilter !== 'all') {
-      filtered = filtered.filter(op => op.params.operationType === operationTypeFilter)
-    }
-
-    setFilteredOperations(filtered)
-  }, [sortedOperations, statusFilter, operationTypeFilter])
-
-  const handleRowClick = (record: TxRecord) => {
-    setSelectedRecord(record)
-    setIsDetailsOpen(true)
-  }
+  const {
+    filteredOperations,
+    statusFilter,
+    operationTypeFilter,
+    setStatusFilter,
+    setOperationTypeFilter,
+    selectedRecord,
+    isDetailsOpen,
+    setIsDetailsOpen,
+    handleRowClick,
+    getOperationName,
+    operationTypes,
+    loadingTypes
+  } = useOperationHistory({
+    contractAddress,
+    operations,
+    isLoading
+  })
 
   if (isLoading || loadingTypes) {
     return (
@@ -196,7 +161,7 @@ export function OpHistory({ contractAddress, operations, isLoading = false }: Op
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">
-                      {getOperationName(record.params.operationType)}
+                      {getOperationName(record.params.operationType as Hex)}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -232,7 +197,7 @@ export function OpHistory({ contractAddress, operations, isLoading = false }: Op
             record={selectedRecord}
             isOpen={isDetailsOpen}
             onOpenChange={setIsDetailsOpen}
-            operationName={selectedRecord ? getOperationName(selectedRecord.params.operationType) : ''}
+            operationName={selectedRecord ? getOperationName(selectedRecord.params.operationType as Hex) : ''}
           />
         </CardContent>
       </Card>

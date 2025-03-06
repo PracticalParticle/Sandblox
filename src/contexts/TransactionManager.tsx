@@ -1,42 +1,23 @@
-import React, { createContext, useContext, useCallback } from 'react';
-import { TransactionManager } from '@/services/TransactionManager';
+import React, { createContext, useContext, ReactNode } from 'react';
+import { TransactionManager } from '../services/TransactionManager';
 
-// Create a singleton instance
+// Create singleton instance
 const transactionManager = new TransactionManager();
 
-interface TransactionManagerContextType {
-  storeTransaction: (txId: string, signedTx: string, metadata?: Record<string, unknown>) => void;
-  removeTransaction: (txId: string) => void;
-  clearTransactions: () => void;
-}
+// Create context
+const TransactionManagerContext = createContext<TransactionManager | null>(null);
 
-const TransactionManagerContext = createContext<TransactionManagerContextType | null>(null);
-
-export function TransactionManagerProvider({ children }: { children: React.ReactNode }) {
-  const storeTransaction = useCallback((txId: string, signedTx: string, metadata?: Record<string, unknown>) => {
-    transactionManager.storeSignedTransaction('global', txId, signedTx, metadata);
-  }, []);
-
-  const removeTransaction = useCallback((txId: string) => {
-    transactionManager.removeSignedTransaction('global', txId);
-  }, []);
-
-  const clearTransactions = useCallback(() => {
-    transactionManager.clearContractTransactions('global');
-  }, []);
-
+// Create provider component
+export function TransactionManagerProvider({ children }: { children: ReactNode }) {
   return (
-    <TransactionManagerContext.Provider value={{
-      storeTransaction,
-      removeTransaction,
-      clearTransactions,
-    }}>
+    <TransactionManagerContext.Provider value={transactionManager}>
       {children}
     </TransactionManagerContext.Provider>
   );
 }
 
-export function useTransactionManager() {
+// Create hook
+export function useTransactionManager(): TransactionManager {
   const context = useContext(TransactionManagerContext);
   if (!context) {
     throw new Error('useTransactionManager must be used within a TransactionManagerProvider');

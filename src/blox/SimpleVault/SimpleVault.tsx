@@ -5,20 +5,10 @@ import { TxRecord, MetaTransaction, MetaTxParams, ReadableOperationType } from '
 import { TransactionOptions, TransactionResult } from '../../particle-core/sdk/typescript/interfaces/base.index';
 import { TxStatus } from '../../particle-core/sdk/typescript/types/lib.index';
 import { ContractValidations } from '../../particle-core/sdk/typescript/utils/validations';
+import { VaultTxRecord } from "./components/PendingTransaction";
 
 // Parse and type the ABI
 const SimpleVaultABI = SimpleVaultABIJson as Abi;
-
-/**
- * Transaction record with extended information
- */
-export interface VaultTxRecord extends Omit<TxRecord, 'status'> {
-  status: TxStatus;
-  amount: bigint;
-  to: Address;
-  token?: Address;
-  type: "ETH" | "TOKEN";
-}
 
 /**
  * Parameters for meta-transaction generation
