@@ -20,6 +20,27 @@ type NotificationMessage = {
   description: string;
 };
 
+// Helper function to recursively convert BigInt values to strings
+const convertBigIntsToStrings = (obj: any): any => {
+  if (typeof obj === 'bigint') {
+    return obj.toString();
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(convertBigIntsToStrings);
+  }
+  
+  if (obj !== null && typeof obj === 'object') {
+    const converted: any = {};
+    for (const key in obj) {
+      converted[key] = convertBigIntsToStrings(obj[key]);
+    }
+    return converted;
+  }
+  
+  return obj;
+};
+
 export interface VaultTxRecord extends Omit<TxRecord, 'status'> {
   status: TxStatus;
   amount: bigint;
@@ -100,9 +121,13 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
     try {
       if (type === 'approve') {
         const signedTx = await signWithdrawalApproval(Number(tx.txId));
+        
+        // Convert all BigInt values to strings recursively
+        const serializedTx = convertBigIntsToStrings(signedTx);
+
         storeTransaction(
           tx.txId.toString(),
-          JSON.stringify(signedTx),
+          JSON.stringify(serializedTx),
           {
             type: 'WITHDRAWAL_APPROVAL',
             timestamp: Date.now()
