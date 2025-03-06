@@ -1,5 +1,5 @@
 import { Address } from 'viem'
-import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
+import { TxRecord as BaseTxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
 
 export type OperationType = 'ownership' | 'broadcaster' | 'recovery' | 'timelock'
 
@@ -48,4 +48,28 @@ export interface ContractInfo {
   description?: string;
   category?: string;
   bloxId?: string;
+}
+
+export interface SignedTransaction {
+  type: 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE' | 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE'
+  broadcasted: boolean
+  signedData?: string
+  timestamp: number
+}
+
+export interface ExtendedTxRecord extends BaseTxRecord {
+  signedMetaTx?: {
+    type: 'approve' | 'cancel'
+    signedData: string
+  }
+}
+
+export interface TxRecord {
+  txId: string | number
+  params: any
+  status: string
+  signedMetaTx?: {
+    type: 'approve' | 'cancel'
+    signedData: string
+  }
 } 
