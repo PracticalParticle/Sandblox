@@ -968,7 +968,7 @@ export function SecurityDetails() {
                         <div className="h-6 w-[1px] bg-border" />
                         <Button 
                           onClick={() => setShowOwnershipDialog(true)}
-                          className="flex items-center justify-center gap-2"
+                          className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'OWNERSHIP_TRANSFER' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
                           size="sm"
                           variant={signedTransactions.some(tx => tx.metadata?.type === 'OWNERSHIP_TRANSFER' && !tx.metadata?.broadcasted) ? "default" : "outline"}
                           disabled={!signedTransactions.some(tx => tx.metadata?.type === 'OWNERSHIP_TRANSFER' && !tx.metadata?.broadcasted)}
@@ -1058,7 +1058,7 @@ export function SecurityDetails() {
                         <div className="h-6 w-[1px] bg-border" />
                         <Button 
                           onClick={() => setShowBroadcasterDialog(true)}
-                          className="flex items-center justify-center gap-2"
+                          className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'BROADCASTER_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
                           size="sm"
                           variant={signedTransactions.some(tx => tx.metadata?.type === 'BROADCASTER_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
                           disabled={!signedTransactions.some(tx => tx.metadata?.type === 'BROADCASTER_UPDATE' && !tx.metadata?.broadcasted)}
@@ -1133,7 +1133,7 @@ export function SecurityDetails() {
                     <ChevronDown className="h-4 w-4 rotate-[-90deg] text-muted-foreground" />
                     <Button 
                       onClick={() => setShowRecoveryDialog(true)}
-                      className="flex items-center justify-center gap-2"
+                      className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
                       size="sm"
                       variant={signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
                       disabled={!signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted)}
@@ -1204,7 +1204,7 @@ export function SecurityDetails() {
                     <ChevronDown className="h-4 w-4 rotate-[-90deg] text-muted-foreground" />
                     <Button 
                       onClick={() => setShowTimeLockDialog(true)}
-                      className="flex items-center justify-center gap-2"
+                      className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
                       size="sm"
                       variant={signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
                       disabled={!signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted)}
