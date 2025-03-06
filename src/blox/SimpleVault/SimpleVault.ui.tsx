@@ -362,6 +362,7 @@ interface PendingTransactionProps {
   onCancel: (txId: number) => Promise<void>;
   isLoading: boolean;
   contractAddress: Address;
+  onNotification: (message: NotificationMessage) => void;
 }
 
 interface DepositFormProps {
@@ -1746,6 +1747,7 @@ function SimpleVaultUIContent({
                                     isLoading={loadingState.approval[Number(tx.txId)] || loadingState.cancellation[Number(tx.txId)]}
                                     contractAddress={contractAddress as Address}
                                     mode="timelock"
+                                    onNotification={handleNotification}
                                   />
                                 ))
                               )}
@@ -1777,6 +1779,7 @@ function SimpleVaultUIContent({
                                     isLoading={loadingState.cancellation[Number(tx.txId)]}
                                     contractAddress={contractAddress as Address}
                                     mode="metatx"
+                                    onNotification={handleNotification}
                                   />
                                 ))
                               )}
@@ -1801,6 +1804,7 @@ function SimpleVaultUIContent({
                           onCancel={handleCancelWithdrawal}
                           isLoading={loadingState.approval[Number(tx.txId)] || loadingState.cancellation[Number(tx.txId)]}
                           contractAddress={contractAddress as Address}
+                          onNotification={handleNotification}
                         />
                       ))}
                       {pendingTxs.length > 2 && (

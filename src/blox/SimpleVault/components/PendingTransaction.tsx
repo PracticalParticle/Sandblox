@@ -56,6 +56,7 @@ interface PendingTransactionProps {
   isLoading: boolean;
   contractAddress: Address;
   mode?: 'timelock' | 'metatx';
+  onNotification?: (message: NotificationMessage) => void;
 }
 
 export const PendingTransaction: React.FC<PendingTransactionProps> = ({
@@ -64,7 +65,8 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
   onCancel,
   isLoading,
   contractAddress,
-  mode = 'timelock'
+  mode = 'timelock',
+  onNotification
 }) => {
   // Add new hooks
   const { signWithdrawalApproval, isLoading: isSigningMetaTx } = useVaultMetaTx(contractAddress);
@@ -89,7 +91,7 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
     isSigning,
     handleApprove: handleApproveAction,
     handleCancel: handleCancelAction,
-    handleBroadcast
+    handleBroadcast: handleBroadcastAction
   } = useMultiPhaseTemporalAction({
     isOpen: true,
     onOpenChange: () => {},
@@ -134,11 +136,45 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
           }
         );
         setSignedMetaTxState({ type: 'approve' });
+
+        // Show success notification
+        onNotification?.({
+          type: 'success',
+          title: 'Meta Transaction Signed',
+          description: `Successfully signed approval for transaction #${tx.txId}`
+        });
       }
       // Handle cancel case if needed
     } catch (error) {
       console.error('Failed to sign meta transaction:', error);
+      
+      // Show error notification
+      onNotification?.({
+        type: 'error',
+        title: 'Signing Failed',
+        description: error instanceof Error ? error.message : 'Failed to sign meta transaction'
+      });
+      
       throw error;
+    }
+  };
+
+  // Add a wrapper for handleBroadcast to include notifications
+  const handleBroadcastWithNotification = async (type: 'approve' | 'cancel') => {
+    try {
+      await handleBroadcastAction(type);
+      onNotification?.({
+        type: 'success',
+        title: 'Transaction Broadcast',
+        description: `Successfully broadcasted ${type} transaction for withdrawal #${tx.txId}`
+      });
+    } catch (error) {
+      console.error('Failed to broadcast transaction:', error);
+      onNotification?.({
+        type: 'error',
+        title: 'Broadcast Failed',
+        description: error instanceof Error ? error.message : 'Failed to broadcast transaction'
+      });
     }
   };
 
@@ -319,7 +355,7 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
                       <TooltipTrigger asChild>
                         <div className="flex-1">
                           <Button
-                            onClick={() => handleBroadcast('approve')}
+                            onClick={() => handleBroadcastWithNotification('approve')}
                             disabled={isLoading || !signedMetaTxState}
                             className="w-full transition-all duration-200 flex items-center justify-center bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800"
                             variant="outline"
@@ -386,7 +422,7 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
                       <TooltipTrigger asChild>
                         <div className="flex-1">
                           <Button
-                            onClick={() => handleBroadcast('cancel')}
+                            onClick={() => handleBroadcastWithNotification('cancel')}
                             disabled={isLoading || !signedMetaTxState}
                             className="w-full transition-all duration-200 flex items-center justify-center bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50 border border-rose-200 dark:border-rose-800"
                             variant="outline"
