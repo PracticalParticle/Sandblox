@@ -10,6 +10,8 @@ import { TxStatus } from "../../../particle-core/sdk/typescript/types/lib.index"
 import { useMultiPhaseTemporalAction } from "@/hooks/useMultiPhaseTemporalAction";
 import { TxRecord } from "../../../particle-core/sdk/typescript/interfaces/lib.index";
 import { useSimpleVaultOperations, VAULT_OPERATIONS } from "../hooks/useSimpleVaultOperations";
+import { useVaultMetaTx } from "../hooks/useVaultMetaTx";
+import { useTransactionManager } from "@/hooks/useTransactionManager";
 
 // Notification message type
 type NotificationMessage = {
@@ -43,6 +45,11 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
   contractAddress,
   mode = 'timelock'
 }) => {
+  // Add new hooks
+  const { signWithdrawalApproval, isLoading: isSigningMetaTx } = useVaultMetaTx(contractAddress);
+  const { storeTransaction } = useTransactionManager(contractAddress);
+  const [signedMetaTxState, setSignedMetaTxState] = React.useState<{ type: 'approve' | 'cancel' } | null>(null);
+
   // Memoize the operations array to prevent re-renders
   const operations = React.useMemo(() => [tx], [tx]);
 
@@ -59,10 +66,8 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
     isApproving,
     isCancelling,
     isSigning,
-    signedMetaTx,
     handleApprove: handleApproveAction,
     handleCancel: handleCancelAction,
-    handleMetaTxSign,
     handleBroadcast
   } = useMultiPhaseTemporalAction({
     isOpen: true,
@@ -90,6 +95,27 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
   if (!isValidVaultOperation) {
     return null;
   }
+
+  const handleMetaTxSign = async (type: 'approve' | 'cancel') => {
+    try {
+      if (type === 'approve') {
+        const signedTx = await signWithdrawalApproval(Number(tx.txId));
+        storeTransaction(
+          tx.txId.toString(),
+          JSON.stringify(signedTx),
+          {
+            type: 'WITHDRAWAL_APPROVAL',
+            timestamp: Date.now()
+          }
+        );
+        setSignedMetaTxState({ type: 'approve' });
+      }
+      // Handle cancel case if needed
+    } catch (error) {
+      console.error('Failed to sign meta transaction:', error);
+      throw error;
+    }
+  };
 
   return (
     <Card>
@@ -224,7 +250,7 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
                       <div className="flex-1">
                         <Button
                           onClick={() => handleMetaTxSign('approve')}
-                          disabled={isLoading || tx.status !== TxStatus.PENDING || isSigning || signedMetaTx?.type === 'approve'}
+                          disabled={isLoading || tx.status !== TxStatus.PENDING || isSigningMetaTx || signedMetaTxState?.type === 'approve'}
                           className={`w-full transition-all duration-200 flex items-center justify-center
                             bg-emerald-50 text-emerald-700 hover:bg-emerald-100 
                             dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 
@@ -235,12 +261,12 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
                           `}
                           variant="outline"
                         >
-                          {isSigning ? (
+                          {isSigningMetaTx ? (
                             <>
                               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                               <span>Signing...</span>
                             </>
-                          ) : signedMetaTx?.type === 'approve' ? (
+                          ) : signedMetaTxState?.type === 'approve' ? (
                             <>
                               <CheckCircle2 className="h-4 w-4 mr-2" />
                               <span>Signed</span>
@@ -255,21 +281,21 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
                       </div>
                     </TooltipTrigger>
                     <TooltipContent side="bottom">
-                      {signedMetaTx?.type === 'approve' 
+                      {signedMetaTxState?.type === 'approve' 
                         ? "Transaction is signed and ready to broadcast"
                         : "Sign approval meta-transaction"}
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
 
-                {signedMetaTx?.type === 'approve' && (
+                {signedMetaTxState?.type === 'approve' && (
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <div className="flex-1">
                           <Button
                             onClick={() => handleBroadcast('approve')}
-                            disabled={isLoading || !signedMetaTx}
+                            disabled={isLoading || !signedMetaTxState}
                             className="w-full transition-all duration-200 flex items-center justify-center bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800"
                             variant="outline"
                           >
@@ -291,7 +317,7 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
                       <div className="flex-1">
                         <Button
                           onClick={() => handleMetaTxSign('cancel')}
-                          disabled={isLoading || tx.status !== TxStatus.PENDING || isSigning || signedMetaTx?.type === 'cancel'}
+                          disabled={isLoading || tx.status !== TxStatus.PENDING || isSigning || signedMetaTxState?.type === 'cancel'}
                           className={`w-full transition-all duration-200 flex items-center justify-center
                             bg-rose-50 text-rose-700 hover:bg-rose-100 
                             dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
@@ -307,7 +333,7 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
                               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                               <span>Signing...</span>
                             </>
-                          ) : signedMetaTx?.type === 'cancel' ? (
+                          ) : signedMetaTxState?.type === 'cancel' ? (
                             <>
                               <CheckCircle2 className="h-4 w-4 mr-2" />
                               <span>Signed</span>
@@ -322,21 +348,21 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
                       </div>
                     </TooltipTrigger>
                     <TooltipContent side="bottom">
-                      {signedMetaTx?.type === 'cancel'
+                      {signedMetaTxState?.type === 'cancel'
                         ? "Transaction is signed and ready to broadcast"
                         : "Sign cancellation meta-transaction"}
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
 
-                {signedMetaTx?.type === 'cancel' && (
+                {signedMetaTxState?.type === 'cancel' && (
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <div className="flex-1">
                           <Button
                             onClick={() => handleBroadcast('cancel')}
-                            disabled={isLoading || !signedMetaTx}
+                            disabled={isLoading || !signedMetaTxState}
                             className="w-full transition-all duration-200 flex items-center justify-center bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50 border border-rose-200 dark:border-rose-800"
                             variant="outline"
                           >
