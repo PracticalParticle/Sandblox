@@ -23,7 +23,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { mainnet } from "viem/chains";
 import { http } from "viem";
 import { injected } from "wagmi/connectors";
-import { TokenList, AddTokenDialog, MetaTxPendingTransaction } from "./components";
+import { TokenList, AddTokenDialog, PendingTransaction } from "./components";
 import type { TokenMetadata, TokenState, TokenBalanceState } from "./components";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -1905,9 +1905,10 @@ function SimpleVaultUIContent({
                                 </Card>
                               ) : (
                                 pendingTxs.map((tx) => (
-                                  <MetaTxPendingTransaction
+                                  <PendingTransaction
                                     key={tx.txId}
                                     tx={tx}
+                                    onApprove={handleApproveWithdrawal}
                                     onCancel={handleCancelWithdrawal}
                                     isLoading={loadingState.cancellation[Number(tx.txId)]}
                                     contractAddress={contractAddress}
