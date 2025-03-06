@@ -249,15 +249,6 @@ contract SimpleVault is SecureOwnable {
     }
 
     /**
-     * @notice Generates a message hash for signing a meta-transaction
-     * @param metaTx The meta-transaction to generate the hash for
-     * @return bytes32 The message hash to be signed
-     */
-    function generateMessageHash(MultiPhaseSecureOperation.MetaTransaction memory metaTx) public view returns (bytes32) {
-        return MultiPhaseSecureOperation.generateMessageHash(metaTx);
-    }
-
-    /**
      * @dev Internal function to update the timelock period with validation
      * @param newTimeLockPeriodInMinutes The new timelock period in minutes
      */
