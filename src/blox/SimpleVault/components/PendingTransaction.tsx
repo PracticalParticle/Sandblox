@@ -12,6 +12,9 @@ import { TxRecord } from "../../../particle-core/sdk/typescript/interfaces/lib.i
 import { useSimpleVaultOperations, VAULT_OPERATIONS } from "../hooks/useSimpleVaultOperations";
 import { useVaultMetaTx } from "../hooks/useVaultMetaTx";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
+import { usePublicClient, useWalletClient, useChainId, useConfig } from "wagmi";
+import SimpleVault from "../SimpleVault";
+import { useRoleValidation } from "@/hooks/useRoleValidation";
 
 // Notification message type
 type NotificationMessage = {
@@ -76,19 +79,50 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
 }) => {
   // Add new hooks
   const { signWithdrawalApproval, isLoading: isSigningMetaTx } = useVaultMetaTx(contractAddress);
-  const { storeTransaction } = useTransactionManager(contractAddress);
+  const { transactions, storeTransaction } = useTransactionManager(contractAddress);
   const [signedMetaTxState, setSignedMetaTxState] = React.useState<{ type: 'approve' | 'cancel' } | null>(null);
+  
+  // Get clients from Wagmi
+  const publicClient = usePublicClient();
+  const { data: walletClient } = useWalletClient();
+  const chainId = useChainId();
+  const config = useConfig();
+
+  // Store client references in state
+  const [clients, setClients] = React.useState<{
+    publicClient: typeof publicClient | null;
+    walletClient: typeof walletClient | null;
+  }>({ publicClient: null, walletClient: null });
+
+  // Update clients when they change
+  React.useEffect(() => {
+    setClients({
+      publicClient,
+      walletClient
+    });
+  }, [publicClient, walletClient]);
+
+  // Get chain configuration
+  const chain = React.useMemo(() => {
+    if (!chainId) return undefined;
+    return config.chains.find(c => c.id === chainId);
+  }, [chainId, config.chains]);
+
+  // Use role validation hook
+  const roleValidation = useRoleValidation(
+    contractAddress as Address,
+    connectedAddress as Address | undefined,
+    chain
+  );
 
   // Role validation hooks - moved to top
-  const isOwner = React.useMemo(() => {
-    if (!connectedAddress || !ownerAddress) return false;
-    return connectedAddress.toLowerCase() === ownerAddress.toLowerCase();
-  }, [connectedAddress, ownerAddress]);
-
-  const isBroadcaster = React.useMemo(() => {
-    if (!connectedAddress || !broadcasterAddress) return false;
-    return connectedAddress.toLowerCase() === broadcasterAddress.toLowerCase();
-  }, [connectedAddress, broadcasterAddress]);
+  const { isOwner, isBroadcaster, isLoading: isRoleValidationLoading } = React.useMemo(() => {
+    return {
+      isOwner: roleValidation.isOwner,
+      isBroadcaster: roleValidation.isBroadcaster,
+      isLoading: roleValidation.isLoading
+    };
+  }, [roleValidation]);
 
   // Add debug logging
   React.useEffect(() => {
@@ -97,9 +131,12 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
       ownerAddress,
       isOwner,
       broadcasterAddress,
-      isBroadcaster
+      isBroadcaster,
+      roleValidation,
+      isRoleValidationLoading,
+      chain
     });
-  }, [connectedAddress, ownerAddress, isOwner, broadcasterAddress, isBroadcaster]);
+  }, [connectedAddress, ownerAddress, isOwner, broadcasterAddress, isBroadcaster, roleValidation, isRoleValidationLoading, chain]);
 
   // Memoize the operations array to prevent re-renders
   const operations = React.useMemo(() => [tx], [tx]);
@@ -150,52 +187,112 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
   const handleMetaTxSign = async (type: 'approve' | 'cancel') => {
     try {
       if (type === 'approve') {
+        // Log before signing
+        console.log('Starting meta transaction signing for txId:', tx.txId);
+        
         const signedTx = await signWithdrawalApproval(Number(tx.txId));
+        console.log('Received signed transaction:', signedTx);
         
         // Convert all BigInt values to strings recursively
         const serializedTx = convertBigIntsToStrings(signedTx);
+        console.log('Serialized transaction:', serializedTx);
+
+        // Create the correct transaction key
+        const txKey = `metatx-${type}-${tx.txId}`;
+        console.log('Storing with key:', txKey);
 
         storeTransaction(
-          tx.txId.toString(),
+          txKey, // Changed from tx.txId.toString() to match the key used in broadcast
           JSON.stringify(serializedTx),
           {
             type: 'WITHDRAWAL_APPROVAL',
             timestamp: Date.now()
           }
         );
+
+        // Verify storage immediately after storing
+        console.log('Stored transactions:', transactions);
+        
         setSignedMetaTxState({ type: 'approve' });
 
-        // Show success notification
         onNotification?.({
           type: 'success',
           title: 'Meta Transaction Signed',
           description: `Successfully signed approval for transaction #${tx.txId}`
         });
       }
-      // Handle cancel case if needed
     } catch (error) {
       console.error('Failed to sign meta transaction:', error);
-      
-      // Show error notification
       onNotification?.({
         type: 'error',
         title: 'Signing Failed',
         description: error instanceof Error ? error.message : 'Failed to sign meta transaction'
       });
-      
       throw error;
     }
   };
 
-  // Add a wrapper for handleBroadcast to include notifications
   const handleBroadcastWithNotification = async (type: 'approve' | 'cancel') => {
     try {
-      await handleBroadcastAction(type);
+      const txKey = `metatx-${type}-${tx.txId}`;
+      console.log('Looking for transaction with key:', txKey);
+      console.log('Available transactions:', transactions);
+      
+      const storedTx = transactions[txKey];
+      console.log('Found stored transaction:', storedTx);
+      
+      if (!storedTx) {
+        throw new Error('No signed transaction found');
+      }
+
+      // Parse the signed transaction data
+      const signedMetaTx = JSON.parse(storedTx.signedData);
+      console.log('Parsed meta transaction:', signedMetaTx);
+
+      // Use clients from state instead of hooks
+      if (!clients.publicClient || !clients.walletClient || !clients.walletClient.chain) {
+        console.error('Client state:', clients);
+        throw new Error('Wallet not connected');
+      }
+
+      // Get the account from the wallet client
+      const [account] = await clients.walletClient.getAddresses();
+      
+      if (!account) {
+        throw new Error('No account found in wallet');
+      }
+
+      console.log('Broadcasting with account:', account);
+      console.log('Creating vault instance with:', {
+        contractAddress,
+        chain: clients.walletClient.chain,
+        account
+      });
+
+      const vault = new SimpleVault(
+        clients.publicClient, 
+        clients.walletClient, 
+        contractAddress, 
+        clients.walletClient.chain
+      );
+
+      // Broadcast the meta transaction
+      console.log('Broadcasting meta transaction...');
+      const result = await vault.approveWithdrawalWithMetaTx(
+        signedMetaTx,
+        { from: account }
+      );
+
+      console.log('Broadcast result:', result);
+      await result.wait();
+      
       onNotification?.({
         type: 'success',
         title: 'Transaction Broadcast',
         description: `Successfully broadcasted ${type} transaction for withdrawal #${tx.txId}`
       });
+
+      setSignedMetaTxState(null);
     } catch (error) {
       console.error('Failed to broadcast transaction:', error);
       onNotification?.({
