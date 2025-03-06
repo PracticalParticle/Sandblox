@@ -179,23 +179,34 @@ export function MetaTxActionDialog({
                     </Alert>
                   )}
 
-                  <Button 
-                    type="submit"
-                    disabled={!newValue || !validationResult.isValid || !isConnectedWalletValid || isLoading || isSigning}
-                    className="w-full"
-                  >
-                    {isSigning ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Signing...
-                      </>
-                    ) : (
-                      <>
-                        <Radio className="mr-2 h-4 w-4" />
-                        {actionLabel}
-                      </>
-                    )}
-                  </Button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button 
+                      type="submit"
+                      disabled={!newValue || !validationResult.isValid || !isConnectedWalletValid || isLoading || isSigning}
+                      className="w-full"
+                    >
+                      {isSigning ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Signing...
+                        </>
+                      ) : (
+                        <>
+                          <Radio className="mr-2 h-4 w-4" />
+                          {actionLabel}
+                        </>
+                      )}
+                    </Button>
+                    <Button 
+                      type="button"
+                      variant="outline"
+                      disabled={!isConnectedWalletValid || isLoading}
+                      className="w-full"
+                    >
+                      <Radio className="mr-2 h-4 w-4" />
+                      Broadcast
+                    </Button>
+                  </div>
                 </div>
               </form>
             </CardContent>

@@ -51,7 +51,6 @@ import { TemporalActionDialog } from '@/components/TemporalActionDialog'
 import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
 import { TxStatus } from '@/particle-core/sdk/typescript/types/lib.index'
 import { MetaTxActionDialog } from '@/components/MetaTxActionDialog'
-import { BroadcasterDialog } from '@/components/BroadcasterDialog'
 
 const container = {
   hidden: { opacity: 0 },
@@ -165,8 +164,6 @@ export function SecurityDetails() {
   const [pendingBroadcasterTx, setPendingBroadcasterTx] = useState<TxRecord | null>(null)
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
   const [operationTypeMap, setOperationTypeMap] = useState<Map<string, string>>(new Map())
-  const [showRecoveryBroadcastDialog, setShowRecoveryBroadcastDialog] = useState(false)
-  const [showTimeLockBroadcastDialog, setShowTimeLockBroadcastDialog] = useState(false)
 
   useEffect(() => {
     if (!contractAddress) {
@@ -315,13 +312,67 @@ export function SecurityDetails() {
 
   const handleTransferOwnershipApproval = async (txId: number) => {
     try {
-      await approveOperation(contractAddress as `0x${string}`, txId, 'ownership');
+      if (!contractInfo || !connectedAddress || !contractAddress || !publicClient || !walletClient) {
+        toast({
+          title: "Error",
+          description: "Missing required information",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const chain = config.chains.find((c) => c.id === contractInfo.chainId);
+      if (!chain) {
+        throw new Error('Chain not found');
+      }
+
+      // Create contract instance
+      const contract = new SecureOwnable(
+        publicClient,
+        walletClient,
+        contractAddress as `0x${string}`,
+        chain
+      );
+
+      // Check if the connected wallet is recovery address
+      const isRecoveryWallet = connectedAddress.toLowerCase() === contractInfo.recoveryAddress.toLowerCase();
+
+      if (isRecoveryWallet) {
+        // Recovery wallet must use timelock approval
+        const result = await contract.transferOwnershipDelayedApproval(
+          BigInt(txId),
+          { from: connectedAddress as `0x${string}` }
+        );
+        await result.wait();
+      } else {
+        // Owner can use meta transaction approval
+        const metaTxParams = await contract.createMetaTxParams(
+          contractAddress as `0x${string}`,
+          FUNCTION_SELECTORS.TRANSFER_OWNERSHIP_META as `0x${string}`,
+          BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
+          BigInt(0), // No max gas price
+          connectedAddress as `0x${string}`
+        );
+
+        const unsignedMetaTx = await contract.generateUnsignedMetaTransactionForExisting(
+          BigInt(txId),
+          metaTxParams
+        );
+
+        const result = await contract.transferOwnershipApprovalWithMetaTx(
+          unsignedMetaTx,
+          { from: connectedAddress as `0x${string}` }
+        );
+        await result.wait();
+      }
+
       toast({
         title: "Approval submitted",
         description: "Transfer ownership approval has been submitted.",
       });
       await loadContractInfo();
     } catch (error) {
+      console.error('Error in ownership transfer approval:', error);
       toast({
         title: "Error",
         description: "Failed to approve transfer ownership.",
@@ -332,13 +383,58 @@ export function SecurityDetails() {
 
   const handleTransferOwnershipCancellation = async (txId: number) => {
     try {
-      await cancelOperation(contractAddress as `0x${string}`, txId, 'ownership');
+      if (!contractInfo || !connectedAddress || !contractAddress || !publicClient || !walletClient) {
+        toast({
+          title: "Error",
+          description: "Missing required information",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const chain = config.chains.find((c) => c.id === contractInfo.chainId);
+      if (!chain) {
+        throw new Error('Chain not found');
+      }
+
+      // Create contract instance
+      const contract = new SecureOwnable(
+        publicClient,
+        walletClient,
+        contractAddress as `0x${string}`,
+        chain
+      );
+
+      // Generate meta transaction parameters for cancellation
+      const metaTxParams = await contract.createMetaTxParams(
+        contractAddress as `0x${string}`,
+        FUNCTION_SELECTORS.TRANSFER_OWNERSHIP_CANCEL_META as `0x${string}`,
+        BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
+        BigInt(0), // No max gas price
+        connectedAddress as `0x${string}`
+      );
+
+      // Generate unsigned meta transaction for cancellation
+      const unsignedMetaTx = await contract.generateUnsignedMetaTransactionForExisting(
+        BigInt(txId),
+        metaTxParams
+      );
+
+      // Execute the cancellation
+      const result = await contract.transferOwnershipCancellationWithMetaTx(
+        unsignedMetaTx,
+        { from: connectedAddress as `0x${string}` }
+      );
+
+      await result.wait();
+
       toast({
         title: "Cancellation submitted",
         description: "Transfer ownership cancellation has been submitted.",
       });
       await loadContractInfo();
     } catch (error) {
+      console.error('Error in ownership transfer cancellation:', error);
       toast({
         title: "Error",
         description: "Failed to cancel transfer ownership.",
@@ -390,13 +486,43 @@ export function SecurityDetails() {
 
   const handleUpdateBroadcasterCancellation = async (txId: number) => {
     try {
-      await cancelOperation(contractAddress as `0x${string}`, txId, 'broadcaster');
+      if (!contractInfo || !connectedAddress || !contractAddress || !publicClient || !walletClient) {
+        toast({
+          title: "Error",
+          description: "Missing required information",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const chain = config.chains.find((c) => c.id === contractInfo.chainId);
+      if (!chain) {
+        throw new Error('Chain not found');
+      }
+
+      // Create contract instance
+      const contract = new SecureOwnable(
+        publicClient,
+        walletClient,
+        contractAddress as `0x${string}`,
+        chain
+      );
+
+      // Execute the direct cancellation since we're the owner
+      const result = await contract.updateBroadcasterCancellation(
+        BigInt(txId),
+        { from: connectedAddress as `0x${string}` }
+      );
+
+      await result.wait();
+
       toast({
         title: "Cancellation submitted",
         description: "Broadcaster update cancellation has been submitted.",
       });
       await loadContractInfo();
     } catch (error) {
+      console.error('Error in broadcaster update cancellation:', error);
       toast({
         title: "Error",
         description: "Failed to cancel broadcaster update.",
@@ -791,16 +917,18 @@ export function SecurityDetails() {
                   </div>
                 ) : (
                   <>
-                    <Button 
-                      onClick={() => setShowOwnershipDialog(true)}
-                      className="flex items-center gap-2 w-full"
-                      size="sm"
-                      variant={isRoleConnected(pendingOwnershipTx ? contractInfo.owner : contractInfo.recoveryAddress) ? "default" : "outline"}
-                      disabled={!isRoleConnected(pendingOwnershipTx ? contractInfo.owner : contractInfo.recoveryAddress)}
-                    >
-                      <Wallet className="h-4 w-4" />
-                      {pendingOwnershipTx ? "Approve Transfer" : "Request Transfer"}
-                    </Button>
+                    <div className="flex justify-center">
+                      <Button 
+                        onClick={() => setShowOwnershipDialog(true)}
+                        className="flex items-center justify-center gap-2 w-[200px]"
+                        size="sm"
+                        variant={isRoleConnected(pendingOwnershipTx ? contractInfo.owner : contractInfo.recoveryAddress) || isRoleConnected(contractInfo.recoveryAddress) ? "default" : "outline"}
+                        disabled={!(isRoleConnected(pendingOwnershipTx ? contractInfo.owner : contractInfo.recoveryAddress) || isRoleConnected(contractInfo.recoveryAddress))}
+                      >
+                        <Wallet className="h-4 w-4" />
+                        {pendingOwnershipTx ? "Approve Transfer" : "Request Transfer"}
+                      </Button>
+                    </div>
                     
                     <TemporalActionDialog
                       isOpen={showOwnershipDialog}
@@ -814,7 +942,7 @@ export function SecurityDetails() {
                       currentValue={contractInfo?.owner}
                       currentValueLabel="Current Owner"
                       actionLabel={pendingOwnershipTx ? "Approve Transfer" : "Request Transfer"}
-                      requiredRole={pendingOwnershipTx ? "owner" : "recovery"}
+                      requiredRole={pendingOwnershipTx ? "owner_or_recovery" : "recovery"}
                       connectedAddress={connectedAddress}
                       pendingTx={pendingOwnershipTx || undefined}
                       showNewValueInput={false}
@@ -854,16 +982,18 @@ export function SecurityDetails() {
                   </div>
                 ) : (
                   <>
-                    <Button 
-                      onClick={() => setShowBroadcasterDialog(true)}
-                      className="flex items-center gap-2 w-full" 
-                      size="sm"
-                      variant={isRoleConnected(pendingBroadcasterTx ? contractInfo.broadcaster : contractInfo.owner) ? "default" : "outline"}
-                      disabled={!isRoleConnected(pendingBroadcasterTx ? contractInfo.broadcaster : contractInfo.owner)}
-                    >
-                      <Wallet className="h-4 w-4" />
-                      {pendingBroadcasterTx ? "Approve Update" : "Request Update"}
-                    </Button>
+                    <div className="flex justify-center">
+                      <Button 
+                        onClick={() => setShowBroadcasterDialog(true)}
+                        className="flex items-center justify-center gap-2 w-[200px]"
+                        size="sm"
+                        variant={isRoleConnected(pendingBroadcasterTx ? contractInfo.owner : contractInfo.owner) ? "default" : "outline"}
+                        disabled={!isRoleConnected(pendingBroadcasterTx ? contractInfo.owner : contractInfo.owner)}
+                      >
+                        <Wallet className="h-4 w-4" />
+                        {pendingBroadcasterTx ? "Approve Update" : "Request Update"}
+                      </Button>
+                    </div>
 
                     <TemporalActionDialog
                       isOpen={showBroadcasterDialog}
@@ -877,7 +1007,7 @@ export function SecurityDetails() {
                       currentValue={contractInfo?.broadcaster}
                       currentValueLabel="Current Broadcaster"
                       actionLabel={pendingBroadcasterTx ? "Approve Update" : "Request Update"}
-                      requiredRole={pendingBroadcasterTx ? "broadcaster" : "owner"}
+                      requiredRole={pendingBroadcasterTx ? "owner" : "owner"}
                       connectedAddress={connectedAddress}
                       pendingTx={pendingBroadcasterTx || undefined}
                       showNewValueInput={true}
@@ -913,26 +1043,16 @@ export function SecurityDetails() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="flex justify-center">
                   <Button 
                     onClick={() => setShowRecoveryDialog(true)}
-                    className="flex items-center gap-2 w-full" 
+                    className="flex items-center justify-center gap-2 w-[200px]"
                     size="sm"
                     variant={isRoleConnected(contractInfo.owner) ? "default" : "outline"}
                     disabled={!isRoleConnected(contractInfo.owner)}
                   >
                     <Key className="h-4 w-4" />
                     {isSigningTx ? "Signing..." : "Update Recovery"}
-                  </Button>
-                  <Button 
-                    onClick={() => setShowRecoveryBroadcastDialog(true)}
-                    className="flex items-center gap-2 w-full" 
-                    size="sm"
-                    variant={isRoleConnected(contractInfo.broadcaster) ? "default" : "outline"}
-                    disabled={!isRoleConnected(contractInfo.broadcaster)}
-                  >
-                    <Radio className="h-4 w-4" />
-                    Broadcast
                   </Button>
                 </div>
                 
@@ -959,21 +1079,6 @@ export function SecurityDetails() {
                   isSigning={isSigningTx}
                   onSubmit={handleUpdateRecoveryRequest}
                 />
-
-                <BroadcasterDialog
-                  isOpen={showRecoveryBroadcastDialog}
-                  onOpenChange={setShowRecoveryBroadcastDialog}
-                  title="Broadcast Recovery Update"
-                  description="Broadcast the signed recovery address update transaction."
-                  contractInfo={contractInfo}
-                  actionType="recovery"
-                  requiredRole="broadcaster"
-                  connectedAddress={connectedAddress}
-                  onBroadcast={async () => {
-                    // TODO: Implement broadcast logic
-                    console.log("Broadcasting recovery update");
-                  }}
-                />
               </CardContent>
             </Card>
 
@@ -998,26 +1103,16 @@ export function SecurityDetails() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="flex justify-center">
                   <Button 
                     onClick={() => setShowTimeLockDialog(true)}
-                    className="flex items-center gap-2 w-full" 
+                    className="flex items-center justify-center gap-2 w-[200px]"
                     size="sm"
                     variant={isRoleConnected(contractInfo.owner) ? "default" : "outline"}
                     disabled={!isRoleConnected(contractInfo.owner)}
                   >
                     <Clock className="h-4 w-4" />
-                    {isSigningTx ? "Signing..." : "Update TimeLock"}
-                  </Button>
-                  <Button 
-                    onClick={() => setShowTimeLockBroadcastDialog(true)}
-                    className="flex items-center gap-2 w-full" 
-                    size="sm"
-                    variant={isRoleConnected(contractInfo.broadcaster) ? "default" : "outline"}
-                    disabled={!isRoleConnected(contractInfo.broadcaster)}
-                  >
-                    <Radio className="h-4 w-4" />
-                    Broadcast
+                    Update TimeLock
                   </Button>
                 </div>
                 
@@ -1045,21 +1140,6 @@ export function SecurityDetails() {
                     };
                   }}
                   onSubmit={handleUpdateTimeLockRequest}
-                />
-
-                <BroadcasterDialog
-                  isOpen={showTimeLockBroadcastDialog}
-                  onOpenChange={setShowTimeLockBroadcastDialog}
-                  title="Broadcast TimeLock Update"
-                  description="Broadcast the signed timelock period update transaction."
-                  contractInfo={contractInfo}
-                  actionType="timelock"
-                  requiredRole="broadcaster"
-                  connectedAddress={connectedAddress}
-                  onBroadcast={async () => {
-                    // TODO: Implement broadcast logic
-                    console.log("Broadcasting timelock update");
-                  }}
                 />
               </CardContent>
             </Card>
