@@ -17,12 +17,21 @@ type NotificationMessage = {
   description: string;
 };
 
+// Valid operation types for SimpleVault
+const VALID_OPERATIONS = {
+  WITHDRAW_ETH: "WITHDRAW_ETH",
+  WITHDRAW_TOKEN: "WITHDRAW_TOKEN"
+} as const;
+
+type ValidOperationType = typeof VALID_OPERATIONS[keyof typeof VALID_OPERATIONS];
+
 export interface VaultTxRecord extends Omit<TxRecord, 'status'> {
   status: TxStatus;
   amount: bigint;
   to: Address;
   token?: Address;
   type: "ETH" | "TOKEN";
+  operationType?: ValidOperationType;
 }
 
 interface PendingTransactionProps {
@@ -40,6 +49,15 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
   isLoading,
   contractAddress
 }) => {
+  // Check if the transaction is a valid vault operation
+  const isValidVaultOperation = tx.operationType && 
+    Object.values(VALID_OPERATIONS).includes(tx.operationType as ValidOperationType);
+
+  // If not a valid vault operation, don't render anything
+  if (!isValidVaultOperation) {
+    return null;
+  }
+
   const {
     isApproving,
     isCancelling,
@@ -50,8 +68,8 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
     handleMetaTxSign,
     handleBroadcast
   } = useMultiPhaseTemporalAction({
-    isOpen: true, // We're not using dialog functionality here
-    onOpenChange: () => {}, // No-op since we're not using dialog
+    isOpen: true,
+    onOpenChange: () => {},
     onApprove,
     onCancel,
     pendingTx: { ...tx, contractAddress },
@@ -77,12 +95,17 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
                   {tx.status === TxStatus.PENDING && <Clock className="h-4 w-4 text-yellow-500" />}
                   {tx.status === TxStatus.CANCELLED && <XCircle className="h-4 w-4 text-red-500" />}
                   {tx.status === TxStatus.COMPLETED && <CheckCircle2 className="h-4 w-4 text-green-500" />}
-                  <p className="font-medium">Transaction #{tx.txId.toString()}</p>
+                  <p className="font-medium">
+                    {tx.operationType === VALID_OPERATIONS.WITHDRAW_ETH ? "ETH Withdrawal" : "Token Withdrawal"} #{tx.txId.toString()}
+                  </p>
                 </div>
                 <p className="text-sm text-muted-foreground">
                   Amount: {tx.type === "ETH" ? formatEther(amount) : formatUnits(amount, 18)} {tx.type}
                 </p>
                 <p className="text-sm text-muted-foreground">To: {tx.to}</p>
+                {tx.type === "TOKEN" && tx.token && (
+                  <p className="text-sm text-muted-foreground">Token: {tx.token}</p>
+                )}
               </div>
             </div>
 
