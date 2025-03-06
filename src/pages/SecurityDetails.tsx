@@ -312,13 +312,67 @@ export function SecurityDetails() {
 
   const handleTransferOwnershipApproval = async (txId: number) => {
     try {
-      await approveOperation(contractAddress as `0x${string}`, txId, 'ownership');
+      if (!contractInfo || !connectedAddress || !contractAddress || !publicClient || !walletClient) {
+        toast({
+          title: "Error",
+          description: "Missing required information",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const chain = config.chains.find((c) => c.id === contractInfo.chainId);
+      if (!chain) {
+        throw new Error('Chain not found');
+      }
+
+      // Create contract instance
+      const contract = new SecureOwnable(
+        publicClient,
+        walletClient,
+        contractAddress as `0x${string}`,
+        chain
+      );
+
+      // Check if the connected wallet is recovery address
+      const isRecoveryWallet = connectedAddress.toLowerCase() === contractInfo.recoveryAddress.toLowerCase();
+
+      if (isRecoveryWallet) {
+        // Recovery wallet must use timelock approval
+        const result = await contract.transferOwnershipDelayedApproval(
+          BigInt(txId),
+          { from: connectedAddress as `0x${string}` }
+        );
+        await result.wait();
+      } else {
+        // Owner can use meta transaction approval
+        const metaTxParams = await contract.createMetaTxParams(
+          contractAddress as `0x${string}`,
+          FUNCTION_SELECTORS.TRANSFER_OWNERSHIP_META as `0x${string}`,
+          BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
+          BigInt(0), // No max gas price
+          connectedAddress as `0x${string}`
+        );
+
+        const unsignedMetaTx = await contract.generateUnsignedMetaTransactionForExisting(
+          BigInt(txId),
+          metaTxParams
+        );
+
+        const result = await contract.transferOwnershipApprovalWithMetaTx(
+          unsignedMetaTx,
+          { from: connectedAddress as `0x${string}` }
+        );
+        await result.wait();
+      }
+
       toast({
         title: "Approval submitted",
         description: "Transfer ownership approval has been submitted.",
       });
       await loadContractInfo();
     } catch (error) {
+      console.error('Error in ownership transfer approval:', error);
       toast({
         title: "Error",
         description: "Failed to approve transfer ownership.",
@@ -329,13 +383,58 @@ export function SecurityDetails() {
 
   const handleTransferOwnershipCancellation = async (txId: number) => {
     try {
-      await cancelOperation(contractAddress as `0x${string}`, txId, 'ownership');
+      if (!contractInfo || !connectedAddress || !contractAddress || !publicClient || !walletClient) {
+        toast({
+          title: "Error",
+          description: "Missing required information",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const chain = config.chains.find((c) => c.id === contractInfo.chainId);
+      if (!chain) {
+        throw new Error('Chain not found');
+      }
+
+      // Create contract instance
+      const contract = new SecureOwnable(
+        publicClient,
+        walletClient,
+        contractAddress as `0x${string}`,
+        chain
+      );
+
+      // Generate meta transaction parameters for cancellation
+      const metaTxParams = await contract.createMetaTxParams(
+        contractAddress as `0x${string}`,
+        FUNCTION_SELECTORS.TRANSFER_OWNERSHIP_CANCEL_META as `0x${string}`,
+        BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
+        BigInt(0), // No max gas price
+        connectedAddress as `0x${string}`
+      );
+
+      // Generate unsigned meta transaction for cancellation
+      const unsignedMetaTx = await contract.generateUnsignedMetaTransactionForExisting(
+        BigInt(txId),
+        metaTxParams
+      );
+
+      // Execute the cancellation
+      const result = await contract.transferOwnershipCancellationWithMetaTx(
+        unsignedMetaTx,
+        { from: connectedAddress as `0x${string}` }
+      );
+
+      await result.wait();
+
       toast({
         title: "Cancellation submitted",
         description: "Transfer ownership cancellation has been submitted.",
       });
       await loadContractInfo();
     } catch (error) {
+      console.error('Error in ownership transfer cancellation:', error);
       toast({
         title: "Error",
         description: "Failed to cancel transfer ownership.",
@@ -387,13 +486,43 @@ export function SecurityDetails() {
 
   const handleUpdateBroadcasterCancellation = async (txId: number) => {
     try {
-      await cancelOperation(contractAddress as `0x${string}`, txId, 'broadcaster');
+      if (!contractInfo || !connectedAddress || !contractAddress || !publicClient || !walletClient) {
+        toast({
+          title: "Error",
+          description: "Missing required information",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const chain = config.chains.find((c) => c.id === contractInfo.chainId);
+      if (!chain) {
+        throw new Error('Chain not found');
+      }
+
+      // Create contract instance
+      const contract = new SecureOwnable(
+        publicClient,
+        walletClient,
+        contractAddress as `0x${string}`,
+        chain
+      );
+
+      // Execute the direct cancellation since we're the owner
+      const result = await contract.updateBroadcasterCancellation(
+        BigInt(txId),
+        { from: connectedAddress as `0x${string}` }
+      );
+
+      await result.wait();
+
       toast({
         title: "Cancellation submitted",
         description: "Broadcaster update cancellation has been submitted.",
       });
       await loadContractInfo();
     } catch (error) {
+      console.error('Error in broadcaster update cancellation:', error);
       toast({
         title: "Error",
         description: "Failed to cancel broadcaster update.",
@@ -792,8 +921,8 @@ export function SecurityDetails() {
                       onClick={() => setShowOwnershipDialog(true)}
                       className="flex items-center gap-2 w-full"
                       size="sm"
-                      variant={isRoleConnected(pendingOwnershipTx ? (contractInfo.owner || contractInfo.recoveryAddress) : contractInfo.recoveryAddress) ? "default" : "outline"}
-                      disabled={!isRoleConnected(pendingOwnershipTx ? (contractInfo.owner || contractInfo.recoveryAddress) : contractInfo.recoveryAddress)}
+                      variant={isRoleConnected(pendingOwnershipTx ? "owner_or_recovery" : "recovery") ? "default" : "outline"}
+                      disabled={!isRoleConnected(pendingOwnershipTx ? "owner_or_recovery" : "recovery")}
                     >
                       <Wallet className="h-4 w-4" />
                       {pendingOwnershipTx ? "Approve Transfer" : "Request Transfer"}

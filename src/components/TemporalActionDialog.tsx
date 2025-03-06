@@ -145,6 +145,9 @@ export function TemporalActionDialog({
         return contractInfo.broadcaster;
       case 'recovery':
         return contractInfo.recoveryAddress;
+      case 'owner_or_recovery':
+        // Return true if connected address matches either owner or recovery
+        return [contractInfo.owner, contractInfo.recoveryAddress];
       default:
         return null;
     }
@@ -153,8 +156,16 @@ export function TemporalActionDialog({
   const isConnectedWalletValid = connectedAddress && 
     requiredRole && 
     contractInfo && 
-    getRoleAddress(requiredRole) &&
-    connectedAddress.toLowerCase() === getRoleAddress(requiredRole)?.toLowerCase();
+    (() => {
+      const roleAddress = getRoleAddress(requiredRole);
+      if (Array.isArray(roleAddress)) {
+        // For owner_or_recovery role, check if connected address matches either
+        return roleAddress.some(addr => 
+          addr?.toLowerCase() === connectedAddress.toLowerCase()
+        );
+      }
+      return roleAddress?.toLowerCase() === connectedAddress.toLowerCase();
+    })();
 
   console.log('Wallet Validation:', {
     connectedAddress,
@@ -223,6 +234,13 @@ export function TemporalActionDialog({
     const progress = Math.min(((now - startTime) / timeLockPeriod) * 100, 100)
     const isTimeLockComplete = progress >= 100
 
+    // Check if the connected wallet is recovery address for ownership actions
+    const isRecoveryWallet = connectedAddress?.toLowerCase() === contractInfo?.recoveryAddress?.toLowerCase()
+    const isOwnershipAction = actionType === 'ownership'
+    
+    // Hide meta transactions tab for recovery wallet in ownership actions
+    const showMetaTxTab = !(isOwnershipAction && isRecoveryWallet)
+
     console.log('Time Lock Debug:', {
       now,
       releaseTime,
@@ -231,7 +249,10 @@ export function TemporalActionDialog({
       progress,
       isTimeLockComplete,
       pendingTx,
-      contractInfo
+      contractInfo,
+      isRecoveryWallet,
+      isOwnershipAction,
+      showMetaTxTab
     })
 
     return (
@@ -241,16 +262,18 @@ export function TemporalActionDialog({
           Transaction #{pendingTx.txId.toString()}
         </div>
 
-        <Tabs defaultValue="timelock" className="w-full">
+        <Tabs defaultValue="timelock" className={`w-full ${showMetaTxTab ? 'grid-cols-2' : 'grid-cols-1'} bg-background p-1 rounded-lg`}>
           <TabsList className="grid w-full grid-cols-2 bg-background p-1 rounded-lg">
             <TabsTrigger value="timelock" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
               <Shield className="h-4 w-4 mr-2" />
               TimeLock
             </TabsTrigger>
-            <TabsTrigger value="metatx" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
-              <Wallet className="h-4 w-4 mr-2" />
-              MetaTx
-            </TabsTrigger>
+            {showMetaTxTab && (
+              <TabsTrigger value="metatx" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
+                <Wallet className="h-4 w-4 mr-2" />
+                MetaTx
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="timelock" className="space-y-4 mt-4">
@@ -281,7 +304,7 @@ export function TemporalActionDialog({
                           <div className="flex-1">
                             <Button
                               onClick={() => handleApprove(Number(pendingTx.txId))}
-                              disabled={isLoading || isApproving || !isConnectedWalletValid || !isTimeLockComplete}
+                              disabled={isLoading || isApproving || !isConnectedWalletValid || (!isTimeLockComplete && isRecoveryWallet)}
                               className={`w-full transition-all duration-200 flex items-center justify-center
                                 ${isTimeLockComplete 
                                   ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800'
@@ -350,98 +373,100 @@ export function TemporalActionDialog({
             </Card>
           </TabsContent>
 
-          <TabsContent value="metatx" className="space-y-4 mt-4">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="space-y-4">
-                  <div className="text-sm text-muted-foreground">
-                    Approve using meta-transactions. This requires no gas fees but needs the broadcaster wallet.
-                  </div>
+          {showMetaTxTab && (
+            <TabsContent value="metatx" className="space-y-4 mt-4">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="space-y-4">
+                    <div className="text-sm text-muted-foreground">
+                      Approve using meta-transactions. This requires no gas fees but needs the broadcaster wallet.
+                    </div>
 
-                  <div className="flex justify-between text-sm">
-                    <span>Broadcaster Required</span>
-                    <span className="text-muted-foreground">{formatAddress(contractInfo.broadcaster)}</span>
-                  </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Broadcaster Required</span>
+                      <span className="text-muted-foreground">{formatAddress(contractInfo.broadcaster)}</span>
+                    </div>
 
-                  <div className="flex space-x-2">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="flex-1">
-                            <Button
-                              onClick={() => handleApprove(Number(pendingTx.txId))}
-                              disabled={isLoading || isSigning || !isConnectedWalletValid}
-                              className={`w-full transition-all duration-200 flex items-center justify-center
-                                bg-emerald-50 text-emerald-700 hover:bg-emerald-100 
-                                dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 
-                                border border-emerald-200 dark:border-emerald-800
-                                disabled:opacity-50 disabled:cursor-not-allowed 
-                                disabled:bg-slate-50 disabled:text-slate-400 
-                                disabled:dark:bg-slate-900 disabled:dark:text-slate-500
-                              `}
-                              variant="outline"
-                            >
-                              {isSigning ? (
-                                <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  Signing...
-                                </>
-                              ) : (
-                                <>
-                                  <CheckCircle2 className="mr-2 h-4 w-4" />
-                                  Sign & Approve
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom">
-                          Approve this request using meta-transactions (gasless)
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                    <div className="flex space-x-2">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex-1">
+                              <Button
+                                onClick={() => handleApprove(Number(pendingTx.txId))}
+                                disabled={isLoading || isSigning || !isConnectedWalletValid}
+                                className={`w-full transition-all duration-200 flex items-center justify-center
+                                  bg-emerald-50 text-emerald-700 hover:bg-emerald-100 
+                                  dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 
+                                  border border-emerald-200 dark:border-emerald-800
+                                  disabled:opacity-50 disabled:cursor-not-allowed 
+                                  disabled:bg-slate-50 disabled:text-slate-400 
+                                  disabled:dark:bg-slate-900 disabled:dark:text-slate-500
+                                `}
+                                variant="outline"
+                              >
+                                {isSigning ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Signing...
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                                    Sign & Approve
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom">
+                            Approve this request using meta-transactions (gasless)
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
 
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="flex-1">
-                            <Button
-                              onClick={() => handleCancel(Number(pendingTx.txId))}
-                              disabled={isLoading || isCancelling || !isConnectedWalletValid}
-                              className={`w-full transition-all duration-200 flex items-center justify-center
-                                bg-rose-50 text-rose-700 hover:bg-rose-100 
-                                dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
-                                border border-rose-200 dark:border-rose-800
-                                disabled:opacity-50 disabled:cursor-not-allowed 
-                                disabled:bg-slate-50 disabled:text-slate-400 
-                                disabled:dark:bg-slate-900 disabled:dark:text-slate-500
-                              `}
-                              variant="outline"
-                            >
-                              {isCancelling ? (
-                                <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  Processing...
-                                </>
-                              ) : (
-                                <>
-                                  <X className="mr-2 h-4 w-4" />
-                                  Cancel
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom">
-                          Cancel this request
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex-1">
+                              <Button
+                                onClick={() => handleCancel(Number(pendingTx.txId))}
+                                disabled={isLoading || isCancelling || !isConnectedWalletValid}
+                                className={`w-full transition-all duration-200 flex items-center justify-center
+                                  bg-rose-50 text-rose-700 hover:bg-rose-100 
+                                  dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
+                                  border border-rose-200 dark:border-rose-800
+                                  disabled:opacity-50 disabled:cursor-not-allowed 
+                                  disabled:bg-slate-50 disabled:text-slate-400 
+                                  disabled:dark:bg-slate-900 disabled:dark:text-slate-500
+                                `}
+                                variant="outline"
+                              >
+                                {isCancelling ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Processing...
+                                  </>
+                                ) : (
+                                  <>
+                                    <X className="mr-2 h-4 w-4" />
+                                    Cancel
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom">
+                            Cancel this request
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     )
