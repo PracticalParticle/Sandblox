@@ -1,9 +1,7 @@
 import * as React from "react"
-import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useToast } from "@/components/ui/use-toast"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Card, CardContent } from "@/components/ui/card"
@@ -11,6 +9,7 @@ import { Loader2, Radio, Network } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
 import { formatAddress } from "@/lib/utils"
+import { useSinglePhaseMetaTxAction } from "@/hooks/useSinglePhaseMetaTxAction"
 
 interface MetaTxActionDialogProps {
   isOpen: boolean
@@ -61,57 +60,22 @@ export function MetaTxActionDialog({
   validateNewValue,
   isSigning = false
 }: MetaTxActionDialogProps) {
-  const { toast } = useToast()
+  const {
+    validationResult,
+    handleSubmit,
+    getRoleAddress,
+    isConnectedWalletValid: checkWalletValidity
+  } = useSinglePhaseMetaTxAction({
+    isOpen,
+    onSubmit,
+    onNewValueChange,
+    newValue,
+    validateNewValue,
+    isLoading,
+    isSigning
+  })
 
-  // Reset state when dialog opens/closes
-  useEffect(() => {
-    if (!isOpen) {
-      onNewValueChange("")
-    }
-  }, [isOpen])
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!onSubmit) return
-
-    try {
-      await onSubmit(newValue)
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to submit request",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const getRoleAddress = (role: string) => {
-    if (!contractInfo) return null;
-    switch (role) {
-      case 'owner':
-        return contractInfo.owner;
-      case 'broadcaster':
-        return contractInfo.broadcaster;
-      default:
-        return null;
-    }
-  };
-
-  const isConnectedWalletValid = connectedAddress && 
-    requiredRole && 
-    contractInfo && 
-    getRoleAddress(requiredRole) &&
-    connectedAddress.toLowerCase() === getRoleAddress(requiredRole)?.toLowerCase();
-
-  console.log('Wallet Validation:', {
-    connectedAddress,
-    requiredRole,
-    roleAddress: getRoleAddress(requiredRole),
-    isValid: isConnectedWalletValid,
-    contractInfo
-  });
-
-  const validationResult = validateNewValue ? validateNewValue(newValue) : { isValid: true };
+  const isConnectedWalletValid = checkWalletValidity(connectedAddress, requiredRole, contractInfo)
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
