@@ -304,56 +304,102 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
                 </TooltipProvider>
               </>
             ) : (
-              <>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="flex-1">
-                        <Button
-                          onClick={() => handleMetaTxSign('approve')}
-                          disabled={isLoading || tx.status !== TxStatus.PENDING || isSigningMetaTx || signedMetaTxState?.type === 'approve'}
-                          className={`w-full transition-all duration-200 flex items-center justify-center
-                            bg-emerald-50 text-emerald-700 hover:bg-emerald-100 
-                            dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 
-                            border border-emerald-200 dark:border-emerald-800
-                            disabled:opacity-50 disabled:cursor-not-allowed 
-                            disabled:bg-slate-50 disabled:text-slate-400 
-                            disabled:dark:bg-slate-900 disabled:dark:text-slate-500
-                          `}
-                          variant="outline"
-                        >
-                          {isSigningMetaTx ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              <span>Signing...</span>
-                            </>
-                          ) : signedMetaTxState?.type === 'approve' ? (
-                            <>
-                              <CheckCircle2 className="h-4 w-4 mr-2" />
-                              <span>Signed</span>
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle2 className="h-4 w-4 mr-2" />
-                              <span>Sign Approval</span>
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">
-                      {signedMetaTxState?.type === 'approve' 
-                        ? "Transaction is signed and ready to broadcast"
-                        : "Sign approval meta-transaction"}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+              <div className="w-full space-y-2">
+                <div className="flex space-x-2">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="w-1/2">
+                          <Button
+                            onClick={() => handleMetaTxSign('approve')}
+                            disabled={isLoading || tx.status !== TxStatus.PENDING || isSigningMetaTx || signedMetaTxState?.type === 'approve'}
+                            className={`w-full transition-all duration-200 flex items-center justify-center
+                              bg-emerald-50 text-emerald-700 hover:bg-emerald-100 
+                              dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 
+                              border border-emerald-200 dark:border-emerald-800
+                              disabled:opacity-50 disabled:cursor-not-allowed 
+                              disabled:bg-slate-50 disabled:text-slate-400 
+                              disabled:dark:bg-slate-900 disabled:dark:text-slate-500
+                            `}
+                            variant="outline"
+                          >
+                            {isSigningMetaTx ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                <span>Signing...</span>
+                              </>
+                            ) : signedMetaTxState?.type === 'approve' ? (
+                              <>
+                                <CheckCircle2 className="h-4 w-4 mr-2" />
+                                <span>Signed</span>
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle2 className="h-4 w-4 mr-2" />
+                                <span>Sign Approval</span>
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        {signedMetaTxState?.type === 'approve' 
+                          ? "Transaction is signed and ready to broadcast"
+                          : "Sign approval meta-transaction"}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="w-1/2">
+                          <Button
+                            onClick={() => handleMetaTxSign('cancel')}
+                            disabled={isLoading || tx.status !== TxStatus.PENDING || isSigning || signedMetaTxState?.type === 'cancel'}
+                            className={`w-full transition-all duration-200 flex items-center justify-center
+                              bg-rose-50 text-rose-700 hover:bg-rose-100 
+                              dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
+                              border border-rose-200 dark:border-rose-800
+                              disabled:opacity-50 disabled:cursor-not-allowed 
+                              disabled:bg-slate-50 disabled:text-slate-400 
+                              disabled:dark:bg-slate-900 disabled:dark:text-slate-500
+                            `}
+                            variant="outline"
+                          >
+                            {isSigning ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                <span>Signing...</span>
+                              </>
+                            ) : signedMetaTxState?.type === 'cancel' ? (
+                              <>
+                                <CheckCircle2 className="h-4 w-4 mr-2" />
+                                <span>Signed</span>
+                              </>
+                            ) : (
+                              <>
+                                <X className="h-4 w-4 mr-2" />
+                                <span>Sign Cancel</span>
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        {signedMetaTxState?.type === 'cancel'
+                          ? "Transaction is signed and ready to broadcast"
+                          : "Sign cancellation meta-transaction"}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
 
                 {signedMetaTxState?.type === 'approve' && (
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div className="flex-1">
+                        <div className="w-full">
                           <Button
                             onClick={() => handleBroadcastWithNotification('approve')}
                             disabled={isLoading || !signedMetaTxState}
@@ -372,55 +418,11 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
                   </TooltipProvider>
                 )}
 
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="flex-1">
-                        <Button
-                          onClick={() => handleMetaTxSign('cancel')}
-                          disabled={isLoading || tx.status !== TxStatus.PENDING || isSigning || signedMetaTxState?.type === 'cancel'}
-                          className={`w-full transition-all duration-200 flex items-center justify-center
-                            bg-rose-50 text-rose-700 hover:bg-rose-100 
-                            dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
-                            border border-rose-200 dark:border-rose-800
-                            disabled:opacity-50 disabled:cursor-not-allowed 
-                            disabled:bg-slate-50 disabled:text-slate-400 
-                            disabled:dark:bg-slate-900 disabled:dark:text-slate-500
-                          `}
-                          variant="outline"
-                        >
-                          {isSigning ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              <span>Signing...</span>
-                            </>
-                          ) : signedMetaTxState?.type === 'cancel' ? (
-                            <>
-                              <CheckCircle2 className="h-4 w-4 mr-2" />
-                              <span>Signed</span>
-                            </>
-                          ) : (
-                            <>
-                              <X className="h-4 w-4 mr-2" />
-                              <span>Sign Cancel</span>
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">
-                      {signedMetaTxState?.type === 'cancel'
-                        ? "Transaction is signed and ready to broadcast"
-                        : "Sign cancellation meta-transaction"}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-
                 {signedMetaTxState?.type === 'cancel' && (
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div className="flex-1">
+                        <div className="w-full">
                           <Button
                             onClick={() => handleBroadcastWithNotification('cancel')}
                             disabled={isLoading || !signedMetaTxState}
@@ -438,7 +440,7 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
                     </Tooltip>
                   </TooltipProvider>
                 )}
-              </>
+              </div>
             )}
           </div>
         </div>
