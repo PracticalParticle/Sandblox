@@ -52,6 +52,17 @@ import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
 import { TxStatus } from '@/particle-core/sdk/typescript/types/lib.index'
 import { MetaTxActionDialog } from '@/components/MetaTxActionDialog'
 import { TransactionManagerProvider } from '@/contexts/TransactionManager'
+import { ContractTransactions } from '@/services/TransactionManager'
+
+interface ExtendedSignedTransaction {
+  txId: string
+  signedData: string
+  timestamp: number
+  metadata?: {
+    type: 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE' | 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE'
+    broadcasted: boolean
+  }
+}
 
 const container = {
   hidden: { opacity: 0 },
@@ -139,6 +150,8 @@ export function SecurityDetails() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const { transactions = {}, storeTransaction } = useTransactionManager(contractAddress || '')
+  const [signedTransactions, setSignedTransactions] = useState<ExtendedSignedTransaction[]>([])
   const [contractInfo, setContractInfo] = useState<SecureContractInfo | null>(null)
   const { validateAndLoadContract, updateBroadcaster, approveOperation, cancelOperation } = useSecureContract()
   const { toast } = useToast()
@@ -159,7 +172,6 @@ export function SecurityDetails() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [targetRole, setTargetRole] = useState<string | null>(null);
   const [isSigningTx, setIsSigningTx] = useState(false);
-  const { transactions, storeTransaction } = useTransactionManager(contractAddress || '');
   const [showOwnershipDialog, setShowOwnershipDialog] = useState(false)
   const [pendingOwnershipTx, setPendingOwnershipTx] = useState<TxRecord | null>(null)
   const [pendingBroadcasterTx, setPendingBroadcasterTx] = useState<TxRecord | null>(null)
@@ -270,6 +282,18 @@ export function SecurityDetails() {
       contractInfo: contractInfo?.operationHistory?.length
     });
   }, [loading, isLoadingHistory, pendingOwnershipTx, pendingBroadcasterTx, contractInfo]);
+
+  // Add an effect to handle transactions updates
+  useEffect(() => {
+    // Convert the transactions object to an array with the txId
+    const txArray = Object.entries(transactions).map(([txId, tx]) => ({
+      txId,
+      signedData: tx.signedData,
+      timestamp: tx.timestamp,
+      metadata: tx.metadata as ExtendedSignedTransaction['metadata']
+    }))
+    setSignedTransactions(txArray)
+  }, [transactions])
 
   // Action handlers
   const handleTransferOwnershipRequest = async (): Promise<void> => {
@@ -711,6 +735,55 @@ export function SecurityDetails() {
     return connectedAddress?.toLowerCase() === roleAddress?.toLowerCase();
   };
 
+  // Add this new handler function near the other handlers
+  const handleBroadcast = async (type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE') => {
+    try {
+      // Find the matching unsigned transaction
+      const pendingTx = signedTransactions.find(tx => 
+        tx.metadata?.type === type && !tx.metadata?.broadcasted
+      );
+
+      if (!pendingTx) {
+        throw new Error('No pending transaction found');
+      }
+
+      if (!walletClient || !connectedAddress) {
+        throw new Error('Wallet not connected');
+      }
+
+      // Parse the signed transaction data
+      const signedData = JSON.parse(pendingTx.signedData);
+      
+      // Send the transaction
+      const hash = await walletClient.sendTransaction(signedData);
+      
+      toast({
+        title: "Transaction Sent",
+        description: "The transaction has been broadcasted to the network.",
+      });
+
+      // Wait for transaction confirmation
+      await publicClient.waitForTransactionReceipt({ hash });
+
+      // Update the transaction metadata to mark as broadcasted
+      storeTransaction(pendingTx.txId, pendingTx.signedData, {
+        ...pendingTx.metadata,
+        broadcasted: true
+      });
+
+      // Reload contract info after broadcast
+      await loadContractInfo();
+
+    } catch (error) {
+      console.error('Broadcast error:', error);
+      toast({
+        title: "Broadcast Failed",
+        description: error instanceof Error ? error.message : "Failed to broadcast transaction",
+        variant: "destructive"
+      });
+    }
+  };
+
   if (!contractAddress || error) {
     return (
       <div className="container py-8">
@@ -919,16 +992,38 @@ export function SecurityDetails() {
                     </div>
                   ) : (
                     <>
-                      <div className="flex justify-center">
+                      <div className="flex justify-center items-center gap-2">
                         <Button 
                           onClick={() => setShowOwnershipDialog(true)}
-                          className="flex items-center justify-center gap-2 w-[200px]"
+                          className="flex items-center justify-center gap-2"
                           size="sm"
-                          variant={isRoleConnected(pendingOwnershipTx ? contractInfo.owner : contractInfo.recoveryAddress) || isRoleConnected(contractInfo.recoveryAddress) ? "default" : "outline"}
-                          disabled={!(isRoleConnected(pendingOwnershipTx ? contractInfo.owner : contractInfo.recoveryAddress) || isRoleConnected(contractInfo.recoveryAddress))}
+                          variant={!pendingOwnershipTx && isRoleConnected(contractInfo.recoveryAddress) ? "default" : "outline"}
+                          disabled={!!pendingOwnershipTx || !isRoleConnected(contractInfo.recoveryAddress)}
                         >
                           <Wallet className="h-4 w-4" />
-                          {pendingOwnershipTx ? "Approve Transfer" : "Request Transfer"}
+                          Request Transfer
+                        </Button>
+                        <ChevronDown className="h-4 w-4 rotate-[-90deg] text-muted-foreground" />
+                        <Button 
+                          onClick={() => setShowOwnershipDialog(true)}
+                          className="flex items-center justify-center gap-2"
+                          size="sm"
+                          variant={!!pendingOwnershipTx && (isRoleConnected(contractInfo.owner) || isRoleConnected(contractInfo.recoveryAddress)) ? "default" : "outline"}
+                          disabled={!pendingOwnershipTx || !(isRoleConnected(contractInfo.owner) || isRoleConnected(contractInfo.recoveryAddress))}
+                        >
+                          <Shield className="h-4 w-4" />
+                          Approve Transfer
+                        </Button>
+                        <div className="h-6 w-[1px] bg-border" />
+                        <Button 
+                          onClick={() => handleBroadcast('OWNERSHIP_TRANSFER')}
+                          className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'OWNERSHIP_TRANSFER' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
+                          size="sm"
+                          variant={signedTransactions.some(tx => tx.metadata?.type === 'OWNERSHIP_TRANSFER' && !tx.metadata?.broadcasted) ? "default" : "outline"}
+                          disabled={!signedTransactions.some(tx => tx.metadata?.type === 'OWNERSHIP_TRANSFER' && !tx.metadata?.broadcasted)}
+                        >
+                          <Radio className="h-4 w-4" />
+                          Broadcast
                         </Button>
                       </div>
                       
@@ -987,16 +1082,38 @@ export function SecurityDetails() {
                     </div>
                   ) : (
                     <>
-                      <div className="flex justify-center">
+                      <div className="flex justify-center items-center gap-2">
                         <Button 
                           onClick={() => setShowBroadcasterDialog(true)}
-                          className="flex items-center justify-center gap-2 w-[200px]"
+                          className="flex items-center justify-center gap-2"
                           size="sm"
-                          variant={isRoleConnected(pendingBroadcasterTx ? contractInfo.owner : contractInfo.owner) ? "default" : "outline"}
-                          disabled={!isRoleConnected(pendingBroadcasterTx ? contractInfo.owner : contractInfo.owner)}
+                          variant={!pendingBroadcasterTx && isRoleConnected(contractInfo.owner) ? "default" : "outline"}
+                          disabled={!!pendingBroadcasterTx || !isRoleConnected(contractInfo.owner)}
                         >
                           <Wallet className="h-4 w-4" />
-                          {pendingBroadcasterTx ? "Approve Update" : "Request Update"}
+                          Request Update
+                        </Button>
+                        <ChevronDown className="h-4 w-4 rotate-[-90deg] text-muted-foreground" />
+                        <Button 
+                          onClick={() => setShowBroadcasterDialog(true)}
+                          className="flex items-center justify-center gap-2"
+                          size="sm"
+                          variant={!!pendingBroadcasterTx && isRoleConnected(contractInfo.owner) ? "default" : "outline"}
+                          disabled={!pendingBroadcasterTx || !isRoleConnected(contractInfo.owner)}
+                        >
+                          <Shield className="h-4 w-4" />
+                          Approve Update
+                        </Button>
+                        <div className="h-6 w-[1px] bg-border" />
+                        <Button 
+                          onClick={() => handleBroadcast('BROADCASTER_UPDATE')}
+                          className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'BROADCASTER_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
+                          size="sm"
+                          variant={signedTransactions.some(tx => tx.metadata?.type === 'BROADCASTER_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
+                          disabled={!signedTransactions.some(tx => tx.metadata?.type === 'BROADCASTER_UPDATE' && !tx.metadata?.broadcasted)}
+                        >
+                          <Radio className="h-4 w-4" />
+                          Broadcast
                         </Button>
                       </div>
 
@@ -1051,16 +1168,27 @@ export function SecurityDetails() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex justify-center">
+                  <div className="flex justify-center items-center gap-2">
                     <Button 
                       onClick={() => setShowRecoveryDialog(true)}
-                      className="flex items-center justify-center gap-2 w-[200px]"
+                      className="flex items-center justify-center gap-2"
                       size="sm"
-                      variant={isRoleConnected(contractInfo.owner) ? "default" : "outline"}
-                      disabled={!isRoleConnected(contractInfo.owner)}
+                      variant={isRoleConnected(contractInfo.owner) && !isSigningTx ? "default" : "outline"}
+                      disabled={!isRoleConnected(contractInfo.owner) || isSigningTx}
                     >
                       <Key className="h-4 w-4" />
                       {isSigningTx ? "Signing..." : "Update Recovery"}
+                    </Button>
+                    <ChevronDown className="h-4 w-4 rotate-[-90deg] text-muted-foreground" />
+                    <Button 
+                      onClick={() => handleBroadcast('RECOVERY_UPDATE')}
+                      className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
+                      size="sm"
+                      variant={signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
+                      disabled={!signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted)}
+                    >
+                      <Radio className="h-4 w-4" />
+                      Broadcast
                     </Button>
                   </div>
                   
@@ -1111,16 +1239,27 @@ export function SecurityDetails() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex justify-center">
+                  <div className="flex justify-center items-center gap-2">
                     <Button 
                       onClick={() => setShowTimeLockDialog(true)}
-                      className="flex items-center justify-center gap-2 w-[200px]"
+                      className="flex items-center justify-center gap-2"
                       size="sm"
-                      variant={isRoleConnected(contractInfo.owner) ? "default" : "outline"}
-                      disabled={!isRoleConnected(contractInfo.owner)}
+                      variant={isRoleConnected(contractInfo.owner) && !isSigningTx ? "default" : "outline"}
+                      disabled={!isRoleConnected(contractInfo.owner) || isSigningTx}
                     >
                       <Clock className="h-4 w-4" />
                       Update TimeLock
+                    </Button>
+                    <ChevronDown className="h-4 w-4 rotate-[-90deg] text-muted-foreground" />
+                    <Button 
+                      onClick={() => handleBroadcast('TIMELOCK_UPDATE')}
+                      className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
+                      size="sm"
+                      variant={signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
+                      disabled={!signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted)}
+                    >
+                      <Radio className="h-4 w-4" />
+                      Broadcast
                     </Button>
                   </div>
                   

@@ -619,7 +619,7 @@ export const createVaultMetaTxParams = (settings: VaultMetaTxParams): VaultMetaT
   const currentTimestamp = BigInt(Math.floor(Date.now() / 1000));
   
   // Convert deadline from seconds to actual timestamp by adding to current time
-  const deadlineTimestamp = currentTimestamp + settings.deadline;
+  const deadlineTimestamp = currentTimestamp + BigInt(settings.deadline);
   
   return {
     deadline: deadlineTimestamp,
@@ -1288,7 +1288,9 @@ function SimpleVaultUIContent({
     
     setLoadingState((prev: LoadingState) => ({ ...prev, approval: { ...prev.approval, [txId]: true } }));
     try {
-      const tx = await vault.approveWithdrawalAfterDelay(txId, { from: address });
+      const storedSettings = getStoredMetaTxSettings();
+      const metaTxParams = createVaultMetaTxParams(storedSettings);
+      const tx = await vault.approveWithdrawalAfterDelay(txId, { ...metaTxParams, from: address });
       handleNotification({
         type: 'info',
         title: "Approval Submitted",

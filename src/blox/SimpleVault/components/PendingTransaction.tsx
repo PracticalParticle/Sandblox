@@ -12,6 +12,9 @@ import { TxRecord } from "../../../particle-core/sdk/typescript/interfaces/lib.i
 import { useSimpleVaultOperations, VAULT_OPERATIONS } from "../hooks/useSimpleVaultOperations";
 import { useVaultMetaTx } from "../hooks/useVaultMetaTx";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
+import { usePublicClient, useWalletClient, useChainId, useConfig } from "wagmi";
+import SimpleVault from "../SimpleVault";
+import { useRoleValidation } from "@/hooks/useRoleValidation";
 
 // Notification message type
 type NotificationMessage = {
@@ -57,6 +60,9 @@ interface PendingTransactionProps {
   contractAddress: Address;
   mode?: 'timelock' | 'metatx';
   onNotification?: (message: NotificationMessage) => void;
+  ownerAddress?: Address;
+  broadcasterAddress?: Address;
+  connectedAddress?: Address;
 }
 
 export const PendingTransaction: React.FC<PendingTransactionProps> = ({
@@ -66,12 +72,71 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
   isLoading,
   contractAddress,
   mode = 'timelock',
-  onNotification
+  onNotification,
+  ownerAddress,
+  broadcasterAddress,
+  connectedAddress
 }) => {
   // Add new hooks
   const { signWithdrawalApproval, isLoading: isSigningMetaTx } = useVaultMetaTx(contractAddress);
-  const { storeTransaction } = useTransactionManager(contractAddress);
+  const { transactions, storeTransaction } = useTransactionManager(contractAddress);
   const [signedMetaTxState, setSignedMetaTxState] = React.useState<{ type: 'approve' | 'cancel' } | null>(null);
+  
+  // Get clients from Wagmi
+  const publicClient = usePublicClient();
+  const { data: walletClient } = useWalletClient();
+  const chainId = useChainId();
+  const config = useConfig();
+
+  // Store client references in state
+  const [clients, setClients] = React.useState<{
+    publicClient: typeof publicClient | null;
+    walletClient: typeof walletClient | null;
+  }>({ publicClient: null, walletClient: null });
+
+  // Update clients when they change
+  React.useEffect(() => {
+    setClients({
+      publicClient,
+      walletClient
+    });
+  }, [publicClient, walletClient]);
+
+  // Get chain configuration
+  const chain = React.useMemo(() => {
+    if (!chainId) return undefined;
+    return config.chains.find(c => c.id === chainId);
+  }, [chainId, config.chains]);
+
+  // Use role validation hook
+  const roleValidation = useRoleValidation(
+    contractAddress as Address,
+    connectedAddress as Address | undefined,
+    chain
+  );
+
+  // Role validation hooks - moved to top
+  const { isOwner, isBroadcaster, isLoading: isRoleValidationLoading } = React.useMemo(() => {
+    return {
+      isOwner: roleValidation.isOwner,
+      isBroadcaster: roleValidation.isBroadcaster,
+      isLoading: roleValidation.isLoading
+    };
+  }, [roleValidation]);
+
+  // Add debug logging
+  React.useEffect(() => {
+    console.log('Role validation:', {
+      connectedAddress,
+      ownerAddress,
+      isOwner,
+      broadcasterAddress,
+      isBroadcaster,
+      roleValidation,
+      isRoleValidationLoading,
+      chain
+    });
+  }, [connectedAddress, ownerAddress, isOwner, broadcasterAddress, isBroadcaster, roleValidation, isRoleValidationLoading, chain]);
 
   // Memoize the operations array to prevent re-renders
   const operations = React.useMemo(() => [tx], [tx]);
@@ -105,6 +170,11 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
   const operationType = getOperationName(tx.params.operationType as Hex);
   const isValidVaultOperation = Object.values(VAULT_OPERATIONS).includes(operationType as keyof typeof VAULT_OPERATIONS);
 
+  // If not a valid vault operation, render nothing
+  if (!isValidVaultOperation) {
+    return null;
+  }
+
   // Calculate time-based values
   const now = Math.floor(Date.now() / 1000);
   const isReady = now >= Number(tx.releaseTime);
@@ -114,60 +184,115 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
   // Ensure amount is a BigInt and handle undefined
   const amount = tx.amount !== undefined ? BigInt(tx.amount) : 0n;
 
-  // If not a valid vault operation, render nothing
-  if (!isValidVaultOperation) {
-    return null;
-  }
-
   const handleMetaTxSign = async (type: 'approve' | 'cancel') => {
     try {
       if (type === 'approve') {
+        // Log before signing
+        console.log('Starting meta transaction signing for txId:', tx.txId);
+        
         const signedTx = await signWithdrawalApproval(Number(tx.txId));
+        console.log('Received signed transaction:', signedTx);
         
         // Convert all BigInt values to strings recursively
         const serializedTx = convertBigIntsToStrings(signedTx);
+        console.log('Serialized transaction:', serializedTx);
+
+        // Create the correct transaction key
+        const txKey = `metatx-${type}-${tx.txId}`;
+        console.log('Storing with key:', txKey);
 
         storeTransaction(
-          tx.txId.toString(),
+          txKey, // Changed from tx.txId.toString() to match the key used in broadcast
           JSON.stringify(serializedTx),
           {
             type: 'WITHDRAWAL_APPROVAL',
             timestamp: Date.now()
           }
         );
+
+        // Verify storage immediately after storing
+        console.log('Stored transactions:', transactions);
+        
         setSignedMetaTxState({ type: 'approve' });
 
-        // Show success notification
         onNotification?.({
           type: 'success',
           title: 'Meta Transaction Signed',
           description: `Successfully signed approval for transaction #${tx.txId}`
         });
       }
-      // Handle cancel case if needed
     } catch (error) {
       console.error('Failed to sign meta transaction:', error);
-      
-      // Show error notification
       onNotification?.({
         type: 'error',
         title: 'Signing Failed',
         description: error instanceof Error ? error.message : 'Failed to sign meta transaction'
       });
-      
       throw error;
     }
   };
 
-  // Add a wrapper for handleBroadcast to include notifications
   const handleBroadcastWithNotification = async (type: 'approve' | 'cancel') => {
     try {
-      await handleBroadcastAction(type);
+      const txKey = `metatx-${type}-${tx.txId}`;
+      console.log('Looking for transaction with key:', txKey);
+      console.log('Available transactions:', transactions);
+      
+      const storedTx = transactions[txKey];
+      console.log('Found stored transaction:', storedTx);
+      
+      if (!storedTx) {
+        throw new Error('No signed transaction found');
+      }
+
+      // Parse the signed transaction data
+      const signedMetaTx = JSON.parse(storedTx.signedData);
+      console.log('Parsed meta transaction:', signedMetaTx);
+
+      // Use clients from state instead of hooks
+      if (!clients.publicClient || !clients.walletClient || !clients.walletClient.chain) {
+        console.error('Client state:', clients);
+        throw new Error('Wallet not connected');
+      }
+
+      // Get the account from the wallet client
+      const [account] = await clients.walletClient.getAddresses();
+      
+      if (!account) {
+        throw new Error('No account found in wallet');
+      }
+
+      console.log('Broadcasting with account:', account);
+      console.log('Creating vault instance with:', {
+        contractAddress,
+        chain: clients.walletClient.chain,
+        account
+      });
+
+      const vault = new SimpleVault(
+        clients.publicClient, 
+        clients.walletClient, 
+        contractAddress, 
+        clients.walletClient.chain
+      );
+
+      // Broadcast the meta transaction
+      console.log('Broadcasting meta transaction...');
+      const result = await vault.approveWithdrawalWithMetaTx(
+        signedMetaTx,
+        { from: account }
+      );
+
+      console.log('Broadcast result:', result);
+      await result.wait();
+      
       onNotification?.({
         type: 'success',
         title: 'Transaction Broadcast',
         description: `Successfully broadcasted ${type} transaction for withdrawal #${tx.txId}`
       });
+
+      setSignedMetaTxState(null);
     } catch (error) {
       console.error('Failed to broadcast transaction:', error);
       onNotification?.({
@@ -312,7 +437,13 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
                         <div className="w-1/2">
                           <Button
                             onClick={() => handleMetaTxSign('approve')}
-                            disabled={isLoading || tx.status !== TxStatus.PENDING || isSigningMetaTx || signedMetaTxState?.type === 'approve'}
+                            disabled={
+                              isLoading || 
+                              tx.status !== TxStatus.PENDING || 
+                              isSigningMetaTx || 
+                              signedMetaTxState?.type === 'approve' || 
+                              (!isOwner && ownerAddress !== undefined) // Only disable if owner address is provided and not matching
+                            }
                             className={`w-full transition-all duration-200 flex items-center justify-center
                               bg-emerald-50 text-emerald-700 hover:bg-emerald-100 
                               dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 
@@ -343,9 +474,11 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
                         </div>
                       </TooltipTrigger>
                       <TooltipContent side="bottom">
-                        {signedMetaTxState?.type === 'approve' 
-                          ? "Transaction is signed and ready to broadcast"
-                          : "Sign approval meta-transaction"}
+                        {!isOwner && ownerAddress 
+                          ? "Only the owner can sign approval meta-transactions"
+                          : signedMetaTxState?.type === 'approve' 
+                            ? "Transaction is signed and ready to broadcast"
+                            : "Sign approval meta-transaction"}
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -356,7 +489,13 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
                         <div className="w-1/2">
                           <Button
                             onClick={() => handleMetaTxSign('cancel')}
-                            disabled={isLoading || tx.status !== TxStatus.PENDING || isSigning || signedMetaTxState?.type === 'cancel'}
+                            disabled={
+                              isLoading || 
+                              tx.status !== TxStatus.PENDING || 
+                              isSigning || 
+                              signedMetaTxState?.type === 'cancel' || 
+                              (!isOwner && ownerAddress !== undefined) // Only disable if owner address is provided and not matching
+                            }
                             className={`w-full transition-all duration-200 flex items-center justify-center
                               bg-rose-50 text-rose-700 hover:bg-rose-100 
                               dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
@@ -387,9 +526,11 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
                         </div>
                       </TooltipTrigger>
                       <TooltipContent side="bottom">
-                        {signedMetaTxState?.type === 'cancel'
-                          ? "Transaction is signed and ready to broadcast"
-                          : "Sign cancellation meta-transaction"}
+                        {!isOwner && ownerAddress
+                          ? "Only the owner can sign cancellation meta-transactions"
+                          : signedMetaTxState?.type === 'cancel'
+                            ? "Transaction is signed and ready to broadcast"
+                            : "Sign cancellation meta-transaction"}
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -402,7 +543,11 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
                         <div className="w-full">
                           <Button
                             onClick={() => handleBroadcastWithNotification('approve')}
-                            disabled={isLoading || !signedMetaTxState}
+                            disabled={
+                              isLoading || 
+                              !signedMetaTxState || 
+                              (!isBroadcaster && broadcasterAddress !== undefined) // Only disable if broadcaster address is provided and not matching
+                            }
                             className="w-full transition-all duration-200 flex items-center justify-center bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800"
                             variant="outline"
                           >
@@ -412,7 +557,9 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
                         </div>
                       </TooltipTrigger>
                       <TooltipContent side="bottom">
-                        Broadcast the signed meta-transaction
+                        {!isBroadcaster && broadcasterAddress
+                          ? "Only the broadcaster can broadcast meta-transactions"
+                          : "Broadcast the signed meta-transaction"}
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -425,7 +572,11 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
                         <div className="w-full">
                           <Button
                             onClick={() => handleBroadcastWithNotification('cancel')}
-                            disabled={isLoading || !signedMetaTxState}
+                            disabled={
+                              isLoading || 
+                              !signedMetaTxState || 
+                              (!isBroadcaster && broadcasterAddress !== undefined) // Only disable if broadcaster address is provided and not matching
+                            }
                             className="w-full transition-all duration-200 flex items-center justify-center bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50 border border-rose-200 dark:border-rose-800"
                             variant="outline"
                           >
@@ -435,7 +586,9 @@ export const PendingTransaction: React.FC<PendingTransactionProps> = ({
                         </div>
                       </TooltipTrigger>
                       <TooltipContent side="bottom">
-                        Broadcast the signed meta-transaction
+                        {!isBroadcaster && broadcasterAddress
+                          ? "Only the broadcaster can broadcast meta-transactions"
+                          : "Broadcast the signed meta-transaction"}
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>

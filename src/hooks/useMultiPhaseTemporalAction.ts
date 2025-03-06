@@ -126,7 +126,6 @@ export function useMultiPhaseTemporalAction({
   const handleMetaTxSign = async (type: 'approve' | 'cancel') => {
     setIsSigning(true)
     try {
-      // Convert txId from bigint to number if needed
       const txId = pendingTx?.txId ? parseInt(pendingTx.txId.toString()) : undefined
       const signedData = await getMetaTransactionSignature(type, txId)
       
@@ -134,8 +133,10 @@ export function useMultiPhaseTemporalAction({
         throw new Error('Contract address is required for storing meta transactions');
       }
 
-      // Store the signed transaction
-      const metaTxId = `metatx-${type}-${txId}-${Date.now()}`
+      // Create a consistent ID for the same action type and transaction
+      const metaTxId = `metatx-${type}-${txId}`
+
+      // This will override any existing signature for this action
       await transactionManager.storeSignedTransaction(
         pendingTx.contractAddress,
         metaTxId,

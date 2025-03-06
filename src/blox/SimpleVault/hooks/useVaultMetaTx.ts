@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { Address, createWalletClient, custom, Hash } from 'viem';
 import { usePublicClient, useWalletClient } from 'wagmi';
 import SimpleVault from '../SimpleVault';
-import { createVaultMetaTxParams } from '../SimpleVault.ui';
+import { createVaultMetaTxParams, getStoredMetaTxSettings } from '../SimpleVault.ui';
 import { MetaTransaction } from '@/particle-core/sdk/typescript/interfaces/lib.index';
 
 interface UseVaultMetaTxReturn {
@@ -33,10 +33,13 @@ export function useVaultMetaTx(contractAddress: Address): UseVaultMetaTxReturn {
       // Create vault instance
       const vault = new SimpleVault(publicClient, walletClient, contractAddress, chain);
 
-      // Create meta tx params with 1 hour deadline
-      const metaTxParams = createVaultMetaTxParams({
-        deadline: BigInt(3600), // 1 hour
-        maxGasPrice: BigInt(0) // No max gas price
+      // Get stored settings and create meta tx params
+      const storedSettings = getStoredMetaTxSettings();
+      const metaTxParams = createVaultMetaTxParams(storedSettings);
+
+      console.log('Using meta tx params:', {
+        storedSettings,
+        metaTxParams
       });
 
       // Generate unsigned meta transaction
