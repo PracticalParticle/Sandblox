@@ -12,7 +12,7 @@ import { TxRecord } from "@/particle-core/sdk/typescript/interfaces/lib.index"
 import { TxStatus } from "@/particle-core/sdk/typescript/types/lib.index"
 import { formatAddress } from "@/lib/utils"
 import { Progress } from "@/components/ui/progress"
-import { useTemporalAction } from "@/hooks/useTemporalAction"
+import { useMultiPhaseTemporalAction } from "@/hooks/useMultiPhaseTemporalAction"
 
 interface TemporalActionDialogProps {
   isOpen: boolean
@@ -78,7 +78,7 @@ export function TemporalActionDialog({
     handleCancel,
     handleMetaTxSign,
     handleBroadcast
-  } = useTemporalAction({
+  } = useMultiPhaseTemporalAction({
     isOpen,
     onOpenChange,
     onSubmit,

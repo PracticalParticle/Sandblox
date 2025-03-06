@@ -226,13 +226,13 @@ export function SecurityDetails() {
       if (info.operationHistory) {
         // Find first pending ownership transfer
         const pendingOwnership = info.operationHistory.find(
-          tx => tx.status === TxStatus.PENDING && 
+          (tx: TxRecord) => tx.status === TxStatus.PENDING && 
                typeMap.get(tx.params.operationType) === 'OWNERSHIP_TRANSFER'
         );
 
         // Find first pending broadcaster update
         const pendingBroadcaster = info.operationHistory.find(
-          tx => tx.status === TxStatus.PENDING && 
+          (tx: TxRecord) => tx.status === TxStatus.PENDING && 
                typeMap.get(tx.params.operationType) === 'BROADCASTER_UPDATE'
         );
 

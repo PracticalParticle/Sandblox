@@ -4,7 +4,7 @@ import { useTransactionManager } from "@/contexts/TransactionManager"
 import { getMetaTransactionSignature, broadcastMetaTransaction } from "@/utils/metaTransaction"
 import { TxRecord } from "@/particle-core/sdk/typescript/interfaces/lib.index"
 
-interface UseTemporalActionProps {
+interface UseMultiPhaseTemporalActionProps {
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   onSubmit?: (newValue: string) => Promise<void>
@@ -14,7 +14,7 @@ interface UseTemporalActionProps {
   showNewValueInput?: boolean
 }
 
-interface UseTemporalActionState {
+interface UseMultiPhaseTemporalActionState {
   newValue: string
   isApproving: boolean
   isCancelling: boolean
@@ -25,7 +25,7 @@ interface UseTemporalActionState {
   } | null
 }
 
-interface UseTemporalActionActions {
+interface UseMultiPhaseTemporalActionActions {
   setNewValue: (value: string) => void
   handleSubmit: (e: React.FormEvent) => Promise<void>
   handleApprove: (txId: number) => Promise<void>
@@ -34,7 +34,7 @@ interface UseTemporalActionActions {
   handleBroadcast: (type: 'approve' | 'cancel') => Promise<void>
 }
 
-export function useTemporalAction({
+export function useMultiPhaseTemporalAction({
   isOpen,
   onOpenChange,
   onSubmit,
@@ -42,7 +42,7 @@ export function useTemporalAction({
   onCancel,
   pendingTx,
   showNewValueInput = true
-}: UseTemporalActionProps): UseTemporalActionState & UseTemporalActionActions {
+}: UseMultiPhaseTemporalActionProps): UseMultiPhaseTemporalActionState & UseMultiPhaseTemporalActionActions {
   const [newValue, setNewValue] = useState("")
   const [isApproving, setIsApproving] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
