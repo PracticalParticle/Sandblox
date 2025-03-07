@@ -228,65 +228,6 @@ export class SecureOwnableManager {
     return result.hash;
   }
 
-  // Recovery Management
-  async updateRecoveryAddress(newRecoveryAddress: Address, options: { from: Address }): Promise<Hash> {
-    const executionOptions = await this.contract.updateRecoveryExecutionOptions(newRecoveryAddress, options);
-    const metaTxParams = await this.generateMetaTxParams(options.from);
-    const metaTx = await this.generateUnsignedMetaTransactionForNew(
-      options.from,
-      'RECOVERY_UPDATE',
-      executionOptions,
-      metaTxParams
-    );
-    const result = await this.contract.updateRecoveryRequestAndApprove(metaTx, options);
-    return result.hash;
-  }
-
-  // TimeLock Management
-  async updateTimeLockPeriod(newPeriodInMinutes: bigint, options: { from: Address }): Promise<Hash> {
-    const executionOptions = await this.contract.updateTimeLockExecutionOptions(newPeriodInMinutes, options);
-    const metaTxParams = await this.generateMetaTxParams(options.from);
-    const metaTx = await this.generateUnsignedMetaTransactionForNew(
-      options.from,
-      'TIMELOCK_UPDATE',
-      executionOptions,
-      metaTxParams
-    );
-    const result = await this.contract.updateTimeLockRequestAndApprove(metaTx, options);
-    return result.hash;
-  }
-
-  private async generateMetaTxParams(signer: Address) {
-    const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600); // 1 hour from now
-    return this.contract.createMetaTxParams(
-      this.address,
-      '0x' as Hex, // Will be set by the contract
-      deadline,
-      0n, // No max gas price limit
-      signer
-    );
-  }
-
-  private async generateUnsignedMetaTransactionForNew(
-    requester: Address,
-    operationType: string,
-    executionOptions: Hex,
-    metaTxParams: any
-  ) {
-    const operationTypeHex = ('0x' + Buffer.from(operationType, 'utf8').toString('hex')) as Hex;
-    
-    return this.contract.generateUnsignedMetaTransactionForNew(
-      requester,
-      this.address,
-      0n, // no value
-      500000n, // gas limit
-      operationTypeHex,
-      ExecutionType.STANDARD,
-      executionOptions,
-      metaTxParams
-    );
-  }
-
   // Enhanced Recovery Management
   async prepareAndSignRecoveryUpdate(
     newRecoveryAddress: Address,
