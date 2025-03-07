@@ -63,6 +63,9 @@ interface PendingTransactionsProps {
   ownerAddress?: Address;
   broadcasterAddress?: Address;
   connectedAddress?: Address;
+  transactions: VaultTxRecord[];
+  isLoadingTx?: boolean;
+  onRefresh?: () => void;
 }
 
 export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
@@ -74,11 +77,12 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
   onNotification,
   ownerAddress,
   broadcasterAddress,
-  connectedAddress
+  connectedAddress,
+  transactions,
+  isLoadingTx = false,
+  onRefresh
 }) => {
-  // State for holding pending transactions
-  const [pendingTransactions, setPendingTransactions] = React.useState<VaultTxRecord[]>([]);
-  const [isLoadingTx, setIsLoadingTx] = React.useState<boolean>(false);
+  // Remove state for holding pending transactions
   const [isRefreshing, setIsRefreshing] = React.useState<boolean>(false);
   
   // Track meta transaction signatures to prevent double signing/broadcasting
@@ -90,7 +94,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
   const chainId = useChainId();
   const config = useConfig();
   const { signWithdrawalApproval, isLoading: isSigningMetaTx } = useVaultMetaTx(contractAddress);
-  const { transactions, storeTransaction } = useTransactionManager(contractAddress);
+  const { transactions: storedTransactions, storeTransaction } = useTransactionManager(contractAddress);
   
   // Get operation types for mapping hex values to human-readable names
   const { getOperationName, operationTypes, loading: loadingOperationTypes } = useOperationTypes(contractAddress);
@@ -121,59 +125,11 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
     });
   }, [publicClient, walletClient]);
 
-  // Function to fetch pending transactions
-  const fetchPendingTransactions = React.useCallback(async () => {
-    if (!clients.publicClient || !chainId || loadingOperationTypes) return;
-    
-    try {
-      setIsLoadingTx(true);
-      
-      // Create SimpleVault instance to get pending transactions
-      const vaultInstance = new SimpleVault(
-        clients.publicClient,
-        walletClient,
-        contractAddress,
-        config.chains.find(c => c.id === chainId)!
-      );
-      
-      // Fetch pending transactions
-      console.log('Fetching pending transactions for vault:', contractAddress);
-      const pendingTxs = await vaultInstance.getPendingTransactions();
-      
-      // Filter for withdraw operations using the operation type names
-      const withdrawPendingTxs = pendingTxs.filter(tx => {
-        const operationTypeHex = tx.params.operationType as Hex;
-        const operationName = getOperationName(operationTypeHex);
-        return operationName === VAULT_OPERATIONS.WITHDRAW_ETH || 
-               operationName === VAULT_OPERATIONS.WITHDRAW_TOKEN;
-      });
-      
-      console.log('Filtered withdrawal pending transactions:', withdrawPendingTxs.length);
-      setPendingTransactions(withdrawPendingTxs);
-    } catch (error) {
-      console.error('Error fetching pending transactions:', error);
-      onNotification?.({
-        type: 'error',
-        title: 'Failed to Load Transactions',
-        description: error instanceof Error ? error.message : 'An unknown error occurred'
-      });
-    } finally {
-      setIsLoadingTx(false);
-      setIsRefreshing(false);
-    }
-  }, [clients.publicClient, walletClient, contractAddress, chainId, config.chains, onNotification, getOperationName, loadingOperationTypes]);
-
-  // Initial load of pending transactions - only after operation types are loaded
-  React.useEffect(() => {
-    if (!loadingOperationTypes) {
-      fetchPendingTransactions();
-    }
-  }, [fetchPendingTransactions, loadingOperationTypes]);
-
   // Refresh pending transactions manually
   const handleRefresh = () => {
     setIsRefreshing(true);
-    fetchPendingTransactions();
+    onRefresh?.();
+    setIsRefreshing(false);
   };
 
   // Handle meta transaction signing
@@ -203,7 +159,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
         );
 
         // Verify storage immediately after storing
-        console.log('Stored transactions:', transactions);
+        console.log('Stored transactions:', storedTransactions);
         
         // Update signed state
         setSignedMetaTxStates(prev => ({
@@ -232,9 +188,9 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
     try {
       const txKey = `metatx-${type}-${tx.txId}`;
       console.log('Looking for transaction with key:', txKey);
-      console.log('Available transactions:', transactions);
+      console.log('Available transactions:', storedTransactions);
       
-      const storedTx = transactions[txKey];
+      const storedTx = storedTransactions[txKey];
       console.log('Found stored transaction:', storedTx);
       
       if (!storedTx) {
@@ -363,8 +319,8 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
     );
   }
 
-  // Check if pending transactions is empty
-  if (pendingTransactions.length === 0 && !isLoadingTx) {
+  // Check if transactions is empty
+  if (transactions.length === 0 && !isLoadingTx) {
     return (
       <div className="space-y-4">
         <div className="flex justify-between items-center">
@@ -392,7 +348,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-medium">
-          Pending Transactions ({pendingTransactions.length})
+          Pending Transactions ({transactions.length})
         </h3>
         <Button 
           variant="outline" 
@@ -405,7 +361,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
         </Button>
       </div>
       
-      {isLoadingTx && pendingTransactions.length === 0 ? (
+      {isLoadingTx && transactions.length === 0 ? (
         <Card>
           <CardContent className="pt-6 flex justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -413,7 +369,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
         </Card>
       ) : (
         <div className="space-y-4">
-          {pendingTransactions.map(tx => {
+          {transactions.map(tx => {
             // Calculate time-based values
             const now = Math.floor(Date.now() / 1000);
             const isReady = now >= Number(tx.releaseTime);
@@ -741,6 +697,9 @@ interface SinglePendingTransactionProps {
 }
 
 export const PendingTransaction: React.FC<SinglePendingTransactionProps> = (props) => {
+  // Create a single-item array from the tx prop
+  const transactions = [props.tx];
+  
   return (
     <PendingTransactions
       contractAddress={props.contractAddress}
@@ -752,6 +711,8 @@ export const PendingTransaction: React.FC<SinglePendingTransactionProps> = (prop
       ownerAddress={props.ownerAddress}
       broadcasterAddress={props.broadcasterAddress}
       connectedAddress={props.connectedAddress}
+      transactions={transactions}
+      isLoadingTx={false}
     />
   );
 }; 

@@ -24,7 +24,7 @@ import { mainnet } from "viem/chains";
 import { http } from "viem";
 import { injected } from "wagmi/connectors";
 import { TokenList, AddTokenDialog } from "./components";
-import { PendingTransaction } from "./components/PendingTransaction";
+import { PendingTransaction, PendingTransactions } from "./components/PendingTransaction";
 import type { TokenMetadata, TokenState, TokenBalanceState } from "./components";
 import type { VaultTxRecord } from "./components/PendingTransaction";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -45,6 +45,8 @@ import { TransactionOptions, TransactionResult } from '../../particle-core/sdk/t
 import { ContractValidations } from '../../particle-core/sdk/typescript/utils/validations';
 import { VaultMetaTxParams } from './SimpleVault';
 import { TransactionManagerProvider } from "@/contexts/TransactionManager";
+import { useOperationTypes } from "@/hooks/useOperationTypes";
+import { VAULT_OPERATIONS } from "./hooks/useSimpleVaultOperations";
 
 // Extend the base ContractInfo interface to include broadcaster and other properties
 interface ContractInfo extends BaseContractInfo {
@@ -819,6 +821,19 @@ function SimpleVaultUIContent({
   const hasFetchedRef = useRef(false);
   const initialLoadDoneRef = useRef(false);
 
+  // Add operation types hook
+  const { getOperationName, loading: loadingOperationTypes } = useOperationTypes(contractAddress as Address);
+
+  // Filter transactions for withdrawals
+  const filteredPendingTxs = React.useMemo(() => {
+    return pendingTxs.filter(tx => {
+      const operationTypeHex = tx.params.operationType as Hex;
+      const operationName = getOperationName(operationTypeHex);
+      return operationName === VAULT_OPERATIONS.WITHDRAW_ETH || 
+             operationName === VAULT_OPERATIONS.WITHDRAW_TOKEN;
+    });
+  }, [pendingTxs, getOperationName]);
+
   // Modify the initialization effect to only run once
   useEffect(() => {
     if (!publicClient || !chain || !contractInfo || !contractAddress || !walletClient || initialLoadDoneRef.current) {
@@ -1193,65 +1208,33 @@ function SimpleVaultUIContent({
 
                           <TabsContent value="timelock" className="mt-4">
                             <div className="space-y-4">
-                              {loadingState.transactions ? (
-                                <div className="flex items-center justify-center py-8">
-                                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                                </div>
-                              ) : pendingTxs.length === 0 ? (
-                                <Card className="bg-muted">
-                                  <CardContent className="pt-6">
-                                    <h3 className="font-semibold">No Pending Transactions</h3>
-                                    <p className="text-sm text-muted-foreground">
-                                      There are currently no pending withdrawal requests
-                                    </p>
-                                  </CardContent>
-                                </Card>
-                              ) : (
-                                pendingTxs.map((tx) => (
-                                  <PendingTransaction
-                                    key={tx.txId}
-                                    tx={tx}
-                                    onApprove={handleApproveWithdrawal}
-                                    onCancel={handleCancelWithdrawal}
-                                    isLoading={loadingState.approval[Number(tx.txId)] || loadingState.cancellation[Number(tx.txId)]}
-                                    contractAddress={contractAddress as Address}
-                                    mode="timelock"
-                                    onNotification={handleNotification}
-                                  />
-                                ))
-                              )}
+                              <PendingTransactions
+                                transactions={filteredPendingTxs}
+                                isLoadingTx={loadingState.transactions}
+                                onRefresh={handleRefresh}
+                                onApprove={handleApproveWithdrawal}
+                                onCancel={handleCancelWithdrawal}
+                                isLoading={false}
+                                contractAddress={contractAddress as Address}
+                                mode="timelock"
+                                onNotification={handleNotification}
+                              />
                             </div>
                           </TabsContent>
 
                           <TabsContent value="metatx" className="mt-4">
                             <div className="space-y-4">
-                              {loadingState.transactions ? (
-                                <div className="flex items-center justify-center py-8">
-                                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                                </div>
-                              ) : pendingTxs.length === 0 ? (
-                                <Card className="bg-muted">
-                                  <CardContent className="pt-6">
-                                    <h3 className="font-semibold">No Pending Transactions</h3>
-                                    <p className="text-sm text-muted-foreground">
-                                      There are currently no pending withdrawal requests
-                                    </p>
-                                  </CardContent>
-                                </Card>
-                              ) : (
-                                pendingTxs.map((tx) => (
-                                  <PendingTransaction
-                                    key={tx.txId}
-                                    tx={tx}
-                                    onApprove={handleApproveWithdrawal}
-                                    onCancel={handleCancelWithdrawal}
-                                    isLoading={loadingState.cancellation[Number(tx.txId)]}
-                                    contractAddress={contractAddress as Address}
-                                    mode="metatx"
-                                    onNotification={handleNotification}
-                                  />
-                                ))
-                              )}
+                              <PendingTransactions
+                                transactions={filteredPendingTxs}
+                                isLoadingTx={loadingState.transactions}
+                                onRefresh={handleRefresh}
+                                onApprove={handleApproveWithdrawal}
+                                onCancel={handleCancelWithdrawal}
+                                isLoading={false}
+                                contractAddress={contractAddress as Address}
+                                mode="metatx"
+                                onNotification={handleNotification}
+                              />
                             </div>
                           </TabsContent>
                         </Tabs>
@@ -1265,7 +1248,7 @@ function SimpleVaultUIContent({
                   <div className="space-y-4">
                     <h3 className="font-medium">Pending Transactions</h3>
                     <div className="space-y-2">
-                      {pendingTxs.slice(0, 2).map((tx) => (
+                      {filteredPendingTxs.slice(0, 2).map((tx) => (
                         <PendingTransaction
                           key={tx.txId}
                           tx={tx}
@@ -1276,7 +1259,7 @@ function SimpleVaultUIContent({
                           onNotification={handleNotification}
                         />
                       ))}
-                      {pendingTxs.length > 2 && (
+                      {filteredPendingTxs.length > 2 && (
                         <Button
                           variant="link"
                           className="w-full"
