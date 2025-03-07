@@ -654,19 +654,102 @@ export function SecurityDetails() {
 
   const handleUpdateTimeLockRequest = async (newPeriod: string) => {
     try {
-      // Implementation
+      if (!contractInfo || !connectedAddress || !contractAddress || !publicClient || !walletClient) {
+        toast({
+          title: "Error",
+          description: "Missing required information",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const chain = config.chains.find((c) => c.id === contractInfo.chainId);
+      if (!chain) {
+        throw new Error('Chain not found');
+      }
+
+      setIsSigningTx(true);
+
+      // Create contract instance
+      const contract = new SecureOwnable(
+        publicClient,
+        walletClient,
+        contractAddress as `0x${string}`,
+        chain
+      );
+
+      // Convert period to BigInt (minutes)
+      const newTimeLockPeriod = BigInt(newPeriod);
+
+      // Get execution options for timelock update
+      const executionOptions = await contract.updateTimeLockExecutionOptions(
+        newTimeLockPeriod,
+        { from: connectedAddress as `0x${string}` }
+      );
+
+      // Generate meta transaction parameters
+      const metaTxParams = await contract.createMetaTxParams(
+        contractAddress as `0x${string}`,
+        FUNCTION_SELECTORS.UPDATE_TIMELOCK as `0x${string}`,
+        BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
+        BigInt(0), // No max gas price
+        connectedAddress as `0x${string}`
+      );
+
+      // Generate unsigned meta transaction
+      const unsignedMetaTx = await contract.generateUnsignedMetaTransactionForNew(
+        connectedAddress as `0x${string}`,
+        contractAddress as `0x${string}`,
+        BigInt(0), // No value
+        BigInt(0), // No gas limit
+        OPERATION_TYPES.TIMELOCK_UPDATE as `0x${string}`,
+        ExecutionType.STANDARD,
+        executionOptions,
+        metaTxParams
+      );
+
+      // Get the message hash from the unsigned meta transaction
+      const messageHash = unsignedMetaTx.message;
+      
+      // Sign the message hash with the wallet
+      const signature = await walletClient.signMessage({
+        message: { raw: messageHash as `0x${string}` },
+        account: connectedAddress as `0x${string}`
+      });
+
+      // Create the complete signed meta transaction
+      const signedMetaTx = {
+        ...unsignedMetaTx,
+        signature: signature as `0x${string}`
+      };
+
+      // Store the signed transaction
+      storeTransaction(
+        '0', // txId 0 is used for single phase meta transactions
+        JSON.stringify(signedMetaTx),
+        {
+          type: 'TIMELOCK_UPDATE',
+          newTimeLockPeriod: Number(newTimeLockPeriod),
+          timestamp: Date.now()
+        }
+      );
+
       toast({
-        title: "Request submitted",
-        description: "Time lock period update request has been submitted.",
-      })
+        title: "Success",
+        description: "TimeLock period update transaction signed and stored",
+      });
+
     } catch (error) {
+      console.error('Error in timelock update:', error);
       toast({
         title: "Error",
-        description: "Failed to submit time lock period update request.",
+        description: error instanceof Error ? error.message : "Failed to update timelock period",
         variant: "destructive"
-      })
+      });
+    } finally {
+      setIsSigningTx(false);
     }
-  }
+  };
 
   // Add this new function to verify the connected wallet matches the intended role
   const verifyConnectedRole = (role: string) => {
