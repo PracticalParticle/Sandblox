@@ -48,6 +48,8 @@ import { TransactionManagerProvider } from "@/contexts/TransactionManager";
 import { useOperationTypes } from "@/hooks/useOperationTypes";
 import { VAULT_OPERATIONS } from "./hooks/useSimpleVaultOperations";
 import { useWalletBalances, TokenBalance } from '@/hooks/useWalletBalances';
+import { useTimeLockActions } from './hooks/useTimeLockActions';
+import { useMetaTxActions } from './hooks/useMetaTxActions';
 
 // Extend the base ContractInfo interface to include broadcaster and other properties
 interface ContractInfo extends BaseContractInfo {
@@ -1022,81 +1024,38 @@ function SimpleVaultUIContent({
     }
   };
 
-  const handleApproveWithdrawal = async (txId: number): Promise<void> => {
-    if (!vault || !address) {
-      throw new Error("Vault not initialized or wallet not connected");
-    }
+  // Add hooks
+  const {
+    handleApproveWithdrawal,
+    handleCancelWithdrawal,
+    loadingStates: timeLockLoadingStates
+  } = useTimeLockActions(
+    contractAddress as Address,
+    addMessage,
+    addMessage,
+    handleRefresh
+  );
 
+  const {
+    handleMetaTxSign,
+    handleBroadcastMetaTx,
+    signedMetaTxStates,
+    isLoading: isMetaTxLoading
+  } = useMetaTxActions(
+    contractAddress as Address,
+    addMessage,
+    addMessage,
+    handleRefresh
+  );
+
+  // Update loadingState to include timeLockLoadingStates
+  useEffect(() => {
     setLoadingState(prev => ({
       ...prev,
-      approval: { ...prev.approval, [txId]: true }
+      approval: timeLockLoadingStates.approval,
+      cancellation: timeLockLoadingStates.cancellation
     }));
-
-    try {
-      const tx = await vault.approveWithdrawalAfterDelay(txId, { from: address });
-      await tx.wait();
-
-      // Show success message
-      addMessage?.({
-        type: 'success',
-        title: 'Withdrawal Approved',
-        description: `Successfully approved withdrawal #${txId}`
-      });
-
-      // Refresh transactions
-      await fetchVaultData();
-    } catch (error: any) {
-      console.error('Approval error:', error);
-      addMessage?.({
-        type: 'error',
-        title: 'Approval Failed',
-        description: error.message || 'Failed to approve withdrawal'
-      });
-    } finally {
-      setLoadingState(prev => ({
-        ...prev,
-        approval: { ...prev.approval, [txId]: false }
-      }));
-    }
-  };
-
-  const handleCancelWithdrawal = async (txId: number): Promise<void> => {
-    if (!vault || !address) {
-      throw new Error("Vault not initialized or wallet not connected");
-    }
-
-    setLoadingState(prev => ({
-      ...prev,
-      cancellation: { ...prev.cancellation, [txId]: true }
-    }));
-
-    try {
-      const tx = await vault.cancelWithdrawal(txId, { from: address });
-      await tx.wait();
-
-      // Show success message
-      addMessage?.({
-        type: 'success',
-        title: 'Withdrawal Cancelled',
-        description: `Successfully cancelled withdrawal #${txId}`
-      });
-
-      // Refresh transactions
-      await fetchVaultData();
-    } catch (error: any) {
-      console.error('Cancellation error:', error);
-      addMessage?.({
-        type: 'error',
-        title: 'Cancellation Failed',
-        description: error.message || 'Failed to cancel withdrawal'
-      });
-    } finally {
-      setLoadingState(prev => ({
-        ...prev,
-        cancellation: { ...prev.cancellation, [txId]: false }
-      }));
-    }
-  };
+  }, [timeLockLoadingStates]);
 
   const fetchTokenBalance = async (tokenAddress: Address): Promise<void> => {
     if (!vault) return;
@@ -1308,6 +1267,39 @@ function SimpleVaultUIContent({
     );
   }
 
+  // Update the dashboard mode view
+  if (dashboardMode && pendingTxs.length > 0) {
+    return (
+      <div className="space-y-4">
+        <h3 className="font-medium">Pending Transactions</h3>
+        <div className="space-y-2">
+          {filteredPendingTxs.slice(0, 2).map((tx) => (
+            <PendingTransaction
+              key={tx.txId}
+              tx={tx}
+              onApprove={handleApproveWithdrawal}
+              onCancel={handleCancelWithdrawal}
+              isLoading={loadingState.approval[Number(tx.txId)] || loadingState.cancellation[Number(tx.txId)]}
+              contractAddress={typedContractAddress}
+              onNotification={handleNotification}
+              onRefresh={handleRefresh}
+              mode="timelock"
+            />
+          ))}
+          {filteredPendingTxs.length > 2 && (
+            <Button
+              variant="link"
+              className="w-full"
+              onClick={() => navigate(`/contracts/${contractAddress}`)}
+            >
+              View All Transactions
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   // Fix the network warning JSX
   return (
     <div className="h-full overflow-auto">
@@ -1469,9 +1461,10 @@ function SimpleVaultUIContent({
                                 transactions={filteredPendingTxs}
                                 isLoadingTx={loadingState.transactions}
                                 onRefresh={handleRefresh}
-                                onApprove={handleApproveWithdrawal}
-                                onCancel={handleCancelWithdrawal}
-                                isLoading={false}
+                                onMetaTxSign={handleMetaTxSign}
+                                onBroadcastMetaTx={handleBroadcastMetaTx}
+                                signedMetaTxStates={signedMetaTxStates}
+                                isLoading={isMetaTxLoading}
                                 contractAddress={typedContractAddress}
                                 mode="metatx"
                                 onNotification={addMessage}
@@ -1499,8 +1492,10 @@ function SimpleVaultUIContent({
                           onApprove={handleApproveWithdrawal}
                           onCancel={handleCancelWithdrawal}
                           isLoading={loadingState.approval[Number(tx.txId)] || loadingState.cancellation[Number(tx.txId)]}
-                          contractAddress={contractAddress as Address}
+                          contractAddress={typedContractAddress}
                           onNotification={handleNotification}
+                          onRefresh={handleRefresh}
+                          mode="timelock"
                         />
                       ))}
                       {filteredPendingTxs.length > 2 && (

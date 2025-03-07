@@ -53,19 +53,22 @@ export interface VaultTxRecord extends Omit<TxRecord, 'status'> {
   type: "ETH" | "TOKEN";
 }
 
-interface PendingTransactionsProps {
+export interface PendingTransactionsProps {
+  transactions: VaultTxRecord[];
+  isLoadingTx: boolean;
+  onRefresh?: () => void;
+  onApprove?: (txId: number) => Promise<void>;
+  onCancel?: (txId: number) => Promise<void>;
+  onMetaTxSign?: (tx: VaultTxRecord, type: 'approve' | 'cancel') => Promise<void>;
+  onBroadcastMetaTx?: (tx: VaultTxRecord, type: 'approve' | 'cancel') => Promise<void>;
+  signedMetaTxStates?: Record<string, { type: 'approve' | 'cancel' }>;
+  isLoading: boolean;
   contractAddress: Address;
-  onApprove: (txId: number) => Promise<void>;
-  onCancel: (txId: number) => Promise<void>;
-  isLoading?: boolean;
   mode?: 'timelock' | 'metatx';
   onNotification?: (message: NotificationMessage) => void;
   ownerAddress?: Address;
   broadcasterAddress?: Address;
   connectedAddress?: Address;
-  transactions: VaultTxRecord[];
-  isLoadingTx?: boolean;
-  onRefresh?: () => void;
 }
 
 export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
@@ -265,13 +268,15 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
   // Handle approve action
   const handleApproveAction = async (txId: number) => {
     try {
-      await onApprove(txId);
-      onNotification?.({
-        type: 'success',
-        title: 'Transaction Approved',
-        description: `Successfully approved transaction #${txId}`
-      });
-      handleRefresh();
+      if (onApprove) {
+        await onApprove(txId);
+        onNotification?.({
+          type: 'success',
+          title: 'Transaction Approved',
+          description: `Successfully approved transaction #${txId}`
+        });
+        onRefresh?.();
+      }
     } catch (error) {
       console.error('Failed to approve transaction:', error);
       onNotification?.({
@@ -285,13 +290,15 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
   // Handle cancel action
   const handleCancelAction = async (txId: number) => {
     try {
-      await onCancel(txId);
-      onNotification?.({
-        type: 'success',
-        title: 'Transaction Cancelled',
-        description: `Successfully cancelled transaction #${txId}`
-      });
-      handleRefresh();
+      if (onCancel) {
+        await onCancel(txId);
+        onNotification?.({
+          type: 'success',
+          title: 'Transaction Cancelled',
+          description: `Successfully cancelled transaction #${txId}`
+        });
+        onRefresh?.();
+      }
     } catch (error) {
       console.error('Failed to cancel transaction:', error);
       onNotification?.({
@@ -690,29 +697,33 @@ interface SinglePendingTransactionProps {
   isLoading: boolean;
   contractAddress: Address;
   mode?: 'timelock' | 'metatx';
-  onNotification?: (message: NotificationMessage) => void;
-  ownerAddress?: Address;
-  broadcasterAddress?: Address;
-  connectedAddress?: Address;
+  onNotification: (message: NotificationMessage) => void;
+  onRefresh?: () => void;
 }
 
-export const PendingTransaction: React.FC<SinglePendingTransactionProps> = (props) => {
+export const PendingTransaction: React.FC<SinglePendingTransactionProps> = ({
+  tx,
+  onApprove,
+  onCancel,
+  isLoading,
+  contractAddress,
+  onNotification,
+  onRefresh
+}) => {
   // Create a single-item array from the tx prop
-  const transactions = [props.tx];
+  const transactions = [tx];
   
   return (
     <PendingTransactions
-      contractAddress={props.contractAddress}
-      onApprove={props.onApprove}
-      onCancel={props.onCancel}
-      isLoading={props.isLoading}
-      mode={props.mode}
-      onNotification={props.onNotification}
-      ownerAddress={props.ownerAddress}
-      broadcasterAddress={props.broadcasterAddress}
-      connectedAddress={props.connectedAddress}
+      contractAddress={contractAddress}
+      onApprove={onApprove}
+      onCancel={onCancel}
+      isLoading={isLoading}
+      mode="timelock"
+      onNotification={onNotification}
       transactions={transactions}
       isLoadingTx={false}
+      onRefresh={onRefresh}
     />
   );
 }; 
