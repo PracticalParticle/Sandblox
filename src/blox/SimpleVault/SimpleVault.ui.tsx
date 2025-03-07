@@ -47,6 +47,7 @@ import { VaultMetaTxParams } from './SimpleVault';
 import { TransactionManagerProvider } from "@/contexts/TransactionManager";
 import { useOperationTypes } from "@/hooks/useOperationTypes";
 import { VAULT_OPERATIONS } from "./hooks/useSimpleVaultOperations";
+import { useWalletBalances, TokenBalance } from '@/hooks/useWalletBalances';
 
 // Extend the base ContractInfo interface to include broadcaster and other properties
 interface ContractInfo extends BaseContractInfo {
@@ -370,22 +371,27 @@ interface PendingTransactionProps {
 interface DepositFormProps {
   onSubmit: (amount: bigint, token?: Address) => Promise<void>;
   isLoading: boolean;
+  walletBalances: {
+    eth: bigint;
+    tokens: Record<Address, TokenBalance>;
+    isLoading: boolean;
+    error: Error | null;
+  };
 }
 
-const DepositForm = React.memo(({ onSubmit, isLoading }: DepositFormProps) => {
+const DepositForm = React.memo(({ onSubmit, isLoading, walletBalances }: DepositFormProps) => {
   const [amount, setAmount] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [selectedTokenAddress, setSelectedTokenAddress] = useState<string>("ETH");
   const [tokenBalances] = useAtom(tokenBalanceAtom);
-  const [walletBalances] = useAtom(walletBalancesAtom);
 
-  const selectedToken = selectedTokenAddress === "ETH" ? undefined : tokenBalances[selectedTokenAddress];
+  const selectedToken = selectedTokenAddress === "ETH" ? undefined : tokenBalances[selectedTokenAddress as Address];
   const tokenDecimals = selectedToken?.metadata?.decimals ?? 18;
 
   // Get the maximum amount from wallet balance
   const maxAmount = selectedTokenAddress === "ETH"
     ? walletBalances.eth
-    : walletBalances.tokens[selectedTokenAddress] || BigInt(0);
+    : walletBalances.tokens[selectedTokenAddress as Address]?.balance || BigInt(0);
 
   // Format the max amount based on token type
   const formattedMaxAmount = selectedTokenAddress === "ETH"
@@ -477,31 +483,35 @@ const DepositForm = React.memo(({ onSubmit, isLoading }: DepositFormProps) => {
             </SelectItem>
             
             {/* ERC20 Token Options */}
-            {Object.entries(tokenBalances).map(([address, token]) => (
-              <SelectItem key={address} value={address}>
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
-                    {token.metadata?.logo ? (
-                      <img 
-                        src={token.metadata.logo} 
-                        alt={token.metadata.symbol} 
-                        className="w-5 h-5 rounded-full"
-                      />
-                    ) : (
-                      <Coins className="h-3 w-3 text-primary" />
-                    )}
+            {Object.entries(tokenBalances).map(([address, token]) => {
+              const tokenAddress = address as Address;
+              const walletToken = walletBalances.tokens[tokenAddress];
+              return (
+                <SelectItem key={tokenAddress} value={tokenAddress}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
+                      {token.metadata?.logo ? (
+                        <img 
+                          src={token.metadata.logo} 
+                          alt={token.metadata.symbol} 
+                          className="w-5 h-5 rounded-full"
+                        />
+                      ) : (
+                        <Coins className="h-3 w-3 text-primary" />
+                      )}
+                    </div>
+                    <span>{token.metadata?.symbol || 'Unknown Token'}</span>
+                    <span className="ml-auto text-muted-foreground">
+                      {token.loading ? (
+                        <Skeleton className="h-4 w-16" />
+                      ) : (
+                        `${formatUnits(walletToken?.balance || BigInt(0), token.metadata?.decimals || 18)} available`
+                      )}
+                    </span>
                   </div>
-                  <span>{token.metadata?.symbol || 'Unknown Token'}</span>
-                  <span className="ml-auto text-muted-foreground">
-                    {token.loading ? (
-                      <Skeleton className="h-4 w-16" />
-                    ) : (
-                      `${formatUnits(walletBalances.tokens[address] || BigInt(0), token.metadata?.decimals || 18)} available`
-                    )}
-                  </span>
-                </div>
-              </SelectItem>
-            ))}
+                </SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
       </div>
@@ -804,7 +814,7 @@ function SimpleVaultUIContent({
   const chain = _mock?.chain || useChain();
   const navigate = useNavigate();
   
-  // State declarations
+  // State declarations - moved up before use
   const [ethBalance, setEthBalance] = useState<bigint>(_mock?.initialData?.ethBalance || BigInt(0));
   const [tokenBalances, setTokenBalances] = useAtom<TokenBalanceState>(tokenBalanceAtom);
   const [pendingTxs, setPendingTxs] = useAtom(pendingTxsAtom);
@@ -812,10 +822,13 @@ function SimpleVaultUIContent({
   const [backgroundFetching, setBackgroundFetching] = useAtom(backgroundFetchingAtom);
   const [vault, setVault] = useAtom(vaultInstanceAtom);
   const [error, setError] = useState<string | null>(null);
-  const [walletBalances, setWalletBalances] = useAtom(walletBalancesAtom);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [metaTxSettings] = useAtom(metaTxSettingsAtom);
   const [activeTab, setActiveTab] = useState<'timelock' | 'metatx'>('timelock');
+
+  // Add wallet balances hook after state declarations
+  const trackedTokenAddresses = Object.keys(tokenBalances) as Address[];
+  const walletBalances = useWalletBalances(trackedTokenAddresses);
 
   // Add this near other refs/state
   const hasFetchedRef = useRef(false);
@@ -1168,6 +1181,7 @@ function SimpleVaultUIContent({
                         <DepositForm
                           onSubmit={handleDeposit}
                           isLoading={loadingState.deposit}
+                          walletBalances={walletBalances}
                         />
                       </CardContent>
                     </Card>
