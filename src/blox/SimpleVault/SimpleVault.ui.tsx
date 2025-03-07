@@ -1098,6 +1098,61 @@ function SimpleVaultUIContent({
     }
   };
 
+  const fetchTokenBalance = async (tokenAddress: Address): Promise<void> => {
+    if (!vault) return;
+    
+    setLoadingState(prev => ({
+      ...prev,
+      tokenBalance: true
+    }));
+
+    try {
+      const balance = await vault.getTokenBalance(tokenAddress);
+      const metadata = await vault.getTokenMetadata(tokenAddress);
+      
+      setTokenBalances(prev => ({
+        ...prev,
+        [tokenAddress]: {
+          balance,
+          metadata,
+          loading: false,
+          error: undefined
+        } as TokenState
+      }));
+    } catch (error) {
+      console.error('Error fetching token balance:', error);
+      setTokenBalances(prev => ({
+        ...prev,
+        [tokenAddress]: {
+          ...prev[tokenAddress],
+          loading: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        } as TokenState
+      }));
+    } finally {
+      setLoadingState(prev => ({
+        ...prev,
+        tokenBalance: false
+      }));
+    }
+  };
+
+  const handleRemoveToken = (tokenAddress: string): void => {
+    setTokenBalances(prev => {
+      const newBalances = { ...prev };
+      delete newBalances[tokenAddress];
+      
+      // Update local storage
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(newBalances));
+      } catch (error) {
+        console.error('Failed to update local storage:', error);
+      }
+      
+      return newBalances;
+    });
+  };
+
   // Ensure contractAddress is properly typed at the start
   const typedContractAddress = contractAddress as Address;
   const typedOwnerAddress = (contractInfo?.owner || "0x") as Address;
@@ -1379,21 +1434,54 @@ function SimpleVaultUIContent({
 
                   <TabsContent value="pending">
                     <Card>
-                      <CardContent className="pt-6">
-                        <PendingTransactions
-                          contractAddress={typedContractAddress}
-                          onApprove={handleApproveWithdrawal}
-                          onCancel={handleCancelWithdrawal}
-                          isLoading={false}
-                          mode="timelock"
-                          onNotification={addMessage}
-                          ownerAddress={contractInfo?.owner ? typedOwnerAddress : undefined}
-                          broadcasterAddress={contractInfo?.broadcaster ? typedBroadcasterAddress : undefined}
-                          connectedAddress={address}
-                          transactions={filteredPendingTxs}
-                          isLoadingTx={loadingState.transactions}
-                          onRefresh={handleRefresh}
-                        />
+                      <CardHeader>
+                        <CardTitle>Pending Withdrawals</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <Tabs defaultValue="timelock" className="w-full" onValueChange={(value) => setActiveTab(value as 'timelock' | 'metatx')}>
+                          <TabsList className="grid w-full grid-cols-2 bg-background p-1 rounded-lg">
+                            <TabsTrigger value="timelock" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">TimeLock</TabsTrigger>
+                            <TabsTrigger value="metatx" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">MetaTx</TabsTrigger>
+                          </TabsList>
+
+                          <TabsContent value="timelock" className="mt-4">
+                            <div className="space-y-4">
+                              <PendingTransactions
+                                transactions={filteredPendingTxs}
+                                isLoadingTx={loadingState.transactions}
+                                onRefresh={handleRefresh}
+                                onApprove={handleApproveWithdrawal}
+                                onCancel={handleCancelWithdrawal}
+                                isLoading={false}
+                                contractAddress={typedContractAddress}
+                                mode="timelock"
+                                onNotification={addMessage}
+                                ownerAddress={contractInfo?.owner ? typedOwnerAddress : undefined}
+                                broadcasterAddress={contractInfo?.broadcaster ? typedBroadcasterAddress : undefined}
+                                connectedAddress={address}
+                              />
+                            </div>
+                          </TabsContent>
+
+                          <TabsContent value="metatx" className="mt-4">
+                            <div className="space-y-4">
+                              <PendingTransactions
+                                transactions={filteredPendingTxs}
+                                isLoadingTx={loadingState.transactions}
+                                onRefresh={handleRefresh}
+                                onApprove={handleApproveWithdrawal}
+                                onCancel={handleCancelWithdrawal}
+                                isLoading={false}
+                                contractAddress={typedContractAddress}
+                                mode="metatx"
+                                onNotification={addMessage}
+                                ownerAddress={contractInfo?.owner ? typedOwnerAddress : undefined}
+                                broadcasterAddress={contractInfo?.broadcaster ? typedBroadcasterAddress : undefined}
+                                connectedAddress={address}
+                              />
+                            </div>
+                          </TabsContent>
+                        </Tabs>
                       </CardContent>
                     </Card>
                   </TabsContent>
@@ -1436,15 +1524,8 @@ function SimpleVaultUIContent({
   );
 }
 
-// Create a new QueryClient instance
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-      refetchOnWindowFocus: false
-    }
-  }
-});
+// Create a new QueryClient instance with proper type
+const queryClient = new QueryClient();
 
 // Main export with proper providers
 export default function SimpleVaultUI(props: SimpleVaultUIProps) {
@@ -1454,14 +1535,3 @@ export default function SimpleVaultUI(props: SimpleVaultUIProps) {
     </TransactionManagerProvider>
   );
 }
-
-// Add these function declarations near the top after the imports
-const fetchTokenBalance = async (tokenAddress: Address): Promise<void> => {
-  // Implementation will be added later
-  console.log('Fetching token balance for:', tokenAddress);
-};
-
-const handleRemoveToken = (tokenAddress: string): void => {
-  // Implementation will be added later
-  console.log('Removing token:', tokenAddress);
-};
