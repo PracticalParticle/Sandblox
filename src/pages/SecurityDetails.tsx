@@ -609,10 +609,25 @@ export function SecurityDetails() {
         metaTxParams
       );
 
+      // Get the message hash from the unsigned meta transaction
+      const messageHash = unsignedMetaTx.message;
+      
+      // Sign the message hash with the wallet
+      const signature = await walletClient.signMessage({
+        message: { raw: messageHash as `0x${string}` },
+        account: connectedAddress as `0x${string}`
+      });
+
+      // Create the complete signed meta transaction
+      const signedMetaTx = {
+        ...unsignedMetaTx,
+        signature: signature as `0x${string}`
+      };
+
       // Store the signed transaction
       storeTransaction(
         '0', // txId 0 is used for single phase meta transactions
-        JSON.stringify(unsignedMetaTx),
+        JSON.stringify(signedMetaTx),
         {
           type: 'RECOVERY_UPDATE',
           newRecoveryAddress,
