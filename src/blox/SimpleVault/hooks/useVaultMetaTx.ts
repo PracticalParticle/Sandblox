@@ -51,37 +51,10 @@ export function useVaultMetaTx(contractAddress: Address): UseVaultMetaTxReturn {
       // Get the signer's address
       const [address] = await walletClient.getAddresses();
 
-      // Create the meta transaction data for signing
-      const domain = {
-        name: 'SimpleVault',
-        version: '1',
-        chainId: chain.id,
-        verifyingContract: contractAddress
-      };
-
-      const types = {
-        MetaTransaction: [
-          { name: 'txId', type: 'uint256' },
-          { name: 'deadline', type: 'uint256' },
-          { name: 'maxGasPrice', type: 'uint256' },
-          { name: 'nonce', type: 'uint256' }
-        ]
-      } as const;
-
-      const message = {
-        txId: BigInt(txId),
-        deadline: metaTxParams.deadline,
-        maxGasPrice: metaTxParams.maxGasPrice,
-        nonce: unsignedMetaTx.params.nonce
-      } as const;
-
-      // Sign the typed data
-      const signature = await walletClient.signTypedData({
+      // Sign the message hash from the meta transaction
+      const signature = await walletClient.signMessage({
         account: address,
-        domain,
-        types,
-        primaryType: 'MetaTransaction',
-        message,
+        message: unsignedMetaTx.message
       });
 
       // Return the signed meta transaction
