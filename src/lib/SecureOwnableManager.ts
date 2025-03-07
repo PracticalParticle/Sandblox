@@ -148,6 +148,7 @@ export class SecureOwnableManager {
 
       return {
         address: this.address,
+        contractAddress: this.address,
         owner,
         broadcaster,
         recoveryAddress,
