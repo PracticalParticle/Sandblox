@@ -50,6 +50,7 @@ import { VAULT_OPERATIONS } from "./hooks/useSimpleVaultOperations";
 import { useWalletBalances, TokenBalance } from '@/hooks/useWalletBalances';
 import { useTimeLockActions } from './hooks/useTimeLockActions';
 import { useMetaTxActions } from './hooks/useMetaTxActions';
+import { useActionPermissions } from '@/hooks/useActionPermissions';
 
 // Extend the base ContractInfo interface to include broadcaster and other properties
 interface ContractInfo extends BaseContractInfo {
@@ -140,6 +141,7 @@ interface WithdrawalFormProps {
   onTokenSelect?: (token: Address | undefined) => void;
   selectedTokenAddress: string;
   onSelectedTokenAddressChange: (value: string) => void;
+  canRequestWithdrawal: boolean;
 }
 
 // Utility function to validate Ethereum addresses
@@ -153,7 +155,8 @@ const WithdrawalForm = ({
   maxAmount, 
   selectedTokenAddress,
   onSelectedTokenAddressChange,
-  onTokenSelect 
+  onTokenSelect,
+  canRequestWithdrawal
 }: WithdrawalFormProps) => {
   const [to, setTo] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
@@ -352,11 +355,31 @@ const WithdrawalForm = ({
         </Alert>
       )}
 
-      <Button type="submit" disabled={isLoading} className="w-full">
-        {isLoading ? "Processing..." : `Request ${
-          selectedTokenAddress === "ETH" ? "ETH" : selectedToken?.metadata?.symbol || "Token"
-        } Withdrawal`}
-      </Button>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div>
+              <Button 
+                type="submit" 
+                disabled={isLoading || !canRequestWithdrawal} 
+                className="w-full"
+              >
+                {isLoading ? "Processing..." : `Request ${
+                  selectedTokenAddress === "ETH" ? "ETH" : selectedToken?.metadata?.symbol || "Token"
+                } Withdrawal`}
+              </Button>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            {!canRequestWithdrawal 
+              ? "Only the owner can request withdrawals"
+              : `Request withdrawal of ${
+                  selectedTokenAddress === "ETH" ? "ETH" : selectedToken?.metadata?.symbol || "Token"
+                }`
+            }
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     </form>
   );
 };
@@ -728,7 +751,7 @@ function MetaTxSettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   );
 }
 
-// Move WithdrawalFormWrapper outside of SimpleVaultUIContent
+// Update the WithdrawalFormWrapper to include role validation
 const WithdrawalFormWrapper = React.memo(({ 
   handleWithdrawal, 
   loadingState, 
@@ -747,10 +770,14 @@ const WithdrawalFormWrapper = React.memo(({
   const [selectedTokenAddress, setSelectedTokenAddress] = useState<string>("ETH");
   const lastFetchRef = useRef<string | undefined>(undefined);
 
+  // Get role validation
+  const { address: connectedAddress } = useAccount();
+  const { canRequestWithdrawal } = useActionPermissions(contractAddress, connectedAddress);
+
   // Memoize the token selection handler
   const handleTokenSelect = useCallback((token: Address | undefined) => {
     console.log('Token selected in wrapper:', token);
-  }, []); // Empty dependency array as it doesn't depend on any props or state
+  }, []);
 
   // Memoize the current balance calculation
   const currentBalance = useMemo(() => 
@@ -776,7 +803,7 @@ const WithdrawalFormWrapper = React.memo(({
   const handleSelectedTokenChange = useCallback((value: string) => {
     console.log('Token selection changing to:', value);
     setSelectedTokenAddress(value);
-  }, []); // Empty dependency array as it only updates local state
+  }, []);
 
   return (
     <WithdrawalForm
@@ -786,6 +813,7 @@ const WithdrawalFormWrapper = React.memo(({
       selectedTokenAddress={selectedTokenAddress}
       onSelectedTokenAddressChange={handleSelectedTokenChange}
       onTokenSelect={handleTokenSelect}
+      canRequestWithdrawal={canRequestWithdrawal}
     />
   );
 });
