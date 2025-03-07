@@ -107,8 +107,8 @@ interface LoadingState {
   tokenBalance: boolean;
   withdrawal: boolean;
   deposit: boolean;
-  approval: Record<number, boolean>;  // Map of txId to loading state
-  cancellation: Record<number, boolean>;  // Map of txId to loading state
+  approval: Record<number, boolean>;
+  cancellation: Record<number, boolean>;
   initialization: boolean;
   transactions: boolean;
 }
@@ -1022,6 +1022,87 @@ function SimpleVaultUIContent({
     }
   };
 
+  const handleApproveWithdrawal = async (txId: number): Promise<void> => {
+    if (!vault || !address) {
+      throw new Error("Vault not initialized or wallet not connected");
+    }
+
+    setLoadingState(prev => ({
+      ...prev,
+      approval: { ...prev.approval, [txId]: true }
+    }));
+
+    try {
+      const tx = await vault.approveWithdrawalAfterDelay(txId, { from: address });
+      await tx.wait();
+
+      // Show success message
+      addMessage?.({
+        type: 'success',
+        title: 'Withdrawal Approved',
+        description: `Successfully approved withdrawal #${txId}`
+      });
+
+      // Refresh transactions
+      await fetchVaultData();
+    } catch (error: any) {
+      console.error('Approval error:', error);
+      addMessage?.({
+        type: 'error',
+        title: 'Approval Failed',
+        description: error.message || 'Failed to approve withdrawal'
+      });
+    } finally {
+      setLoadingState(prev => ({
+        ...prev,
+        approval: { ...prev.approval, [txId]: false }
+      }));
+    }
+  };
+
+  const handleCancelWithdrawal = async (txId: number): Promise<void> => {
+    if (!vault || !address) {
+      throw new Error("Vault not initialized or wallet not connected");
+    }
+
+    setLoadingState(prev => ({
+      ...prev,
+      cancellation: { ...prev.cancellation, [txId]: true }
+    }));
+
+    try {
+      const tx = await vault.cancelWithdrawal(txId, { from: address });
+      await tx.wait();
+
+      // Show success message
+      addMessage?.({
+        type: 'success',
+        title: 'Withdrawal Cancelled',
+        description: `Successfully cancelled withdrawal #${txId}`
+      });
+
+      // Refresh transactions
+      await fetchVaultData();
+    } catch (error: any) {
+      console.error('Cancellation error:', error);
+      addMessage?.({
+        type: 'error',
+        title: 'Cancellation Failed',
+        description: error.message || 'Failed to cancel withdrawal'
+      });
+    } finally {
+      setLoadingState(prev => ({
+        ...prev,
+        cancellation: { ...prev.cancellation, [txId]: false }
+      }));
+    }
+  };
+
+  // Ensure contractAddress is properly typed at the start
+  const typedContractAddress = contractAddress as Address;
+  const typedOwnerAddress = (contractInfo?.owner || "0x") as Address;
+  const typedBroadcasterAddress = (contractInfo?.broadcaster || "0x") as Address;
+
   // Render sidebar content
   if (renderSidebar) {
     return (
@@ -1298,48 +1379,21 @@ function SimpleVaultUIContent({
 
                   <TabsContent value="pending">
                     <Card>
-                      <CardHeader>
-                        <CardTitle>Pending Withdrawals</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <Tabs defaultValue="timelock" className="w-full" onValueChange={(value) => setActiveTab(value as 'timelock' | 'metatx')}>
-                          <TabsList className="grid w-full grid-cols-2 bg-background p-1 rounded-lg">
-                            <TabsTrigger value="timelock" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">TimeLock</TabsTrigger>
-                            <TabsTrigger value="metatx" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">MetaTx</TabsTrigger>
-                          </TabsList>
-
-                          <TabsContent value="timelock" className="mt-4">
-                            <div className="space-y-4">
-                              <PendingTransactions
-                                transactions={filteredPendingTxs}
-                                isLoadingTx={loadingState.transactions}
-                                onRefresh={handleRefresh}
-                                onApprove={handleApproveWithdrawal}
-                                onCancel={handleCancelWithdrawal}
-                                isLoading={false}
-                                contractAddress={contractAddress as Address}
-                                mode="timelock"
-                                onNotification={handleNotification}
-                              />
-                            </div>
-                          </TabsContent>
-
-                          <TabsContent value="metatx" className="mt-4">
-                            <div className="space-y-4">
-                              <PendingTransactions
-                                transactions={filteredPendingTxs}
-                                isLoadingTx={loadingState.transactions}
-                                onRefresh={handleRefresh}
-                                onApprove={handleApproveWithdrawal}
-                                onCancel={handleCancelWithdrawal}
-                                isLoading={false}
-                                contractAddress={contractAddress as Address}
-                                mode="metatx"
-                                onNotification={handleNotification}
-                              />
-                            </div>
-                          </TabsContent>
-                        </Tabs>
+                      <CardContent className="pt-6">
+                        <PendingTransactions
+                          contractAddress={typedContractAddress}
+                          onApprove={handleApproveWithdrawal}
+                          onCancel={handleCancelWithdrawal}
+                          isLoading={false}
+                          mode="timelock"
+                          onNotification={addMessage}
+                          ownerAddress={contractInfo?.owner ? typedOwnerAddress : undefined}
+                          broadcasterAddress={contractInfo?.broadcaster ? typedBroadcasterAddress : undefined}
+                          connectedAddress={address}
+                          transactions={filteredPendingTxs}
+                          isLoadingTx={loadingState.transactions}
+                          onRefresh={handleRefresh}
+                        />
                       </CardContent>
                     </Card>
                   </TabsContent>
@@ -1405,16 +1459,6 @@ export default function SimpleVaultUI(props: SimpleVaultUIProps) {
 const fetchTokenBalance = async (tokenAddress: Address): Promise<void> => {
   // Implementation will be added later
   console.log('Fetching token balance for:', tokenAddress);
-};
-
-const handleApproveWithdrawal = async (txId: number): Promise<void> => {
-  // Implementation will be added later
-  console.log('Handling withdrawal approval:', txId);
-};
-
-const handleCancelWithdrawal = async (txId: number): Promise<void> => {
-  // Implementation will be added later
-  console.log('Handling withdrawal cancellation:', txId);
 };
 
 const handleRemoveToken = (tokenAddress: string): void => {
