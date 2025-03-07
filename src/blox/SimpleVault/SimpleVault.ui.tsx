@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import { Address, formatEther, parseEther, formatUnits, parseUnits } from "viem";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -747,14 +747,20 @@ const WithdrawalFormWrapper = React.memo(({
   const [selectedTokenAddress, setSelectedTokenAddress] = useState<string>("ETH");
   const lastFetchRef = useRef<string | undefined>(undefined);
 
-  console.log('WithdrawalFormWrapper render:', {
-    selectedTokenAddress,
-    tokenBalancesKeys: Object.keys(tokenBalances),
-    tokenBalancesState: tokenBalances,
-    lastFetch: lastFetchRef.current
-  });
+  // Memoize the token selection handler
+  const handleTokenSelect = useCallback((token: Address | undefined) => {
+    console.log('Token selected in wrapper:', token);
+  }, []); // Empty dependency array as it doesn't depend on any props or state
 
-  // Only fetch token balance if it's a new token and not already loading
+  // Memoize the current balance calculation
+  const currentBalance = useMemo(() => 
+    selectedTokenAddress === "ETH"
+      ? ethBalance
+      : (tokenBalances[selectedTokenAddress]?.balance || BigInt(0)),
+    [selectedTokenAddress, tokenBalances, ethBalance]
+  );
+
+  // Only fetch token balance when necessary
   useEffect(() => {
     const tokenAddress = selectedTokenAddress === "ETH" ? undefined : selectedTokenAddress as Address;
     if (tokenAddress && 
@@ -767,21 +773,10 @@ const WithdrawalFormWrapper = React.memo(({
     }
   }, [selectedTokenAddress, loadingState.tokenBalance, tokenBalances, fetchTokenBalance]);
 
-  const currentBalance = React.useMemo(() => 
-    selectedTokenAddress === "ETH"
-      ? ethBalance
-      : (tokenBalances[selectedTokenAddress]?.balance || BigInt(0)),
-    [selectedTokenAddress, tokenBalances, ethBalance]
-  );
-
-  const handleTokenSelect = React.useCallback((token: Address | undefined) => {
-    console.log('Token selected in wrapper:', token);
-  }, []);
-
-  const handleSelectedTokenChange = (value: string) => {
+  const handleSelectedTokenChange = useCallback((value: string) => {
     console.log('Token selection changing to:', value);
     setSelectedTokenAddress(value);
-  };
+  }, []); // Empty dependency array as it only updates local state
 
   return (
     <WithdrawalForm
