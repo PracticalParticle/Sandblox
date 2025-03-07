@@ -934,6 +934,94 @@ function SimpleVaultUIContent({
     }
   }, [addMessage]);
 
+  // Add these functions before the return statement
+  const handleDeposit = async (amount: bigint, token?: Address) => {
+    if (!vault || !address) {
+      throw new Error("Vault not initialized or wallet not connected");
+    }
+
+    setLoadingState(prev => ({ ...prev, deposit: true }));
+    try {
+      let tx;
+      if (token) {
+        // For ERC20 tokens, first check and handle allowance
+        const allowance = await vault.getTokenAllowance(token, address);
+        if (allowance < amount) {
+          // Request approval first
+          tx = await vault.approveTokenAllowance(token, amount, { from: address });
+          await tx.wait();
+        }
+        // Now deposit the tokens
+        tx = await vault.depositToken(token, amount, { from: address });
+      } else {
+        // For ETH deposits
+        tx = await vault.depositEth(amount, { from: address });
+      }
+
+      // Wait for transaction confirmation
+      await tx.wait();
+
+      // Show success message
+      addMessage?.({
+        type: 'success',
+        title: 'Deposit Successful',
+        description: `Successfully deposited ${token ? 'tokens' : 'ETH'} to vault`
+      });
+
+      // Refresh balances
+      await fetchVaultData();
+    } catch (error: any) {
+      console.error('Deposit error:', error);
+      addMessage?.({
+        type: 'error',
+        title: 'Deposit Failed',
+        description: error.message || 'Failed to deposit to vault'
+      });
+    } finally {
+      setLoadingState(prev => ({ ...prev, deposit: false }));
+    }
+  };
+
+  const handleWithdrawal = async (to: Address, amount: bigint, token?: Address) => {
+    if (!vault || !address) {
+      throw new Error("Vault not initialized or wallet not connected");
+    }
+
+    setLoadingState(prev => ({ ...prev, withdrawal: true }));
+    try {
+      let tx;
+      if (token) {
+        // Request token withdrawal
+        tx = await vault.withdrawTokenRequest(token, to, amount, { from: address });
+      } else {
+        // Request ETH withdrawal
+        tx = await vault.withdrawEthRequest(to, amount, { from: address });
+      }
+
+      // Wait for transaction confirmation
+      await tx.wait();
+
+      // Show success message
+      addMessage?.({
+        type: 'success',
+        title: 'Withdrawal Request Submitted',
+        description: `Successfully submitted withdrawal request for ${token ? 'tokens' : 'ETH'}`
+      });
+
+      // Refresh transactions
+      await fetchVaultData();
+    } catch (error: any) {
+      console.error('Withdrawal request error:', error);
+      addMessage?.({
+        type: 'error',
+        title: 'Withdrawal Request Failed',
+        description: error.message || 'Failed to submit withdrawal request'
+      });
+    } finally {
+      setLoadingState(prev => ({ ...prev, withdrawal: false }));
+    }
+  };
+
   // Render sidebar content
   if (renderSidebar) {
     return (
@@ -1317,16 +1405,6 @@ export default function SimpleVaultUI(props: SimpleVaultUIProps) {
 const fetchTokenBalance = async (tokenAddress: Address): Promise<void> => {
   // Implementation will be added later
   console.log('Fetching token balance for:', tokenAddress);
-};
-
-const handleDeposit = async (amount: bigint, token?: Address): Promise<void> => {
-  // Implementation will be added later
-  console.log('Handling deposit:', { amount, token });
-};
-
-const handleWithdrawal = async (to: Address, amount: bigint, token?: Address): Promise<void> => {
-  // Implementation will be added later
-  console.log('Handling withdrawal:', { to, amount, token });
 };
 
 const handleApproveWithdrawal = async (txId: number): Promise<void> => {
