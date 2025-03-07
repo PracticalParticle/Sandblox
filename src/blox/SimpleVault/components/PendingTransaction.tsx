@@ -3,25 +3,18 @@ import { Address, Hex } from "viem";
 import { formatEther, formatUnits } from "viem";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, X, CheckCircle2, Clock, XCircle, RefreshCw } from "lucide-react";
+import { Loader2, X, CheckCircle2, Clock, XCircle, RefreshCw, Radio } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
-import { TxStatus } from "../../../particle-core/sdk/typescript/types/lib.index";
+import { TxStatus } from "@/particle-core/sdk/typescript/types/lib.index";
 import { useMultiPhaseTemporalAction } from "@/hooks/useMultiPhaseTemporalAction";
 import { TxRecord } from "../../../particle-core/sdk/typescript/interfaces/lib.index";
 import { useSimpleVaultOperations, VAULT_OPERATIONS } from "../hooks/useSimpleVaultOperations";
-import { useTransactionManager } from "@/hooks/useTransactionManager";
 import { usePublicClient, useWalletClient, useChainId, useConfig } from "wagmi";
 import SimpleVault from "../SimpleVault";
 import { useRoleValidation } from "@/hooks/useRoleValidation";
 import { useOperationTypes } from "@/hooks/useOperationTypes";
-
-// Notification message type
-type NotificationMessage = {
-  type: 'error' | 'warning' | 'info' | 'success';
-  title: string;
-  description: string;
-};
+import { NotificationMessage } from "../lib/types";
 
 // Helper function to recursively convert BigInt values to strings
 const convertBigIntsToStrings = (obj: any): any => {
@@ -93,7 +86,6 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
   // Hooks for wallet integration
   const chainId = useChainId();
   const config = useConfig();
-  const { transactions: storedTransactions, storeTransaction } = useTransactionManager(contractAddress);
   
   // Get operation types for mapping hex values to human-readable names
   const { getOperationName, loading: loadingOperationTypes } = useOperationTypes(contractAddress);
@@ -120,13 +112,41 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
   // Handle meta transaction signing and broadcasting
   const handleMetaTxSign = (tx: VaultTxRecord, type: 'approve' | 'cancel') => {
     if (onMetaTxSign) {
-      onMetaTxSign(tx, type);
+      onMetaTxSign(tx, type)
+        .then(() => {
+          onNotification?.({
+            type: 'success',
+            title: 'Meta Transaction Signed',
+            description: `Successfully signed approval for transaction #${tx.txId}`
+          });
+        })
+        .catch((error) => {
+          onNotification?.({
+            type: 'error',
+            title: 'Signing Failed',
+            description: error instanceof Error ? error.message : 'Failed to sign meta transaction'
+          });
+        });
     }
   };
 
   const handleBroadcastMetaTx = (tx: VaultTxRecord, type: 'approve' | 'cancel') => {
     if (onBroadcastMetaTx) {
-      onBroadcastMetaTx(tx, type);
+      onBroadcastMetaTx(tx, type)
+        .then(() => {
+          onNotification?.({
+            type: 'success',
+            title: 'Transaction Broadcast',
+            description: `Successfully broadcasted approval for transaction #${tx.txId}`
+          });
+        })
+        .catch((error) => {
+          onNotification?.({
+            type: 'error',
+            title: 'Broadcast Failed',
+            description: error instanceof Error ? error.message : 'Failed to broadcast meta transaction'
+          });
+        });
     }
   };
 
@@ -414,6 +434,8 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                 <TooltipContent side="bottom">
                                   {!isOwner && ownerAddress 
                                     ? "Only the owner can sign approval meta-transactions"
+                                    : hasSignedApproval
+                                    ? "Transaction is already signed"
                                     : "Sign approval meta-transaction"}
                                 </TooltipContent>
                               </Tooltip>
@@ -424,74 +446,37 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                 <TooltipTrigger asChild>
                                   <div className="w-1/2">
                                     <Button
-                                      onClick={() => handleMetaTxSign(tx, 'cancel')}
-                                      disabled={
-                                        isLoading || 
-                                        tx.status !== TxStatus.PENDING || 
-                                        hasSignedCancel || 
-                                        (!isOwner && ownerAddress !== undefined)
-                                      }
-                                      className={`w-full transition-all duration-200 flex items-center justify-center
-                                        bg-rose-50 text-rose-700 hover:bg-rose-100 
-                                        dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
-                                        border border-rose-200 dark:border-rose-800
-                                        disabled:opacity-50 disabled:cursor-not-allowed 
-                                        disabled:bg-slate-50 disabled:text-slate-400 
-                                        disabled:dark:bg-slate-900 disabled:dark:text-slate-500
-                                      `}
-                                      variant="outline"
-                                    >
-                                      {hasSignedCancel ? (
-                                        <>
-                                          <CheckCircle2 className="h-4 w-4 mr-2" />
-                                          <span>Signed</span>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <CheckCircle2 className="h-4 w-4 mr-2" />
-                                          <span>Sign Cancel</span>
-                                        </>
-                                      )}
-                                    </Button>
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom">
-                                  {!isOwner && ownerAddress
-                                    ? "Only the owner can sign cancellation meta-transactions"
-                                    : "Sign cancellation meta-transaction"}
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
-
-                          {(!isOwner && ownerAddress) && (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div className="w-full">
-                                    <Button
                                       onClick={() => handleBroadcastMetaTx(tx, 'approve')}
                                       disabled={
                                         isLoading || 
                                         !hasSignedApproval || 
                                         (!isBroadcaster && broadcasterAddress !== undefined)
                                       }
-                                      className="w-full transition-all duration-200 flex items-center justify-center bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800"
+                                      className={`w-full transition-all duration-200 flex items-center justify-center
+                                        bg-emerald-50 text-emerald-700 hover:bg-emerald-100 
+                                        dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 
+                                        border border-emerald-200 dark:border-emerald-800
+                                        disabled:opacity-50 disabled:cursor-not-allowed 
+                                        disabled:bg-slate-50 disabled:text-slate-400 
+                                        disabled:dark:bg-slate-900 disabled:dark:text-slate-500
+                                      `}
                                       variant="outline"
                                     >
-                                      <Clock className="h-4 w-4 mr-2" />
+                                      <Radio className="h-4 w-4 mr-2" />
                                       <span>Broadcast</span>
                                     </Button>
                                   </div>
                                 </TooltipTrigger>
                                 <TooltipContent side="bottom">
-                                  {!isBroadcaster && broadcasterAddress
+                                  {!hasSignedApproval
+                                    ? "Transaction must be signed before broadcasting"
+                                    : !isBroadcaster && broadcasterAddress
                                     ? "Only the broadcaster can broadcast meta-transactions"
                                     : "Broadcast the signed meta-transaction"}
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
-                          )}
+                          </div>
                         </div>
                       )}
                     </div>
