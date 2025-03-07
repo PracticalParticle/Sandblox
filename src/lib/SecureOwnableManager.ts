@@ -15,6 +15,7 @@ import {
 import { getChainName } from './utils';
 import SecureOwnable from '../particle-core/sdk/typescript/SecureOwnable';
 import { ExecutionType, TxStatus } from '../particle-core/sdk/typescript/types/lib.index';
+import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index';
 
 export class SecureOwnableManager {
   private contract: SecureOwnable;
@@ -36,72 +37,114 @@ export class SecureOwnableManager {
     this.contract = new SecureOwnable(publicClient, walletClient, address, chain);
   }
 
+  /**
+   * Maps a TxStatus enum value to a string status
+   * @param status The numeric status from the contract
+   * @returns A string representation of the status
+   */
+  private mapTxStatusToString(status: number): 'pending' | 'completed' | 'cancelled' {
+    switch (status) {
+      case TxStatus.PENDING:
+        return 'pending';
+      case TxStatus.COMPLETED:
+        return 'completed';
+      case TxStatus.CANCELLED:
+      case TxStatus.FAILED:
+      case TxStatus.REJECTED:
+      case TxStatus.UNDEFINED:
+      default:
+        return 'cancelled';
+    }
+  }
+
+  /**
+   * Calculates remaining time for a transaction
+   * @param releaseTime The release time as a bigint
+   * @returns The remaining time in seconds
+   */
+  private calculateRemainingTime(releaseTime: bigint): number {
+    const currentTimeBigInt = BigInt(Math.floor(Date.now() / 1000));
+    return releaseTime > currentTimeBigInt ? 
+      Number(releaseTime - currentTimeBigInt) : 0;
+  }
+
+  /**
+   * Maps an operation type hex to a human-readable type
+   * @param operationType The operation type as a hex string
+   * @returns The operation type as a string
+   */
+  private mapOperationType(operationType: Hex): OperationType {
+    const opTypeStr = Buffer.from(operationType.slice(2), 'hex')
+      .toString('utf8')
+      .replace(/\0/g, '');
+
+    switch (opTypeStr) {
+      case 'OWNERSHIP_TRANSFER':
+        return 'ownership';
+      case 'BROADCASTER_UPDATE':
+        return 'broadcaster';
+      case 'RECOVERY_UPDATE':
+        return 'recovery';
+      case 'TIMELOCK_UPDATE':
+        return 'timelock';
+      default:
+        throw new Error(`Unknown operation type: ${opTypeStr}`);
+    }
+  }
+
+  /**
+   * Converts a TxRecord to a SecurityOperationEvent
+   * @param op The transaction record from the contract
+   * @returns A SecurityOperationEvent or null if conversion fails
+   */
+  private convertToSecurityEvent(op: TxRecord): SecurityOperationEvent | null {
+    try {
+      const status = this.mapTxStatusToString(Number(op.status));
+      const type = this.mapOperationType(op.params.operationType as Hex);
+      const remainingTime = this.calculateRemainingTime(op.releaseTime);
+
+      const details: SecurityOperationDetails = {
+        oldValue: op.params.executionOptions,
+        newValue: op.params.value.toString(),
+        remainingTime
+      };
+
+      return {
+        type,
+        status,
+        timestamp: Number(op.releaseTime),
+        description: `${type.toUpperCase()} operation`,
+        details
+      };
+    } catch (error) {
+      console.warn('Failed to parse operation:', error);
+      return null;
+    }
+  }
+
   async loadContractInfo(): Promise<SecureContractInfo> {
     try {
       // Fetch contract details using Promise.all for better performance
-      const [owner, broadcaster, recoveryAddress, timeLockPeriodInMinutes] = await Promise.all([
+      const [
+        owner,
+        broadcaster,
+        recoveryAddress,
+        timeLockPeriodInMinutes,
+        history,
+        chainId
+      ] = await Promise.all([
         this.contract.owner(),
         this.contract.getBroadcaster(),
         this.contract.getRecoveryAddress(),
-        this.contract.getTimeLockPeriodInMinutes()
+        this.contract.getTimeLockPeriodInMinutes(),
+        this.contract.getOperationHistory(),
+        this.publicClient.getChainId()
       ]);
 
-      // Get operation history
-      const history = await this.contract.getOperationHistory();
-      const events: SecurityOperationEvent[] = history.map(op => {
-        try {
-          const operationType = op.params.operationType ? 
-            Buffer.from(op.params.operationType.slice(2), 'hex')
-              .toString('utf8')
-              .replace(/\0/g, '') : '';
-
-          // Map numeric status to string using TxStatus enum
-          const status = (() => {
-            switch (Number(op.status)) {
-              case TxStatus.PENDING:
-                return 'pending';
-              case TxStatus.COMPLETED:
-                return 'completed';
-              case TxStatus.CANCELLED:
-                return 'cancelled';
-              case TxStatus.FAILED:
-                return 'failed';
-              case TxStatus.REJECTED:
-                return 'rejected';
-              case TxStatus.UNDEFINED:
-              default:
-                return 'undefined';
-            }
-          })();
-
-          // Handle time calculations with bigint
-          const releaseTimeBigInt = BigInt(op.releaseTime.toString()); // Ensure it's bigint
-          const currentTimeBigInt = BigInt(Math.floor(Date.now() / 1000));
-          const remainingTime = releaseTimeBigInt > currentTimeBigInt ? 
-            Number(releaseTimeBigInt - currentTimeBigInt) : 0;
-
-          const details: SecurityOperationDetails = {
-            oldValue: op.params.executionOptions,
-            newValue: op.params.value.toString(),
-            remainingTime
-          };
-
-          return {
-            type: operationType === 'OWNERSHIP_TRANSFER' ? 'ownership' :
-                  operationType === 'BROADCASTER_UPDATE' ? 'broadcaster' :
-                  operationType === 'RECOVERY_UPDATE' ? 'recovery' : 'timelock',
-            status,
-            timestamp: Number(op.releaseTime),
-            description: `${operationType.replace(/_/g, ' ')} operation`,
-            details
-          };
-        } catch (error) {
-          console.warn('Failed to parse operation:', error);
-          return null;
-        }
-      }).filter((event): event is SecurityOperationEvent => event !== null);
-
-      const chainId = await this.publicClient.getChainId();
+      // Convert operation history to SecurityOperationEvents
+      const events = history
+        .map(op => this.convertToSecurityEvent(op))
+        .filter((event): event is SecurityOperationEvent => event !== null);
 
       return {
         address: this.address,
