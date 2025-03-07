@@ -10,11 +10,12 @@ import { TxStatus } from "@/particle-core/sdk/typescript/types/lib.index";
 import { useMultiPhaseTemporalAction } from "@/hooks/useMultiPhaseTemporalAction";
 import { TxRecord } from "../../../particle-core/sdk/typescript/interfaces/lib.index";
 import { useSimpleVaultOperations, VAULT_OPERATIONS } from "../hooks/useSimpleVaultOperations";
+import { useTransactionManager } from "@/hooks/useTransactionManager";
 import { usePublicClient, useWalletClient, useChainId, useConfig } from "wagmi";
 import SimpleVault from "../SimpleVault";
-import { useRoleValidation } from "@/hooks/useRoleValidation";
 import { useOperationTypes } from "@/hooks/useOperationTypes";
 import { NotificationMessage } from "../lib/types";
+import { useActionPermissions } from "@/hooks/useActionPermissions";
 
 // Helper function to recursively convert BigInt values to strings
 const convertBigIntsToStrings = (obj: any): any => {
@@ -80,27 +81,19 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
   onRefresh,
   signedMetaTxStates
 }) => {
-  // Remove state for holding pending transactions
   const [isRefreshing, setIsRefreshing] = React.useState<boolean>(false);
-  
-  // Hooks for wallet integration
-  const chainId = useChainId();
-  const config = useConfig();
   
   // Get operation types for mapping hex values to human-readable names
   const { getOperationName, loading: loadingOperationTypes } = useOperationTypes(contractAddress);
 
-  // Role validation
-  const roleValidation = useRoleValidation(
-    contractAddress as Address,
-    connectedAddress as Address | undefined,
-    React.useMemo(() => {
-      if (!chainId) return undefined;
-      return config.chains.find(c => c.id === chainId);
-    }, [chainId, config.chains])
-  );
-  
-  const { isOwner, isBroadcaster } = roleValidation;
+  // Get action permissions
+  const {
+    canTimeLockApprove,
+    canTimeLockCancel,
+    canMetaTxSign,
+    canMetaTxBroadcast,
+    isLoading: isLoadingPermissions
+  } = useActionPermissions(contractAddress, connectedAddress);
 
   // Refresh pending transactions manually
   const handleRefresh = () => {
@@ -335,7 +328,13 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                 <div className="flex-1">
                                   <Button
                                     onClick={() => handleApproveAction(Number(tx.txId))}
-                                    disabled={!isReady || isLoading || tx.status !== TxStatus.PENDING || !isTimeLockComplete}
+                                    disabled={
+                                      !canTimeLockApprove || 
+                                      !isReady || 
+                                      isLoading || 
+                                      tx.status !== TxStatus.PENDING || 
+                                      !isTimeLockComplete
+                                    }
                                     className={`w-full transition-all duration-200 flex items-center justify-center
                                       ${isTimeLockComplete 
                                         ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800'
@@ -344,7 +343,6 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                       disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 disabled:dark:bg-slate-900 disabled:dark:text-slate-500
                                     `}
                                     variant="outline"
-                                    aria-label={`Approve transaction #${tx.txId}`}
                                   >
                                     {isTimeLockComplete && <CheckCircle2 className="h-4 w-4 mr-2" />}
                                     <span>Approve</span>
@@ -352,11 +350,13 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                 </div>
                               </TooltipTrigger>
                               <TooltipContent side="bottom">
-                                {!isTimeLockComplete 
-                                  ? "Time lock period not complete" 
-                                  : isReady 
-                                    ? "Approve this withdrawal request" 
-                                    : "Not yet ready for approval"}
+                                {!canTimeLockApprove
+                                  ? "Only the owner can approve transactions"
+                                  : !isTimeLockComplete 
+                                    ? "Time lock period not complete" 
+                                    : isReady 
+                                      ? "Approve this withdrawal request" 
+                                      : "Not yet ready for approval"}
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
@@ -367,17 +367,16 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                 <div className="flex-1">
                                   <Button
                                     onClick={() => handleCancelAction(Number(tx.txId))}
-                                    disabled={isLoading || tx.status !== TxStatus.PENDING}
+                                    disabled={!canTimeLockCancel || isLoading || tx.status !== TxStatus.PENDING}
                                     className={`w-full transition-all duration-200 flex items-center justify-center
                                       bg-rose-50 text-rose-700 hover:bg-rose-100 
                                       dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
                                       border border-rose-200 dark:border-rose-800
                                       disabled:opacity-50 disabled:cursor-not-allowed 
                                       disabled:bg-slate-50 disabled:text-slate-400 
-                                      disabled:dark:bg-slate-900 disabled:dark:text-slate-500"
+                                      disabled:dark:bg-slate-900 disabled:dark:text-slate-500
                                     `}
                                     variant="outline"
-                                    aria-label={`Cancel transaction #${tx.txId}`}
                                   >
                                     <X className="h-4 w-4 mr-2" />
                                     <span>Cancel</span>
@@ -385,9 +384,11 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                 </div>
                               </TooltipTrigger>
                               <TooltipContent side="bottom">
-                                {tx.status !== TxStatus.PENDING 
-                                  ? "This transaction cannot be cancelled" 
-                                  : "Cancel this withdrawal request"}
+                                {!canTimeLockCancel
+                                  ? "Only the owner can cancel transactions"
+                                  : tx.status !== TxStatus.PENDING 
+                                    ? "This transaction cannot be cancelled" 
+                                    : "Cancel this withdrawal request"}
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
@@ -402,10 +403,10 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                     <Button
                                       onClick={() => handleMetaTxSign(tx, 'approve')}
                                       disabled={
+                                        !canMetaTxSign ||
                                         isLoading || 
                                         tx.status !== TxStatus.PENDING || 
-                                        hasSignedApproval || 
-                                        (!isOwner && ownerAddress !== undefined)
+                                        hasSignedApproval
                                       }
                                       className={`w-full transition-all duration-200 flex items-center justify-center
                                         bg-emerald-50 text-emerald-700 hover:bg-emerald-100 
@@ -432,11 +433,11 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                   </div>
                                 </TooltipTrigger>
                                 <TooltipContent side="bottom">
-                                  {!isOwner && ownerAddress 
+                                  {!canMetaTxSign
                                     ? "Only the owner can sign approval meta-transactions"
                                     : hasSignedApproval
-                                    ? "Transaction is already signed"
-                                    : "Sign approval meta-transaction"}
+                                      ? "Transaction is already signed"
+                                      : "Sign approval meta-transaction"}
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
@@ -448,9 +449,9 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                     <Button
                                       onClick={() => handleBroadcastMetaTx(tx, 'approve')}
                                       disabled={
+                                        !canMetaTxBroadcast ||
                                         isLoading || 
-                                        !hasSignedApproval || 
-                                        (!isBroadcaster && broadcasterAddress !== undefined)
+                                        !hasSignedApproval
                                       }
                                       className={`w-full transition-all duration-200 flex items-center justify-center
                                         bg-emerald-50 text-emerald-700 hover:bg-emerald-100 
@@ -470,9 +471,9 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                 <TooltipContent side="bottom">
                                   {!hasSignedApproval
                                     ? "Transaction must be signed before broadcasting"
-                                    : !isBroadcaster && broadcasterAddress
-                                    ? "Only the broadcaster can broadcast meta-transactions"
-                                    : "Broadcast the signed meta-transaction"}
+                                    : !canMetaTxBroadcast
+                                      ? "Only the broadcaster can broadcast meta-transactions"
+                                      : "Broadcast the signed meta-transaction"}
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
