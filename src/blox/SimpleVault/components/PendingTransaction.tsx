@@ -454,9 +454,10 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                         !hasSignedApproval
                                       }
                                       className={`w-full transition-all duration-200 flex items-center justify-center
-                                        bg-emerald-50 text-emerald-700 hover:bg-emerald-100 
-                                        dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 
-                                        border border-emerald-200 dark:border-emerald-800
+                                        ${hasSignedApproval 
+                                          ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800'
+                                          : 'bg-slate-50 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
+                                        }
                                         disabled:opacity-50 disabled:cursor-not-allowed 
                                         disabled:bg-slate-50 disabled:text-slate-400 
                                         disabled:dark:bg-slate-900 disabled:dark:text-slate-500
