@@ -16,6 +16,7 @@ import { getChainName } from './utils';
 import SecureOwnable from '../particle-core/sdk/typescript/SecureOwnable';
 import { ExecutionType, TxStatus } from '../particle-core/sdk/typescript/types/lib.index';
 import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index';
+import { FUNCTION_SELECTORS, OPERATION_TYPES } from '../particle-core/sdk/typescript/types/core.access.index';
 
 export class SecureOwnableManager {
   private contract: SecureOwnable;
@@ -23,18 +24,21 @@ export class SecureOwnableManager {
   private walletClient?: WalletClient;
   private chain: Chain;
   private address: Address;
+  private storeTransaction?: (txId: string, signedData: string, metadata: any) => void;
 
   constructor(
     publicClient: PublicClient, 
     walletClient: WalletClient | undefined, 
     address: Address, 
-    chain: Chain
+    chain: Chain,
+    storeTransaction?: (txId: string, signedData: string, metadata: any) => void
   ) {
     this.publicClient = publicClient;
     this.walletClient = walletClient;
     this.chain = chain;
     this.address = address;
     this.contract = new SecureOwnable(publicClient, walletClient, address, chain);
+    this.storeTransaction = storeTransaction;
   }
 
   /**
@@ -254,5 +258,131 @@ export class SecureOwnableManager {
       executionOptions,
       metaTxParams
     );
+  }
+
+  // Enhanced Recovery Management
+  async prepareAndSignRecoveryUpdate(
+    newRecoveryAddress: Address,
+    options: { from: Address }
+  ): Promise<void> {
+    if (!this.walletClient) {
+      throw new Error('Wallet client is required');
+    }
+
+    // Get execution options for recovery update
+    const executionOptions = await this.contract.updateRecoveryExecutionOptions(
+      newRecoveryAddress,
+      options
+    );
+
+    // Generate meta transaction parameters
+    const metaTxParams = await this.contract.createMetaTxParams(
+      this.address,
+      FUNCTION_SELECTORS.UPDATE_RECOVERY as Hex,
+      BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
+      BigInt(0), // No max gas price
+      options.from
+    );
+
+    // Generate unsigned meta transaction
+    const unsignedMetaTx = await this.contract.generateUnsignedMetaTransactionForNew(
+      options.from,
+      this.address,
+      BigInt(0), // No value
+      BigInt(0), // No gas limit
+      OPERATION_TYPES.RECOVERY_UPDATE as Hex,
+      ExecutionType.STANDARD,
+      executionOptions,
+      metaTxParams
+    );
+
+    // Get the message hash and sign it
+    const messageHash = unsignedMetaTx.message;
+    const signature = await this.walletClient.signMessage({
+      message: { raw: messageHash as Hex },
+      account: options.from
+    });
+
+    // Create the complete signed meta transaction
+    const signedMetaTx = {
+      ...unsignedMetaTx,
+      signature: signature as Hex
+    };
+
+    // Store the transaction if storeTransaction is provided
+    if (this.storeTransaction) {
+      this.storeTransaction(
+        '0', // txId 0 is used for single phase meta transactions
+        JSON.stringify(signedMetaTx),
+        {
+          type: 'RECOVERY_UPDATE',
+          newRecoveryAddress,
+          timestamp: Date.now()
+        }
+      );
+    }
+  }
+
+  // Enhanced TimeLock Management
+  async prepareAndSignTimeLockUpdate(
+    newPeriodInMinutes: bigint,
+    options: { from: Address }
+  ): Promise<void> {
+    if (!this.walletClient) {
+      throw new Error('Wallet client is required');
+    }
+
+    // Get execution options for timelock update
+    const executionOptions = await this.contract.updateTimeLockExecutionOptions(
+      newPeriodInMinutes,
+      options
+    );
+
+    // Generate meta transaction parameters
+    const metaTxParams = await this.contract.createMetaTxParams(
+      this.address,
+      FUNCTION_SELECTORS.UPDATE_TIMELOCK as Hex,
+      BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
+      BigInt(0), // No max gas price
+      options.from
+    );
+
+    // Generate unsigned meta transaction
+    const unsignedMetaTx = await this.contract.generateUnsignedMetaTransactionForNew(
+      options.from,
+      this.address,
+      BigInt(0), // No value
+      BigInt(0), // No gas limit
+      OPERATION_TYPES.TIMELOCK_UPDATE as Hex,
+      ExecutionType.STANDARD,
+      executionOptions,
+      metaTxParams
+    );
+
+    // Get the message hash and sign it
+    const messageHash = unsignedMetaTx.message;
+    const signature = await this.walletClient.signMessage({
+      message: { raw: messageHash as Hex },
+      account: options.from
+    });
+
+    // Create the complete signed meta transaction
+    const signedMetaTx = {
+      ...unsignedMetaTx,
+      signature: signature as Hex
+    };
+
+    // Store the transaction if storeTransaction is provided
+    if (this.storeTransaction) {
+      this.storeTransaction(
+        '0', // txId 0 is used for single phase meta transactions
+        JSON.stringify(signedMetaTx),
+        {
+          type: 'TIMELOCK_UPDATE',
+          newTimeLockPeriod: Number(newPeriodInMinutes),
+          timestamp: Date.now()
+        }
+      );
+    }
   }
 } 
