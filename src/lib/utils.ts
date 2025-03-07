@@ -181,4 +181,32 @@ export function formatTimestamp(timestamp: number): string {
     minute: '2-digit',
     hour12: true
   })
+}
+
+/**
+ * Recursively converts all BigInt values in an object to strings
+ * This is useful when we need to serialize data that contains BigInt values
+ */
+export function convertBigIntsToStrings(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+
+  if (typeof obj === 'bigint') {
+    return obj.toString();
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(convertBigIntsToStrings);
+  }
+
+  if (typeof obj === 'object') {
+    const result: { [key: string]: any } = {};
+    for (const key in obj) {
+      result[key] = convertBigIntsToStrings(obj[key]);
+    }
+    return result;
+  }
+
+  return obj;
 } 
