@@ -931,7 +931,7 @@ export function SecurityDetails() {
                     </div>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Recovery Address</p>
+                    <p className="text-sm text-muted-foreground">Recovery</p>
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium truncate flex-1">{contractInfo.recoveryAddress}</p>
                       {isRoleConnected(contractInfo.recoveryAddress) ? (
@@ -969,7 +969,7 @@ export function SecurityDetails() {
               <Card className="relative">
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle>Ownership</CardTitle>
+                    <CardTitle>Recovery (Transfer Ownership)</CardTitle>
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger>
@@ -1059,7 +1059,7 @@ export function SecurityDetails() {
               <Card className="relative">
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle>Broadcaster</CardTitle>
+                    <CardTitle>Broadcaster Configuration</CardTitle>
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger>
@@ -1151,7 +1151,7 @@ export function SecurityDetails() {
               <Card className="relative">
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle>Recovery</CardTitle>
+                    <CardTitle>Recovery Configuration</CardTitle>
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger>
@@ -1222,7 +1222,7 @@ export function SecurityDetails() {
               <Card className="relative">
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle>TimeLock</CardTitle>
+                    <CardTitle>TimeLock Configuration</CardTitle>
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger>
