@@ -1,11 +1,9 @@
-import { 
-  Address, 
-  PublicClient, 
-  WalletClient,
-  Chain,
-  Hash,
-  Hex
-} from 'viem';
+import { Address, Chain, Hash, Hex, PublicClient, WalletClient } from 'viem';
+import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index';
+import { FUNCTION_SELECTORS, OPERATION_TYPES } from '../particle-core/sdk/typescript/types/core.access.index';
+import { TransactionResult, TransactionOptions } from '../particle-core/sdk/typescript/interfaces/base.index';
+import { MetaTransaction, MetaTxParams } from '../particle-core/sdk/typescript/interfaces/lib.index';
+import { ExecutionType } from '../particle-core/sdk/typescript/types/lib.index';
 import { 
   SecureContractInfo, 
   SecurityOperationEvent, 
@@ -14,8 +12,7 @@ import {
 } from './types';
 import { getChainName } from './utils';
 import SecureOwnable from '../particle-core/sdk/typescript/SecureOwnable';
-import { ExecutionType, TxStatus } from '../particle-core/sdk/typescript/types/lib.index';
-import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index';
+import { TxStatus } from '../particle-core/sdk/typescript/types/lib.index';
 
 export class SecureOwnableManager {
   private contract: SecureOwnable;
@@ -23,18 +20,22 @@ export class SecureOwnableManager {
   private walletClient?: WalletClient;
   private chain: Chain;
   private address: Address;
+  private storeTransaction?: (txId: string, signedData: string, metadata: any) => void;
+  private operationTypeMap: Map<string, string> | null = null;
 
   constructor(
     publicClient: PublicClient, 
     walletClient: WalletClient | undefined, 
     address: Address, 
-    chain: Chain
+    chain: Chain,
+    storeTransaction?: (txId: string, signedData: string, metadata: any) => void
   ) {
     this.publicClient = publicClient;
     this.walletClient = walletClient;
     this.chain = chain;
     this.address = address;
     this.contract = new SecureOwnable(publicClient, walletClient, address, chain);
+    this.storeTransaction = storeTransaction;
   }
 
   /**
@@ -73,22 +74,47 @@ export class SecureOwnableManager {
    * @param operationType The operation type as a hex string
    * @returns The operation type as a string
    */
-  private mapOperationType(operationType: Hex): OperationType {
-    const opTypeStr = Buffer.from(operationType.slice(2), 'hex')
-      .toString('utf8')
-      .replace(/\0/g, '');
+  private async mapOperationType(operationType: Hex): Promise<OperationType> {
+    try {
+      // Initialize operation type map if not already done
+      if (!this.operationTypeMap) {
+        const supportedTypes = await this.contract.getSupportedOperationTypes();
+        // Only map our core operation types
+        const coreOperations = supportedTypes.filter(({ name }) => [
+          'OWNERSHIP_TRANSFER',
+          'BROADCASTER_UPDATE',
+          'RECOVERY_UPDATE',
+          'TIMELOCK_UPDATE'
+        ].includes(name));
+        
+        this.operationTypeMap = new Map(
+          coreOperations.map(({ operationType, name }) => [operationType, name])
+        );
+      }
 
-    switch (opTypeStr) {
-      case 'OWNERSHIP_TRANSFER':
-        return 'ownership';
-      case 'BROADCASTER_UPDATE':
-        return 'broadcaster';
-      case 'RECOVERY_UPDATE':
-        return 'recovery';
-      case 'TIMELOCK_UPDATE':
-        return 'timelock';
-      default:
-        throw new Error(`Unknown operation type: ${opTypeStr}`);
+      // Get the operation name from the map
+      const operationName = this.operationTypeMap.get(operationType);
+      if (!operationName) {
+        // If not one of our core operations, return null to be filtered out
+        return null as unknown as OperationType;
+      }
+
+      // Map the operation name to our internal type
+      switch (operationName) {
+        case 'OWNERSHIP_TRANSFER':
+          return 'ownership';
+        case 'BROADCASTER_UPDATE':
+          return 'broadcaster';
+        case 'RECOVERY_UPDATE':
+          return 'recovery';
+        case 'TIMELOCK_UPDATE':
+          return 'timelock';
+        default:
+          return null as unknown as OperationType;
+      }
+    } catch (error) {
+      console.error('Error mapping operation type:', error);
+      return null as unknown as OperationType;
     }
   }
 
@@ -97,10 +123,16 @@ export class SecureOwnableManager {
    * @param op The transaction record from the contract
    * @returns A SecurityOperationEvent or null if conversion fails
    */
-  private convertToSecurityEvent(op: TxRecord): SecurityOperationEvent | null {
+  private async convertToSecurityEvent(op: TxRecord): Promise<SecurityOperationEvent | null> {
     try {
       const status = this.mapTxStatusToString(Number(op.status));
-      const type = this.mapOperationType(op.params.operationType as Hex);
+      const type = await this.mapOperationType(op.params.operationType as Hex);
+      
+      // If the operation type is null (not one of our core types), skip this record
+      if (type === null) {
+        return null;
+      }
+      
       const remainingTime = this.calculateRemainingTime(op.releaseTime);
 
       const details: SecurityOperationDetails = {
@@ -142,9 +174,10 @@ export class SecureOwnableManager {
       ]);
 
       // Convert operation history to SecurityOperationEvents
-      const events = history
-        .map(op => this.convertToSecurityEvent(op))
-        .filter((event): event is SecurityOperationEvent => event !== null);
+      const events = await Promise.all(
+        history.map(op => this.convertToSecurityEvent(op))
+      );
+      const validEvents = events.filter((event): event is SecurityOperationEvent => event !== null);
 
       return {
         address: this.address,
@@ -153,8 +186,8 @@ export class SecureOwnableManager {
         broadcaster,
         recoveryAddress,
         timeLockPeriodInMinutes: Number(timeLockPeriodInMinutes),
-        pendingOperations: events.filter(e => e.status === 'pending'),
-        recentEvents: events.filter(e => e.status !== 'pending').slice(0, 5),
+        pendingOperations: validEvents.filter(e => e.status === 'pending'),
+        recentEvents: validEvents.filter(e => e.status !== 'pending').slice(0, 5),
         chainId,
         chainName: getChainName(chainId, [this.chain]),
         operationHistory: history
@@ -197,62 +230,440 @@ export class SecureOwnableManager {
     return result.hash;
   }
 
-  // Recovery Management
-  async updateRecoveryAddress(newRecoveryAddress: Address, options: { from: Address }): Promise<Hash> {
-    const executionOptions = await this.contract.updateRecoveryExecutionOptions(newRecoveryAddress, options);
-    const metaTxParams = await this.generateMetaTxParams(options.from);
-    const metaTx = await this.generateUnsignedMetaTransactionForNew(
-      options.from,
-      'RECOVERY_UPDATE',
-      executionOptions,
-      metaTxParams
-    );
-    const result = await this.contract.updateRecoveryRequestAndApprove(metaTx, options);
-    return result.hash;
-  }
+  // Enhanced Recovery Management
+  async prepareAndSignRecoveryUpdate(
+    newRecoveryAddress: Address,
+    options: { from: Address }
+  ): Promise<void> {
+    if (!this.walletClient) {
+      throw new Error('Wallet client is required');
+    }
 
-  // TimeLock Management
-  async updateTimeLockPeriod(newPeriodInMinutes: bigint, options: { from: Address }): Promise<Hash> {
-    const executionOptions = await this.contract.updateTimeLockExecutionOptions(newPeriodInMinutes, options);
-    const metaTxParams = await this.generateMetaTxParams(options.from);
-    const metaTx = await this.generateUnsignedMetaTransactionForNew(
-      options.from,
-      'TIMELOCK_UPDATE',
-      executionOptions,
-      metaTxParams
+    // Get execution options for recovery update
+    const executionOptions = await this.contract.updateRecoveryExecutionOptions(
+      newRecoveryAddress,
+      options
     );
-    const result = await this.contract.updateTimeLockRequestAndApprove(metaTx, options);
-    return result.hash;
-  }
 
-  private async generateMetaTxParams(signer: Address) {
-    const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600); // 1 hour from now
-    return this.contract.createMetaTxParams(
+    // Generate meta transaction parameters
+    const metaTxParams = await this.contract.createMetaTxParams(
       this.address,
-      '0x' as Hex, // Will be set by the contract
-      deadline,
-      0n, // No max gas price limit
-      signer
+      FUNCTION_SELECTORS.UPDATE_RECOVERY as Hex,
+      BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
+      BigInt(0), // No max gas price
+      options.from
     );
-  }
 
-  private async generateUnsignedMetaTransactionForNew(
-    requester: Address,
-    operationType: string,
-    executionOptions: Hex,
-    metaTxParams: any
-  ) {
-    const operationTypeHex = ('0x' + Buffer.from(operationType, 'utf8').toString('hex')) as Hex;
-    
-    return this.contract.generateUnsignedMetaTransactionForNew(
-      requester,
+    // Generate unsigned meta transaction
+    const unsignedMetaTx = await this.contract.generateUnsignedMetaTransactionForNew(
+      options.from,
       this.address,
-      0n, // no value
-      500000n, // gas limit
-      operationTypeHex,
+      BigInt(0), // No value
+      BigInt(0), // No gas limit
+      OPERATION_TYPES.RECOVERY_UPDATE as Hex,
       ExecutionType.STANDARD,
       executionOptions,
       metaTxParams
     );
+
+    // Get the message hash and sign it
+    const messageHash = unsignedMetaTx.message;
+    const signature = await this.walletClient.signMessage({
+      message: { raw: messageHash as Hex },
+      account: options.from
+    });
+
+    // Create the complete signed meta transaction
+    const signedMetaTx = {
+      ...unsignedMetaTx,
+      signature: signature as Hex
+    };
+
+    // Store the transaction if storeTransaction is provided
+    if (this.storeTransaction) {
+      this.storeTransaction(
+        '0', // txId 0 is used for single phase meta transactions
+        JSON.stringify(signedMetaTx),
+        {
+          type: 'RECOVERY_UPDATE',
+          newRecoveryAddress,
+          timestamp: Date.now()
+        }
+      );
+    }
+  }
+
+  // Enhanced TimeLock Management
+  async prepareAndSignTimeLockUpdate(
+    newPeriodInMinutes: bigint,
+    options: { from: Address }
+  ): Promise<void> {
+    if (!this.walletClient) {
+      throw new Error('Wallet client is required');
+    }
+
+    // Get execution options for timelock update
+    const executionOptions = await this.contract.updateTimeLockExecutionOptions(
+      newPeriodInMinutes,
+      options
+    );
+
+    // Generate meta transaction parameters
+    const metaTxParams = await this.contract.createMetaTxParams(
+      this.address,
+      FUNCTION_SELECTORS.UPDATE_TIMELOCK as Hex,
+      BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
+      BigInt(0), // No max gas price
+      options.from
+    );
+
+    // Generate unsigned meta transaction
+    const unsignedMetaTx = await this.contract.generateUnsignedMetaTransactionForNew(
+      options.from,
+      this.address,
+      BigInt(0), // No value
+      BigInt(0), // No gas limit
+      OPERATION_TYPES.TIMELOCK_UPDATE as Hex,
+      ExecutionType.STANDARD,
+      executionOptions,
+      metaTxParams
+    );
+
+    // Get the message hash and sign it
+    const messageHash = unsignedMetaTx.message;
+    const signature = await this.walletClient.signMessage({
+      message: { raw: messageHash as Hex },
+      account: options.from
+    });
+
+    // Create the complete signed meta transaction
+    const signedMetaTx = {
+      ...unsignedMetaTx,
+      signature: signature as Hex
+    };
+
+    // Store the transaction if storeTransaction is provided
+    if (this.storeTransaction) {
+      this.storeTransaction(
+        '0', // txId 0 is used for single phase meta transactions
+        JSON.stringify(signedMetaTx),
+        {
+          type: 'TIMELOCK_UPDATE',
+          newTimeLockPeriod: Number(newPeriodInMinutes),
+          timestamp: Date.now()
+        }
+      );
+    }
+  }
+
+  /**
+   * Prepares and signs a meta transaction for approving a pending ownership transfer
+   * @param txId The transaction ID to approve
+   * @param options Transaction options with the signer address
+   * @returns The signed meta transaction data
+   */
+  async prepareAndSignOwnershipApproval(
+    txId: bigint,
+    options: { from: Address }
+  ): Promise<string> {
+    try {
+      if (!this.walletClient) {
+        throw new Error('Wallet client is required');
+      }
+
+      // Generate meta transaction parameters
+      const metaTxParams = await this.contract.createMetaTxParams(
+        this.address,
+        FUNCTION_SELECTORS.TRANSFER_OWNERSHIP_META as Hex,
+        BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
+        BigInt(0), // No max gas price
+        options.from
+      );
+
+      // Generate unsigned meta transaction for existing tx
+      const unsignedMetaTx = await this.contract.generateUnsignedMetaTransactionForExisting(
+        txId,
+        metaTxParams
+      );
+
+      // Get the message hash and sign it
+      const messageHash = unsignedMetaTx.message;
+      const signature = await this.walletClient.signMessage({
+        message: { raw: messageHash as Hex },
+        account: options.from
+      });
+
+      // Create the complete signed meta transaction
+      const signedMetaTx = {
+        ...unsignedMetaTx,
+        signature
+      };
+
+      // Store the transaction if a store function is provided
+      if (this.storeTransaction) {
+        this.storeTransaction(
+          txId.toString(),
+          JSON.stringify(signedMetaTx),
+          {
+            type: 'OWNERSHIP_TRANSFER',
+            broadcasted: false
+          }
+        );
+      }
+
+      return JSON.stringify(signedMetaTx);
+    } catch (error) {
+      console.error('Error preparing ownership approval meta transaction:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Prepares and signs a meta transaction for cancelling a pending ownership transfer
+   * @param txId The transaction ID to cancel
+   * @param options Transaction options with the signer address
+   * @returns The signed meta transaction data
+   */
+  async prepareAndSignOwnershipCancellation(
+    txId: bigint,
+    options: { from: Address }
+  ): Promise<string> {
+    try {
+      if (!this.walletClient) {
+        throw new Error('Wallet client is required');
+      }
+
+      // Generate meta transaction parameters
+      const metaTxParams = await this.contract.createMetaTxParams(
+        this.address,
+        FUNCTION_SELECTORS.TRANSFER_OWNERSHIP_CANCEL_META as Hex,
+        BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
+        BigInt(0), // No max gas price
+        options.from
+      );
+
+      // Generate unsigned meta transaction for existing tx
+      const unsignedMetaTx = await this.contract.generateUnsignedMetaTransactionForExisting(
+        txId,
+        metaTxParams
+      );
+
+      // Get the message hash and sign it
+      const messageHash = unsignedMetaTx.message;
+      const signature = await this.walletClient.signMessage({
+        message: { raw: messageHash as Hex },
+        account: options.from
+      });
+
+      // Create the complete signed meta transaction
+      const signedMetaTx = {
+        ...unsignedMetaTx,
+        signature
+      };
+
+      // Store the transaction if a store function is provided
+      if (this.storeTransaction) {
+        this.storeTransaction(
+          txId.toString(),
+          JSON.stringify(signedMetaTx),
+          {
+            type: 'OWNERSHIP_TRANSFER',
+            broadcasted: false
+          }
+        );
+      }
+
+      return JSON.stringify(signedMetaTx);
+    } catch (error) {
+      console.error('Error preparing ownership cancellation meta transaction:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Prepares and signs a meta transaction for approving a pending broadcaster update
+   * @param txId The transaction ID to approve
+   * @param options Transaction options with the signer address
+   * @returns The signed meta transaction data
+   */
+  async prepareAndSignBroadcasterApproval(
+    txId: bigint,
+    options: { from: Address }
+  ): Promise<string> {
+    try {
+      if (!this.walletClient) {
+        throw new Error('Wallet client is required');
+      }
+
+      // Generate meta transaction parameters
+      const metaTxParams = await this.contract.createMetaTxParams(
+        this.address,
+        FUNCTION_SELECTORS.UPDATE_BROADCASTER_META as Hex,
+        BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
+        BigInt(0), // No max gas price
+        options.from
+      );
+
+      // Generate unsigned meta transaction for existing tx
+      const unsignedMetaTx = await this.contract.generateUnsignedMetaTransactionForExisting(
+        txId,
+        metaTxParams
+      );
+
+      // Get the message hash and sign it
+      const messageHash = unsignedMetaTx.message;
+      const signature = await this.walletClient.signMessage({
+        message: { raw: messageHash as Hex },
+        account: options.from
+      });
+
+      // Create the complete signed meta transaction
+      const signedMetaTx = {
+        ...unsignedMetaTx,
+        signature
+      };
+
+      // Store the transaction if a store function is provided
+      if (this.storeTransaction) {
+        this.storeTransaction(
+          txId.toString(),
+          JSON.stringify(signedMetaTx),
+          {
+            type: 'BROADCASTER_UPDATE',
+            broadcasted: false
+          }
+        );
+      }
+
+      return JSON.stringify(signedMetaTx);
+    } catch (error) {
+      console.error('Error preparing broadcaster approval meta transaction:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Prepares and signs a meta transaction for cancelling a pending broadcaster update
+   * @param txId The transaction ID to cancel
+   * @param options Transaction options with the signer address
+   * @returns The signed meta transaction data
+   */
+  async prepareAndSignBroadcasterCancellation(
+    txId: bigint,
+    options: { from: Address }
+  ): Promise<string> {
+    try {
+      if (!this.walletClient) {
+        throw new Error('Wallet client is required');
+      }
+
+      // Generate meta transaction parameters
+      const metaTxParams = await this.contract.createMetaTxParams(
+        this.address,
+        FUNCTION_SELECTORS.UPDATE_BROADCASTER_CANCEL_META as Hex,
+        BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
+        BigInt(0), // No max gas price
+        options.from
+      );
+
+      // Generate unsigned meta transaction for existing tx
+      const unsignedMetaTx = await this.contract.generateUnsignedMetaTransactionForExisting(
+        txId,
+        metaTxParams
+      );
+
+      // Get the message hash and sign it
+      const messageHash = unsignedMetaTx.message;
+      const signature = await this.walletClient.signMessage({
+        message: { raw: messageHash as Hex },
+        account: options.from
+      });
+
+      // Create the complete signed meta transaction
+      const signedMetaTx = {
+        ...unsignedMetaTx,
+        signature
+      };
+
+      // Store the transaction if a store function is provided
+      if (this.storeTransaction) {
+        this.storeTransaction(
+          txId.toString(),
+          JSON.stringify(signedMetaTx),
+          {
+            type: 'BROADCASTER_UPDATE',
+            broadcasted: false
+          }
+        );
+      }
+
+      return JSON.stringify(signedMetaTx);
+    } catch (error) {
+      console.error('Error preparing broadcaster cancellation meta transaction:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Executes a signed meta transaction through the contract
+   * @param signedMetaTxJson The signed meta transaction as a JSON string
+   * @param options Transaction options
+   * @param type The type of operation
+   * @returns The transaction hash
+   */
+  async executeMetaTransaction(
+    signedMetaTxJson: string, 
+    options: { from: Address },
+    type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE',
+    action: 'approve' | 'cancel'
+  ): Promise<Hash> {
+    try {
+      const signedMetaTx = JSON.parse(signedMetaTxJson) as MetaTransaction;
+      let result: TransactionResult;
+
+      // Execute the appropriate meta transaction based on type and action
+      if (type === 'OWNERSHIP_TRANSFER') {
+        if (action === 'approve') {
+          result = await this.contract.transferOwnershipApprovalWithMetaTx(
+            signedMetaTx,
+            options
+          );
+        } else {
+          result = await this.contract.transferOwnershipCancellationWithMetaTx(
+            signedMetaTx,
+            options
+          );
+        }
+      } else if (type === 'BROADCASTER_UPDATE') {
+        if (action === 'approve') {
+          result = await this.contract.updateBroadcasterApprovalWithMetaTx(
+            signedMetaTx,
+            options
+          );
+        } else {
+          result = await this.contract.updateBroadcasterCancellationWithMetaTx(
+            signedMetaTx,
+            options
+          );
+        }
+      } else if (type === 'RECOVERY_UPDATE') {
+        result = await this.contract.updateRecoveryRequestAndApprove(
+          signedMetaTx,
+          options
+        );
+      } else if (type === 'TIMELOCK_UPDATE') {
+        result = await this.contract.updateTimeLockRequestAndApprove(
+          signedMetaTx,
+          options
+        );
+      } else {
+        throw new Error(`Unsupported operation type: ${type}`);
+      }
+
+      return result.hash;
+    } catch (error) {
+      console.error('Error executing meta transaction:', error);
+      throw error;
+    }
   }
 } 
