@@ -25,6 +25,7 @@ export class SecureOwnableManager {
   private chain: Chain;
   private address: Address;
   private storeTransaction?: (txId: string, signedData: string, metadata: any) => void;
+  private operationTypeMap: Map<string, string> | null = null;
 
   constructor(
     publicClient: PublicClient, 
@@ -77,22 +78,47 @@ export class SecureOwnableManager {
    * @param operationType The operation type as a hex string
    * @returns The operation type as a string
    */
-  private mapOperationType(operationType: Hex): OperationType {
-    const opTypeStr = Buffer.from(operationType.slice(2), 'hex')
-      .toString('utf8')
-      .replace(/\0/g, '');
+  private async mapOperationType(operationType: Hex): Promise<OperationType> {
+    try {
+      // Initialize operation type map if not already done
+      if (!this.operationTypeMap) {
+        const supportedTypes = await this.contract.getSupportedOperationTypes();
+        // Only map our core operation types
+        const coreOperations = supportedTypes.filter(({ name }) => [
+          'OWNERSHIP_TRANSFER',
+          'BROADCASTER_UPDATE',
+          'RECOVERY_UPDATE',
+          'TIMELOCK_UPDATE'
+        ].includes(name));
+        
+        this.operationTypeMap = new Map(
+          coreOperations.map(({ operationType, name }) => [operationType, name])
+        );
+      }
 
-    switch (opTypeStr) {
-      case 'OWNERSHIP_TRANSFER':
-        return 'ownership';
-      case 'BROADCASTER_UPDATE':
-        return 'broadcaster';
-      case 'RECOVERY_UPDATE':
-        return 'recovery';
-      case 'TIMELOCK_UPDATE':
-        return 'timelock';
-      default:
-        throw new Error(`Unknown operation type: ${opTypeStr}`);
+      // Get the operation name from the map
+      const operationName = this.operationTypeMap.get(operationType);
+      if (!operationName) {
+        // If not one of our core operations, return null to be filtered out
+        return null as unknown as OperationType;
+      }
+
+      // Map the operation name to our internal type
+      switch (operationName) {
+        case 'OWNERSHIP_TRANSFER':
+          return 'ownership';
+        case 'BROADCASTER_UPDATE':
+          return 'broadcaster';
+        case 'RECOVERY_UPDATE':
+          return 'recovery';
+        case 'TIMELOCK_UPDATE':
+          return 'timelock';
+        default:
+          return null as unknown as OperationType;
+      }
+    } catch (error) {
+      console.error('Error mapping operation type:', error);
+      return null as unknown as OperationType;
     }
   }
 
@@ -101,10 +127,10 @@ export class SecureOwnableManager {
    * @param op The transaction record from the contract
    * @returns A SecurityOperationEvent or null if conversion fails
    */
-  private convertToSecurityEvent(op: TxRecord): SecurityOperationEvent | null {
+  private async convertToSecurityEvent(op: TxRecord): Promise<SecurityOperationEvent | null> {
     try {
       const status = this.mapTxStatusToString(Number(op.status));
-      const type = this.mapOperationType(op.params.operationType as Hex);
+      const type = await this.mapOperationType(op.params.operationType as Hex);
       const remainingTime = this.calculateRemainingTime(op.releaseTime);
 
       const details: SecurityOperationDetails = {
@@ -117,7 +143,7 @@ export class SecureOwnableManager {
         type,
         status,
         timestamp: Number(op.releaseTime),
-        description: `${type.toUpperCase()} operation`,
+        description: `${type?.toUpperCase() || 'Unknown'} operation`,
         details
       };
     } catch (error) {
@@ -146,9 +172,10 @@ export class SecureOwnableManager {
       ]);
 
       // Convert operation history to SecurityOperationEvents
-      const events = history
-        .map(op => this.convertToSecurityEvent(op))
-        .filter((event): event is SecurityOperationEvent => event !== null);
+      const events = await Promise.all(
+        history.map(op => this.convertToSecurityEvent(op))
+      );
+      const validEvents = events.filter((event): event is SecurityOperationEvent => event !== null);
 
       return {
         address: this.address,
@@ -157,8 +184,8 @@ export class SecureOwnableManager {
         broadcaster,
         recoveryAddress,
         timeLockPeriodInMinutes: Number(timeLockPeriodInMinutes),
-        pendingOperations: events.filter(e => e.status === 'pending'),
-        recentEvents: events.filter(e => e.status !== 'pending').slice(0, 5),
+        pendingOperations: validEvents.filter(e => e.status === 'pending'),
+        recentEvents: validEvents.filter(e => e.status !== 'pending').slice(0, 5),
         chainId,
         chainName: getChainName(chainId, [this.chain]),
         operationHistory: history
