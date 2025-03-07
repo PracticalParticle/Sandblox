@@ -646,6 +646,11 @@
             "type": "tuple"
           },
           {
+            "internalType": "bytes32",
+            "name": "message",
+            "type": "bytes32"
+          },
+          {
             "internalType": "bytes",
             "name": "signature",
             "type": "bytes"
@@ -885,6 +890,11 @@
             "internalType": "struct MultiPhaseSecureOperation.MetaTxParams",
             "name": "params",
             "type": "tuple"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "message",
+            "type": "bytes32"
           },
           {
             "internalType": "bytes",
@@ -1378,6 +1388,11 @@
             "type": "tuple"
           },
           {
+            "internalType": "bytes32",
+            "name": "message",
+            "type": "bytes32"
+          },
+          {
             "internalType": "bytes",
             "name": "signature",
             "type": "bytes"
@@ -1746,6 +1761,11 @@
             "internalType": "struct MultiPhaseSecureOperation.MetaTxParams",
             "name": "params",
             "type": "tuple"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "message",
+            "type": "bytes32"
           },
           {
             "internalType": "bytes",
@@ -2222,6 +2242,11 @@
             "type": "tuple"
           },
           {
+            "internalType": "bytes32",
+            "name": "message",
+            "type": "bytes32"
+          },
+          {
             "internalType": "bytes",
             "name": "signature",
             "type": "bytes"
@@ -2590,6 +2615,11 @@
             "internalType": "struct MultiPhaseSecureOperation.MetaTxParams",
             "name": "params",
             "type": "tuple"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "message",
+            "type": "bytes32"
           },
           {
             "internalType": "bytes",
@@ -3091,6 +3121,11 @@
             "type": "tuple"
           },
           {
+            "internalType": "bytes32",
+            "name": "message",
+            "type": "bytes32"
+          },
+          {
             "internalType": "bytes",
             "name": "signature",
             "type": "bytes"
@@ -3368,6 +3403,11 @@
             "internalType": "struct MultiPhaseSecureOperation.MetaTxParams",
             "name": "params",
             "type": "tuple"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "message",
+            "type": "bytes32"
           },
           {
             "internalType": "bytes",
@@ -4011,6 +4051,11 @@
             "type": "tuple"
           },
           {
+            "internalType": "bytes32",
+            "name": "message",
+            "type": "bytes32"
+          },
+          {
             "internalType": "bytes",
             "name": "signature",
             "type": "bytes"
@@ -4447,165 +4492,9 @@
             "type": "tuple"
           },
           {
-            "internalType": "bytes",
-            "name": "signature",
-            "type": "bytes"
-          },
-          {
-            "internalType": "bytes",
-            "name": "data",
-            "type": "bytes"
-          }
-        ],
-        "internalType": "struct MultiPhaseSecureOperation.MetaTransaction",
-        "name": "",
-        "type": "tuple"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "components": [
-          {
-            "components": [
-              {
-                "internalType": "uint256",
-                "name": "txId",
-                "type": "uint256"
-              },
-              {
-                "internalType": "uint256",
-                "name": "releaseTime",
-                "type": "uint256"
-              },
-              {
-                "internalType": "enum MultiPhaseSecureOperation.TxStatus",
-                "name": "status",
-                "type": "uint8"
-              },
-              {
-                "components": [
-                  {
-                    "internalType": "address",
-                    "name": "requester",
-                    "type": "address"
-                  },
-                  {
-                    "internalType": "address",
-                    "name": "target",
-                    "type": "address"
-                  },
-                  {
-                    "internalType": "uint256",
-                    "name": "value",
-                    "type": "uint256"
-                  },
-                  {
-                    "internalType": "uint256",
-                    "name": "gasLimit",
-                    "type": "uint256"
-                  },
-                  {
-                    "internalType": "bytes32",
-                    "name": "operationType",
-                    "type": "bytes32"
-                  },
-                  {
-                    "internalType": "enum MultiPhaseSecureOperation.ExecutionType",
-                    "name": "executionType",
-                    "type": "uint8"
-                  },
-                  {
-                    "internalType": "bytes",
-                    "name": "executionOptions",
-                    "type": "bytes"
-                  }
-                ],
-                "internalType": "struct MultiPhaseSecureOperation.TxParams",
-                "name": "params",
-                "type": "tuple"
-              },
-              {
-                "internalType": "bytes",
-                "name": "result",
-                "type": "bytes"
-              },
-              {
-                "components": [
-                  {
-                    "internalType": "address",
-                    "name": "recipient",
-                    "type": "address"
-                  },
-                  {
-                    "internalType": "uint256",
-                    "name": "nativeTokenAmount",
-                    "type": "uint256"
-                  },
-                  {
-                    "internalType": "address",
-                    "name": "erc20TokenAddress",
-                    "type": "address"
-                  },
-                  {
-                    "internalType": "uint256",
-                    "name": "erc20TokenAmount",
-                    "type": "uint256"
-                  }
-                ],
-                "internalType": "struct MultiPhaseSecureOperation.PaymentDetails",
-                "name": "payment",
-                "type": "tuple"
-              }
-            ],
-            "internalType": "struct MultiPhaseSecureOperation.TxRecord",
-            "name": "txRecord",
-            "type": "tuple"
-          },
-          {
-            "components": [
-              {
-                "internalType": "uint256",
-                "name": "chainId",
-                "type": "uint256"
-              },
-              {
-                "internalType": "uint256",
-                "name": "nonce",
-                "type": "uint256"
-              },
-              {
-                "internalType": "address",
-                "name": "handlerContract",
-                "type": "address"
-              },
-              {
-                "internalType": "bytes4",
-                "name": "handlerSelector",
-                "type": "bytes4"
-              },
-              {
-                "internalType": "uint256",
-                "name": "deadline",
-                "type": "uint256"
-              },
-              {
-                "internalType": "uint256",
-                "name": "maxGasPrice",
-                "type": "uint256"
-              },
-              {
-                "internalType": "address",
-                "name": "signer",
-                "type": "address"
-              }
-            ],
-            "internalType": "struct MultiPhaseSecureOperation.MetaTxParams",
-            "name": "params",
-            "type": "tuple"
+            "internalType": "bytes32",
+            "name": "message",
+            "type": "bytes32"
           },
           {
             "internalType": "bytes",
@@ -4619,16 +4508,8 @@
           }
         ],
         "internalType": "struct MultiPhaseSecureOperation.MetaTransaction",
-        "name": "metaTx",
-        "type": "tuple"
-      }
-    ],
-    "name": "generateMessageHash",
-    "outputs": [
-      {
-        "internalType": "bytes32",
         "name": "",
-        "type": "bytes32"
+        "type": "tuple"
       }
     ],
     "stateMutability": "view",
