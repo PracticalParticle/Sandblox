@@ -3,17 +3,19 @@ import { Address } from 'viem';
 import { usePublicClient, useWalletClient } from 'wagmi';
 import SimpleVault from '../SimpleVault';
 import { useChain } from '@/hooks/useChain';
-import { useVaultMetaTx } from './useVaultMetaTx';
 import { useTransactionManager } from '@/hooks/useTransactionManager';
 import { convertBigIntsToStrings } from '@/lib/utils';
 import { NotificationMessage } from '../lib/types';
 import { VaultTxRecord } from '../components/PendingTransaction';
+import { createVaultMetaTxParams, getStoredMetaTxSettings } from '../SimpleVault.ui';
+import { MetaTransaction } from '@/particle-core/sdk/typescript/interfaces/lib.index';
 
 interface UseMetaTxActionsReturn {
   handleMetaTxSign: (tx: VaultTxRecord, type: 'approve' | 'cancel') => Promise<void>;
   handleBroadcastMetaTx: (tx: VaultTxRecord, type: 'approve' | 'cancel') => Promise<void>;
   signedMetaTxStates: Record<string, { type: 'approve' | 'cancel' }>;
   isLoading: boolean;
+  error: Error | null;
 }
 
 export function useMetaTxActions(
@@ -25,10 +27,10 @@ export function useMetaTxActions(
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const chain = useChain();
-  const { signWithdrawalApproval, isLoading: isSigningMetaTx } = useVaultMetaTx(contractAddress);
   const { transactions, storeTransaction, error: txManagerError } = useTransactionManager(contractAddress);
   const [signedMetaTxStates, setSignedMetaTxStates] = useState<Record<string, { type: 'approve' | 'cancel' }>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
 
   // Add error handling for transaction manager
   useEffect(() => {
@@ -40,6 +42,60 @@ export function useMetaTxActions(
       });
     }
   }, [txManagerError, onError]);
+
+  const signWithdrawalApproval = useCallback(async (txId: number): Promise<MetaTransaction> => {
+    if (!walletClient || !publicClient) {
+      throw new Error('Wallet not connected');
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Get chain from wallet client
+      const chain = walletClient.chain;
+      if (!chain) throw new Error('Chain not found');
+
+      // Create vault instance
+      const vault = new SimpleVault(publicClient, walletClient, contractAddress, chain);
+
+      // Get stored settings and create meta tx params
+      const storedSettings = getStoredMetaTxSettings();
+      const metaTxParams = createVaultMetaTxParams(storedSettings);
+
+      console.log('Using meta tx params:', {
+        storedSettings,
+        metaTxParams
+      });
+
+      // Generate unsigned meta transaction
+      const unsignedMetaTx = await vault.generateUnsignedWithdrawalMetaTxApproval(
+        BigInt(txId),
+        metaTxParams
+      );
+
+      // Get the signer's address
+      const [address] = await walletClient.getAddresses();
+
+      // Sign the message hash from the meta transaction
+      const signature = await walletClient.signMessage({
+        account: address,
+        message: unsignedMetaTx.message
+      });
+
+      // Return the signed meta transaction
+      return {
+        ...unsignedMetaTx,
+        signature
+      };
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('Failed to sign meta transaction');
+      setError(error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [contractAddress, publicClient, walletClient]);
 
   const handleMetaTxSign = useCallback(async (tx: VaultTxRecord, type: 'approve' | 'cancel') => {
     try {
@@ -177,6 +233,7 @@ export function useMetaTxActions(
     handleMetaTxSign,
     handleBroadcastMetaTx,
     signedMetaTxStates,
-    isLoading: isLoading || isSigningMetaTx
+    isLoading: isLoading,
+    error: error
   };
 } 
