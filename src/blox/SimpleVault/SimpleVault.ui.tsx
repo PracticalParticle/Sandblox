@@ -795,6 +795,18 @@ function SimpleVaultUIContent({
   // Keep metaTxSettings since it's used in createVaultMetaTxParams
   const [metaTxSettings] = useAtom(metaTxSettingsAtom);
 
+  // Save metaTxSettings to storage when they change
+  useEffect(() => {
+    try {
+      localStorage.setItem(META_TX_SETTINGS_KEY, JSON.stringify({
+        deadline: metaTxSettings.deadline.toString(),
+        maxGasPrice: metaTxSettings.maxGasPrice.toString()
+      }));
+    } catch (error) {
+      console.error('Failed to save meta tx settings to storage:', error);
+    }
+  }, [metaTxSettings]);
+
   // Add wallet balances hook after state declarations
   const trackedTokenAddresses = Object.keys(tokenBalances) as Address[];
   const walletBalances = useWalletBalances(trackedTokenAddresses);
@@ -804,6 +816,50 @@ function SimpleVaultUIContent({
 
   // Remove unused loadingOperationTypes from destructuring
   const { getOperationName } = useOperationTypes(contractAddress as Address);
+
+  // Define handleRefresh before it's used
+  const handleRefresh = useCallback(async () => {
+    if (!vault || _mock) {
+      console.log("Cannot fetch: vault not initialized or using mock data");
+      return;
+    }
+    
+    setLoadingState(prev => ({ ...prev, ethBalance: true }));
+    
+    try {
+      const balance = await vault.getEthBalance();
+      setEthBalance(balance);
+      
+      const transactions = await vault.getPendingTransactions();
+      setPendingTxs(transactions);
+      
+      setError(null);
+    } catch (err: any) {
+      console.error("Failed to fetch vault data:", err);
+      setError("Failed to fetch vault data: " + (err.message || String(err)));
+      onError?.(new Error("Failed to fetch vault data: " + (err.message || String(err))));
+    } finally {
+      setLoadingState(prev => ({ ...prev, ethBalance: false }));
+    }
+  }, [vault, setEthBalance, setPendingTxs, onError, _mock]);
+
+  // Get meta transaction actions
+  const {
+    handleMetaTxSign: handleMetaTxSignBase,
+    handleBroadcastMetaTx,
+    signedMetaTxStates,
+    isLoading: isMetaTxLoading
+  } = useMetaTxActions(
+    contractAddress as Address,
+    addMessage,  // onSuccess
+    addMessage,  // onError
+    handleRefresh // onRefresh
+  );
+
+  // Wrap the base function to include metaTxSettings
+  const handleMetaTxSign = async (tx: VaultTxRecord, type: 'approve' | 'cancel') => {
+    await handleMetaTxSignBase(tx, type);
+  };
 
   // Filter transactions for withdrawals
   const filteredPendingTxs = React.useMemo(() => {
@@ -862,37 +918,6 @@ function SimpleVaultUIContent({
     initialize();
   }, [publicClient, walletClient, contractAddress, chain, contractInfo]); // Remove backgroundFetching and other unnecessary dependencies
 
-  // Modify the fetchVaultData function to be simpler and only run when explicitly called
-  const fetchVaultData = React.useCallback(async () => {
-    if (!vault || _mock) {
-      console.log("Cannot fetch: vault not initialized or using mock data");
-      return;
-    }
-    
-    setLoadingState(prev => ({ ...prev, ethBalance: true }));
-    
-    try {
-      const balance = await vault.getEthBalance();
-      setEthBalance(balance);
-      
-      const transactions = await vault.getPendingTransactions();
-      setPendingTxs(transactions);
-      
-      setError(null);
-    } catch (err: any) {
-      console.error("Failed to fetch vault data:", err);
-      setError("Failed to fetch vault data: " + (err.message || String(err)));
-      onError?.(new Error("Failed to fetch vault data: " + (err.message || String(err))));
-    } finally {
-      setLoadingState(prev => ({ ...prev, ethBalance: false }));
-    }
-  }, [vault, setEthBalance, setPendingTxs, onError, _mock]);
-
-  // Modify the refresh handler to be explicit
-  const handleRefresh = useCallback(() => {
-    fetchVaultData();
-  }, [fetchVaultData]);
-
   // Notification handler
   const handleNotification = React.useCallback((message: NotificationMessage): void => {
     if (addMessage) {
@@ -937,7 +962,7 @@ function SimpleVaultUIContent({
       });
 
       // Refresh balances
-      await fetchVaultData();
+      await handleRefresh();
     } catch (error: any) {
       console.error('Deposit error:', error);
       addMessage?.({
@@ -977,7 +1002,7 @@ function SimpleVaultUIContent({
       });
 
       // Refresh transactions
-      await fetchVaultData();
+      await handleRefresh();
     } catch (error: any) {
       console.error('Withdrawal request error:', error);
       addMessage?.({
@@ -997,19 +1022,6 @@ function SimpleVaultUIContent({
     loadingStates: timeLockLoadingStates
   } = useTimeLockActions(
     contractAddress as Address,
-    addMessage,
-    addMessage,
-    handleRefresh
-  );
-
-  const {
-    handleMetaTxSign,
-    handleBroadcastMetaTx,
-    signedMetaTxStates,
-    isLoading: isMetaTxLoading
-  } = useMetaTxActions(
-    contractAddress as Address,
-    addMessage,
     addMessage,
     handleRefresh
   );
@@ -1394,10 +1406,14 @@ function SimpleVaultUIContent({
                         <CardTitle>Pending Withdrawals</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <Tabs defaultValue="timelock" className="w-full" onValueChange={(value) => setActiveTab(value as 'timelock' | 'metatx')}>
+                        <Tabs defaultValue="timelock" className="w-full" value={activeTab} onValueChange={(value) => setActiveTab(value as 'timelock' | 'metatx')}>
                           <TabsList className="grid w-full grid-cols-2 bg-background p-1 rounded-lg">
-                            <TabsTrigger value="timelock" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">TimeLock</TabsTrigger>
-                            <TabsTrigger value="metatx" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">MetaTx</TabsTrigger>
+                            <TabsTrigger value="timelock" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
+                              TimeLock
+                            </TabsTrigger>
+                            <TabsTrigger value="metatx" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
+                              MetaTx
+                            </TabsTrigger>
                           </TabsList>
 
                           <TabsContent value="timelock" className="mt-4">
