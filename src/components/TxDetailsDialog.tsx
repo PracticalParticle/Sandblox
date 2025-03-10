@@ -1,5 +1,5 @@
-import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
-import { TxStatus, ExecutionType } from '@/particle-core/sdk/typescript/types/lib.index'
+import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index'
+import { TxStatus, ExecutionType } from '../particle-core/sdk/typescript/types/lib.index'
 import { formatAddress, formatTimestamp } from '@/lib/utils'
 import {
   Dialog,

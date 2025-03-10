@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { usePublicClient, useWalletClient, useConfig } from 'wagmi'
 import { Address, Hex } from 'viem'
-import { SecureOwnable } from '@/particle-core/sdk/typescript/SecureOwnable'
+import { SecureOwnable } from '../particle-core/sdk/typescript/SecureOwnable'
 
 // Storage key for operation types cache
 const OPERATION_TYPES_CACHE_KEY = 'operationTypes.cache';

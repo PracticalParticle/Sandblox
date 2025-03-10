@@ -8,7 +8,7 @@ import { convertBigIntsToStrings } from '@/lib/utils';
 import { NotificationMessage } from '../lib/types';
 import { VaultTxRecord } from '../components/PendingTransaction';
 import { createVaultMetaTxParams, getStoredMetaTxSettings } from '../SimpleVault.ui';
-import { MetaTransaction } from '@/particle-core/sdk/typescript/interfaces/lib.index';
+import { MetaTransaction } from '../../../particle-core/sdk/typescript/interfaces/lib.index';
 
 interface UseMetaTxActionsReturn {
   handleMetaTxSign: (tx: VaultTxRecord, type: 'approve' | 'cancel') => Promise<void>;

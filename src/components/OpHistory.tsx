@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
-import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
-import { TxStatus } from '@/particle-core/sdk/typescript/types/lib.index'
+import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index'
+import { TxStatus } from '../particle-core/sdk/typescript/types/lib.index'
 import { Address, Hex } from 'viem'
 import { formatTimestamp } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
