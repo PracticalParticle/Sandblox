@@ -4,26 +4,39 @@
   "exclude": ["/api/*"],
   "routes": [
     {
-      "src": "^/assets/.*\\.js$",
+      "src": "^/(index\\.html)?$",
       "headers": {
-        "Content-Type": "application/javascript"
+        "Content-Type": "text/html;charset=utf-8",
+        "Cache-Control": "no-cache"
       }
     },
     {
-      "src": "^/assets/.*\\.mjs$",
+      "src": "^/.*\\.js$",
       "headers": {
-        "Content-Type": "application/javascript"
+        "Content-Type": "application/javascript;charset=utf-8",
+        "Cache-Control": "public, max-age=31536000, immutable"
       }
     },
     {
-      "src": "^/assets/.*\\.css$",
+      "src": "^/.*\\.css$",
       "headers": {
-        "Content-Type": "text/css"
+        "Content-Type": "text/css;charset=utf-8",
+        "Cache-Control": "public, max-age=31536000, immutable"
       }
     },
     {
-      "src": ".*",
-      "dest": "/index.html"
+      "src": "^/assets/.*",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "src": "^/[^.]*$",
+      "dest": "/index.html",
+      "headers": {
+        "Content-Type": "text/html;charset=utf-8",
+        "Cache-Control": "no-cache"
+      }
     }
   ]
 } 
