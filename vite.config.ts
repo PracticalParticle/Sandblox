@@ -25,6 +25,7 @@ export default defineConfig({
           'ui-vendor': ['framer-motion', '@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu'],
         },
       },
+      external: [/particle-core\/.*/]
     },
   },
   optimizeDeps: {
