@@ -1,0 +1,19 @@
+/*
+  X-Content-Type-Options: nosniff
+  Content-Type: application/javascript
+  Access-Control-Allow-Origin: *
+  X-Frame-Options: DENY
+  X-XSS-Protection: 1; mode=block
+  Referrer-Policy: strict-origin-when-cross-origin
+
+/*.js
+  Content-Type: application/javascript
+
+/*.mjs
+  Content-Type: application/javascript
+
+/*.css
+  Content-Type: text/css
+
+/*.html
+  Content-Type: text/html;charset=utf-8 

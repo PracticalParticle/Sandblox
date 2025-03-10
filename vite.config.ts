@@ -24,6 +24,10 @@ export default defineConfig({
           'web3-vendor': ['@rainbow-me/rainbowkit', 'wagmi', 'viem'],
           'ui-vendor': ['framer-motion', '@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu'],
         },
+        format: 'es',
+        entryFileNames: '[name].[hash].mjs',
+        chunkFileNames: '[name].[hash].mjs',
+        assetFileNames: '[name].[hash][extname]'
       },
       external: [/particle-core\/.*/]
     },
@@ -49,6 +53,7 @@ export default defineConfig({
     },
     headers: {
       'Access-Control-Allow-Origin': '*',
+      'Content-Type': 'application/javascript',
       'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://rsms.me; connect-src 'self' http://127.0.0.1:8545/ ws://127.0.0.1:8545/ http://localhost:8545/ ws://localhost:8545/ http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:* https://*.walletconnect.org wss://*.walletconnect.org https://*.walletconnect.com wss://*.walletconnect.com https://explorer-api.walletconnect.com https://remote-ganache-1.tailb0865.ts.net https://*.merkle.io; font-src 'self' data: https://fonts.googleapis.com https://rsms.me; img-src 'self' data: https: blob:; media-src 'self' blob:; worker-src 'self' blob:; frame-src 'self' https://*.walletconnect.org https://*.walletconnect.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';"
     }
   },

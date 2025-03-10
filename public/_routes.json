@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "include": ["/*"],
+  "exclude": ["/api/*"],
+  "routes": [
+    {
+      "src": "^/assets/.*\\.js$",
+      "headers": {
+        "Content-Type": "application/javascript"
+      }
+    },
+    {
+      "src": "^/assets/.*\\.mjs$",
+      "headers": {
+        "Content-Type": "application/javascript"
+      }
+    },
+    {
+      "src": "^/assets/.*\\.css$",
+      "headers": {
+        "Content-Type": "text/css"
+      }
+    },
+    {
+      "src": ".*",
+      "dest": "/index.html"
+    }
+  ]
+} 
