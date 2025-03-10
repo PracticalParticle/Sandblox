@@ -4,21 +4,25 @@
   "exclude": ["/api/*"],
   "routes": [
     {
-      "src": "^/(index\\.html)?$",
+      "src": "^/$",
+      "dest": "/index.html"
+    },
+    {
+      "src": "^/index.html$",
       "headers": {
         "Content-Type": "text/html;charset=utf-8",
         "Cache-Control": "no-cache"
       }
     },
     {
-      "src": "^/.*\\.js$",
+      "src": "^/assets/.*\\.js$",
       "headers": {
         "Content-Type": "application/javascript;charset=utf-8",
         "Cache-Control": "public, max-age=31536000, immutable"
       }
     },
     {
-      "src": "^/.*\\.css$",
+      "src": "^/assets/.*\\.css$",
       "headers": {
         "Content-Type": "text/css;charset=utf-8",
         "Cache-Control": "public, max-age=31536000, immutable"

@@ -12,12 +12,24 @@
         https://*.walletconnect.com
         wss://*.walletconnect.com
         https://explorer-api.walletconnect.com
-        https://remote-ganache-1.tailb0865.ts.net
-        https://*.merkle.io;
+        https://*.merkle.io
+        https://*.infura.io
+        wss://*.infura.io
+        https://*.alchemyapi.io
+        wss://*.alchemyapi.io
+        https://eth-mainnet.g.alchemy.com
+        https://polygon-mainnet.g.alchemy.com;
       font-src 'self' data: https://fonts.googleapis.com https://rsms.me;
-      script-src 'self' 'unsafe-eval' 'unsafe-inline';
-      style-src 'self' 'unsafe-inline' https://rsms.me/;
-      img-src 'self' data: https:;
+      script-src 'self' 'unsafe-inline' %VITE_CSP_SCRIPT_SRC%;
+      style-src 'self' 'unsafe-inline' https://rsms.me;
+      img-src 'self' data: https: blob:;
+      media-src 'self' blob:;
+      worker-src 'self' blob:;
+      frame-src 'self' https://*.walletconnect.org https://*.walletconnect.com;
+      object-src 'none';
+      base-uri 'self';
+      form-action 'self';
+      frame-ancestors 'none'
     ">
     <link rel="preconnect" href="https://rsms.me/" />
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css" crossorigin="anonymous" />
