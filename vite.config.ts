@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react-swc';
 import path from 'path';
 
 export default defineConfig({
+  base: '/',
   plugins: [react()],
   resolve: {
     alias: {
@@ -17,6 +18,9 @@ export default defineConfig({
     target: 'es2020',
     outDir: 'dist',
     sourcemap: true,
+    modulePreload: {
+      polyfill: true
+    },
     rollupOptions: {
       output: {
         manualChunks: {
@@ -25,8 +29,8 @@ export default defineConfig({
           'ui-vendor': ['framer-motion', '@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu'],
         },
         format: 'es',
-        entryFileNames: '[name].[hash].mjs',
-        chunkFileNames: '[name].[hash].mjs',
+        entryFileNames: '[name].[hash].js',
+        chunkFileNames: '[name].[hash].js',
         assetFileNames: '[name].[hash][extname]'
       },
       external: [/particle-core\/.*/]
