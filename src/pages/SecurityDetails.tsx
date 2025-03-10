@@ -968,9 +968,6 @@ export function SecurityDetails() {
                         isOpen={showOwnershipDialog}
                         onOpenChange={setShowOwnershipDialog}
                         title="Transfer Ownership"
-                        description={pendingOwnershipTx 
-                          ? "Review and approve the ownership transfer to the recovery address."
-                          : "Submit a request to transfer ownership to the recovery address. This will require approval after the timelock period."}
                         contractInfo={{
                           ...contractInfo,
                           contractAddress: contractAddress || ''
@@ -1058,9 +1055,6 @@ export function SecurityDetails() {
                         isOpen={showBroadcasterDialog}
                         onOpenChange={setShowBroadcasterDialog}
                         title="Update Broadcaster"
-                        description={pendingBroadcasterTx
-                          ? "Review and approve the broadcaster update request."
-                          : "Submit a new broadcaster update request. This will require approval after the timelock period."}
                         contractInfo={{
                           ...contractInfo,
                           contractAddress: contractAddress || ''
