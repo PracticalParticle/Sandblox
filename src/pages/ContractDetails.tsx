@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom'
 import { useAccount } from 'wagmi'
 import { useState, useEffect } from 'react'
-import { Loader2, ChevronDown, ChevronUp, Eye } from 'lucide-react'
+import { Loader2, ChevronDown, ChevronUp } from 'lucide-react'
 import { getContractDetails, getContractCode } from '../lib/catalog'
 import type { BloxContract } from '../lib/catalog/types'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'

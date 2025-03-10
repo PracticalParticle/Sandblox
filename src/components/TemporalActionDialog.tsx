@@ -1,4 +1,3 @@
-import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -6,10 +5,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
-import { Loader2, X, CheckCircle2, Clock, XCircle, Shield, Wallet, Radio } from "lucide-react"
+import { Loader2, X, CheckCircle2, Clock, Shield, Wallet, Radio } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { TxRecord } from "@/particle-core/sdk/typescript/interfaces/lib.index"
-import { TxStatus } from "@/particle-core/sdk/typescript/types/lib.index"
 import { formatAddress } from "@/lib/utils"
 import { Progress } from "@/components/ui/progress"
 import { useMultiPhaseTemporalAction } from "@/hooks/useMultiPhaseTemporalAction"
@@ -18,7 +16,6 @@ interface TemporalActionDialogProps {
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   title: string
-  description?: string
   contractInfo: {
     contractAddress: string
     timeLockPeriodInMinutes: number
@@ -49,7 +46,6 @@ export function TemporalActionDialog({
   isOpen,
   onOpenChange,
   title,
-  description,
   contractInfo,
   actionType,
   currentValue,

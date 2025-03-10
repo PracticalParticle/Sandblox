@@ -3,7 +3,6 @@ import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useParams, useNavigate } from 'react-router-dom';
-import { Address } from 'viem';
 import { AlertCircle, Info, AlertTriangle, CheckCircle, Shield, Timer, Network, Wallet, Key, Clock, Radio as RadioIcon, Copy, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
@@ -14,7 +13,7 @@ import type { SecureContractInfo } from '@/lib/types';
 import { Button } from "@/components/ui/button";
 import { getContractDetails } from '@/lib/catalog';
 import type { BloxContract } from '@/lib/catalog/types';
-import { initializeUIComponents, getUIComponent, type BloxUIProps, type BloxSidebarProps } from '@/lib/catalog/bloxUIComponents';
+import { initializeUIComponents, getUIComponent } from '@/lib/catalog/bloxUIComponents';
 import { useConfig, useChainId, useConnect } from 'wagmi'
 import React from 'react';
 

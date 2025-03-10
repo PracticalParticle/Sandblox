@@ -7,12 +7,8 @@ import { Loader2, X, CheckCircle2, Clock, XCircle, RefreshCw, Radio } from "luci
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
 import { TxStatus } from "@/particle-core/sdk/typescript/types/lib.index";
-import { useMultiPhaseTemporalAction } from "@/hooks/useMultiPhaseTemporalAction";
 import { TxRecord } from "../../../particle-core/sdk/typescript/interfaces/lib.index";
-import { useSimpleVaultOperations, VAULT_OPERATIONS } from "../hooks/useSimpleVaultOperations";
-import { useTransactionManager } from "@/hooks/useTransactionManager";
-import { usePublicClient, useWalletClient, useChainId, useConfig } from "wagmi";
-import SimpleVault from "../SimpleVault";
+import { VAULT_OPERATIONS } from "../hooks/useSimpleVaultOperations";
 import { useOperationTypes } from "@/hooks/useOperationTypes";
 import { NotificationMessage } from "../lib/types";
 import { useActionPermissions } from "@/hooks/useActionPermissions";
@@ -59,8 +55,6 @@ export interface PendingTransactionsProps {
   contractAddress: Address;
   mode?: 'timelock' | 'metatx';
   onNotification?: (message: NotificationMessage) => void;
-  ownerAddress?: Address;
-  broadcasterAddress?: Address;
   connectedAddress?: Address;
 }
 
@@ -73,8 +67,6 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
   isLoading = false,
   mode = 'timelock',
   onNotification,
-  ownerAddress,
-  broadcasterAddress,
   connectedAddress,
   transactions,
   isLoadingTx = false,
@@ -187,8 +179,8 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
     }
   };
 
-  // Check if still loading operation types
-  if (loadingOperationTypes) {
+  // Check if still loading operation types or permissions
+  if (loadingOperationTypes || isLoadingPermissions) {
     return (
       <div className="space-y-4">
         <div className="flex justify-between items-center">
@@ -197,7 +189,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
         <Card>
           <CardContent className="pt-6 flex justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <span className="ml-2">Loading operation types...</span>
+            <span className="ml-2">Loading...</span>
           </CardContent>
         </Card>
       </div>
@@ -263,9 +255,9 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
             
             // Key for meta transaction state
             const approveKey = `${tx.txId}-approve`;
-            const cancelKey = `${tx.txId}-cancel`;
+            //  const cancelKey = `${tx.txId}-cancel`;
             const hasSignedApproval = signedMetaTxStates?.[approveKey]?.type === 'approve';
-            const hasSignedCancel = signedMetaTxStates?.[cancelKey]?.type === 'cancel';
+            // const hasSignedCancel = signedMetaTxStates?.[cancelKey]?.type === 'cancel';
             
             // Get operation name from hex
             const operationTypeHex = tx.params.operationType as Hex;

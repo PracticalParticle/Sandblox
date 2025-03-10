@@ -1,7 +1,6 @@
 import { useAccount, useBalance, usePublicClient } from 'wagmi'
 import { useNavigate } from 'react-router-dom'
-import { useState, useEffect, lazy, Suspense } from 'react'
-import React from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   Shield,
@@ -16,7 +15,6 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '../components/ui/card'
-import { Alert, AlertDescription } from '../components/ui/alert'
 import { useToast } from '@/components/ui/use-toast'
 import {
   DropdownMenu,
@@ -56,34 +54,6 @@ interface DeployedContractProps {
   }
   onDetectType: (address: string) => Promise<void>
   isDetecting: boolean
-}
-
-class ErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { hasError: boolean }
-> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <Alert variant="destructive">
-          <AlertDescription>
-            Failed to load contract UI. Please try refreshing the page.
-          </AlertDescription>
-        </Alert>
-      );
-    }
-
-    return this.props.children;
-  }
 }
 
 const DeployedContract = ({ 

@@ -1,5 +1,5 @@
-import { type Address, createPublicClient, http, decodeAbiParameters, keccak256, toHex } from 'viem'
-import { usePublicClient, useConfig } from 'wagmi'
+import { type Address, decodeAbiParameters, keccak256, toHex } from 'viem'
+import { usePublicClient } from 'wagmi'
 import { getAllContracts, getContractABI } from '../catalog'
 import type { BloxContract } from '../catalog/types'
 import { getChainName, type Chain } from '@/lib/utils'

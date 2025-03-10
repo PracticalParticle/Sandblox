@@ -1,4 +1,4 @@
-import { Address, Chain } from 'viem';
+import { Address } from 'viem';
 import { useRoleValidation } from './useRoleValidation';
 import { useChainId, useConfig } from 'wagmi';
 import { useMemo } from 'react';

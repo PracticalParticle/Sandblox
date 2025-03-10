@@ -1,8 +1,8 @@
 import { Address, Chain, Hash, Hex, PublicClient, WalletClient } from 'viem';
 import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index';
 import { FUNCTION_SELECTORS, OPERATION_TYPES } from '../particle-core/sdk/typescript/types/core.access.index';
-import { TransactionResult, TransactionOptions } from '../particle-core/sdk/typescript/interfaces/base.index';
-import { MetaTransaction, MetaTxParams } from '../particle-core/sdk/typescript/interfaces/lib.index';
+import { TransactionResult } from '../particle-core/sdk/typescript/interfaces/base.index';
+import { MetaTransaction } from '../particle-core/sdk/typescript/interfaces/lib.index';
 import { ExecutionType } from '../particle-core/sdk/typescript/types/lib.index';
 import { 
   SecureContractInfo, 
@@ -240,10 +240,7 @@ export class SecureOwnableManager {
     }
 
     // Get execution options for recovery update
-    const executionOptions = await this.contract.updateRecoveryExecutionOptions(
-      newRecoveryAddress,
-      options
-    );
+    const executionOptions = await this.contract.updateRecoveryExecutionOptions(newRecoveryAddress);
 
     // Generate meta transaction parameters
     const metaTxParams = await this.contract.createMetaTxParams(
@@ -303,10 +300,7 @@ export class SecureOwnableManager {
     }
 
     // Get execution options for timelock update
-    const executionOptions = await this.contract.updateTimeLockExecutionOptions(
-      newPeriodInMinutes,
-      options
-    );
+    const executionOptions = await this.contract.updateTimeLockExecutionOptions(newPeriodInMinutes);
 
     // Generate meta transaction parameters
     const metaTxParams = await this.contract.createMetaTxParams(

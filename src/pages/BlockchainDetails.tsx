@@ -4,10 +4,8 @@ import {
   Network,
   Shield,
   ArrowLeft,
-  Link as LinkIcon,
   Globe,
   Hash,
-  Server,
   CheckCircle2,
   XCircle,
   Copy,
@@ -59,10 +57,6 @@ const defaultNetworks = {
   }
 }
 
-const item = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0 }
-}
 
 export default function BlockchainDetails() {
   const { id } = useParams()

@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import type { Chain } from './utils';
 
 // Updated to validate any number as chain ID since we now support dynamic chains
 export const ChainIdSchema = z.number().int().positive();

@@ -8,7 +8,6 @@ import {
   DialogDescription 
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { SecureContractInfo } from '@/lib/types'
 import { Loader2 } from 'lucide-react'
 
 // Main RoleWalletDialog component
@@ -17,7 +16,6 @@ interface RoleWalletDialogProps {
   onOpenChange: (open: boolean) => void
   title: string
   description?: string
-  contractInfo: SecureContractInfo | null
   walletType: 'owner' | 'broadcaster' | 'recovery'
   currentValue?: string | number
   currentValueLabel?: string
@@ -32,7 +30,6 @@ export function RoleWalletDialog({
   onOpenChange,
   title,
   description,
-  contractInfo,
   currentValue,
   currentValueLabel = "Current Value",
   actionLabel = "Submit Transaction",

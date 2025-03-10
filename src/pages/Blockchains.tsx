@@ -1,6 +1,4 @@
-import { useAccount } from 'wagmi'
 import { useChain } from '@/hooks/useChain'
-import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   Network,
@@ -8,16 +6,11 @@ import {
   Activity,
   Shield,
   Wallet,
-  ArrowRight,
   Plus,
-  CheckCircle,
-  Settings,
-  Trash2,
   Globe,
   Lock
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -30,13 +23,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useState, useEffect } from 'react'
 import { useToast } from "@/components/ui/use-toast"
-import { Badge } from "@/components/ui/badge"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import {
   Select,
   SelectContent,
@@ -109,9 +95,7 @@ interface NetworkFormData {
 }
 
 export default function Blockchains() {
-  const { isConnected } = useAccount()
   const chain = useChain()
-  const navigate = useNavigate()
   const { toast } = useToast()
   const [isAddNetworkOpen, setIsAddNetworkOpen] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)

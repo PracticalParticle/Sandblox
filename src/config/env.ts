@@ -13,6 +13,8 @@ const envSchema = z.object({
   // Feature Flags
   ENABLE_TESTNET: z.boolean().default(true),
   ENABLE_DEBUG_LOGS: z.boolean().default(false),
+  ENABLE_LOCAL_NODE: z.boolean().default(false),
+  ENABLE_REMOTE_NODE: z.boolean().default(true),
 
   // Network Configuration
   DEVNET_RPC_URL: z.string().url(),
@@ -72,6 +74,8 @@ function parseEnvVariables(): EnvConfig {
   console.log('Feature flags:', {
     ENABLE_TESTNET: import.meta.env.VITE_ENABLE_TESTNET,
     ENABLE_DEBUG_LOGS: import.meta.env.VITE_ENABLE_DEBUG_LOGS,
+    ENABLE_LOCAL_NODE: import.meta.env.VITE_ENABLE_LOCAL_NODE,
+    ENABLE_REMOTE_NODE: import.meta.env.VITE_ENABLE_REMOTE_NODE,
   })
 
   console.log('Library addresses:', {
@@ -104,6 +108,8 @@ function parseEnvVariables(): EnvConfig {
     // Feature Flags
     ENABLE_TESTNET: import.meta.env.VITE_ENABLE_TESTNET === 'true',
     ENABLE_DEBUG_LOGS: import.meta.env.VITE_ENABLE_DEBUG_LOGS === 'true',
+    ENABLE_LOCAL_NODE: import.meta.env.VITE_ENABLE_LOCAL_NODE === 'true',
+    ENABLE_REMOTE_NODE: import.meta.env.VITE_ENABLE_REMOTE_NODE === 'true',
 
     // Contract Deployment
     DEFAULT_GAS_LIMIT: Number(import.meta.env.VITE_DEFAULT_GAS_LIMIT),

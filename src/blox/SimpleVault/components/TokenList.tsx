@@ -1,8 +1,5 @@
-import * as React from "react";
-import { Address, formatEther, formatUnits } from "viem";
-import { Button } from "@/components/ui/button";
+import {formatEther, formatUnits } from "viem";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2 } from "lucide-react";
 
 export interface TokenMetadata {
   name: string;

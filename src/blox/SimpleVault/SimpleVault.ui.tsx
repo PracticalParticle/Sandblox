@@ -10,39 +10,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import SimpleVault from "./SimpleVault";
 import { useChain } from "@/hooks/useChain";
-import { atom, useAtom, Provider as JotaiProvider, useSetAtom } from "jotai";
-import { AlertCircle, CheckCircle2, Clock, XCircle, Loader2, Wallet, Coins, X, Shield, Info, Settings2 } from "lucide-react";
-import { TxStatus, ExecutionType } from "../../particle-core/sdk/typescript/types/lib.index";
+import { atom, useAtom } from "jotai";
+import { AlertCircle, Loader2, Wallet, Coins, X, Shield, Info, Settings2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ContractInfo as BaseContractInfo } from "@/lib/verification/index";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { mainnet } from "viem/chains";
-import { http } from "viem";
-import { injected } from "wagmi/connectors";
-import { TokenList, AddTokenDialog } from "./components";
+import { AddTokenDialog } from "./components";
 import { PendingTransaction, PendingTransactions } from "./components/PendingTransaction";
-import type { TokenMetadata, TokenState, TokenBalanceState } from "./components";
+import type { TokenState, TokenBalanceState } from "./components";
 import type { VaultTxRecord } from "./components/PendingTransaction";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getContract } from 'viem';
-import { erc20Abi } from "viem";
-import { DeploymentForm } from './components/DeploymentForm'
-import { useContractDeployment } from '@/lib/deployment'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { createWalletClient } from "viem";
-import { Hex, Chain } from "viem";
-import { MetaTransaction } from '../../particle-core/sdk/typescript/interfaces/lib.index';
-import { PublicClient, WalletClient } from 'viem';
-import SimpleVaultABIJson from './SimpleVault.abi.json';
-import SecureOwnable from '../../particle-core/sdk/typescript/SecureOwnable';
-import { TxRecord, MetaTxParams, ReadableOperationType } from '../../particle-core/sdk/typescript/interfaces/lib.index';
-import { TransactionOptions, TransactionResult } from '../../particle-core/sdk/typescript/interfaces/base.index';
-import { ContractValidations } from '../../particle-core/sdk/typescript/utils/validations';
+import { Hex } from "viem";
 import { VaultMetaTxParams } from './SimpleVault';
 import { TransactionManagerProvider } from "@/contexts/TransactionManager";
 import { useOperationTypes } from "@/hooks/useOperationTypes";
@@ -59,12 +41,6 @@ interface ContractInfo extends BaseContractInfo {
   recoveryAddress: string;
   timeLockPeriod: number;
 }
-
-// Helper function to format addresses
-const formatAddress = (address: string): string => {
-  if (!address || address.length < 10) return address;
-  return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
-};
 
 // State atoms following .cursorrules state management guidelines
 const pendingTxsAtom = atom<VaultTxRecord[]>([]);
@@ -96,14 +72,6 @@ const getStoredTokens = () => {
 
 const tokenBalanceAtom = atom<TokenBalanceState>(getStoredTokens());
 
-// Add near the top with other atoms
-const walletBalancesAtom = atom<{
-  eth: bigint;
-  tokens: Record<string, bigint>;
-}>({
-  eth: BigInt(0),
-  tokens: {}
-});
 
 interface LoadingState {
   ethBalance: boolean;
@@ -124,13 +92,6 @@ const loadingStateAtom = atom<LoadingState>({
   approval: {},
   cancellation: {},
   initialization: true,
-  transactions: false,
-});
-
-// Add a background fetching atom to track background processes
-const backgroundFetchingAtom = atom<{
-  transactions: boolean;
-}>({
   transactions: false,
 });
 
@@ -384,15 +345,6 @@ const WithdrawalForm = ({
   );
 };
 
-interface PendingTransactionProps {
-  tx: VaultTxRecord;
-  onApprove: (txId: number) => Promise<void>;
-  onCancel: (txId: number) => Promise<void>;
-  isLoading: boolean;
-  contractAddress: Address;
-  onNotification: (message: NotificationMessage) => void;
-}
-
 interface DepositFormProps {
   onSubmit: (amount: bigint, token?: Address) => Promise<void>;
   isLoading: boolean;
@@ -605,7 +557,6 @@ interface SimpleVaultUIProps {
   contractAddress?: Address;  // Make contractAddress optional
   contractInfo?: ContractInfo;  // Make contractInfo optional
   onError?: (error: Error) => void;
-  onDeployed?: (address: Address) => void;  // Add callback for deployment success
   _mock?: {
     account: { address: Address; isConnected: boolean };
     publicClient: any;
@@ -620,10 +571,6 @@ interface SimpleVaultUIProps {
   renderSidebar?: boolean;
   addMessage?: (message: NotificationMessage) => void;
 }
-
-// Create atoms for contract info and notifications
-const contractInfoAtom = atom<ContractInfo | null>(null);
-const addMessageAtom = atom<((message: NotificationMessage) => void) | null>(null);
 
 // Add storage key for meta tx settings
 const META_TX_SETTINGS_KEY = 'simpleVault.metaTxSettings';
@@ -820,14 +767,10 @@ const WithdrawalFormWrapper = React.memo(({
 
 WithdrawalFormWrapper.displayName = 'WithdrawalFormWrapper';
 
-// Add a new atom for the active tab
-const activeTabAtom = atom<'timelock' | 'metatx'>('timelock');
-
 function SimpleVaultUIContent({ 
   contractAddress, 
   contractInfo, 
   onError,
-  onDeployed,
   _mock,
   dashboardMode = false,
   renderSidebar = false,
@@ -839,28 +782,84 @@ function SimpleVaultUIContent({
   const chain = _mock?.chain || useChain();
   const navigate = useNavigate();
   
-  // State declarations - moved up before use
+  // State declarations
   const [ethBalance, setEthBalance] = useState<bigint>(_mock?.initialData?.ethBalance || BigInt(0));
   const [tokenBalances, setTokenBalances] = useAtom<TokenBalanceState>(tokenBalanceAtom);
   const [pendingTxs, setPendingTxs] = useAtom(pendingTxsAtom);
   const [loadingState, setLoadingState] = useAtom(loadingStateAtom);
-  const [backgroundFetching, setBackgroundFetching] = useAtom(backgroundFetchingAtom);
   const [vault, setVault] = useAtom(vaultInstanceAtom);
   const [error, setError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [metaTxSettings] = useAtom(metaTxSettingsAtom);
   const [activeTab, setActiveTab] = useState<'timelock' | 'metatx'>('timelock');
+
+  // Keep metaTxSettings since it's used in createVaultMetaTxParams
+  const [metaTxSettings] = useAtom(metaTxSettingsAtom);
+
+  // Save metaTxSettings to storage when they change
+  useEffect(() => {
+    try {
+      localStorage.setItem(META_TX_SETTINGS_KEY, JSON.stringify({
+        deadline: metaTxSettings.deadline.toString(),
+        maxGasPrice: metaTxSettings.maxGasPrice.toString()
+      }));
+    } catch (error) {
+      console.error('Failed to save meta tx settings to storage:', error);
+    }
+  }, [metaTxSettings]);
 
   // Add wallet balances hook after state declarations
   const trackedTokenAddresses = Object.keys(tokenBalances) as Address[];
   const walletBalances = useWalletBalances(trackedTokenAddresses);
 
   // Add this near other refs/state
-  const hasFetchedRef = useRef(false);
   const initialLoadDoneRef = useRef(false);
 
-  // Add operation types hook
-  const { getOperationName, loading: loadingOperationTypes } = useOperationTypes(contractAddress as Address);
+  // Remove unused loadingOperationTypes from destructuring
+  const { getOperationName } = useOperationTypes(contractAddress as Address);
+
+  // Define handleRefresh before it's used
+  const handleRefresh = useCallback(async () => {
+    if (!vault || _mock) {
+      console.log("Cannot fetch: vault not initialized or using mock data");
+      return;
+    }
+    
+    setLoadingState(prev => ({ ...prev, ethBalance: true }));
+    
+    try {
+      const balance = await vault.getEthBalance();
+      setEthBalance(balance);
+      
+      const transactions = await vault.getPendingTransactions();
+      setPendingTxs(transactions);
+      
+      setError(null);
+    } catch (err: any) {
+      console.error("Failed to fetch vault data:", err);
+      setError("Failed to fetch vault data: " + (err.message || String(err)));
+      onError?.(new Error("Failed to fetch vault data: " + (err.message || String(err))));
+    } finally {
+      setLoadingState(prev => ({ ...prev, ethBalance: false }));
+    }
+  }, [vault, setEthBalance, setPendingTxs, onError, _mock]);
+
+  // Get meta transaction actions
+  const {
+    handleMetaTxSign: handleMetaTxSignBase,
+    handleBroadcastMetaTx,
+    signedMetaTxStates,
+    isLoading: isMetaTxLoading
+  } = useMetaTxActions(
+    contractAddress as Address,
+    addMessage,  // onSuccess
+    addMessage,  // onError
+    handleRefresh // onRefresh
+  );
+
+  // Wrap the base function to include metaTxSettings
+  const handleMetaTxSign = async (tx: VaultTxRecord, type: 'approve' | 'cancel') => {
+    await handleMetaTxSignBase(tx, type);
+  };
 
   // Filter transactions for withdrawals
   const filteredPendingTxs = React.useMemo(() => {
@@ -919,37 +918,6 @@ function SimpleVaultUIContent({
     initialize();
   }, [publicClient, walletClient, contractAddress, chain, contractInfo]); // Remove backgroundFetching and other unnecessary dependencies
 
-  // Modify the fetchVaultData function to be simpler and only run when explicitly called
-  const fetchVaultData = React.useCallback(async () => {
-    if (!vault || _mock) {
-      console.log("Cannot fetch: vault not initialized or using mock data");
-      return;
-    }
-    
-    setLoadingState(prev => ({ ...prev, ethBalance: true }));
-    
-    try {
-      const balance = await vault.getEthBalance();
-      setEthBalance(balance);
-      
-      const transactions = await vault.getPendingTransactions();
-      setPendingTxs(transactions);
-      
-      setError(null);
-    } catch (err: any) {
-      console.error("Failed to fetch vault data:", err);
-      setError("Failed to fetch vault data: " + (err.message || String(err)));
-      onError?.(new Error("Failed to fetch vault data: " + (err.message || String(err))));
-    } finally {
-      setLoadingState(prev => ({ ...prev, ethBalance: false }));
-    }
-  }, [vault, setEthBalance, setPendingTxs, onError, _mock]);
-
-  // Modify the refresh handler to be explicit
-  const handleRefresh = useCallback(() => {
-    fetchVaultData();
-  }, [fetchVaultData]);
-
   // Notification handler
   const handleNotification = React.useCallback((message: NotificationMessage): void => {
     if (addMessage) {
@@ -994,7 +962,7 @@ function SimpleVaultUIContent({
       });
 
       // Refresh balances
-      await fetchVaultData();
+      await handleRefresh();
     } catch (error: any) {
       console.error('Deposit error:', error);
       addMessage?.({
@@ -1034,7 +1002,7 @@ function SimpleVaultUIContent({
       });
 
       // Refresh transactions
-      await fetchVaultData();
+      await handleRefresh();
     } catch (error: any) {
       console.error('Withdrawal request error:', error);
       addMessage?.({
@@ -1054,19 +1022,6 @@ function SimpleVaultUIContent({
     loadingStates: timeLockLoadingStates
   } = useTimeLockActions(
     contractAddress as Address,
-    addMessage,
-    addMessage,
-    handleRefresh
-  );
-
-  const {
-    handleMetaTxSign,
-    handleBroadcastMetaTx,
-    signedMetaTxStates,
-    isLoading: isMetaTxLoading
-  } = useMetaTxActions(
-    contractAddress as Address,
-    addMessage,
     addMessage,
     handleRefresh
   );
@@ -1137,8 +1092,6 @@ function SimpleVaultUIContent({
 
   // Ensure contractAddress is properly typed at the start
   const typedContractAddress = contractAddress as Address;
-  const typedOwnerAddress = (contractInfo?.owner || "0x") as Address;
-  const typedBroadcasterAddress = (contractInfo?.broadcaster || "0x") as Address;
 
   // Render sidebar content
   if (renderSidebar) {
@@ -1453,10 +1406,14 @@ function SimpleVaultUIContent({
                         <CardTitle>Pending Withdrawals</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <Tabs defaultValue="timelock" className="w-full" onValueChange={(value) => setActiveTab(value as 'timelock' | 'metatx')}>
+                        <Tabs defaultValue="timelock" className="w-full" value={activeTab} onValueChange={(value) => setActiveTab(value as 'timelock' | 'metatx')}>
                           <TabsList className="grid w-full grid-cols-2 bg-background p-1 rounded-lg">
-                            <TabsTrigger value="timelock" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">TimeLock</TabsTrigger>
-                            <TabsTrigger value="metatx" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">MetaTx</TabsTrigger>
+                            <TabsTrigger value="timelock" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
+                              TimeLock
+                            </TabsTrigger>
+                            <TabsTrigger value="metatx" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
+                              MetaTx
+                            </TabsTrigger>
                           </TabsList>
 
                           <TabsContent value="timelock" className="mt-4">
@@ -1471,8 +1428,6 @@ function SimpleVaultUIContent({
                                 contractAddress={typedContractAddress}
                                 mode="timelock"
                                 onNotification={addMessage}
-                                ownerAddress={contractInfo?.owner ? typedOwnerAddress : undefined}
-                                broadcasterAddress={contractInfo?.broadcaster ? typedBroadcasterAddress : undefined}
                                 connectedAddress={address}
                               />
                             </div>
@@ -1491,8 +1446,6 @@ function SimpleVaultUIContent({
                                 contractAddress={typedContractAddress}
                                 mode="metatx"
                                 onNotification={addMessage}
-                                ownerAddress={contractInfo?.owner ? typedOwnerAddress : undefined}
-                                broadcasterAddress={contractInfo?.broadcaster ? typedBroadcasterAddress : undefined}
                                 connectedAddress={address}
                               />
                             </div>
@@ -1541,9 +1494,6 @@ function SimpleVaultUIContent({
     </div>
   );
 }
-
-// Create a new QueryClient instance with proper type
-const queryClient = new QueryClient();
 
 // Main export with proper providers
 export default function SimpleVaultUI(props: SimpleVaultUIProps) {
