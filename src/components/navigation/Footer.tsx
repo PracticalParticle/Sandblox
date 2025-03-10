@@ -16,7 +16,7 @@ export const Footer: FC = () => {
         </p>
         <div className="flex items-center justify-center gap-4">
           <a
-            href="https://twitter.com/Particlecs"
+            href="https://x.com/particle_cs"
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm text-muted-foreground hover:text-foreground"

@@ -10,39 +10,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import SimpleVault from "./SimpleVault";
 import { useChain } from "@/hooks/useChain";
-import { atom, useAtom, Provider as JotaiProvider, useSetAtom } from "jotai";
-import { AlertCircle, CheckCircle2, Clock, XCircle, Loader2, Wallet, Coins, X, Shield, Info, Settings2 } from "lucide-react";
-import { TxStatus, ExecutionType } from "../../particle-core/sdk/typescript/types/lib.index";
+import { atom, useAtom } from "jotai";
+import { AlertCircle, Loader2, Wallet, Coins, X, Shield, Info, Settings2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ContractInfo as BaseContractInfo } from "@/lib/verification/index";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { mainnet } from "viem/chains";
-import { http } from "viem";
-import { injected } from "wagmi/connectors";
-import { TokenList, AddTokenDialog } from "./components";
+import { QueryClient } from "@tanstack/react-query";
+import { AddTokenDialog } from "./components";
 import { PendingTransaction, PendingTransactions } from "./components/PendingTransaction";
-import type { TokenMetadata, TokenState, TokenBalanceState } from "./components";
+import type { TokenState, TokenBalanceState } from "./components";
 import type { VaultTxRecord } from "./components/PendingTransaction";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getContract } from 'viem';
-import { erc20Abi } from "viem";
-import { DeploymentForm } from './components/DeploymentForm'
-import { useContractDeployment } from '@/lib/deployment'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { createWalletClient } from "viem";
-import { Hex, Chain } from "viem";
-import { MetaTransaction } from '../../particle-core/sdk/typescript/interfaces/lib.index';
-import { PublicClient, WalletClient } from 'viem';
-import SimpleVaultABIJson from './SimpleVault.abi.json';
-import SecureOwnable from '../../particle-core/sdk/typescript/SecureOwnable';
-import { TxRecord, MetaTxParams, ReadableOperationType } from '../../particle-core/sdk/typescript/interfaces/lib.index';
-import { TransactionOptions, TransactionResult } from '../../particle-core/sdk/typescript/interfaces/base.index';
-import { ContractValidations } from '../../particle-core/sdk/typescript/utils/validations';
+import { Hex } from "viem";
 import { VaultMetaTxParams } from './SimpleVault';
 import { TransactionManagerProvider } from "@/contexts/TransactionManager";
 import { useOperationTypes } from "@/hooks/useOperationTypes";
@@ -59,12 +42,6 @@ interface ContractInfo extends BaseContractInfo {
   recoveryAddress: string;
   timeLockPeriod: number;
 }
-
-// Helper function to format addresses
-const formatAddress = (address: string): string => {
-  if (!address || address.length < 10) return address;
-  return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
-};
 
 // State atoms following .cursorrules state management guidelines
 const pendingTxsAtom = atom<VaultTxRecord[]>([]);
@@ -96,14 +73,6 @@ const getStoredTokens = () => {
 
 const tokenBalanceAtom = atom<TokenBalanceState>(getStoredTokens());
 
-// Add near the top with other atoms
-const walletBalancesAtom = atom<{
-  eth: bigint;
-  tokens: Record<string, bigint>;
-}>({
-  eth: BigInt(0),
-  tokens: {}
-});
 
 interface LoadingState {
   ethBalance: boolean;
@@ -384,15 +353,6 @@ const WithdrawalForm = ({
   );
 };
 
-interface PendingTransactionProps {
-  tx: VaultTxRecord;
-  onApprove: (txId: number) => Promise<void>;
-  onCancel: (txId: number) => Promise<void>;
-  isLoading: boolean;
-  contractAddress: Address;
-  onNotification: (message: NotificationMessage) => void;
-}
-
 interface DepositFormProps {
   onSubmit: (amount: bigint, token?: Address) => Promise<void>;
   isLoading: boolean;
@@ -620,10 +580,6 @@ interface SimpleVaultUIProps {
   renderSidebar?: boolean;
   addMessage?: (message: NotificationMessage) => void;
 }
-
-// Create atoms for contract info and notifications
-const contractInfoAtom = atom<ContractInfo | null>(null);
-const addMessageAtom = atom<((message: NotificationMessage) => void) | null>(null);
 
 // Add storage key for meta tx settings
 const META_TX_SETTINGS_KEY = 'simpleVault.metaTxSettings';
@@ -856,7 +812,6 @@ function SimpleVaultUIContent({
   const walletBalances = useWalletBalances(trackedTokenAddresses);
 
   // Add this near other refs/state
-  const hasFetchedRef = useRef(false);
   const initialLoadDoneRef = useRef(false);
 
   // Add operation types hook
@@ -1541,9 +1496,6 @@ function SimpleVaultUIContent({
     </div>
   );
 }
-
-// Create a new QueryClient instance with proper type
-const queryClient = new QueryClient();
 
 // Main export with proper providers
 export default function SimpleVaultUI(props: SimpleVaultUIProps) {

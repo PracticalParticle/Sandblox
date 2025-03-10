@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { TransactionManager, SignedTransaction, ContractTransactions } from '../services/TransactionManager';
+import { useState, useEffect, useCallback } from 'react';
+import { TransactionManager, ContractTransactions } from '../services/TransactionManager';
 
 // Create a singleton instance
 const transactionManager = new TransactionManager();

@@ -1,4 +1,4 @@
-import { createWalletClient, custom, getAddress, type Hash } from 'viem';
+import { createWalletClient, custom, getAddress } from 'viem';
 import { mainnet } from 'viem/chains';
 
 /**

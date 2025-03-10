@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { usePublicClient, useAccount } from 'wagmi';
-import { Address, formatEther, formatUnits } from 'viem';
+import { Address } from 'viem';
 import { erc20Abi } from 'viem';
 
 export interface TokenBalance {

@@ -1,8 +1,8 @@
 import { motion } from 'framer-motion'
 import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
-import { TxStatus, ExecutionType } from '@/particle-core/sdk/typescript/types/lib.index'
+import { TxStatus } from '@/particle-core/sdk/typescript/types/lib.index'
 import { Address, Hex } from 'viem'
-import { formatAddress, formatTimestamp } from '@/lib/utils'
+import { formatTimestamp } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Badge } from './ui/badge'
 import {
@@ -14,12 +14,7 @@ import {
   TableRow,
 } from "./ui/table"
 import { Loader2, Clock, CheckCircle2, XCircle, AlertTriangle, Filter } from 'lucide-react'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
+
 import {
   Select,
   SelectContent,
@@ -54,11 +49,6 @@ const container = {
       staggerChildren: 0.1
     }
   }
-}
-
-const item = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0 }
 }
 
 export function OpHistory({ contractAddress, operations, isLoading = false }: OpHistoryProps) {

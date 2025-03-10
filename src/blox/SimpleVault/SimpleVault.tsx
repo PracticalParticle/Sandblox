@@ -1,7 +1,7 @@
 import { Address, PublicClient, WalletClient, Chain, Abi, Hex } from 'viem';
 import SimpleVaultABIJson from './SimpleVault.abi.json';
 import SecureOwnable from '../../particle-core/sdk/typescript/SecureOwnable';
-import { TxRecord, MetaTransaction, MetaTxParams, ReadableOperationType } from '../../particle-core/sdk/typescript/interfaces/lib.index';
+import { TxRecord, MetaTransaction } from '../../particle-core/sdk/typescript/interfaces/lib.index';
 import { TransactionOptions, TransactionResult } from '../../particle-core/sdk/typescript/interfaces/base.index';
 import { TxStatus } from '../../particle-core/sdk/typescript/types/lib.index';
 import { ContractValidations } from '../../particle-core/sdk/typescript/utils/validations';

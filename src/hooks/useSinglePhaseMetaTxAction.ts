@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useEffect } from "react"
 import { useToast } from "@/components/ui/use-toast"
 
 interface UseSinglePhaseMetaTxActionProps {
@@ -7,8 +7,6 @@ interface UseSinglePhaseMetaTxActionProps {
   onNewValueChange: (value: string) => void
   newValue: string
   validateNewValue?: (value: string) => { isValid: boolean; message?: string }
-  isLoading?: boolean
-  isSigning?: boolean
 }
 
 interface UseSinglePhaseMetaTxActionState {
@@ -31,8 +29,6 @@ export function useSinglePhaseMetaTxAction({
   onNewValueChange,
   newValue,
   validateNewValue,
-  isLoading = false,
-  isSigning = false
 }: UseSinglePhaseMetaTxActionProps): UseSinglePhaseMetaTxActionState & UseSinglePhaseMetaTxActionActions {
   const { toast } = useToast()
 

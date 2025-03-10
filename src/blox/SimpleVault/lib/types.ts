@@ -1,5 +1,3 @@
-import { Address } from 'viem';
-
 export interface NotificationMessage {
   type: 'error' | 'warning' | 'info' | 'success';
   title: string;

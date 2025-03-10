@@ -3,11 +3,10 @@ import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useParams, useNavigate } from 'react-router-dom';
-import { AlertCircle, Info, AlertTriangle, CheckCircle, Shield, Timer, Network, Wallet, Key, Clock, Radio as RadioIcon, Copy, ChevronLeft, ChevronRight, Bug, Target, DollarSign, ChevronDown } from 'lucide-react';
+import { AlertCircle, Info, AlertTriangle, CheckCircle, ChevronLeft, ChevronRight, Bug, DollarSign, ChevronDown } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useSecureContract } from '@/hooks/useSecureContract';
 import type { SecureContractInfo } from '@/lib/types';
 import { Button } from "@/components/ui/button";
@@ -207,18 +206,6 @@ const BugHunt: React.FC = () => {
     });
   }, []);
 
-  const formatAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    addMessage({
-      type: 'success',
-      title: 'Copied',
-      description: 'Address copied to clipboard'
-    });
-  };
 
   // Render the appropriate Blox UI based on type
   const renderBloxUI = () => {

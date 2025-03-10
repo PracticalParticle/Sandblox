@@ -6,31 +6,23 @@ import {
   ArrowLeft,
   Loader2,
   AlertCircle,
-  CheckCircle2,
-  XCircle,
   Key,
   Radio,
   Clock,
   Shield,
   Wallet,
-  X,
   Timer,
   Network,
-  Copy,
-  History,
-  Hash,
   ChevronDown,
   SwitchCamera
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useSecureContract } from '@/hooks/useSecureContract'
 import { useToast } from '../components/ui/use-toast'
-import { Input } from '../components/ui/input'
-import { ExecutionType, SecureContractInfo } from '@/lib/types'
-import { Address, isAddress } from 'viem'
-import { formatAddress, isValidEthereumAddress } from '@/lib/utils'
+import { SecureContractInfo } from '@/lib/types'
+import { isValidEthereumAddress } from '@/lib/utils'
 import {
   Tooltip,
   TooltipContent,
@@ -38,21 +30,18 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
-import { Label } from '@/components/ui/label'
 import { TIMELOCK_PERIODS } from '@/constants/contract'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { SecureOwnableManager } from '@/lib/SecureOwnableManager'
-import { RoleWalletDialog } from '@/components/RoleWalletDialog'
 import { OpHistory } from '@/components/OpHistory'
 import { useTransactionManager } from '@/hooks/useTransactionManager'
 import { SecureOwnable } from '@/particle-core/sdk/typescript/SecureOwnable'
-import { OPERATION_TYPES, FUNCTION_SELECTORS } from '@/particle-core/sdk/typescript/types/core.access.index'
+import { FUNCTION_SELECTORS } from '@/particle-core/sdk/typescript/types/core.access.index'
 import { TemporalActionDialog } from '@/components/TemporalActionDialog'
 import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
 import { TxStatus } from '@/particle-core/sdk/typescript/types/lib.index'
 import { MetaTxActionDialog } from '@/components/MetaTxActionDialog'
 import { TransactionManagerProvider } from '@/contexts/TransactionManager'
-import { ContractTransactions } from '@/services/TransactionManager'
 
 interface ExtendedSignedTransaction {
   txId: string
@@ -79,28 +68,6 @@ const item = {
   show: { opacity: 1, y: 0 },
 }
 
-// Add utility function for BigInt conversion
-const convertBigIntToNumber = (value: bigint | number): number => {
-  if (typeof value === 'bigint') {
-    return Number(value)
-  }
-  return value
-}
-
-// Enhanced formatting utilities
-const formatHexValue = (value: string): string => {
-  // Check if it's a hex string
-  if (value.startsWith('0x')) {
-    // If it's a small hex (likely an address), just format it
-    if (value.length <= 42) {
-      return formatAddress(value);
-    }
-    // For long hex strings, truncate with ellipsis
-    return `${value.slice(0, 6)}...${value.slice(-4)}`;
-  }
-  return value;
-};
-
 const formatTimeValue = (value: string | number): string => {
   const numValue = typeof value === 'string' ? parseInt(value) : value;
   if (isNaN(numValue)) return value.toString();
@@ -113,36 +80,6 @@ const formatTimeValue = (value: string | number): string => {
   return `${days} day${days === 1 ? '' : 's'}${remainingMinutes > 0 ? ` ${remainingMinutes} minute${remainingMinutes === 1 ? '' : 's'}` : ''}`;
 };
 
-const formatValue = (value: string, type: string): string => {
-  if (!value || value === '0x0' || value === '0x') return '-';
-
-  switch (type) {
-    case 'ownership_transfer':
-    case 'broadcaster_update':
-    case 'recovery_update':
-      return formatHexValue(value);
-    case 'timelock_update':
-      return formatTimeValue(value);
-    default:
-      return formatHexValue(value);
-  }
-};
-
-const getOperationIcon = (type: string) => {
-  switch (type) {
-    case 'ownership_transfer':
-      return <Key className="h-3 w-3" />;
-    case 'broadcaster_update':
-      return <Radio className="h-3 w-3" />;
-    case 'recovery_update':
-      return <Shield className="h-3 w-3" />;
-    case 'timelock_update':
-      return <Clock className="h-3 w-3" />;
-    default:
-      return null;
-  }
-};
-
 export function SecurityDetails() {
   const { address: contractAddress } = useParams<{ address: string }>()
   const { address: connectedAddress, isConnected } = useAccount()
@@ -153,7 +90,7 @@ export function SecurityDetails() {
   const { transactions = {}, storeTransaction } = useTransactionManager(contractAddress || '')
   const [signedTransactions, setSignedTransactions] = useState<ExtendedSignedTransaction[]>([])
   const [contractInfo, setContractInfo] = useState<SecureContractInfo | null>(null)
-  const { validateAndLoadContract, updateBroadcaster, approveOperation, cancelOperation } = useSecureContract()
+  const { validateAndLoadContract, updateBroadcaster, approveOperation } = useSecureContract()
   const { toast } = useToast()
   const { openConnectModal } = useConnectModal()
   const publicClient = usePublicClient()
@@ -161,11 +98,8 @@ export function SecurityDetails() {
   const config = useConfig()
 
   // State for input fields
-  const [newOwnerAddress, setNewOwnerAddress] = useState('')
-  const [newBroadcasterAddress, setNewBroadcasterAddress] = useState('')
   const [newRecoveryAddress, setNewRecoveryAddress] = useState('')
   const [newTimeLockPeriod, setNewTimeLockPeriod] = useState('')
-  const [showConnectRecoveryDialog, setShowConnectRecoveryDialog] = useState(false)
   const [showBroadcasterDialog, setShowBroadcasterDialog] = useState(false)
   const [showRecoveryDialog, setShowRecoveryDialog] = useState(false)
   const [showTimeLockDialog, setShowTimeLockDialog] = useState(false)

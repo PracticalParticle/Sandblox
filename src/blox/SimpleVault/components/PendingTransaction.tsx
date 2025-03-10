@@ -7,12 +7,8 @@ import { Loader2, X, CheckCircle2, Clock, XCircle, RefreshCw, Radio } from "luci
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
 import { TxStatus } from "@/particle-core/sdk/typescript/types/lib.index";
-import { useMultiPhaseTemporalAction } from "@/hooks/useMultiPhaseTemporalAction";
 import { TxRecord } from "../../../particle-core/sdk/typescript/interfaces/lib.index";
-import { useSimpleVaultOperations, VAULT_OPERATIONS } from "../hooks/useSimpleVaultOperations";
-import { useTransactionManager } from "@/hooks/useTransactionManager";
-import { usePublicClient, useWalletClient, useChainId, useConfig } from "wagmi";
-import SimpleVault from "../SimpleVault";
+import { VAULT_OPERATIONS } from "../hooks/useSimpleVaultOperations";
 import { useOperationTypes } from "@/hooks/useOperationTypes";
 import { NotificationMessage } from "../lib/types";
 import { useActionPermissions } from "@/hooks/useActionPermissions";
@@ -263,9 +259,9 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
             
             // Key for meta transaction state
             const approveKey = `${tx.txId}-approve`;
-            const cancelKey = `${tx.txId}-cancel`;
+            //  const cancelKey = `${tx.txId}-cancel`;
             const hasSignedApproval = signedMetaTxStates?.[approveKey]?.type === 'approve';
-            const hasSignedCancel = signedMetaTxStates?.[cancelKey]?.type === 'cancel';
+            // const hasSignedCancel = signedMetaTxStates?.[cancelKey]?.type === 'cancel';
             
             // Get operation name from hex
             const operationTypeHex = tx.params.operationType as Hex;

@@ -1,6 +1,5 @@
 import { lazy } from 'react'
-import type { BloxContract } from './types'
-import { getContractDetails, getAllContracts } from './index'
+import { getAllContracts } from './index'
 
 // Type for the UI component props
 export interface BloxUIProps {

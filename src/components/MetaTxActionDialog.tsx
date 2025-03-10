@@ -1,4 +1,3 @@
-import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -63,7 +62,6 @@ export function MetaTxActionDialog({
   const {
     validationResult,
     handleSubmit,
-    getRoleAddress,
     isConnectedWalletValid: checkWalletValidity
   } = useSinglePhaseMetaTxAction({
     isOpen,
@@ -71,8 +69,6 @@ export function MetaTxActionDialog({
     onNewValueChange,
     newValue,
     validateNewValue,
-    isLoading,
-    isSigning
   })
 
   const isConnectedWalletValid = checkWalletValidity(connectedAddress, requiredRole, contractInfo)
