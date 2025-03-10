@@ -1,5 +1,5 @@
 import { useOperationHistory } from '../../../hooks/useOperationHistory'
-import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
+import { TxRecord } from '../../../particle-core/sdk/typescript/interfaces/lib.index'
 import { Address, Hex } from 'viem'
 import { useMemo } from 'react'
 

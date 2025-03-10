@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import { useToast } from "@/components/ui/use-toast"
 import { useTransactionManager } from "../contexts/TransactionManager"
 import { getMetaTransactionSignature, broadcastMetaTransaction } from "@/utils/metaTransaction"
-import { TxRecord } from "@/particle-core/sdk/typescript/interfaces/lib.index"
+import { TxRecord } from "../particle-core/sdk/typescript/interfaces/lib.index"
 import { Address } from "viem"
 
 interface UseMultiPhaseTemporalActionProps {

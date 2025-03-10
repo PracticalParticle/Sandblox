@@ -1,5 +1,5 @@
 import { Address } from 'viem'
-import { TxRecord as BaseTxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
+import { TxRecord as BaseTxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index'
 
 export type OperationType = 'ownership' | 'broadcaster' | 'recovery' | 'timelock'
 

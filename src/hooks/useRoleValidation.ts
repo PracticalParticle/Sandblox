@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Address, Chain } from 'viem';
 import { usePublicClient, useWalletClient } from 'wagmi';
-import { SecureOwnable } from '@/particle-core/sdk/typescript/SecureOwnable';
+import { SecureOwnable } from '../particle-core/sdk/typescript/SecureOwnable';
 
 interface RoleValidationResult {
   isOwner: boolean;
