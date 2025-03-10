@@ -413,6 +413,13 @@ const BugHunt: React.FC = () => {
                 </Button>
               </div>
               <Separator className="my-4" />
+              {error && (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
               <div className="grid grid-cols-1 gap-4">
                 {renderBloxUI()}
               </div>
