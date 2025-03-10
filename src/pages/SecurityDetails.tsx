@@ -110,7 +110,7 @@ export function SecurityDetails() {
   const [pendingOwnershipTx, setPendingOwnershipTx] = useState<TxRecord | null>(null)
   const [pendingBroadcasterTx, setPendingBroadcasterTx] = useState<TxRecord | null>(null)
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
-  const [operationTypeMap, setOperationTypeMap] = useState<Map<string, string>>(new Map())
+
 
   useEffect(() => {
     if (!contractAddress) {
@@ -162,7 +162,6 @@ export function SecurityDetails() {
       const typeMap = new Map(
         supportedTypes.map(({ operationType, name }) => [operationType, name])
       );
-      setOperationTypeMap(typeMap);
       
       console.log('Operation type mapping:', typeMap);
       
