@@ -240,10 +240,7 @@ export class SecureOwnableManager {
     }
 
     // Get execution options for recovery update
-    const executionOptions = await this.contract.updateRecoveryExecutionOptions(
-      newRecoveryAddress,
-      options
-    );
+    const executionOptions = await this.contract.updateRecoveryExecutionOptions(newRecoveryAddress);
 
     // Generate meta transaction parameters
     const metaTxParams = await this.contract.createMetaTxParams(
@@ -303,10 +300,7 @@ export class SecureOwnableManager {
     }
 
     // Get execution options for timelock update
-    const executionOptions = await this.contract.updateTimeLockExecutionOptions(
-      newPeriodInMinutes,
-      options
-    );
+    const executionOptions = await this.contract.updateTimeLockExecutionOptions(newPeriodInMinutes);
 
     // Generate meta transaction parameters
     const metaTxParams = await this.contract.createMetaTxParams(
