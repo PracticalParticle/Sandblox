@@ -4,11 +4,13 @@
   X-Frame-Options: DENY
   X-XSS-Protection: 1; mode=block
   Referrer-Policy: strict-origin-when-cross-origin
+  Content-Security-Policy: frame-ancestors 'none'
   Cache-Control: no-cache
 
 /*.html
   Content-Type: text/html;charset=utf-8
   Cache-Control: no-cache
+  Content-Security-Policy: frame-ancestors 'none'
 
 /*.js
   Content-Type: application/javascript;charset=utf-8
@@ -34,4 +36,12 @@
 
 /index.html
   Content-Type: text/html;charset=utf-8
+  Cache-Control: no-cache
+
+/src/particle-core/*.js
+  Content-Type: application/javascript;charset=utf-8
+  Cache-Control: no-cache
+
+/src/particle-core/*.mjs
+  Content-Type: application/javascript;charset=utf-8
   Cache-Control: no-cache 

@@ -15,6 +15,13 @@
       }
     },
     {
+      "src": "^/src/particle-core/.*\\.(js|mjs)$",
+      "headers": {
+        "Content-Type": "application/javascript;charset=utf-8",
+        "Cache-Control": "no-cache"
+      }
+    },
+    {
       "src": "^/assets/.*\\.js$",
       "headers": {
         "Content-Type": "application/javascript;charset=utf-8",
