@@ -62,8 +62,7 @@ export default defineConfig(({ mode }) => {
     'frame-src': ["'self'", "https://*.walletconnect.org", "https://*.walletconnect.com"],
     'object-src': ["'none'"],
     'base-uri': ["'self'"],
-    'form-action': ["'self'"],
-    'frame-ancestors': ["'none'"]
+    'form-action': ["'self'"]
   };
 
   // Convert CSP object to string
@@ -84,6 +83,7 @@ export default defineConfig(({ mode }) => {
         '@/lib': path.resolve(__dirname, './src/lib'),
         '@/hooks': path.resolve(__dirname, './src/hooks')
       },
+      extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json']
     },
     build: {
       target: 'es2020',
@@ -108,13 +108,14 @@ export default defineConfig(({ mode }) => {
           chunkFileNames: 'assets/[name]-[hash].js',
           assetFileNames: 'assets/[name]-[hash][extname]'
         },
-        external: [/particle-core\/.*/]
+        preserveEntrySignatures: 'strict'
       },
     },
     optimizeDeps: {
       esbuildOptions: {
         target: 'es2020',
       },
+      include: ['particle-core']
     },
     server: {
       port: 5173,
