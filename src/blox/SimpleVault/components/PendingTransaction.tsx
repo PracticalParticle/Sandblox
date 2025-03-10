@@ -55,8 +55,6 @@ export interface PendingTransactionsProps {
   contractAddress: Address;
   mode?: 'timelock' | 'metatx';
   onNotification?: (message: NotificationMessage) => void;
-  ownerAddress?: Address;
-  broadcasterAddress?: Address;
   connectedAddress?: Address;
 }
 
@@ -69,8 +67,6 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
   isLoading = false,
   mode = 'timelock',
   onNotification,
-  ownerAddress,
-  broadcasterAddress,
   connectedAddress,
   transactions,
   isLoadingTx = false,
@@ -183,8 +179,8 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
     }
   };
 
-  // Check if still loading operation types
-  if (loadingOperationTypes) {
+  // Check if still loading operation types or permissions
+  if (loadingOperationTypes || isLoadingPermissions) {
     return (
       <div className="space-y-4">
         <div className="flex justify-between items-center">
@@ -193,7 +189,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
         <Card>
           <CardContent className="pt-6 flex justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <span className="ml-2">Loading operation types...</span>
+            <span className="ml-2">Loading...</span>
           </CardContent>
         </Card>
       </div>

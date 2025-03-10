@@ -17,7 +17,6 @@ import { atom, useAtom } from "jotai";
 import { AlertCircle, Loader2, Wallet, Coins, X, Shield, Info, Settings2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ContractInfo as BaseContractInfo } from "@/lib/verification/index";
-import { QueryClient } from "@tanstack/react-query";
 import { AddTokenDialog } from "./components";
 import { PendingTransaction, PendingTransactions } from "./components/PendingTransaction";
 import type { TokenState, TokenBalanceState } from "./components";
@@ -93,13 +92,6 @@ const loadingStateAtom = atom<LoadingState>({
   approval: {},
   cancellation: {},
   initialization: true,
-  transactions: false,
-});
-
-// Add a background fetching atom to track background processes
-const backgroundFetchingAtom = atom<{
-  transactions: boolean;
-}>({
   transactions: false,
 });
 
@@ -565,7 +557,6 @@ interface SimpleVaultUIProps {
   contractAddress?: Address;  // Make contractAddress optional
   contractInfo?: ContractInfo;  // Make contractInfo optional
   onError?: (error: Error) => void;
-  onDeployed?: (address: Address) => void;  // Add callback for deployment success
   _mock?: {
     account: { address: Address; isConnected: boolean };
     publicClient: any;
@@ -776,14 +767,10 @@ const WithdrawalFormWrapper = React.memo(({
 
 WithdrawalFormWrapper.displayName = 'WithdrawalFormWrapper';
 
-// Add a new atom for the active tab
-const activeTabAtom = atom<'timelock' | 'metatx'>('timelock');
-
 function SimpleVaultUIContent({ 
   contractAddress, 
   contractInfo, 
   onError,
-  onDeployed,
   _mock,
   dashboardMode = false,
   renderSidebar = false,
@@ -795,17 +782,18 @@ function SimpleVaultUIContent({
   const chain = _mock?.chain || useChain();
   const navigate = useNavigate();
   
-  // State declarations - moved up before use
+  // State declarations
   const [ethBalance, setEthBalance] = useState<bigint>(_mock?.initialData?.ethBalance || BigInt(0));
   const [tokenBalances, setTokenBalances] = useAtom<TokenBalanceState>(tokenBalanceAtom);
   const [pendingTxs, setPendingTxs] = useAtom(pendingTxsAtom);
   const [loadingState, setLoadingState] = useAtom(loadingStateAtom);
-  const [backgroundFetching, setBackgroundFetching] = useAtom(backgroundFetchingAtom);
   const [vault, setVault] = useAtom(vaultInstanceAtom);
   const [error, setError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [metaTxSettings] = useAtom(metaTxSettingsAtom);
   const [activeTab, setActiveTab] = useState<'timelock' | 'metatx'>('timelock');
+
+  // Keep metaTxSettings since it's used in createVaultMetaTxParams
+  const [metaTxSettings] = useAtom(metaTxSettingsAtom);
 
   // Add wallet balances hook after state declarations
   const trackedTokenAddresses = Object.keys(tokenBalances) as Address[];
@@ -814,8 +802,8 @@ function SimpleVaultUIContent({
   // Add this near other refs/state
   const initialLoadDoneRef = useRef(false);
 
-  // Add operation types hook
-  const { getOperationName, loading: loadingOperationTypes } = useOperationTypes(contractAddress as Address);
+  // Remove unused loadingOperationTypes from destructuring
+  const { getOperationName } = useOperationTypes(contractAddress as Address);
 
   // Filter transactions for withdrawals
   const filteredPendingTxs = React.useMemo(() => {
@@ -1426,8 +1414,6 @@ function SimpleVaultUIContent({
                                 contractAddress={typedContractAddress}
                                 mode="timelock"
                                 onNotification={addMessage}
-                                ownerAddress={contractInfo?.owner ? typedOwnerAddress : undefined}
-                                broadcasterAddress={contractInfo?.broadcaster ? typedBroadcasterAddress : undefined}
                                 connectedAddress={address}
                               />
                             </div>
@@ -1446,8 +1432,6 @@ function SimpleVaultUIContent({
                                 contractAddress={typedContractAddress}
                                 mode="metatx"
                                 onNotification={addMessage}
-                                ownerAddress={contractInfo?.owner ? typedOwnerAddress : undefined}
-                                broadcasterAddress={contractInfo?.broadcaster ? typedBroadcasterAddress : undefined}
                                 connectedAddress={address}
                               />
                             </div>
