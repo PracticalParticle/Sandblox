@@ -1080,8 +1080,6 @@ function SimpleVaultUIContent({
 
   // Ensure contractAddress is properly typed at the start
   const typedContractAddress = contractAddress as Address;
-  const typedOwnerAddress = (contractInfo?.owner || "0x") as Address;
-  const typedBroadcasterAddress = (contractInfo?.broadcaster || "0x") as Address;
 
   // Render sidebar content
   if (renderSidebar) {
