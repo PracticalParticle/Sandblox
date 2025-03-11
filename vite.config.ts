@@ -21,17 +21,27 @@ export default defineConfig(({ mode }) => {
   
   // Define your Ganache endpoint
   const GANACHE_ENDPOINT = 'remote-ganache-1.tailb0865.ts.net';
+  const GANACHE_DOMAIN = GANACHE_ENDPOINT.split('.').slice(1).join('.');
   
   const baseCSP = {
     'default-src': [
       "'self'",
-      `https://${GANACHE_ENDPOINT}`
+      `https://${GANACHE_ENDPOINT}`,
+      `https://*.${GANACHE_DOMAIN}`
     ],
     'connect-src': [
       "'self'",
-      // Ganache specific endpoints
+      // Ganache specific endpoints with full coverage
       `https://${GANACHE_ENDPOINT}`,
       `wss://${GANACHE_ENDPOINT}`,
+      `https://*.${GANACHE_DOMAIN}`,
+      `wss://*.${GANACHE_DOMAIN}`,
+      // Development allowances
+      ...(isDev ? [
+        "*",  // Allow all connections in development
+        "ws://*",
+        "wss://*"
+      ] : []),
       // WalletConnect
       "https://*.walletconnect.org",
       "wss://*.walletconnect.org",
@@ -40,10 +50,6 @@ export default defineConfig(({ mode }) => {
       "https://explorer-api.walletconnect.com",
       // Development endpoints
       ...(isDev ? [
-        "http://127.0.0.1:8545/",
-        "ws://127.0.0.1:8545/",
-        "http://localhost:8545/",
-        "ws://localhost:8545/",
         "http://127.0.0.1:*",
         "ws://127.0.0.1:*",
         "http://localhost:*",
@@ -61,13 +67,13 @@ export default defineConfig(({ mode }) => {
     'script-src': [
       "'self'",
       "'unsafe-inline'",
-      ...(isDev ? ["'unsafe-eval'"] : [])
+      ...(isDev ? ["'unsafe-eval'", "*"] : [])
     ],
-    'style-src': ["'self'", "'unsafe-inline'"],
-    'img-src': ["'self'", "data:", "https:", "blob:"],
-    'media-src': ["'self'", "blob:"],
+    'style-src': ["'self'", "'unsafe-inline'", "https:", "http:"],
+    'img-src': ["'self'", "data:", "https:", "http:", "blob:"],
+    'media-src': ["'self'", "blob:", "https:", "http:"],
     'worker-src': ["'self'", "blob:"],
-    'frame-src': ["'self'"],
+    'frame-src': ["'self'", "https:", "http:"],
     'object-src': ["'none'"],
     'base-uri': ["'self'"]
   };
@@ -131,10 +137,7 @@ export default defineConfig(({ mode }) => {
       open: true,
       middlewareMode: false,
       cors: {
-        origin: [
-          `https://${GANACHE_ENDPOINT}`,
-          'http://localhost:5173'
-        ],
+        origin: '*',  // More permissive for development
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         credentials: true,
         allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
@@ -146,7 +149,7 @@ export default defineConfig(({ mode }) => {
           rewrite: (path) => path.replace(/^\/local-node/, '')
         },
         '/remote-ganache': {
-          target: 'https://remote-ganache-1.tailb0865.ts.net',
+          target: `https://${GANACHE_ENDPOINT}`,
           changeOrigin: true,
           secure: true,
           ws: true
@@ -158,8 +161,12 @@ export default defineConfig(({ mode }) => {
         'Cross-Origin-Resource-Policy': 'cross-origin',
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
-        'Content-Security-Policy': cspString
+        'Access-Control-Allow-Headers': '*',
+        'Content-Security-Policy': isDev ? 
+          // Development CSP - more permissive
+          "default-src * 'unsafe-inline' 'unsafe-eval'; connect-src * 'unsafe-eval' ws: wss:; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline';" :
+          // Production CSP - strict
+          cspString
       }
     },
     preview: {
