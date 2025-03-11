@@ -230,6 +230,27 @@ const DocContentComponent: React.FC<DocContentProps> = ({ slug, setHeadings }) =
                 const id = children ? children.toString().toLowerCase().replace(/\s+/g, '-') : '';
                 return <h3 id={id} className="my-3">{children || ''}</h3>;
               },
+              a: ({ node, href, children, ...props }) => {
+                // Check if the link is external
+                const isExternal = href?.startsWith('http://') || href?.startsWith('https://');
+                
+                // Add target and rel attributes for external links
+                if (isExternal) {
+                  return (
+                    <a 
+                      href={href} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      {...props}
+                    >
+                      {children}
+                    </a>
+                  );
+                }
+                
+                // Return regular link for internal links
+                return <a href={href} {...props}>{children}</a>;
+              },
               pre: ({ children }) => <div className="not-prose max-w-full overflow-x-auto">{children}</div>,
               code: function CodeComponent({ inline, className, children }: CodeComponentProps) {
                 const match = /language-(\w+)/.exec(className || '');

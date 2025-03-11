@@ -166,6 +166,7 @@ class DocumentationService {
           const response = await fetch(`/docs/${slug}.md`);
           const content = await response.text();
           const metadata = this.extractFrontmatter(content);
+          
           return {
             slug,
             metadata,
