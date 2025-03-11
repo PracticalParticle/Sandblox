@@ -2,6 +2,7 @@
 import { defineConfig, loadEnv, Plugin } from 'vite';
 import react from '@vitejs/plugin-react-swc';
 import path from 'path';
+import fs from 'fs';
 
 // Plugin to replace CSP placeholder
 function cspPlugin(isDev: boolean): Plugin {
@@ -13,6 +14,30 @@ function cspPlugin(isDev: boolean): Plugin {
         isDev ? "'unsafe-eval'" : ''
       );
     },
+  };
+}
+
+// Plugin to serve markdown files from the docs directory
+function docsPlugin(): Plugin {
+  return {
+    name: 'vite-plugin-docs',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (req.url?.startsWith('/docs/') && req.url.endsWith('.md')) {
+          const filePath = path.join(__dirname, req.url);
+          try {
+            const content = fs.readFileSync(filePath, 'utf-8');
+            res.setHeader('Content-Type', 'text/markdown');
+            res.end(content);
+          } catch (error) {
+            console.error(`Error serving markdown file: ${filePath}`, error);
+            next();
+          }
+        } else {
+          next();
+        }
+      });
+    }
   };
 }
 
@@ -87,14 +112,16 @@ export default defineConfig(({ mode }) => {
     base: '/',
     plugins: [
       react(),
-      cspPlugin(isDev)
+      cspPlugin(isDev),
+      docsPlugin()
     ],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
         '@/components': path.resolve(__dirname, './src/components'),
         '@/lib': path.resolve(__dirname, './src/lib'),
-        '@/hooks': path.resolve(__dirname, './src/hooks')
+        '@/hooks': path.resolve(__dirname, './src/hooks'),
+        '@/docs': path.resolve(__dirname, './docs')
       },
       extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json']
     },
@@ -123,6 +150,8 @@ export default defineConfig(({ mode }) => {
         },
         preserveEntrySignatures: 'strict'
       },
+      // Copy docs directory to the build output
+      copyPublicDir: true,
       assetsInclude: ['**/*.sol', '**/*.abi.json', '**/*.bin', '**/*.md'],
     },
     optimizeDeps: {
@@ -154,7 +183,7 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: true,
           ws: true
-        }
+        },
       },
       headers: {
         'Cross-Origin-Opener-Policy': 'same-origin',

@@ -56,7 +56,10 @@ class DocumentationService {
       const allDocs = await this.getAllMockDocs();
       const searchTerms = query.toLowerCase().split(' ');
       
-      return allDocs.filter(doc => {
+      // Filter out documents that aren't displayed in the sidebar
+      const filteredDocs = allDocs.filter(doc => doc.isInSidebar);
+      
+      return filteredDocs.filter(doc => {
         const searchableText = [
           doc.metadata.title,
           doc.metadata.description,
@@ -147,29 +150,49 @@ class DocumentationService {
   private async getAllMockDocs(): Promise<DocContent[]> {
     if (this.mockDocs) return this.mockDocs;
 
-    // List of all documentation files
-    const docFiles = [
-      'overview',
-      'supported-blockchains',
-      'development-environment',
-      'first-integration',
-      'installing-sdk-tools',
-      'practical-applications',
-      'real-world-examples',
-      'use-case-scenarios',
-      // ... add other doc filenames here
+    // List of all documentation files that are displayed in the sidebar
+    const sidebarDocFiles = [
+      'introduction',
+      'core-concepts',
+      'quick-start',
+      'blox-library',
+      'blox-development',
+      'particle-account-abstraction',
+      'secure-operations',
+      'security-guidelines',
+      'best-practices',
+      'faq',
+      'troubleshooting',
+      'reporting-issues'
     ];
 
+    // Additional docs that exist but aren't displayed in the sidebar
+    const additionalDocFiles = [
+      'sandblox-summary',
+      'account-abstraction',
+      'index'
+    ];
+
+    // Combine all doc files for loading
+    const allDocFiles = [...sidebarDocFiles, ...additionalDocFiles];
+
     const docs = await Promise.all(
-      docFiles.map(async (slug) => {
+      allDocFiles.map(async (slug) => {
         try {
           const response = await fetch(`/docs/${slug}.md`);
+          if (!response.ok) {
+            console.warn(`Failed to load doc: ${slug} - ${response.status} ${response.statusText}`);
+            return null;
+          }
           const content = await response.text();
           const metadata = this.extractFrontmatter(content);
+          
           return {
             slug,
             metadata,
-            content: this.removeFrontmatter(content)
+            content: this.removeFrontmatter(content),
+            // Add a flag to indicate if this doc is displayed in the sidebar
+            isInSidebar: sidebarDocFiles.includes(slug)
           };
         } catch (error) {
           console.warn(`Failed to load doc: ${slug}`, error);
@@ -178,8 +201,15 @@ class DocumentationService {
       })
     );
 
-    this.mockDocs = docs.filter((doc): doc is DocContent => doc !== null);
+    // Use a type assertion to ensure the filter works correctly
+    this.mockDocs = docs.filter((doc): doc is NonNullable<typeof doc> => doc !== null);
     return this.mockDocs;
+  }
+
+  // Get only the docs that are displayed in the sidebar
+  async getSidebarDocs(): Promise<DocContent[]> {
+    const allDocs = await this.getAllMockDocs();
+    return allDocs.filter(doc => doc.isInSidebar);
   }
 }
 

@@ -7,80 +7,48 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
+const Sidebar: React.FC<SidebarProps> = ({ className = '', onClose }) => {
   const location = useLocation();
 
   const navigation = [
     {
-      title: 'Introduction',
-      items: [
-        { title: 'Overview', path: '/docs/overview' },
-        { title: 'Supported Blockchains', path: '/docs/supported-blockchains' },
-      ],
-    },
-    {
       title: 'Getting Started',
       items: [
-        { title: 'Development Environment', path: '/docs/development-environment' },
-        { title: 'First Integration', path: '/docs/first-integration' },
-        { title: 'Installing SDK Tools', path: '/docs/installing-sdk-tools' },
+        { title: 'Introduction', path: '/docs/introduction' },
+        { title: 'Core Concepts', path: '/docs/core-concepts' },
+        { title: 'Quick Start', path: '/docs/quick-start' },
       ],
     },
     {
-      title: 'Use Cases',
+      title: 'Blox Features',
       items: [
-        { title: 'Practical Applications', path: '/docs/practical-applications' },
-        { title: 'Real-World Examples', path: '/docs/real-world-examples' },
-        { title: 'Use Case Scenarios', path: '/docs/use-case-scenarios' },
+        { title: 'Particle Account Abstraction', path: '/docs/particle-account-abstraction' },
+        { title: 'Secure Operation Patterns', path: '/docs/secure-operations' },
+        { title: 'SandBlox Library', path: '/docs/blox-library' },
       ],
     },
     {
-      title: 'Core Components',
+      title: 'Development Guide',
       items: [
-        { title: 'Security Architecture', path: '/docs/api-reference-endpoints' },
-        { title: 'Smart Contract and Deployment Management', path: '/docs/smart-contract-deployment-management' },
-        { title: 'Secure Wallet and Transaction Handling', path: '/docs/secure-wallet-transaction-handling' },
-       
-      ],
-    },
-    {
-      title: 'Developer Guide',
-      items: [
-        { title: 'Building Dapps', path: '/docs/building-dapps' },
-        { title: 'Cross-Chain Interoperability', path: '/docs/cross-chain-interoperability' },
-        { title: 'Implementing Blockchain Payments', path: '/docs/implementing-blockchain-payments' },
-      ],
-    },
-    {
-      title: 'Enterprise Solutions',
-      items: [
-        { title: 'Integrating Existing Systems', path: '/docs/integrating-existing-systems' },
-        { title: 'Scalability-Performance', path: '/docs/scalability-performance' },
-      ],
-    },
-    {
-      title: 'Security & Compliance',
-      items: [
-        { title: 'Security Measures & Compliance', path: '/docs/security-measures-compliance' },
-        { title: 'Privacy Policy', path: '/docs/privacy-policy' },
-        { title: 'Terms of Use', path: '/docs/terms-of-use' },
+        { title: 'Blox Development Guide', path: '/docs/blox-development' },
+        { title: 'Best Practices', path: '/docs/best-practices' },
+        { title: 'Security Guidelines', path: '/docs/security-guidelines' },
       ],
     },
     {
       title: 'Troubleshooting & Support',
       items: [
-      
-        { title: 'Community Support', path: '/docs/community-support' },
-        { title: 'Debugging & Error Handling', path: '/docs/debugging-error-handling' },
-        { title: 'Reporting Issues & Requesting Features', path: '/docs/reporting-issues-requesting-features' },
+        { title: 'FAQ', path: '/docs/faq' },
+        { title: 'Troubleshooting', path: '/docs/troubleshooting' },
+        { title: 'Reporting Issues', path: '/docs/reporting-issues' },
       ],
     },
    
   ];
 
   return (
-    <div className="h-full min-w-80 sticky top-16">
-      <div className="h-full p-6 overflow-y-auto bg-white dark:bg-gray-900">
+    <div className={`min-w-80 sticky top-16 h-[calc(100vh-4rem)] flex flex-col ${className}`}>
+      <div className="flex-1 p-6 overflow-y-auto bg-white dark:bg-gray-900">
         {onClose && (
           <div className="flex justify-between mb-6">
             <h2 className="text-xl font-bold">Documentation</h2>

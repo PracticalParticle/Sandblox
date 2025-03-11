@@ -181,16 +181,41 @@ const DocContentComponent: React.FC<DocContentProps> = ({ slug, setHeadings }) =
   if (!doc) {
     return (
       <article className="prose prose-lg dark:prose-invert max-w-none">
-        <h1>Welcome to Particle Documentation</h1>
-        <p>Select a topic from the sidebar to get started.</p>
+        <h1>Welcome to SandBlox Documentation</h1>
+        <p>Select a topic from the sidebar to get started with our comprehensive guides and references.</p>
+        
         <h2>Getting Started</h2>
-        <p>
-          This documentation provides comprehensive guides and references for using our platform.
-          Explore the topics on the left to find detailed information on various features and functionalities.
-        </p>
-        <h2>Need Help?</h2>
-        <p>
-          If you have any questions, feel free to reach out to our support team or check our FAQ section.
+        <ul>
+          <li><a href="/docs/introduction">Introduction</a> - Overview of the SandBlox platform</li>
+          <li><a href="/docs/core-concepts">Core Concepts</a> - Fundamental concepts and architecture</li>
+          <li><a href="/docs/quick-start">Quick Start</a> - Set up your first SandBlox project</li>
+        </ul>
+        
+        <h2>Blox Features</h2>
+        <ul>
+          <li><a href="/docs/particle-account-abstraction">Particle Account Abstraction</a> - Learn about the security benefits of Particle AA</li>
+          <li><a href="/docs/secure-operations">Secure Operation Patterns</a> - Understand secure operation workflows</li>
+          <li><a href="/docs/blox-library">SandBlox Library</a> - Explore available pre-built components</li>
+        </ul>
+        
+        <h2>Development Guide</h2>
+        <ul>
+          <li><a href="/docs/blox-development">Blox Development Guide</a> - Create your own custom blox</li>
+          <li><a href="/docs/best-practices">Best Practices</a> - Recommended development practices</li>
+          <li><a href="/docs/security-guidelines">Security Guidelines</a> - Ensure your applications are secure</li>
+        </ul>
+        
+        <h2>Troubleshooting & Support</h2>
+        <ul>
+          <li><a href="/docs/faq">FAQ</a> - Frequently asked questions</li>
+          <li><a href="/docs/troubleshooting">Troubleshooting</a> - Common issues and solutions</li>
+          <li><a href="/docs/reporting-issues">Reporting Issues</a> - Report bugs and request features</li>
+        </ul>
+        
+        <hr />
+        <p className="text-sm">
+          SandBlox is developed by Particle Crypto Security, dedicated to making blockchain development more secure, accessible, and efficient.
+          For more information, visit <a href="https://particlecs.com" target="_blank" rel="noopener noreferrer">Particle Crypto Security</a> or join our <a href="https://discord.gg/sandblox" target="_blank" rel="noopener noreferrer">Discord community</a>.
         </p>
       </article>
     );
@@ -229,6 +254,27 @@ const DocContentComponent: React.FC<DocContentProps> = ({ slug, setHeadings }) =
               h3: ({ children }) => {
                 const id = children ? children.toString().toLowerCase().replace(/\s+/g, '-') : '';
                 return <h3 id={id} className="my-3">{children || ''}</h3>;
+              },
+              a: ({ node, href, children, ...props }) => {
+                // Check if the link is external
+                const isExternal = href?.startsWith('http://') || href?.startsWith('https://');
+                
+                // Add target and rel attributes for external links
+                if (isExternal) {
+                  return (
+                    <a 
+                      href={href} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      {...props}
+                    >
+                      {children}
+                    </a>
+                  );
+                }
+                
+                // Return regular link for internal links
+                return <a href={href} {...props}>{children}</a>;
               },
               pre: ({ children }) => <div className="not-prose max-w-full overflow-x-auto">{children}</div>,
               code: function CodeComponent({ inline, className, children }: CodeComponentProps) {

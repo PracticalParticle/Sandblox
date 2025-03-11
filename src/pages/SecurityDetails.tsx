@@ -2,6 +2,7 @@ import { useAccount, useDisconnect, usePublicClient, useWalletClient, useConfig 
 import { useNavigate, useParams } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { toBytes } from 'viem'
 import {
   ArrowLeft,
   Loader2,
@@ -22,7 +23,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useSecureContract } from '@/hooks/useSecureContract'
 import { useToast } from '../components/ui/use-toast'
 import { SecureContractInfo } from '@/lib/types'
-import { isValidEthereumAddress } from '@/lib/utils'
+import { isValidEthereumAddress, generateNewSecureOwnableManager } from '@/lib/utils'
 import {
   Tooltip,
   TooltipContent,
@@ -38,8 +39,8 @@ import { useTransactionManager } from '@/hooks/useTransactionManager'
 import { SecureOwnable } from '../particle-core/sdk/typescript/SecureOwnable'
 import { FUNCTION_SELECTORS } from '../particle-core/sdk/typescript/types/core.access.index'
 import { TemporalActionDialog } from '@/components/TemporalActionDialog'
-import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index'
-import { TxStatus } from '../particle-core/sdk/typescript/types/lib.index'
+import { MetaTransaction, TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
+import { TxStatus } from '@/particle-core/sdk/typescript/types/lib.index'
 import { MetaTxActionDialog } from '@/components/MetaTxActionDialog'
 import { TransactionManagerProvider } from '@/contexts/TransactionManager'
 
@@ -238,11 +239,15 @@ export function SecurityDetails() {
         throw new Error('Chain not found');
       }
 
-      const manager = new SecureOwnableManager(publicClient, walletClient, contractInfo.address, chain);
+      const manager = await generateNewSecureOwnableManager(publicClient, walletClient, contractInfo.address, chain);
       const tx = await manager.transferOwnership({
         from: connectedAddress as `0x${string}`
       });
 
+      // toast({
+      //   title: "Transaction Sent",
+      //   description: "The transaction has been broadcasted to the network.",
+      // });
       // Wait for transaction confirmation
       await publicClient.waitForTransactionReceipt({ hash: tx });
 
@@ -506,9 +511,8 @@ export function SecurityDetails() {
       }
 
       setIsSigningTx(true);
-
       // Create manager instance with transaction storage
-      const manager = new SecureOwnableManager(
+      const manager = await generateNewSecureOwnableManager(
         publicClient,
         walletClient,
         contractAddress as `0x${string}`,
@@ -556,16 +560,14 @@ export function SecurityDetails() {
       }
 
       setIsSigningTx(true);
-
       // Create manager instance with transaction storage
-      const manager = new SecureOwnableManager(
+      const manager = await generateNewSecureOwnableManager(
         publicClient,
         walletClient,
         contractAddress as `0x${string}`,
         chain,
         storeTransaction
       );
-
       // Prepare and sign the timelock update transaction
       await manager.prepareAndSignTimeLockUpdate(
         BigInt(newPeriod),
@@ -686,26 +688,60 @@ export function SecurityDetails() {
       if (!walletClient || !connectedAddress) {
         throw new Error('Wallet not connected');
       }
-
+      console.log('pendingTx', pendingTx);
+      console.log('pendingTx signedData', pendingTx.signedData);
       // Parse the signed transaction data
-      const signedData = JSON.parse(pendingTx.signedData);
-      
-      // Send the transaction
-      const hash = await walletClient.sendTransaction(signedData);
-      
-      toast({
-        title: "Transaction Sent",
-        description: "The transaction has been broadcasted to the network.",
-      });
+      const signedData = JSON.parse(pendingTx.signedData, (key: string, value: any): any => {
+        if (typeof value === 'string' && /^\d+n$/.test(value)) {
+          return BigInt(value.slice(0, -1));
+        }
+        return value;
+      }) as MetaTransaction;
 
+      if (!publicClient) {
+        throw new Error('Public client not found');
+      }
+      const chain = config.chains.find((c) => c.id === contractInfo?.chainId);
+      if (!chain) {
+        throw new Error('Chain not found');
+      }
+      // Create manager instance with transaction storage
+      const manager = await generateNewSecureOwnableManager(
+        publicClient,
+        walletClient,
+        contractAddress as `0x${string}`,
+        chain,
+        storeTransaction
+      );
+      // Prepare and sign the recovery update transaction
+      const txHash = await manager.executeMetaTransaction(
+        signedData,
+        { from: connectedAddress as `0x${string}` },
+        type,// Ensure signedData is parsed correctly
+        'approve',
+      );
+      console.log('txHash', txHash);
+      toast({
+        title: "Success",
+        description: "Recovery update transaction signed and stored",
+      });
+      // Send the transaction
+      // const hash = await walletClient.sendTransaction(signedData);
+
+      // toast({
+      //   title: "Transaction Sent",
+      //   description: "The transaction has been broadcasted to the network.",
+      // });
       // Wait for transaction confirmation
-      await publicClient?.waitForTransactionReceipt({ hash });
+      await publicClient?.waitForTransactionReceipt({ hash: txHash });
 
       // Update the transaction metadata to mark as broadcasted
       storeTransaction(pendingTx.txId, pendingTx.signedData, {
         ...pendingTx.metadata,
         broadcasted: true
       });
+      // Send the transaction
+      // const hash = await walletClient.sendTransaction(signedData);
 
       // Reload contract info after broadcast
       await loadContractInfo();
