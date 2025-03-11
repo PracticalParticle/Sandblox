@@ -1,0 +1,30 @@
+{
+  "id": "blox-template",
+  "name": "Blox Template",
+  "description": "A template for creating new blox implementations using Particle's Account Abstraction",
+  "category": "Template",
+  "securityLevel": "Basic",
+  "features": [
+    "Account abstraction integration",
+    "Time-locked security operations",
+    "Role-based access control",
+    "Meta-transaction support",
+    "Customizable UI components"
+  ],
+  "requirements": [
+    "Ethereum wallet",
+    "ETH for gas fees"
+  ],
+  "deployments": 0,
+  "lastUpdated": "2025-03-11",
+  "libraries": {
+    "MultiPhaseSecureOperation": {
+      "name": "MultiPhaseSecureOperation",
+      "description": "Library for implementing secure multi-phase operations with time-locks and meta-transactions"
+    },
+    "SecureOwnable": {
+      "name": "SecureOwnable",
+      "description": "Enhanced ownership management with secure multi-phase operations"
+    }
+  }
+} 
