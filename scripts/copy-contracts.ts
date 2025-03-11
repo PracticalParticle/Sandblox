@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { fileURLToPath } from 'url'
 
 interface CopyStats {
   totalFiles: number
@@ -77,6 +78,10 @@ function copyContractsRecursively(
 
   return stats
 }
+
+// Get the current file's directory in ES modules
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // Get the absolute paths for source and target directories
 const bloxDir = path.resolve(__dirname, '../src/blox')
