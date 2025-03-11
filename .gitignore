@@ -23,6 +23,8 @@ dist
 dist-ssr
 build
 out
+# Generated contract files for production
+public/blox/
 
 # Testing
 coverage

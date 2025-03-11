@@ -44,4 +44,19 @@
 
 /src/particle-core/*.mjs
   Content-Type: application/javascript;charset=utf-8
-  Cache-Control: no-cache 
+  Cache-Control: no-cache
+
+/*.sol
+  Content-Type: text/plain
+
+/*.abi.json
+  Content-Type: application/json
+
+/*.bin
+  Content-Type: application/octet-stream
+
+/*.blox.json
+  Content-Type: application/json
+
+/*.md
+  Content-Type: text/markdown; charset=utf-8 
