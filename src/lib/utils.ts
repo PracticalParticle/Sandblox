@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { Address, Chain as ViemChain , PublicClient, WalletClient, TransactionType } from 'viem'
+import { Address, Chain as ViemChain , PublicClient, WalletClient } from 'viem'
 import { devnet } from '@/config/chains'
 import { mainnet, sepolia } from 'wagmi/chains'
 import { SecureOwnableManager } from "./SecureOwnableManager"

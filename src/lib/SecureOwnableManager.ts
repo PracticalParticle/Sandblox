@@ -1,8 +1,8 @@
 import { Address, Chain, Hash, Hex, PublicClient, WalletClient } from 'viem';
 import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index';
 import { FUNCTION_SELECTORS, OPERATION_TYPES } from '../particle-core/sdk/typescript/types/core.access.index';
-import { TransactionResult, TransactionOptions } from '../particle-core/sdk/typescript/interfaces/base.index';
-import { MetaTransaction, MetaTxParams } from '../particle-core/sdk/typescript/interfaces/lib.index';
+import { TransactionResult } from '../particle-core/sdk/typescript/interfaces/base.index';
+import { MetaTransaction } from '../particle-core/sdk/typescript/interfaces/lib.index';
 import { ExecutionType } from '../particle-core/sdk/typescript/types/lib.index';
 import { 
   SecureContractInfo, 
@@ -249,10 +249,7 @@ export class SecureOwnableManager {
  console.log('prepareAndSignRecoveryUpdate', newRecoveryAddress);
   console.log('prepareAndSignRecoveryUpdate', options);
     // Get execution options for recovery update
-    const executionOptions = await this.contract.updateRecoveryExecutionOptions(
-      newRecoveryAddress,
-      options
-    );
+    const executionOptions = await this.contract.updateRecoveryExecutionOptions(newRecoveryAddress);
     console.log('executionOptions', executionOptions);
     // Generate meta transaction parameters
     console.log('broadcaster', this.broadcaster);
@@ -286,13 +283,17 @@ export class SecureOwnableManager {
     });
     unsignedMetaTx.signature=signature as Hex;
     // Create the complete signed meta transaction
+    const signedMetaTx = {
+      ...unsignedMetaTx,
+      signature: signature as Hex
+    };
 
     // Store the transaction if storeTransaction is provided
     if (this.storeTransaction) {
       console.log('unsignedMetaTx before store', unsignedMetaTx);
       this.storeTransaction(
         '0', // txId 0 is used for single phase meta transactions
-        JSON.stringify(unsignedMetaTx,this.bigIntReplacer),
+        JSON.stringify(signedMetaTx, this.bigIntReplacer),
         {
           type: 'RECOVERY_UPDATE',
           newRecoveryAddress,
@@ -302,14 +303,14 @@ export class SecureOwnableManager {
     }
   }
 
-  bigIntReplacer(key: string, value: any): any {
+  bigIntReplacer(_key: string, value: any): any {
     if (typeof value === "bigint") {
       return value.toString() + 'n';
     }
     return value;
   }
   
-  bigIntReviver(key: string, value: any): any {
+  bigIntReviver(_key: string, value: any): any {
     if (typeof value === 'string' && /^\d+n$/.test(value)) {
       return BigInt(value.slice(0, -1));
     }
@@ -328,10 +329,7 @@ export class SecureOwnableManager {
     }
 
     // Get execution options for timelock update
-    const executionOptions = await this.contract.updateTimeLockExecutionOptions(
-      newPeriodInMinutes,
-      options
-    );
+    const executionOptions = await this.contract.updateTimeLockExecutionOptions(newPeriodInMinutes);
 
     // Generate meta transaction parameters
     console.log('broadcaster', this.broadcaster);
@@ -364,13 +362,17 @@ export class SecureOwnableManager {
     });
     unsignedMetaTx.signature=signature as Hex;
     // Create the complete signed meta transaction
+    const signedMetaTx = {
+      ...unsignedMetaTx,
+      signature: signature as Hex
+    };
 
     // Store the transaction if storeTransaction is provided
     if (this.storeTransaction) {
       console.log('unsignedMetaTx before store', unsignedMetaTx);
       this.storeTransaction(
         '0', // txId 0 is used for single phase meta transactions
-        JSON.stringify(signedMetaTx),
+        JSON.stringify(signedMetaTx, this.bigIntReplacer),
         {
           type: 'TIMELOCK_UPDATE',
           newTimeLockPeriod: Number(newPeriodInMinutes),
