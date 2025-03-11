@@ -7,7 +7,7 @@ export function getSimpleVaultConfig(): Partial<BloxContract> {
       MultiPhaseSecureOperation: {
         name: 'MultiPhaseSecureOperation',
         description: 'Library for implementing secure multi-phase operations with time-locks and meta-transactions',
-        address: env.LIBRARY_MULTI_PHASE_SECURE_OPERATION
+        address: env.VITE_LIBRARY_MULTI_PHASE_SECURE_OPERATION
       }
     }
   }

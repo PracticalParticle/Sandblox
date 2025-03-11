@@ -49,7 +49,7 @@ export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: 
   } = useContractDeployment({
     contractId,
     libraries: {
-      MultiPhaseSecureOperation: env.LIBRARY_MULTI_PHASE_SECURE_OPERATION as `0x${string}`
+      MultiPhaseSecureOperation: env.VITE_LIBRARY_MULTI_PHASE_SECURE_OPERATION as `0x${string}`
     }
   })
 
