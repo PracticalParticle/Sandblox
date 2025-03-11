@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => {
   
   // Base CSP directives that are common between dev and prod
   const baseCSP = {
-    'default-src': ["'self'"],
+    'default-src': ["'self'", "https://*.tailb0865.ts.net"],
     'connect-src': [
       "'self'",
       // WalletConnect
@@ -49,9 +49,13 @@ export default defineConfig(({ mode }) => {
       "wss://*.alchemyapi.io",
       "https://eth-mainnet.g.alchemy.com",
       "https://polygon-mainnet.g.alchemy.com",
-      // Cloudflare hosted Ganache
+      // Cloudflare hosted Ganache - full access
+      "https://remote-ganache-1.tailb0865.ts.net",
+      "wss://remote-ganache-1.tailb0865.ts.net",
       "https://*.tailb0865.ts.net",
-      "wss://*.tailb0865.ts.net"
+      "wss://*.tailb0865.ts.net",
+      // Allow all HTTPS and WSS during development
+      ...(isDev ? ["https://*", "wss://*"] : [])
     ],
     'font-src': ["'self'", "data:", "https://fonts.googleapis.com", "https://rsms.me"],
     'script-src': [
@@ -126,18 +130,31 @@ export default defineConfig(({ mode }) => {
       host: true,
       open: true,
       middlewareMode: false,
-      cors: true,
+      cors: {
+        origin: ['https://remote-ganache-1.tailb0865.ts.net', 'https://*.tailb0865.ts.net'],
+        methods: ['GET', 'POST'],
+        credentials: true
+      },
       proxy: {
         '/local-node': {
           target: 'http://127.0.0.1:8545',
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/local-node/, '')
+        },
+        '/remote-ganache': {
+          target: 'https://remote-ganache-1.tailb0865.ts.net',
+          changeOrigin: true,
+          secure: true,
+          ws: true
         }
       },
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/javascript',
-        'Content-Security-Policy': cspString
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+        'Access-Control-Allow-Headers': 'X-Requested-With, content-type, Authorization',
+        'Content-Security-Policy': cspString,
+        'X-Content-Security-Policy': cspString,
+        'X-WebKit-CSP': cspString
       }
     },
     preview: {
