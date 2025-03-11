@@ -123,6 +123,7 @@ export default defineConfig(({ mode }) => {
         },
         preserveEntrySignatures: 'strict'
       },
+      assetsInclude: ['**/*.sol', '**/*.abi.json', '**/*.bin', '**/*.md'],
     },
     optimizeDeps: {
       esbuildOptions: {

@@ -76,12 +76,26 @@ async function loadContractFiles(contractId: string): Promise<BloxContract['file
     selectedBytecode: bytecodeFile
   })
 
+  // In development, use src paths
+  if (import.meta.env.DEV) {
+    return {
+      metadata: `/src/blox/${folderName}/${folderName}.blox.json`,
+      sol: `/src/blox/${folderName}/${folderName}.sol`,
+      abi: `/src/blox/${folderName}/${folderName}.abi.json`,
+      component: `/src/blox/${folderName}/${folderName}.tsx`,
+      bytecode: `/src/blox/${folderName}/${bytecodeFile}`,
+      docs: `/src/blox/${folderName}/README.md`
+    }
+  }
+  
+  // In production, use public paths
   return {
-    metadata: `/src/blox/${folderName}/${folderName}.blox.json`,
-    sol: `/src/blox/${folderName}/${folderName}.sol`,
-    abi: `/src/blox/${folderName}/${folderName}.abi.json`,
-    component: `/src/blox/${folderName}/${folderName}.tsx`,
-    bytecode: `/src/blox/${folderName}/${bytecodeFile}`
+    metadata: `/blox/${folderName}/${folderName}.blox.json`,
+    sol: `/blox/${folderName}/${folderName}.sol`,
+    abi: `/blox/${folderName}/${folderName}.abi.json`,
+    component: `/src/blox/${folderName}/${folderName}.tsx`, // Component still from src
+    bytecode: `/blox/${folderName}/${bytecodeFile}`,
+    docs: `/blox/${folderName}/README.md`
   }
 }
 
