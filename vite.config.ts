@@ -19,11 +19,19 @@ function cspPlugin(isDev: boolean): Plugin {
 export default defineConfig(({ mode }) => {
   const isDev = mode === 'development';
   
-  // Base CSP directives that are common between dev and prod
+  // Define your Ganache endpoint
+  const GANACHE_ENDPOINT = 'remote-ganache-1.tailb0865.ts.net';
+  
   const baseCSP = {
-    'default-src': ["'self'", "https://*.tailb0865.ts.net"],
+    'default-src': [
+      "'self'",
+      `https://${GANACHE_ENDPOINT}`
+    ],
     'connect-src': [
       "'self'",
+      // Ganache specific endpoints
+      `https://${GANACHE_ENDPOINT}`,
+      `wss://${GANACHE_ENDPOINT}`,
       // WalletConnect
       "https://*.walletconnect.org",
       "wss://*.walletconnect.org",
@@ -48,31 +56,23 @@ export default defineConfig(({ mode }) => {
       "https://*.alchemyapi.io",
       "wss://*.alchemyapi.io",
       "https://eth-mainnet.g.alchemy.com",
-      "https://polygon-mainnet.g.alchemy.com",
-      // Cloudflare hosted Ganache - full access
-      "https://remote-ganache-1.tailb0865.ts.net",
-      "wss://remote-ganache-1.tailb0865.ts.net",
-      "https://*.tailb0865.ts.net",
-      "wss://*.tailb0865.ts.net",
-      // Allow all HTTPS and WSS during development
-      ...(isDev ? ["https://*", "wss://*"] : [])
+      "https://polygon-mainnet.g.alchemy.com"
     ],
-    'font-src': ["'self'", "data:", "https://fonts.googleapis.com", "https://rsms.me"],
     'script-src': [
       "'self'",
-      ...(isDev ? ["'unsafe-eval'", "'unsafe-inline'"] : ["'unsafe-inline'"]),
+      "'unsafe-inline'",
+      ...(isDev ? ["'unsafe-eval'"] : [])
     ],
-    'style-src': ["'self'", "'unsafe-inline'", "https://rsms.me"],
+    'style-src': ["'self'", "'unsafe-inline'"],
     'img-src': ["'self'", "data:", "https:", "blob:"],
     'media-src': ["'self'", "blob:"],
     'worker-src': ["'self'", "blob:"],
-    'frame-src': ["'self'", "https://*.walletconnect.org", "https://*.walletconnect.com"],
+    'frame-src': ["'self'"],
     'object-src': ["'none'"],
-    'base-uri': ["'self'"],
-    'form-action': ["'self'"]
+    'base-uri': ["'self'"]
   };
 
-  // Convert CSP object to string
+  // Convert CSP object to string with semicolon delimiter
   const cspString = Object.entries(baseCSP)
     .map(([key, values]) => `${key} ${values.join(' ')}`)
     .join('; ');
@@ -131,9 +131,13 @@ export default defineConfig(({ mode }) => {
       open: true,
       middlewareMode: false,
       cors: {
-        origin: ['https://remote-ganache-1.tailb0865.ts.net', 'https://*.tailb0865.ts.net'],
-        methods: ['GET', 'POST'],
-        credentials: true
+        origin: [
+          `https://${GANACHE_ENDPOINT}`,
+          'http://localhost:5173'
+        ],
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        credentials: true,
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
       },
       proxy: {
         '/local-node': {
@@ -149,12 +153,13 @@ export default defineConfig(({ mode }) => {
         }
       },
       headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+        'Cross-Origin-Resource-Policy': 'cross-origin',
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-        'Access-Control-Allow-Headers': 'X-Requested-With, content-type, Authorization',
-        'Content-Security-Policy': cspString,
-        'X-Content-Security-Policy': cspString,
-        'X-WebKit-CSP': cspString
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+        'Content-Security-Policy': cspString
       }
     },
     preview: {
