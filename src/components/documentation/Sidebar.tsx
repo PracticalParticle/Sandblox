@@ -7,7 +7,7 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
+const Sidebar: React.FC<SidebarProps> = ({ className = '', onClose }) => {
   const location = useLocation();
 
   const navigation = [
@@ -47,8 +47,8 @@ const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
   ];
 
   return (
-    <div className="h-full min-w-80 sticky top-16">
-      <div className="h-full p-6 overflow-y-auto bg-white dark:bg-gray-900">
+    <div className={`min-w-80 sticky top-16 h-[calc(100vh-4rem)] flex flex-col ${className}`}>
+      <div className="flex-1 p-6 overflow-y-auto bg-white dark:bg-gray-900">
         {onClose && (
           <div className="flex justify-between mb-6">
             <h2 className="text-xl font-bold">Documentation</h2>

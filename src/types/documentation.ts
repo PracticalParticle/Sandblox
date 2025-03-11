@@ -12,6 +12,7 @@ export interface DocContent {
   metadata: DocMetadata;
   content: string;
   slug: string;
+  isInSidebar?: boolean;
 }
 
 export interface TOCItem {

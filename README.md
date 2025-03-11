@@ -50,26 +50,47 @@ Each blox is a self-contained module that includes:
 
 ## Project Structure
 
+The project is organized as follows:
+
 ```
-sand-blox/
-├── src/
-│   ├── blox/              # Blockchain application implementations
-│   ├── components/        # Shared React components
-│   ├── contexts/          # React context providers
-│   ├── hooks/             # Shared custom React hooks
-│   ├── lib/               # Utility libraries
-│   ├── pages/             # Application pages
-│   ├── particle-core/     # Particle account abstraction core
-│   │   └── contracts/     # Core smart contracts
-│   ├── services/          # Service integrations
-│   ├── styles/            # Global styles
-│   ├── types/             # TypeScript type definitions
-│   ├── utils/             # Utility functions
-│   ├── App.tsx            # Main application component
-│   └── main.tsx           # Application entry point
-├── public/                # Static assets
-└── ... configuration files
+open-blox/
+├── src/                  # Source code for the application
+│   ├── blox/             # Blox implementations
+│   ├── components/       # React components
+│   ├── hooks/            # Custom React hooks
+│   ├── lib/              # Utility functions and libraries
+│   ├── pages/            # Page components
+│   ├── services/         # Service layer for API interactions
+│   └── types/            # TypeScript type definitions
+├── public/               # Static assets and Cloudflare Pages configuration
+│   ├── _headers          # HTTP headers for Cloudflare Pages
+│   ├── _redirects        # URL redirects for Cloudflare Pages
+│   └── _routes.json      # Route configuration for Cloudflare Pages
+├── docs/                 # Documentation markdown files
+│   ├── introduction.md   # Introduction to the platform
+│   ├── core-concepts.md  # Core concepts and architecture
+│   ├── quick-start.md    # Getting started guide
+│   └── ...               # Other documentation files
+└── ...                   # Configuration files and other project files
 ```
+
+### Documentation
+
+The project documentation is stored in the `docs/` directory at the root of the project. These markdown files are served through the application and can be accessed via the `/docs/` routes.
+
+The documentation is organized into categories:
+- Getting Started (Introduction, Core Concepts, Quick Start)
+- Core Features (Account Abstraction, Secure Operations, Blox Library)
+- Development Guides (Blox Development, Best Practices, Security Guidelines)
+- Support (FAQ, Troubleshooting, Reporting Issues)
+
+### Deployment Configuration
+
+The project is configured for deployment on Cloudflare Pages. The following files in the `public/` directory are used for Cloudflare Pages configuration:
+
+- `_headers`: HTTP headers for security and caching
+- `_redirects`: URL redirects for SPA routing
+- `_routes.json`: Route configuration for Cloudflare Pages
 
 ## Getting Started
 

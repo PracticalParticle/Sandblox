@@ -1,4 +1,12 @@
-# SandBlox Knowledge Base
+---
+title: SandBlox Knowledge Base
+description: Sandblox Summary
+author: Particle CS Team
+lastUpdated: 2025-03-11
+tags: [SandBlox, Knowladge Base]
+category: Knowladge Base
+---
+
 
 ## Introduction
 SandBlox is a modern development platform that enables developers to rapidly prototype, build, and deploy blockchain applications using pre-built, encapsulated "blox" - reusable blockchain components powered by Particle's account abstraction technology. This platform combines the power of React, Vite, RainbowKit, and TypeScript with Particle's advanced account abstraction infrastructure to create a seamless development experience for secure blockchain applications.
