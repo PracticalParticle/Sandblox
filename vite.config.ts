@@ -48,7 +48,10 @@ export default defineConfig(({ mode }) => {
       "https://*.alchemyapi.io",
       "wss://*.alchemyapi.io",
       "https://eth-mainnet.g.alchemy.com",
-      "https://polygon-mainnet.g.alchemy.com"
+      "https://polygon-mainnet.g.alchemy.com",
+      // Cloudflare hosted Ganache
+      "https://*.tailb0865.ts.net",
+      "wss://*.tailb0865.ts.net"
     ],
     'font-src': ["'self'", "data:", "https://fonts.googleapis.com", "https://rsms.me"],
     'script-src': [
