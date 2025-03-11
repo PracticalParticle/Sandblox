@@ -2,7 +2,6 @@ import { useAccount, useDisconnect, usePublicClient, useWalletClient, useConfig 
 import { useNavigate, useParams } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { toBytes } from 'viem'
 import {
   ArrowLeft,
   Loader2,
@@ -33,7 +32,6 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { TIMELOCK_PERIODS } from '@/constants/contract'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
-import { SecureOwnableManager } from '@/lib/SecureOwnableManager'
 import { OpHistory } from '@/components/OpHistory'
 import { useTransactionManager } from '@/hooks/useTransactionManager'
 import { SecureOwnable } from '../particle-core/sdk/typescript/SecureOwnable'
@@ -691,7 +689,7 @@ export function SecurityDetails() {
       console.log('pendingTx', pendingTx);
       console.log('pendingTx signedData', pendingTx.signedData);
       // Parse the signed transaction data
-      const signedData = JSON.parse(pendingTx.signedData, (key: string, value: any): any => {
+      const signedData = JSON.parse(pendingTx.signedData, (_key: string, value: any): any => {
         if (typeof value === 'string' && /^\d+n$/.test(value)) {
           return BigInt(value.slice(0, -1));
         }
@@ -725,13 +723,6 @@ export function SecurityDetails() {
         title: "Success",
         description: "Recovery update transaction signed and stored",
       });
-      // Send the transaction
-      // const hash = await walletClient.sendTransaction(signedData);
-
-      // toast({
-      //   title: "Transaction Sent",
-      //   description: "The transaction has been broadcasted to the network.",
-      // });
       // Wait for transaction confirmation
       await publicClient?.waitForTransactionReceipt({ hash: txHash });
 
@@ -742,6 +733,13 @@ export function SecurityDetails() {
       });
       // Send the transaction
       // const hash = await walletClient.sendTransaction(signedData);
+
+      // toast({
+      //   title: "Transaction Sent",
+      //   description: "The transaction has been broadcasted to the network.",
+      // });
+      // Wait for transaction confirmation
+      await publicClient?.waitForTransactionReceipt({ hash: txHash });
 
       // Reload contract info after broadcast
       await loadContractInfo();
