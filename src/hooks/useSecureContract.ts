@@ -3,6 +3,7 @@ import { Address, Hash } from 'viem'
 import { SecureContractInfo } from '../lib/types'
 import { CONTRACT_ERRORS } from '@/constants/contract'
 import { SecureOwnableManager } from '@/lib/SecureOwnableManager'
+import { generateNewSecureOwnableManager } from '@/lib/utils'
 
 export function useSecureContract() {
   const publicClient = usePublicClient()
@@ -27,7 +28,7 @@ export function useSecureContract() {
         throw new Error(CONTRACT_ERRORS.NO_CLIENT)
       }
 
-      const manager = new SecureOwnableManager(publicClient, walletClient, address, chain);
+      const manager = await generateNewSecureOwnableManager(publicClient, walletClient, address, chain);
       return await manager.loadContractInfo();
     } catch (error) {
       console.error('Contract validation error:', error)
@@ -46,7 +47,7 @@ export function useSecureContract() {
       throw new Error(CONTRACT_ERRORS.NO_CLIENT)
     }
 
-    const manager = new SecureOwnableManager(publicClient, walletClient, address, chain);
+    const manager = await generateNewSecureOwnableManager(publicClient, walletClient, address, chain);
     return manager.transferOwnership({ from: walletClient.account.address });
   }
 

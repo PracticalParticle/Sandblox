@@ -357,6 +357,11 @@
         "internalType": "address",
         "name": "signer",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "txId",
+        "type": "uint256"
       }
     ],
     "name": "createMetaTxParams",

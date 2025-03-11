@@ -1,8 +1,9 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { Chain as ViemChain } from 'viem'
+import { Address, Chain as ViemChain , PublicClient, WalletClient, TransactionType } from 'viem'
 import { devnet } from '@/config/chains'
 import { mainnet, sepolia } from 'wagmi/chains'
+import { SecureOwnableManager } from "./SecureOwnableManager"
 
 /// <reference types="node" />
 
@@ -166,6 +167,17 @@ export function formatTokenBalance(value: bigint, decimals: number = 18, display
   return result.replace(/\.?0+$/, '');
 }
 
+export async function generateNewSecureOwnableManager(
+  publicClient: PublicClient,
+  walletClient: WalletClient | undefined,
+  address: Address,
+  chain: ViemChain,
+  storeTransaction?: (txId: string, signedData: string, metadata: any) => void
+): Promise<SecureOwnableManager> { // Fixed return type to Promise<SecureOwnableManager>
+  const manager = new SecureOwnableManager(publicClient, walletClient, address, chain, storeTransaction);
+  await manager.init();
+  return manager;
+}
 /**
  * Format a Unix timestamp into a human-readable date string
  * @param timestamp Unix timestamp in seconds

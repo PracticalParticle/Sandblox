@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Address } from 'viem';
+import { Address, Hex } from 'viem';
 import { usePublicClient, useWalletClient } from 'wagmi';
 import SimpleVault from '../SimpleVault';
 import { useChain } from '@/hooks/useChain';
@@ -76,17 +76,20 @@ export function useMetaTxActions(
 
       // Get the signer's address
       const [address] = await walletClient.getAddresses();
-
-      // Sign the message hash from the meta transaction
+      console.log('unsignedMetaTx', unsignedMetaTx);
+      // Get the message hash and sign it
+      const messageHash = unsignedMetaTx.message;
+      console.log('messageHash', messageHash);
+       // Sign the message hash from the meta transaction
       const signature = await walletClient.signMessage({
-        account: address,
-        message: unsignedMetaTx.message
+        message: { raw: messageHash as Hex },
+        account: address
       });
-
-      // Return the signed meta transaction
+      unsignedMetaTx.signature=signature as Hex;    
+      // Return the signed meta transaction with the correct structure
       return {
-        ...unsignedMetaTx,
-        signature
+        ...unsignedMetaTx, // Spread the properties of unsignedMetaTx
+        signature: unsignedMetaTx.signature // Ensure signature is included
       };
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to sign meta transaction');
@@ -194,6 +197,7 @@ export function useMetaTxActions(
 
       // Broadcast the meta transaction
       console.log('Broadcasting meta transaction...');
+      console.log('from', account);
       const result = await vault.approveWithdrawalWithMetaTx(
         signedMetaTx,
         { from: account }
