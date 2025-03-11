@@ -66,13 +66,13 @@ async function loadContractFiles(contractId: string): Promise<BloxContract['file
 
   // Determine which bytecode file to use based on environment
   // If local node is enabled, use dev bytecode, otherwise use remote
-  const bytecodeFile = env.ENABLE_LOCAL_NODE ? 
+  const bytecodeFile = env.VITE_ENABLE_LOCAL_NODE ? 
     `${folderName}.dev.bin` : 
     `${folderName}.remote.bin`
 
   console.log('Environment config:', {
-    isLocalNode: env.ENABLE_LOCAL_NODE,
-    isRemoteNode: env.ENABLE_REMOTE_NODE,
+    isLocalNode: env.VITE_ENABLE_LOCAL_NODE,
+    isRemoteNode: env.VITE_ENABLE_REMOTE_NODE,
     selectedBytecode: bytecodeFile
   })
 
@@ -170,7 +170,7 @@ export async function getContractBytecode(contractId: string): Promise<string> {
   }
   
   console.log('Environment:', {
-    isRemote: env.ENABLE_REMOTE_NODE,
+    isRemote: env.VITE_ENABLE_REMOTE_NODE,
     bytecodeFile: contract.files.bytecode
   })
   
