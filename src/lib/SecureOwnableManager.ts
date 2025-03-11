@@ -1,8 +1,8 @@
 import { Address, Chain, Hash, Hex, PublicClient, WalletClient } from 'viem';
 import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index';
 import { FUNCTION_SELECTORS, OPERATION_TYPES } from '../particle-core/sdk/typescript/types/core.access.index';
-import { TransactionResult } from '../particle-core/sdk/typescript/interfaces/base.index';
-import { MetaTransaction } from '../particle-core/sdk/typescript/interfaces/lib.index';
+import { TransactionResult, TransactionOptions } from '../particle-core/sdk/typescript/interfaces/base.index';
+import { MetaTransaction, MetaTxParams } from '../particle-core/sdk/typescript/interfaces/lib.index';
 import { ExecutionType } from '../particle-core/sdk/typescript/types/lib.index';
 import { 
   SecureContractInfo, 
@@ -22,6 +22,7 @@ export class SecureOwnableManager {
   private address: Address;
   private storeTransaction?: (txId: string, signedData: string, metadata: any) => void;
   private operationTypeMap: Map<string, string> | null = null;
+  private broadcaster: Address =  '0x'; // Initialized with an empty string
 
   constructor(
     publicClient: PublicClient, 
@@ -38,6 +39,13 @@ export class SecureOwnableManager {
     this.storeTransaction = storeTransaction;
   }
 
+  async init() {
+    this.broadcaster = await this.initializeBroadcaster();
+  }
+
+  private async initializeBroadcaster(): Promise<Address> {
+    return await this.contract.getBroadcaster();
+  }
   /**
    * Maps a TxStatus enum value to a string status
    * @param status The numeric status from the contract
@@ -238,20 +246,26 @@ export class SecureOwnableManager {
     if (!this.walletClient) {
       throw new Error('Wallet client is required');
     }
-
+ console.log('prepareAndSignRecoveryUpdate', newRecoveryAddress);
+  console.log('prepareAndSignRecoveryUpdate', options);
     // Get execution options for recovery update
-    const executionOptions = await this.contract.updateRecoveryExecutionOptions(newRecoveryAddress);
-
+    const executionOptions = await this.contract.updateRecoveryExecutionOptions(
+      newRecoveryAddress,
+      options
+    );
+    console.log('executionOptions', executionOptions);
     // Generate meta transaction parameters
+    console.log('broadcaster', this.broadcaster);
     const metaTxParams = await this.contract.createMetaTxParams(
-      this.address,
+      this.broadcaster,
       FUNCTION_SELECTORS.UPDATE_RECOVERY as Hex,
       BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
       BigInt(0), // No max gas price
       options.from
     );
-
-    // Generate unsigned meta transaction
+    
+    // Generate unsigned meta transaction     
+    console.log('args : ')
     const unsignedMetaTx = await this.contract.generateUnsignedMetaTransactionForNew(
       options.from,
       this.address,
@@ -262,25 +276,23 @@ export class SecureOwnableManager {
       executionOptions,
       metaTxParams
     );
-
+    console.log('unsignedMetaTx', unsignedMetaTx);
     // Get the message hash and sign it
     const messageHash = unsignedMetaTx.message;
+    console.log('messageHash', messageHash);
     const signature = await this.walletClient.signMessage({
       message: { raw: messageHash as Hex },
       account: options.from
     });
-
+    unsignedMetaTx.signature=signature as Hex;
     // Create the complete signed meta transaction
-    const signedMetaTx = {
-      ...unsignedMetaTx,
-      signature: signature as Hex
-    };
 
     // Store the transaction if storeTransaction is provided
     if (this.storeTransaction) {
+      console.log('unsignedMetaTx before store', unsignedMetaTx);
       this.storeTransaction(
         '0', // txId 0 is used for single phase meta transactions
-        JSON.stringify(signedMetaTx),
+        JSON.stringify(unsignedMetaTx,this.bigIntReplacer),
         {
           type: 'RECOVERY_UPDATE',
           newRecoveryAddress,
@@ -289,6 +301,22 @@ export class SecureOwnableManager {
       );
     }
   }
+
+  bigIntReplacer(key: string, value: any): any {
+    if (typeof value === "bigint") {
+      return value.toString() + 'n';
+    }
+    return value;
+  }
+  
+  bigIntReviver(key: string, value: any): any {
+    if (typeof value === 'string' && /^\d+n$/.test(value)) {
+      return BigInt(value.slice(0, -1));
+    }
+    return value;
+  }
+
+  
 
   // Enhanced TimeLock Management
   async prepareAndSignTimeLockUpdate(
@@ -300,11 +328,15 @@ export class SecureOwnableManager {
     }
 
     // Get execution options for timelock update
-    const executionOptions = await this.contract.updateTimeLockExecutionOptions(newPeriodInMinutes);
+    const executionOptions = await this.contract.updateTimeLockExecutionOptions(
+      newPeriodInMinutes,
+      options
+    );
 
     // Generate meta transaction parameters
+    console.log('broadcaster', this.broadcaster);
     const metaTxParams = await this.contract.createMetaTxParams(
-      this.address,
+      this.broadcaster,
       FUNCTION_SELECTORS.UPDATE_TIMELOCK as Hex,
       BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
       BigInt(0), // No max gas price
@@ -322,22 +354,20 @@ export class SecureOwnableManager {
       executionOptions,
       metaTxParams
     );
-
+    console.log('unsignedMetaTx', unsignedMetaTx);
     // Get the message hash and sign it
     const messageHash = unsignedMetaTx.message;
+    console.log('messageHash', messageHash);
     const signature = await this.walletClient.signMessage({
       message: { raw: messageHash as Hex },
       account: options.from
     });
-
+    unsignedMetaTx.signature=signature as Hex;
     // Create the complete signed meta transaction
-    const signedMetaTx = {
-      ...unsignedMetaTx,
-      signature: signature as Hex
-    };
 
     // Store the transaction if storeTransaction is provided
     if (this.storeTransaction) {
+      console.log('unsignedMetaTx before store', unsignedMetaTx);
       this.storeTransaction(
         '0', // txId 0 is used for single phase meta transactions
         JSON.stringify(signedMetaTx),
@@ -367,7 +397,7 @@ export class SecureOwnableManager {
 
       // Generate meta transaction parameters
       const metaTxParams = await this.contract.createMetaTxParams(
-        this.address,
+        this.broadcaster,
         FUNCTION_SELECTORS.TRANSFER_OWNERSHIP_META as Hex,
         BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
         BigInt(0), // No max gas price
@@ -429,7 +459,7 @@ export class SecureOwnableManager {
 
       // Generate meta transaction parameters
       const metaTxParams = await this.contract.createMetaTxParams(
-        this.address,
+        this.broadcaster,
         FUNCTION_SELECTORS.TRANSFER_OWNERSHIP_CANCEL_META as Hex,
         BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
         BigInt(0), // No max gas price
@@ -491,7 +521,7 @@ export class SecureOwnableManager {
 
       // Generate meta transaction parameters
       const metaTxParams = await this.contract.createMetaTxParams(
-        this.address,
+        this.broadcaster,
         FUNCTION_SELECTORS.UPDATE_BROADCASTER_META as Hex,
         BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
         BigInt(0), // No max gas price
@@ -553,7 +583,7 @@ export class SecureOwnableManager {
 
       // Generate meta transaction parameters
       const metaTxParams = await this.contract.createMetaTxParams(
-        this.address,
+        this.broadcaster,
         FUNCTION_SELECTORS.UPDATE_BROADCASTER_CANCEL_META as Hex,
         BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
         BigInt(0), // No max gas price
@@ -606,13 +636,13 @@ export class SecureOwnableManager {
    * @returns The transaction hash
    */
   async executeMetaTransaction(
-    signedMetaTxJson: string, 
+    signedMetaTxJson: MetaTransaction, 
     options: { from: Address },
     type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE',
     action: 'approve' | 'cancel'
   ): Promise<Hash> {
     try {
-      const signedMetaTx = JSON.parse(signedMetaTxJson) as MetaTransaction;
+      const signedMetaTx = signedMetaTxJson;
       let result: TransactionResult;
 
       // Execute the appropriate meta transaction based on type and action
@@ -641,6 +671,23 @@ export class SecureOwnableManager {
           );
         }
       } else if (type === 'RECOVERY_UPDATE') {
+        console.log('signedMetaTx', signedMetaTx);
+        // const hashBytes = toBytes(signedMetaTx.message);
+        // // Sign the message hash using ethers
+        //     const signature = await wallet.signMessage(hashBytes);
+            
+        //     // Create a new array with the signature at index 2
+        //     const metaTxWithSignature = [
+        //         unsignedMetaTx[0],  // txRecord
+        //         unsignedMetaTx[1],  // params
+        //         unsignedMetaTx[2],
+        //         signature,  // signature without '0x' prefix
+        //         unsignedMetaTx[4]   // data
+        //     ];
+            
+        //     // Use the new array for the contract call
+        //     await vault.approveWithdrawalWithMetaTx(metaTxWithSignature, { from: accounts[2] });
+        // });
         result = await this.contract.updateRecoveryRequestAndApprove(
           signedMetaTx,
           options

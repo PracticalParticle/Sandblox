@@ -12,5 +12,12 @@ git config --global url."git@github.com:".insteadOf "https://github.com/"
 # Update and initialize submodules
 git submodule update --init --recursive
 
+# Install dependencies
+npm install
+
+# Copy contract files explicitly (in case prebuild doesn't run)
+echo "Copying contract files..."
+npx tsx scripts/copy-contracts.ts
+
 # Build the project
 npm run build

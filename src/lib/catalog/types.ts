@@ -24,6 +24,7 @@ export interface BloxContract extends BloxMetadata {
     abi: string
     component: string
     bytecode: string
+    docs: string
   }
 }
 

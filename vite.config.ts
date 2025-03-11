@@ -152,6 +152,7 @@ export default defineConfig(({ mode }) => {
       },
       // Copy docs directory to the build output
       copyPublicDir: true,
+      assetsInclude: ['**/*.sol', '**/*.abi.json', '**/*.bin', '**/*.md'],
     },
     optimizeDeps: {
       esbuildOptions: {
