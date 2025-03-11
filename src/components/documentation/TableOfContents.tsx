@@ -39,7 +39,7 @@ const TableOfContents: React.FC<TableOfContentsProps> = ({ className = '', headi
   }, [headings]);
 
   return (
-    <nav className={`sticky top-32 ${className}`}>
+    <nav className={`pr-4 ${className}`}>
       <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
         Table of Contents
       </h4>

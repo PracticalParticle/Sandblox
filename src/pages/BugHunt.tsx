@@ -309,7 +309,7 @@ const BugHunt: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col flex-1">
+    <div className="flex flex-col max-w-7xl mx-auto flex-1">
       {/* Header */}
       <div className="flex items-center justify-between p-6 border-b">
         <h1 className="text-2xl font-bold">Bug Hunt</h1>

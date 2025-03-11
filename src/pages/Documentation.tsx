@@ -41,7 +41,7 @@ const Documentation: React.FC = () => {
   ];
 
   return (
-    <div className="flex w-full min-h-screen text-start bg-white dark:bg-gray-900 relative">
+    <div className="flex w-full max-w-screen-2xl mx-auto min-h-screen text-start bg-white dark:bg-gray-900 relative">
       {/* Mobile Navigation Controls */}
       {isMobile && (
         <div className="fixed top-16 left-0 right-0 z-20 bg-white dark:bg-gray-800 border-b dark:border-gray-700">
@@ -64,8 +64,8 @@ const Documentation: React.FC = () => {
       )}
 
       {/* Desktop Sidebar */}
-      <div className="hidden md:block">
-        <Sidebar className="w-64 h-[calc(100vh-4rem)] sticky top-16" />
+      <div className="hidden md:block w-80 flex-shrink-0">
+        <Sidebar />
       </div>
 
       {/* Mobile Sidebar Overlay */}
@@ -78,7 +78,7 @@ const Documentation: React.FC = () => {
             className="absolute left-0 top-0 h-[calc(100vh-4rem)] w-[280px] max-w-[80vw] bg-white dark:bg-gray-800" 
             onClick={e => e.stopPropagation()}
           >
-            <Sidebar className="w-full h-full" onClose={() => setIsSidebarOpen(false)} />
+            <Sidebar onClose={() => setIsSidebarOpen(false)} />
           </div>
         </div>
       )}
@@ -86,7 +86,7 @@ const Documentation: React.FC = () => {
       {/* Main content area */}
       <div className="flex-1 min-w-0 overflow-hidden" ref={contentRef}>
         <div className={`px-4 py-4 md:py-6 ${isMobile ? 'mt-[4.5rem]' : 'mt-2'}`}>
-          <div className="max-w-7xl mx-auto">
+          <div className="w-full mx-auto">
             {/* Desktop Search */}
             {!isMobile && (
               <div className="mb-6">
@@ -132,10 +132,11 @@ const Documentation: React.FC = () => {
               </div>
 
               {headings.length > 0 && (
-                <TableOfContents 
-                  className="w-64 hidden lg:block sticky top-32" 
-                  headings={headings} 
-                />
+                <div className="w-64 hidden lg:block flex-shrink-0">
+                  <div className="sticky top-32 max-h-[calc(100vh-10rem)]">
+                    <TableOfContents headings={headings} />
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -153,7 +154,7 @@ const Documentation: React.FC = () => {
             onClick={e => e.stopPropagation()}
           >
             <div className="p-6 h-full overflow-y-auto">
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-6 sticky top-0 bg-white dark:bg-gray-800 py-2 z-10">
                 <h2 className="text-xl font-bold">Contents</h2>
                 <button
                   onClick={() => setIsTocOpen(false)}
