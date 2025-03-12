@@ -3,7 +3,7 @@ title: Troubleshooting
 description: Common issues and solutions for SandBlox applications
 author: Particle CS Team
 lastUpdated: 2025-03-11
-tags: [SandBlox, blockchain, troubleshooting, Particle AA]
+tags: [SandBlox, blockchain, troubleshooting, Guardian AA]
 category: Support
 ---
 
@@ -204,16 +204,16 @@ This guide provides solutions for common issues you might encounter when develop
 4. Check for race conditions in asynchronous data loading.
 5. Implement retry mechanisms for failed data fetches.
 
-## Particle Account Abstraction Issues
+## Guardian Account Abstraction Issues
 
 ### Account Creation Problems
 
 #### Account Initialization Failures
 
-**Issue**: Particle AA account fails to initialize.
+**Issue**: Guardian AA account fails to initialize.
 
 **Solution**:
-1. Verify that you're using the correct Particle AA SDK version.
+1. Verify that you're using the correct Guardian AA SDK version.
 2. Check if the account factory contract is deployed on your target network.
 3. Ensure you have sufficient funds for account creation.
 4. Check browser console for specific error messages.

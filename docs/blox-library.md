@@ -3,13 +3,13 @@ title: Blox Library
 description: Catalog of available blox components in SandBlox
 author: Particle CS Team
 lastUpdated: 2025-03-11
-tags: [SandBlox, blockchain, components, Particle AA]
+tags: [SandBlox, blockchain, components, Guardian AA]
 category: Components
 ---
 
 ## Blox Library
 
-The SandBlox library provides a collection of pre-built, secure blockchain components that you can use to rapidly build your applications. Each blox is designed to be modular, reusable, and secure by default using Particle Account Abstraction.
+The SandBlox library provides a collection of pre-built, secure blockchain components that you can use to rapidly build your applications. Each blox is designed to be modular, reusable, and secure by default using Guardian Account Abstraction.
 
 ## Core Blox
 

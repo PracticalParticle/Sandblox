@@ -3,7 +3,7 @@ title: Security Guidelines
 description: Ensure your SandBlox applications are secure
 author: Particle CS Team
 lastUpdated: 2025-03-11
-tags: [SandBlox, blockchain, security, Particle AA, guidelines]
+tags: [SandBlox, blockchain, security, Guardian AA, guidelines]
 category: Security
 ---
 
@@ -156,7 +156,7 @@ function transfer(address to, uint256 amount) external {
 - **Incident Response Plan**: Establish a clear incident response plan
 - **Post-Incident Analysis**: Conduct thorough post-incident analysis
 
-## Particle Account Abstraction Security
+## Guardian Account Abstraction Security
 
 ### Account Security
 

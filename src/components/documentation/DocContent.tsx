@@ -193,7 +193,7 @@ const DocContentComponent: React.FC<DocContentProps> = ({ slug, setHeadings }) =
         
         <h2>Blox Features</h2>
         <ul>
-          <li><a href="/docs/particle-account-abstraction">Particle Account Abstraction</a> - Learn about the security benefits of Particle AA</li>
+          <li><a href="/docs/particle-account-abstraction">Guardian Account Abstraction</a> - Learn about the security benefits of Guardian AA</li>
           <li><a href="/docs/secure-operations">Secure Operation Patterns</a> - Understand secure operation workflows</li>
           <li><a href="/docs/blox-library">SandBlox Library</a> - Explore available pre-built components</li>
         </ul>

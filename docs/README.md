@@ -12,7 +12,7 @@ The documentation is organized into the following categories:
    - Quick Start
 
 2. **Core Features**
-   - Particle Account Abstraction
+   - Guardian Account Abstraction
    - Secure Operation Patterns
    - SandBlox Library
 
