@@ -321,7 +321,7 @@ export function TemporalActionDialog({
                               <Button
                                 onClick={() => signedMetaTx?.type === 'approve' 
                                   ? handleBroadcast('approve')
-                                  : handleMetaTxSign('approve')}
+                                  : handleMetaTxSign('approve', actionType === 'broadcaster' ? 'broadcaster' : 'ownership')}
                                 disabled={isLoading || isSigning || !isConnectedWalletValid}
                                 className={`w-full transition-all duration-200 flex items-center justify-center
                                   bg-emerald-50 text-emerald-700 hover:bg-emerald-100 
@@ -365,7 +365,7 @@ export function TemporalActionDialog({
                               <Button
                                 onClick={() => signedMetaTx?.type === 'cancel' 
                                   ? handleBroadcast('cancel')
-                                  : handleMetaTxSign('cancel')}
+                                  : handleMetaTxSign('cancel', actionType === 'broadcaster' ? 'broadcaster' : 'ownership')}
                                 disabled={isLoading || isCancelling || !isConnectedWalletValid}
                                 className={`w-full transition-all duration-200 flex items-center justify-center
                                   bg-rose-50 text-rose-700 hover:bg-rose-100 

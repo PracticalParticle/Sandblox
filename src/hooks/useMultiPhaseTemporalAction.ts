@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import { useToast } from "@/components/ui/use-toast"
-import { useTransactionManager } from "../contexts/TransactionManager"
+import { useTransactionManager } from '@/hooks/useTransactionManager'
+import { useSecureContract } from "./useSecureContract"
 import { getMetaTransactionSignature, broadcastMetaTransaction } from "@/utils/metaTransaction"
 import { TxRecord } from "../particle-core/sdk/typescript/interfaces/lib.index"
 import { Address } from "viem"
@@ -31,7 +32,7 @@ interface UseMultiPhaseTemporalActionActions {
   handleSubmit: (e: React.FormEvent) => Promise<void>
   handleApprove: (txId: number) => Promise<void>
   handleCancel: (txId: number) => Promise<void>
-  handleMetaTxSign: (type: 'approve' | 'cancel') => Promise<void>
+  handleMetaTxSign: (type: 'approve' | 'cancel', metaTxType: 'broadcaster' | 'ownership') => Promise<void>
   handleBroadcast: (type: 'approve' | 'cancel') => Promise<void>
 }
 
@@ -48,12 +49,14 @@ export function useMultiPhaseTemporalAction({
   const [isApproving, setIsApproving] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [isSigning, setIsSigning] = useState(false)
+  const { signBroadcasterUpdate, signTransferOwnership } = useSecureContract()
+  const { storeTransaction } = useTransactionManager(pendingTx?.contractAddress || '')
+
   const [signedMetaTx, setSignedMetaTx] = useState<{
     type: 'approve' | 'cancel'
     signedData: string
   } | null>(null)
   const { toast } = useToast()
-  const transactionManager = useTransactionManager()
 
   // Reset state when dialog opens/closes
   useEffect(() => {
@@ -123,32 +126,26 @@ export function useMultiPhaseTemporalAction({
     }
   }
 
-  const handleMetaTxSign = async (type: 'approve' | 'cancel') => {
+  const handleMetaTxSign = async (type: 'approve' | 'cancel', metaTxType: 'broadcaster' | 'ownership') => {
+    console.log('handleMetaTxSign', type, metaTxType);
     setIsSigning(true)
     try {
-      const txId = pendingTx?.txId ? parseInt(pendingTx.txId.toString()) : undefined
-      const signedData = await getMetaTransactionSignature(type, txId)
-      
+      if (!pendingTx?.txId) {
+        throw new Error('Transaction ID is required for signing meta transactions');
+      }
+      const txId = parseInt(pendingTx.txId.toString())
       if (!pendingTx?.contractAddress) {
         throw new Error('Contract address is required for storing meta transactions');
       }
 
-      // Create a consistent ID for the same action type and transaction
-      const metaTxId = `metatx-${type}-${txId}`
-
-      // This will override any existing signature for this action
-      await transactionManager.storeSignedTransaction(
-        pendingTx.contractAddress,
-        metaTxId,
-        signedData,
-        {
-          type,
-          originalTxId: txId,
-          timestamp: Date.now()
-        }
-      );
-
-      setSignedMetaTx({ type, signedData })
+      let signedData: string;
+      if (metaTxType === 'broadcaster') {
+        signedData = await signBroadcasterUpdate(pendingTx?.contractAddress, txId, storeTransaction);
+      } else if (metaTxType === 'ownership') {
+        signedData = await signTransferOwnership(pendingTx?.contractAddress, txId, storeTransaction);
+      } else {
+        throw new Error('Unsupported meta transaction type');
+      }
       
       toast({
         title: "Success",
