@@ -38,6 +38,7 @@ export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: 
   })
   const [formErrors, setFormErrors] = useState<Partial<FormData>>({})
   const { addDeployedContract } = useDeployedContract()
+  const [contractAdded, setContractAdded] = useState(false)
   
   const { data: walletClient } = useWalletClient()
 
@@ -57,7 +58,7 @@ export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: 
   })
 
   useEffect(() => {
-    if (isSuccess && contractAddress) {
+    if (isSuccess && contractAddress && !contractAdded) {
       const contractInfo: SecureContractInfo = {
         contractAddress: contractAddress,
         timeLockPeriodInMinutes: parseInt(formData.timeLockPeriodInDays) * 24 * 60,
@@ -71,8 +72,15 @@ export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: 
       }
       
       addDeployedContract(contractInfo)
+      setContractAdded(true)
     }
-  }, [isSuccess, contractAddress, formData, chainId, contractId, contractName, addDeployedContract])
+  }, [isSuccess, contractAddress, formData, chainId, contractId, contractName, addDeployedContract, contractAdded])
+
+  useEffect(() => {
+    if (!isOpen) {
+      setContractAdded(false)
+    }
+  }, [isOpen])
 
   const validateForm = () => {
     const errors: Partial<FormData> = {}

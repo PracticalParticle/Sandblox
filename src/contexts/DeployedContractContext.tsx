@@ -1,4 +1,4 @@
-import { createContext, useContext, ReactNode, useState, useCallback } from 'react';
+import { createContext, useContext, ReactNode, useState, useCallback, useRef } from 'react';
 import type { SecureContractInfo } from '@/lib/types';
 
 interface DeployedContractContextType {
@@ -10,8 +10,23 @@ const DeployedContractContext = createContext<DeployedContractContextType | null
 
 export function DeployedContractProvider({ children }: { children: ReactNode }) {
   const [lastDeployedContract, setLastDeployedContract] = useState<SecureContractInfo | null>(null);
+  const lastAddedAddressRef = useRef<string | null>(null);
 
   const addDeployedContract = useCallback((contractInfo: SecureContractInfo) => {
+    // Ensure we have a valid contract address
+    if (!contractInfo.contractAddress) {
+      console.error('Attempted to add contract with missing address');
+      return;
+    }
+    
+    // Prevent adding the same contract address twice in a row
+    if (lastAddedAddressRef.current === contractInfo.contractAddress) {
+      console.log('Contract already added, skipping duplicate', contractInfo.contractAddress);
+      return;
+    }
+    
+    // Update the ref and state
+    lastAddedAddressRef.current = contractInfo.contractAddress;
     setLastDeployedContract(contractInfo);
   }, []);
 

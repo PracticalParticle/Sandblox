@@ -1,6 +1,6 @@
 import { useAccount, useBalance, usePublicClient } from 'wagmi'
 import { useNavigate } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import {
   Shield,
@@ -206,6 +206,9 @@ export function Dashboard(): JSX.Element {
   })
   const publicClient = usePublicClient()
   const { lastDeployedContract } = useDeployedContract()
+  
+  // Use a ref to track the last processed contract address
+  const lastProcessedContractRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!isConnected) {
@@ -217,9 +220,14 @@ export function Dashboard(): JSX.Element {
     localStorage.setItem('dashboardContracts', JSON.stringify(contracts))
   }, [contracts])
 
-  // Add effect to handle newly deployed contracts
+  // Improved effect to handle newly deployed contracts
   useEffect(() => {
-    if (lastDeployedContract) {
+    if (lastDeployedContract && lastDeployedContract.contractAddress) {
+      // Check if we've already processed this contract
+      if (lastProcessedContractRef.current === lastDeployedContract.contractAddress) {
+        return; // Skip if we've already processed this contract
+      }
+      
       // Check if contract already exists in the dashboard
       const contractExists = contracts.some(c => 
         c.address.toLowerCase() === lastDeployedContract.contractAddress.toLowerCase()
@@ -244,8 +252,11 @@ export function Dashboard(): JSX.Element {
           variant: "default"
         })
       }
+      
+      // Update the ref to track that we've processed this contract
+      lastProcessedContractRef.current = lastDeployedContract.contractAddress
     }
-  }, [lastDeployedContract, contracts, toast])
+  }, [lastDeployedContract, toast]) // Remove contracts from dependency array
 
   const handleUnloadContract = (address: string) => {
     setContracts(prev => {
