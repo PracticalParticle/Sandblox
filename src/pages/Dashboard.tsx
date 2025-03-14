@@ -1,6 +1,6 @@
 import { useAccount, useBalance, usePublicClient } from 'wagmi'
 import { useNavigate } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import {
   Shield,
@@ -27,6 +27,7 @@ import { identifyContract } from '../lib/verification'
 import { getAllContracts } from '../lib/catalog'
 import { formatTokenBalance } from '@/lib/utils'
 import type { SecureContractInfo } from '@/lib/types'
+import { useDeployedContract } from '@/contexts/DeployedContractContext'
 
 const container = {
   hidden: { opacity: 0 },
@@ -204,6 +205,10 @@ export function Dashboard(): JSX.Element {
     return storedContracts ? JSON.parse(storedContracts) : []
   })
   const publicClient = usePublicClient()
+  const { lastDeployedContract } = useDeployedContract()
+  
+  // Use a ref to track the last processed contract address
+  const lastProcessedContractRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!isConnected) {
@@ -214,6 +219,44 @@ export function Dashboard(): JSX.Element {
   useEffect(() => {
     localStorage.setItem('dashboardContracts', JSON.stringify(contracts))
   }, [contracts])
+
+  // Improved effect to handle newly deployed contracts
+  useEffect(() => {
+    if (lastDeployedContract && lastDeployedContract.contractAddress) {
+      // Check if we've already processed this contract
+      if (lastProcessedContractRef.current === lastDeployedContract.contractAddress) {
+        return; // Skip if we've already processed this contract
+      }
+      
+      // Check if contract already exists in the dashboard
+      const contractExists = contracts.some(c => 
+        c.address.toLowerCase() === lastDeployedContract.contractAddress.toLowerCase()
+      )
+
+      if (!contractExists) {
+        // Add the newly deployed contract to the dashboard
+        const newContract = {
+          id: lastDeployedContract.contractAddress,
+          name: lastDeployedContract.contractName || 'Deployed Contract',
+          address: lastDeployedContract.contractAddress,
+          type: lastDeployedContract.contractType || 'unknown',
+          chainId: lastDeployedContract.chainId,
+          chainName: lastDeployedContract.chainName
+        }
+
+        setContracts(prev => [...prev, newContract])
+        
+        toast({
+          title: "Contract automatically imported",
+          description: "Your newly deployed contract has been added to the dashboard.",
+          variant: "default"
+        })
+      }
+      
+      // Update the ref to track that we've processed this contract
+      lastProcessedContractRef.current = lastDeployedContract.contractAddress
+    }
+  }, [lastDeployedContract, toast]) // Remove contracts from dependency array
 
   const handleUnloadContract = (address: string) => {
     setContracts(prev => {
