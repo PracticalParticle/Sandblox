@@ -49,7 +49,7 @@ export function useMultiPhaseTemporalAction({
   const [isApproving, setIsApproving] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [isSigning, setIsSigning] = useState(false)
-  const { signBroadcasterUpdate, signTransferOwnership } = useSecureContract()
+  const { signBroadcasterUpdateApproval, signTransferOwnershipApproval, signBroadcasterUpdateCancellation, signTransferOwnershipCancellation } = useSecureContract()
   const { storeTransaction } = useTransactionManager(pendingTx?.contractAddress || '')
 
   const [signedMetaTx, setSignedMetaTx] = useState<{
@@ -138,10 +138,14 @@ export function useMultiPhaseTemporalAction({
         throw new Error('Contract address is required for storing meta transactions');
       }
 
-      if (metaTxType === 'broadcaster') {
-        await signBroadcasterUpdate(pendingTx?.contractAddress, txId, storeTransaction);
-      } else if (metaTxType === 'ownership') {
-        await signTransferOwnership(pendingTx?.contractAddress, txId, storeTransaction);
+      if (metaTxType === 'broadcaster' && type === 'approve') {
+        await signBroadcasterUpdateApproval(pendingTx?.contractAddress, txId, storeTransaction);
+      } else if (metaTxType === 'broadcaster' && type === 'cancel') {
+        await signBroadcasterUpdateCancellation(pendingTx?.contractAddress, txId, storeTransaction);
+      } else if (metaTxType === 'ownership' && type === 'approve') {
+        await signTransferOwnershipApproval(pendingTx?.contractAddress, txId, storeTransaction);
+      } else if (metaTxType === 'ownership' && type === 'cancel') {
+        await signTransferOwnershipCancellation(pendingTx?.contractAddress, txId, storeTransaction);
       } else {
         throw new Error('Unsupported meta transaction type');
       }
