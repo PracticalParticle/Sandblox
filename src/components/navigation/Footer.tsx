@@ -21,7 +21,7 @@ export const Footer: FC = () => {
             rel="noopener noreferrer"
             className="text-sm text-muted-foreground hover:text-foreground"
           >
-            Twitter
+            X
           </a>
           <a
             href="https://discord.gg/particlecs"

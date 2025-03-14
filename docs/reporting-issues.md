@@ -207,7 +207,7 @@ For general questions and discussions, please join our [Discord community](https
 For other inquiries, you can reach us through:
 
 - **Email**: support@prtcl.atlassian.net
-- **X (Twitter)**: [@Particle_CS](https://twitter.com/Particle_CS)
+- **X**: [@Particle_CS](https://x.com/Particle_CS)
 - **Website**: [Particle CS](https://particlecs.com)
 
 ---

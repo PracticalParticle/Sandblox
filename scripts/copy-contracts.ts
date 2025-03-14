@@ -26,6 +26,41 @@ function isAllowedExtension(filename: string): boolean {
 }
 
 /**
+ * Copy specific files from root to public directory
+ */
+function copyRootFiles(
+  files: string[],
+  targetDir: string,
+  stats: CopyStats
+): void {
+  files.forEach(file => {
+    const sourcePath = path.resolve(__dirname, '..', file)
+    const targetPath = path.join(targetDir, file)
+
+    try {
+      if (fs.existsSync(sourcePath)) {
+        stats.totalFiles++
+        fs.copyFileSync(sourcePath, targetPath)
+        stats.copiedFiles++
+        console.log(`✓ Copied: ${path.relative(process.cwd(), sourcePath)} → ${path.relative(process.cwd(), targetPath)}`)
+      } else {
+        stats.errors.push({
+          file: sourcePath,
+          error: 'File not found'
+        })
+        console.error(`✗ File not found: ${sourcePath}`)
+      }
+    } catch (error) {
+      stats.errors.push({
+        file: sourcePath,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      console.error(`✗ Error copying ${sourcePath}:`, error)
+    }
+  })
+}
+
+/**
  * Recursively copy contract files from src/blox to public/blox
  * while maintaining the directory structure
  */
@@ -86,12 +121,17 @@ const __dirname = path.dirname(__filename)
 // Get the absolute paths for source and target directories
 const bloxDir = path.resolve(__dirname, '../src/blox')
 const publicBloxDir = path.resolve(__dirname, '../public/blox')
+const publicDir = path.resolve(__dirname, '../public')
 
 // Start the copying process
 try {
   console.log('\nCopying contract files...\n')
   
   const stats = copyContractsRecursively(bloxDir, publicBloxDir)
+  
+  // Copy terms and privacy files
+  console.log('\nCopying legal documents...\n')
+  copyRootFiles(['TERMS.md', 'PRIVACY.md'], publicDir, stats)
   
   console.log('\nCopy process completed:')
   console.log(`Total files processed: ${stats.totalFiles}`)

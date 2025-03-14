@@ -8,7 +8,7 @@ export function Privacy() {
   React.useEffect(() => {
     const fetchContent = async () => {
       try {
-        const response = await fetch('/PRIVACY.md');
+        const response = await fetch('/public/PRIVACY.md');
         const text = await response.text();
         setContent(text);
       } catch (error) {
