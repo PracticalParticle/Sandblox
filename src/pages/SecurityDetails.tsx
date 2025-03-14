@@ -14,7 +14,10 @@ import {
   Timer,
   Network,
   ChevronDown,
-  SwitchCamera
+  SwitchCamera,
+  Copy,
+  Eye,
+  LogOut
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -825,110 +828,244 @@ export function SecurityDetails() {
           className="flex flex-col space-y-8 flex-1"
         >
           {/* Header */}
-          <motion.div variants={item} className="flex items-center justify-start">
-            <div>
-              <div className="flex items-center gap-4">
+          <motion.div variants={item} className="flex flex-col gap-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-[64px] z-40 w-full border-b pb-6">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="flex items-start lg:items-center gap-4">
                 <Button
                   variant="ghost"
                   onClick={() => navigate('/dashboard')}
-                  className="mr-4"
+                  className="mr-4 hidden lg:flex"
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
-                <div>
-                  <h1 className="text-3xl font-bold tracking-tight text-left">Security Details</h1>
-                  <p className="mt-2 text-muted-foreground">
-                    Manage security settings for contract at {contractAddress}
-                  </p>
+                <div className="space-y-3 lg:space-y-2">
+                  <div className="flex items-center gap-3">
+                    <Button
+                      variant="ghost"
+                      onClick={() => navigate('/dashboard')}
+                      className="lg:hidden h-8 w-8 p-0"
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                    <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Security Details</h1>
+                  </div>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Badge variant="outline" className="font-mono shrink-0">
+                        Contract
+                      </Badge>
+                      <p className="text-muted-foreground font-mono text-sm truncate">
+                        {contractAddress}
+                      </p>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              className="h-6 w-6 p-0 shrink-0"
+                              onClick={() => navigator.clipboard.writeText(contractAddress)}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Copy address</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    <div className="hidden sm:block h-4 w-[1px] bg-border shrink-0" />
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant="outline" className="font-mono">
+                        Roles
+                      </Badge>
+                      <div className="flex -space-x-1">
+                        <div className="h-2 w-2 rounded-full bg-blue-500" />
+                        <div className="h-2 w-2 rounded-full bg-purple-500" />
+                        <div className="h-2 w-2 rounded-full bg-green-500" />
+                      </div>
+                      <span className="text-sm text-muted-foreground">3 Total</span>
+                    </div>
+                  </div>
                 </div>
               </div>
+              {connectedAddress && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-3 bg-card rounded-lg px-4 py-2 border shadow-sm shrink-0"
+                >
+                  <div className="flex flex-col items-start">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {isRoleConnected(contractInfo.owner) && (
+                        <Badge variant="default" className="bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 font-medium">
+                          <Shield className="h-3 w-3 mr-1" />
+                          Owner
+                        </Badge>
+                      )}
+                      {isRoleConnected(contractInfo.broadcaster) && (
+                        <Badge variant="default" className="bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 font-medium">
+                          <Radio className="h-3 w-3 mr-1" />
+                          Broadcaster
+                        </Badge>
+                      )}
+                      {isRoleConnected(contractInfo.recoveryAddress) && (
+                        <Badge variant="default" className="bg-green-500/10 text-green-500 hover:bg-green-500/20 font-medium">
+                          <Key className="h-3 w-3 mr-1" />
+                          Recovery
+                        </Badge>
+                      )}
+                      {!isRoleConnected(contractInfo.owner) && 
+                       !isRoleConnected(contractInfo.broadcaster) && 
+                       !isRoleConnected(contractInfo.recoveryAddress) && (
+                        <Badge variant="default" className="bg-orange-500/10 text-orange-500 hover:bg-orange-500/20 font-medium">
+                          <Eye className="h-3 w-3 mr-1" />
+                          Observer
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge variant="outline" className="font-mono text-xs">Wallet</Badge>
+                      <p className="text-xs text-muted-foreground font-mono">
+                        {connectedAddress.slice(0, 6)}...{connectedAddress.slice(-4)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="h-8 w-[1px] bg-border/50" />
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="h-6 w-6 p-0 hover:bg-muted"
+                          onClick={() => disconnect()}
+                        >
+                          <LogOut className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Disconnect wallet</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </motion.div>
+              )}
             </div>
           </motion.div>
 
           {/* Contract Info */}
           <motion.div variants={item} className="grid gap-6">
             <Card className="p-6">
-              <h2 className="text-xl font-bold mb-4">Contract Information</h2>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Owner</p>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium truncate flex-1">{contractInfo.owner}</p>
-                      {isRoleConnected(contractInfo.owner) ? (
-                        <div className="h-2 w-2 rounded-full bg-green-500" />
-                      ) : (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button 
-                                className="text-muted-foreground hover:text-primary transition-colors"
-                                onClick={() => handleConnect('owner')}
-                              >
-                                <SwitchCamera className="h-4 w-4" />
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Switch to owner wallet</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      )}
+              <h2 className="text-xl font-bold mb-6">Contract Information</h2>
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-8">
+                  <div className="space-y-6">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground mb-2">Owner</p>
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{contractInfo.owner}</p>
+                        </div>
+                        {isRoleConnected(contractInfo.owner) ? (
+                          <Badge variant="default" className="bg-blue-500/10 text-blue-500 shrink-0">Connected</Badge>
+                        ) : (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7"
+                                  onClick={() => handleConnect('owner')}
+                                >
+                                  <SwitchCamera className="h-3 w-3 mr-1" />
+                                  Connect
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Switch to owner wallet</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground mb-2">Broadcaster</p>
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{contractInfo.broadcaster}</p>
+                        </div>
+                        {isRoleConnected(contractInfo.broadcaster) ? (
+                          <Badge variant="default" className="bg-purple-500/10 text-purple-500 shrink-0">Connected</Badge>
+                        ) : (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7"
+                                  onClick={() => handleConnect('broadcaster')}
+                                >
+                                  <SwitchCamera className="h-3 w-3 mr-1" />
+                                  Connect
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Switch to broadcaster wallet</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Broadcaster</p>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium truncate flex-1">{contractInfo.broadcaster}</p>
-                      {isRoleConnected(contractInfo.broadcaster) ? (
-                        <div className="h-2 w-2 rounded-full bg-green-500" />
-                      ) : (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button 
-                                className="text-muted-foreground hover:text-primary transition-colors"
-                                onClick={() => handleConnect('broadcaster')}
-                              >
-                                <SwitchCamera className="h-4 w-4" />
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Switch to broadcaster wallet</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      )}
+                  <div className="space-y-6">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground mb-2">Recovery</p>
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{contractInfo.recoveryAddress}</p>
+                        </div>
+                        {isRoleConnected(contractInfo.recoveryAddress) ? (
+                          <Badge variant="default" className="bg-green-500/10 text-green-500 shrink-0">Connected</Badge>
+                        ) : (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7"
+                                  onClick={() => handleConnect('recovery')}
+                                >
+                                  <SwitchCamera className="h-3 w-3 mr-1" />
+                                  Connect
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Switch to recovery wallet</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Recovery</p>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium truncate flex-1">{contractInfo.recoveryAddress}</p>
-                      {isRoleConnected(contractInfo.recoveryAddress) ? (
-                        <div className="h-2 w-2 rounded-full bg-green-500" />
-                      ) : (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button 
-                                className="text-muted-foreground hover:text-primary transition-colors"
-                                onClick={() => handleConnect('recovery')}
-                              >
-                                <SwitchCamera className="h-4 w-4" />
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Switch to recovery wallet</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      )}
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground mb-2">TimeLock Period</p>
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">{formatTimeValue(contractInfo.timeLockPeriodInMinutes)}</p>
+                        </div>
+                        <Badge variant="outline" className="shrink-0">
+                          <Clock className="h-3 w-3 mr-1" />
+                          {contractInfo.timeLockPeriodInMinutes} min
+                        </Badge>
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Timelock Period</p>
-                    <p className="font-medium">{contractInfo.timeLockPeriodInMinutes} minutes</p>
                   </div>
                 </div>
               </div>
