@@ -3,7 +3,7 @@ title: Secure Operation Patterns
 description: Understanding secure operation workflows in SandBlox
 author: Particle CS Team
 lastUpdated: 2025-03-11
-tags: [SandBlox, blockchain, security, Particle AA]
+tags: [SandBlox, blockchain, security, Guardian AA]
 category: Security
 ---
 

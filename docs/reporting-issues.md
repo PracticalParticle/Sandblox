@@ -3,7 +3,7 @@ title: Reporting Issues & Requesting Features
 description: How to report bugs and request new features for SandBlox
 author: Particle CS Team
 lastUpdated: 2025-03-11
-tags: [SandBlox, blockchain, support, Particle AA]
+tags: [SandBlox, blockchain, support, Guardian AA]
 category: Support
 ---
 

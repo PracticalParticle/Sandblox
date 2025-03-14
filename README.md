@@ -10,7 +10,7 @@ SandBlox is a modern development platform that enables developers to rapidly pro
 
 The platform combines the power of React, Vite, RainbowKit, and TypeScript with Particle's advanced account abstraction technology to create a seamless development experience for blockchain applications.
 
-## Core Technology: Particle Account Abstraction
+## Core Technology: Guardian Account Abstraction
 
 SandBlox leverages Particle's revolutionary account abstraction technology, which solves the critical private key security problem in blockchain applications through:
 

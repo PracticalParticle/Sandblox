@@ -3,7 +3,7 @@ title: Blox Development Guide
 description: Guide for developing custom blox components
 author: Particle CS Team
 lastUpdated: 2025-03-11
-tags: [SandBlox, blockchain, development, Particle AA]
+tags: [SandBlox, blockchain, development, Guardian AA]
 category: Development
 ---
 
@@ -27,7 +27,7 @@ MyBlox/
 
 ## Step 1: Smart Contract Development
 
-Start by creating your smart contract that extends the `SecureOwnable` base contract from Particle Account Abstraction:
+Start by creating your smart contract that extends the `SecureOwnable` base contract from Guardian Account Abstraction:
 
 ```solidity
 // MyBlox.sol
@@ -369,7 +369,7 @@ Create comprehensive documentation for your blox:
 // MyBlox.md
 # My Custom Blox
 
-A demonstration blox that showcases secure operation patterns in SandBlox using Particle Account Abstraction.
+A demonstration blox that showcases secure operation patterns in SandBlox using Guardian Account Abstraction.
 
 ## Features
 
@@ -443,4 +443,4 @@ function App() {
 
 ---
 
-By following this guide, you'll be able to create secure, reusable blox components that leverage the full power of the SandBlox platform and Particle Account Abstraction. 
+By following this guide, you'll be able to create secure, reusable blox components that leverage the full power of the SandBlox platform and Guardian Account Abstraction. 

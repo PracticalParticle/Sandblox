@@ -1,19 +1,19 @@
 ---
-title: Particle Account Abstraction
-description: Understanding Particle Account Abstraction in SandBlox
+title: Guardian Account Abstraction
+description: Understanding Guardian Account Abstraction in SandBlox
 author: Particle CS Team
 lastUpdated: 2025-03-11
-tags: [SandBlox, blockchain, security, Particle AA]
+tags: [SandBlox, blockchain, security, Guardian AA]
 category: Security
 ---
 
-## Particle Account Abstraction in SandBlox
+## Guardian Account Abstraction in SandBlox
 
-Particle Account Abstraction (Particle AA) is a core technology in SandBlox that enhances blockchain security and user experience. This guide explains how Particle AA works in SandBlox and how it benefits your applications.
+Guardian Account Abstraction (Guardian AA) is a core technology in SandBlox that enhances blockchain security and user experience. This guide explains how Guardian AA works in SandBlox and how it benefits your applications.
 
 ## What is Account Abstraction?
 
-Account abstraction refers to a blockchain architecture that separates the control of assets from the execution of transactions. In traditional blockchain models, the account that signs a transaction must also pay for gas and directly execute the transaction. Particle Account Abstraction introduces flexibility by allowing:
+Account abstraction refers to a blockchain architecture that separates the control of assets from the execution of transactions. In traditional blockchain models, the account that signs a transaction must also pay for gas and directly execute the transaction. Guardian Account Abstraction introduces flexibility by allowing:
 
 1. **Delegated Transaction Execution**: Transactions can be executed by a different account than the one that authorized them
 2. **Custom Security Logic**: Accounts can implement custom validation rules for transactions
@@ -22,7 +22,7 @@ Account abstraction refers to a blockchain architecture that separates the contr
 
 ## Multi-Phase Security Architecture
 
-Particle AA implements a sophisticated multi-phase security architecture:
+Guardian AA implements a sophisticated multi-phase security architecture:
 
 ### Role-Based Access Control
 
@@ -45,7 +45,7 @@ The system defines three distinct roles with specific permissions:
 
 ### Time-Delayed Operations
 
-Critical operations in Particle AA require a mandatory waiting period:
+Critical operations in Guardian AA require a mandatory waiting period:
 
 1. **Operation Request**: The owner initiates an operation
 2. **Time-Lock Period**: A configurable waiting period (e.g., 24 hours)
@@ -58,7 +58,7 @@ This provides several security benefits:
 
 ### Meta-Transaction Support
 
-Particle AA enables meta-transactions, which allow:
+Guardian AA enables meta-transactions, which allow:
 
 1. **Gas-less Transactions**: Users can sign messages instead of transactions
 2. **Delegated Execution**: Broadcasters execute transactions on behalf of users
@@ -130,7 +130,7 @@ This library powers the secure operation framework with:
 
 ### 1. Defense in Depth
 
-Particle AA provides multiple layers of security:
+Guardian AA provides multiple layers of security:
 
 - **Role Separation**: Different roles for different security functions
 - **Time-Locks**: Mandatory waiting periods for critical operations
@@ -147,7 +147,7 @@ If an attacker gains access to the owner's private key:
 
 ### 3. Enhanced User Experience with Security
 
-Particle AA enables:
+Guardian AA enables:
 
 - **Gas-less Transactions**: Users don't need to hold native tokens
 - **Simplified UX**: Complex security without compromising user experience
@@ -157,7 +157,7 @@ Particle AA enables:
 
 ### Secure Asset Management
 
-Particle AA enables secure asset management with:
+Guardian AA enables secure asset management with:
 
 - Time-locked withdrawals for large amounts
 - Multi-signature approval for critical operations
@@ -165,7 +165,7 @@ Particle AA enables secure asset management with:
 
 ### Enterprise Security
 
-For enterprise applications, Particle AA provides:
+For enterprise applications, Guardian AA provides:
 
 - Role-based access control for different team members
 - Mandatory review periods for critical operations
@@ -174,7 +174,7 @@ For enterprise applications, Particle AA provides:
 
 ### Consumer Applications
 
-For consumer-facing applications, Particle AA offers:
+For consumer-facing applications, Guardian AA offers:
 
 - Simplified onboarding without gas concerns
 - Enhanced security without complexity
@@ -185,7 +185,7 @@ For consumer-facing applications, Particle AA offers:
 
 ### Setting Up Roles
 
-When deploying a contract with Particle AA:
+When deploying a contract with Guardian AA:
 
 ```typescript
 import { deployBlox } from '@sand-blox/core';
@@ -250,12 +250,12 @@ function secureOperationRequest(...) public onlyOwner {
 
 ## Conclusion
 
-Particle Account Abstraction is a fundamental technology in SandBlox that enables enhanced security without compromising user experience. By separating transaction authorization from execution and implementing time-locked operations, Particle AA provides a robust security architecture for blockchain applications.
+Guardian Account Abstraction is a fundamental technology in SandBlox that enables enhanced security without compromising user experience. By separating transaction authorization from execution and implementing time-locked operations, Guardian AA provides a robust security architecture for blockchain applications.
 
 The combination of role-based access control, time-locked operations, and meta-transaction support creates a flexible security model that can be tailored to the specific needs of your application, from simple dApps to complex enterprise systems.
 
 ---
 
-For more information on implementing Particle Account Abstraction in your applications, see the [Blox Development Guide](./blox-development.md) and explore the [Secure Operation Patterns](./secure-operations.md) documentation.
+For more information on implementing Guardian Account Abstraction in your applications, see the [Blox Development Guide](./blox-development.md) and explore the [Secure Operation Patterns](./secure-operations.md) documentation.
 
 *Developed by Particle Crypto Security* 

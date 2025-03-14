@@ -375,6 +375,7 @@ export class SecureOwnableManager {
         JSON.stringify(signedMetaTx, this.bigIntReplacer),
         {
           type: 'TIMELOCK_UPDATE',
+          broadcasted: false,
           newTimeLockPeriod: Number(newPeriodInMinutes),
           timestamp: Date.now()
         }
@@ -429,15 +430,16 @@ export class SecureOwnableManager {
       if (this.storeTransaction) {
         this.storeTransaction(
           txId.toString(),
-          JSON.stringify(signedMetaTx),
+          JSON.stringify(signedMetaTx, this.bigIntReplacer),
           {
             type: 'OWNERSHIP_TRANSFER',
-            broadcasted: false
+            broadcasted: false,
+            timestamp: Date.now()
           }
         );
       }
 
-      return JSON.stringify(signedMetaTx);
+      return JSON.stringify(signedMetaTx, this.bigIntReplacer);
     } catch (error) {
       console.error('Error preparing ownership approval meta transaction:', error);
       throw error;
@@ -530,12 +532,15 @@ export class SecureOwnableManager {
         options.from
       );
 
+      console.log('metaTxParams', metaTxParams);
+
       // Generate unsigned meta transaction for existing tx
       const unsignedMetaTx = await this.contract.generateUnsignedMetaTransactionForExisting(
         txId,
         metaTxParams
       );
 
+      console.log('unsignedMetaTx', unsignedMetaTx);
       // Get the message hash and sign it
       const messageHash = unsignedMetaTx.message;
       const signature = await this.walletClient.signMessage({
@@ -550,18 +555,20 @@ export class SecureOwnableManager {
       };
 
       // Store the transaction if a store function is provided
+      console.log('storeTransaction', this.storeTransaction);
       if (this.storeTransaction) {
         this.storeTransaction(
           txId.toString(),
-          JSON.stringify(signedMetaTx),
+          JSON.stringify(signedMetaTx, this.bigIntReplacer),
           {
             type: 'BROADCASTER_UPDATE',
-            broadcasted: false
+            broadcasted: false,
+            timestamp: Date.now()
           }
         );
       }
 
-      return JSON.stringify(signedMetaTx);
+      return JSON.stringify(signedMetaTx, this.bigIntReplacer);
     } catch (error) {
       console.error('Error preparing broadcaster approval meta transaction:', error);
       throw error;

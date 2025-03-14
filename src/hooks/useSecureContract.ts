@@ -2,7 +2,6 @@ import { usePublicClient, useWalletClient, useChainId, useConfig } from 'wagmi'
 import { Address, Hash } from 'viem'
 import { SecureContractInfo } from '../lib/types'
 import { CONTRACT_ERRORS } from '@/constants/contract'
-import { SecureOwnableManager } from '@/lib/SecureOwnableManager'
 import { generateNewSecureOwnableManager } from '@/lib/utils'
 
 export function useSecureContract() {
@@ -10,6 +9,7 @@ export function useSecureContract() {
   const { data: walletClient } = useWalletClient()
   const chainId = useChainId()
   const config = useConfig()
+  
 
   const validateAndLoadContract = async (address: Address): Promise<SecureContractInfo> => {
     if (!publicClient) {
@@ -62,8 +62,36 @@ export function useSecureContract() {
       throw new Error(CONTRACT_ERRORS.NO_CLIENT)
     }
 
-    const manager = new SecureOwnableManager(publicClient, walletClient, address, chain);
+    const manager = await generateNewSecureOwnableManager(publicClient, walletClient, address, chain);
     return manager.updateBroadcaster(newBroadcaster, { from: walletClient.account.address });
+  }
+
+  const signBroadcasterUpdate = async (address: Address, txId: number, storeTransaction: (txId: string, signedTx: string, metadata?: Record<string, unknown>) => void): Promise<string> => {
+    if (!publicClient || !walletClient?.account) {
+      throw new Error(CONTRACT_ERRORS.NO_WALLET)
+    }
+
+    const chain = config.chains.find(c => c.id === chainId);
+    if (!chain) {
+      throw new Error(CONTRACT_ERRORS.NO_CLIENT)
+    }
+    const manager = await generateNewSecureOwnableManager(publicClient, walletClient, address, chain, storeTransaction);
+    
+    return manager.prepareAndSignBroadcasterApproval(BigInt(txId), { from: walletClient.account.address });
+  } 
+
+  const signTransferOwnership = async (address: Address, txId: number, storeTransaction: (txId: string, signedTx: string, metadata?: Record<string, unknown>) => void): Promise<string> => {
+    if (!publicClient || !walletClient?.account) {
+      throw new Error(CONTRACT_ERRORS.NO_WALLET)
+    }
+
+    const chain = config.chains.find(c => c.id === chainId);
+    if (!chain) {
+      throw new Error(CONTRACT_ERRORS.NO_CLIENT)
+    }
+    const manager = await generateNewSecureOwnableManager(publicClient, walletClient, address, chain, storeTransaction);
+    
+    return manager.prepareAndSignOwnershipApproval(BigInt(txId), { from: walletClient.account.address });
   }
 
   // Operation Management
@@ -81,7 +109,7 @@ export function useSecureContract() {
       throw new Error(CONTRACT_ERRORS.NO_CLIENT)
     }
 
-    const manager = new SecureOwnableManager(publicClient, walletClient, address, chain);
+    const manager = await generateNewSecureOwnableManager(publicClient, walletClient, address, chain);
     if (operationType === 'ownership') {
       return manager.approveOwnershipTransfer(BigInt(txId), { from: walletClient.account.address });
     } else {
@@ -103,7 +131,7 @@ export function useSecureContract() {
       throw new Error(CONTRACT_ERRORS.NO_CLIENT)
     }
 
-    const manager = new SecureOwnableManager(publicClient, walletClient, address, chain);
+    const manager = await generateNewSecureOwnableManager(publicClient, walletClient, address, chain);
     if (operationType === 'ownership') {
       return manager.cancelOwnershipTransfer(BigInt(txId), { from: walletClient.account.address });
     } else {
@@ -115,6 +143,8 @@ export function useSecureContract() {
     validateAndLoadContract,
     transferOwnership,
     updateBroadcaster,
+    signBroadcasterUpdate,
+    signTransferOwnership,
     approveOperation,
     cancelOperation
   }

@@ -40,7 +40,7 @@ This architecture enables:
 3. **Composability**: Multiple blox can be combined to create complex applications
 4. **Testability**: Each blox can be tested independently before integration
 
-### Integration with Particle Account Abstraction
+### Integration with Guardian Account Abstraction
 All blox in SandBlox are built on Particle's account abstraction technology, which provides:
 
 1. **Multi-Phase Security Architecture**
@@ -68,7 +68,7 @@ sand-blox/
 │   ├── hooks/             # Shared custom React hooks
 │   ├── lib/               # Utility libraries
 │   ├── pages/             # Application pages
-│   ├── particle-core/     # Particle account abstraction core
+│   ├── particle-core/     # Guardian account abstraction core
 │   │   └── contracts/     # Core smart contracts
 │   ├── services/          # Service integrations
 │   ├── styles/            # Global styles
@@ -143,11 +143,11 @@ struct TxRecord {
 }
 ```
 
-#### ParticleAccountAbstraction Contract
+#### GuardianAccountAbstraction Contract
 This contract serves as the foundation for all blox implementations, providing:
 
 ```solidity
-contract ParticleAccountAbstraction is SecureOwnable {
+contract GuardianAccountAbstraction is SecureOwnable {
     constructor(
         address initialOwner,
         address broadcaster,
@@ -221,7 +221,7 @@ Each blox provides React components for UI integration:
 
 1. **Setup**: Create a new directory in `src/blox/` with your blox name
 2. **Create Files**: Generate the required files based on BloxTemplate
-3. **Smart Contract**: Implement the contract functionality extending ParticleAccountAbstraction
+3. **Smart Contract**: Implement the contract functionality extending GuardianAccountAbstraction
 4. **TypeScript SDK**: Create interaction methods for your contract
 5. **UI Components**: Build the user interface for your blox
 6. **Testing**: Test all components individually and together

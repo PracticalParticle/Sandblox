@@ -22,7 +22,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', onClose }) => {
     {
       title: 'Blox Features',
       items: [
-        { title: 'Particle Account Abstraction', path: '/docs/particle-account-abstraction' },
+        { title: 'Guardian Account Abstraction', path: '/docs/particle-account-abstraction' },
         { title: 'Secure Operation Patterns', path: '/docs/secure-operations' },
         { title: 'SandBlox Library', path: '/docs/blox-library' },
       ],

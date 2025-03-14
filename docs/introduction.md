@@ -15,7 +15,7 @@ SandBlox is a modern development platform that enables developers to rapidly pro
 
 SandBlox addresses critical challenges in blockchain development:
 
-- **Enhanced Security**: Leveraging Particle Account Abstraction to provide multi-layered security for blockchain applications
+- **Enhanced Security**: Leveraging Guardian Account Abstraction to provide multi-layered security for blockchain applications
 - **Rapid Development**: Accelerating development with pre-built, composable components
 - **Lower Barrier to Entry**: Making blockchain development accessible to more developers
 - **Seamless Integration**: Providing smooth integration between smart contracts and frontend UI

@@ -48,7 +48,7 @@ Modify `CustomVault.sol` to implement your desired functionality:
 2. Add your custom state variables
 3. Implement your contract's functions
 4. Define events for important state changes
-5. Override necessary functions from the ParticleAccountAbstraction contract
+5. Override necessary functions from the GuardianAccountAbstraction contract
 
 ### 3. Configure the Blox
 

@@ -3,7 +3,7 @@ title: Quick Start Guide
 description: Get started with SandBlox quickly
 author: Particle CS Team
 lastUpdated: 2025-03-11
-tags: [SandBlox, blockchain, tutorial, Particle AA]
+tags: [SandBlox, blockchain, tutorial, Guardian AA]
 category: Getting Started
 ---
 
@@ -197,7 +197,7 @@ Now that you have your first SandBlox application running, you can:
 
 - Explore the [Blox Library](/docs/blox-library) to discover available components
 - Learn about [Secure Operation Patterns](/docs/secure-operations) to implement secure workflows
-- Understand [Particle Account Abstraction](/docs/account-abstraction) to leverage advanced security features
+- Understand [Guardian Account Abstraction](/docs/account-abstraction) to leverage advanced security features
 - Follow the [Blox Development Guide](/docs/blox-development) to create custom blox
 
 ---

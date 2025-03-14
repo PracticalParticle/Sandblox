@@ -3,19 +3,19 @@ title: Frequently Asked Questions
 description: Common questions about the SandBlox platform
 author: Particle CS Team
 lastUpdated: 2025-03-11
-tags: [SandBlox, blockchain, FAQ, Particle AA]
+tags: [SandBlox, blockchain, FAQ, Guardian AA]
 category: Support
 ---
 
 ## Frequently Asked Questions
 
-This page answers common questions about the SandBlox platform and Particle Account Abstraction.
+This page answers common questions about the SandBlox platform and Guardian Account Abstraction.
 
 ## General Questions
 
 ### What is SandBlox?
 
-SandBlox is a modular blockchain development platform that enables developers to build secure decentralized applications using pre-built, audited components called "blox." The platform is powered by Particle Account Abstraction, providing enhanced security and user experience.
+SandBlox is a modular blockchain development platform that enables developers to build secure decentralized applications using pre-built, audited components called "blox." The platform is powered by Guardian Account Abstraction, providing enhanced security and user experience.
 
 ### Who is SandBlox for?
 
@@ -43,9 +43,9 @@ Support for additional blockchains is planned for future releases.
 
 ## Technical Questions
 
-### How does SandBlox relate to Particle Account Abstraction?
+### How does SandBlox relate to Guardian Account Abstraction?
 
-SandBlox is built on top of Particle Account Abstraction (Particle AA), which provides the security infrastructure for all blox components. Particle AA enables advanced security features like multi-signature control, time-locked operations, and meta-transactions.
+SandBlox is built on top of Guardian Account Abstraction (Guardian AA), which provides the security infrastructure for all blox components. Guardian AA enables advanced security features like multi-signature control, time-locked operations, and meta-transactions.
 
 ### What programming languages are used in SandBlox?
 
@@ -100,7 +100,7 @@ These templates can be found in our GitHub repository.
 
 ### How secure are SandBlox components?
 
-All core blox in the SandBlox library undergo rigorous security audits by independent security firms before being published. The platform is built on Particle Account Abstraction, which implements industry-leading security practices.
+All core blox in the SandBlox library undergo rigorous security audits by independent security firms before being published. The platform is built on Guardian Account Abstraction, which implements industry-leading security practices.
 
 ### Has SandBlox been audited?
 
@@ -108,7 +108,7 @@ Yes, the SandBlox core platform and all official blox have been audited by leadi
 
 ### How does SandBlox handle private keys?
 
-SandBlox never has access to users' private keys. All key management is handled by the user's wallet provider. SandBlox uses Particle Account Abstraction to enable advanced security features without requiring access to private keys.
+SandBlox never has access to users' private keys. All key management is handled by the user's wallet provider. SandBlox uses Guardian Account Abstraction to enable advanced security features without requiring access to private keys.
 
 ### What security features does SandBlox provide?
 

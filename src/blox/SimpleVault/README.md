@@ -189,4 +189,4 @@ MPL-2.0
 
 ---
 
-Built with [Particle Account Abstraction](../../vaultify-docs/knowledge_base/Particle_Account_Abstraction.md)
+Built with [Guardian Account Abstraction](../../vaultify-docs/knowledge_base/Particle_Account_Abstraction.md)

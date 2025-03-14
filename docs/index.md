@@ -3,13 +3,13 @@ title: SandBlox Documentation
 description: Comprehensive guides for the SandBlox platform
 author: Particle CS Team
 lastUpdated: 2025-03-11
-tags: [SandBlox, blockchain, documentation, Particle AA]
+tags: [SandBlox, blockchain, documentation, Guardian AA]
 category: Documentation
 ---
 
 # SandBlox Documentation
 
-Welcome to the SandBlox documentation. This comprehensive guide will help you understand and use the SandBlox platform to build secure blockchain applications powered by Particle Account Abstraction.
+Welcome to the SandBlox documentation. This comprehensive guide will help you understand and use the SandBlox platform to build secure blockchain applications powered by Guardian Account Abstraction.
 
 ## Getting Started
 
@@ -19,7 +19,7 @@ Welcome to the SandBlox documentation. This comprehensive guide will help you un
 
 ## Blox Features
 
-- [Particle Account Abstraction](/docs/particle-account-abstraction) - Learn about the security benefits of Particle AA
+- [Guardian Account Abstraction](/docs/particle-account-abstraction) - Learn about the security benefits of Guardian AA
 - [Secure Operation Patterns](/docs/secure-operations) - Understand secure operation workflows
 - [SandBlox Library](/docs/blox-library) - Explore available pre-built components
 

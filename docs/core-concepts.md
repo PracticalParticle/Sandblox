@@ -3,7 +3,7 @@ title: Core Concepts
 description: Fundamental concepts and architecture of SandBlox
 author: Particle CS Team
 lastUpdated: 2025-03-11
-tags: [SandBlox, blockchain, architecture, Particle AA]
+tags: [SandBlox, blockchain, architecture, Guardian AA]
 category: Fundamentals
 ---
 
@@ -32,7 +32,7 @@ This architecture provides several key advantages:
 3. **Natural Composability**: Multiple blox can be combined to create complex applications
 4. **Independent Testability**: Each blox can be tested independently before integration
 
-## Particle Account Abstraction Security
+## Guardian Account Abstraction Security
 
 All blox in SandBlox are built on Particle's account abstraction technology, which provides:
 
@@ -63,7 +63,7 @@ sand-blox/
 │   ├── hooks/             # Shared custom React hooks
 │   ├── lib/               # Utility libraries
 │   ├── pages/             # Application pages
-│   ├── particle-core/     # Particle account abstraction core
+│   ├── particle-core/     # Guardian account abstraction core
 │   │   └── contracts/     # Core smart contracts
 │   ├── services/          # Service integrations
 │   ├── styles/            # Global styles

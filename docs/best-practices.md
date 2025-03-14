@@ -3,7 +3,7 @@ title: Best Practices
 description: Recommended development practices for SandBlox applications
 author: Particle CS Team
 lastUpdated: 2025-03-11
-tags: [SandBlox, blockchain, development, Particle AA, best practices]
+tags: [SandBlox, blockchain, development, Guardian AA, best practices]
 category: Development
 ---
 

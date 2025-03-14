@@ -287,12 +287,13 @@ export function SecurityDetails() {
         throw new Error('Chain not found');
       }
 
-      // Create contract instance
-      const contract = new SecureOwnable(
+      // Create manager instance with transaction storage
+      const manager = await generateNewSecureOwnableManager(
         publicClient,
         walletClient,
         contractAddress as `0x${string}`,
-        chain
+        chain,
+        storeTransaction
       );
 
       // Check if the connected wallet is recovery address
@@ -300,37 +301,25 @@ export function SecurityDetails() {
 
       if (isRecoveryWallet) {
         // Recovery wallet must use timelock approval
-        const result = await contract.transferOwnershipDelayedApproval(
+        const result = await manager.approveOwnershipTransfer(
           BigInt(txId),
           { from: connectedAddress as `0x${string}` }
         );
-        await result.wait();
+        await publicClient.waitForTransactionReceipt({ hash: result });
       } else {
-        // Owner can use meta transaction approval
-        const metaTxParams = await contract.createMetaTxParams(
-          contractAddress as `0x${string}`,
-          FUNCTION_SELECTORS.TRANSFER_OWNERSHIP_META as `0x${string}`,
-          BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
-          BigInt(0), // No max gas price
-          connectedAddress as `0x${string}`
-        );
-
-        const unsignedMetaTx = await contract.generateUnsignedMetaTransactionForExisting(
+        // Owner uses meta transaction approval
+        console.log('Preparing and signing ownership approval')
+        await manager.prepareAndSignOwnershipApproval(
           BigInt(txId),
-          metaTxParams
-        );
-
-        const result = await contract.transferOwnershipApprovalWithMetaTx(
-          unsignedMetaTx,
           { from: connectedAddress as `0x${string}` }
         );
-        await result.wait();
+
+        toast({
+          title: "Success",
+          description: "Transfer ownership approval transaction signed and stored",
+        });
       }
 
-      toast({
-        title: "Approval submitted",
-        description: "Transfer ownership approval has been submitted.",
-      });
       await loadContractInfo();
     } catch (error) {
       console.error('Error in ownership transfer approval:', error);
@@ -987,10 +976,19 @@ export function SecurityDetails() {
                         <div className="h-6 w-[1px] bg-border" />
                         <Button 
                           onClick={() => handleBroadcast('OWNERSHIP_TRANSFER')}
-                          className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'OWNERSHIP_TRANSFER' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
+                          className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => 
+                            tx.metadata?.type === 'OWNERSHIP_TRANSFER' && 
+                            tx.metadata?.broadcasted === false
+                          ) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
                           size="sm"
-                          variant={signedTransactions.some(tx => tx.metadata?.type === 'OWNERSHIP_TRANSFER' && !tx.metadata?.broadcasted) ? "default" : "outline"}
-                          disabled={!signedTransactions.some(tx => tx.metadata?.type === 'OWNERSHIP_TRANSFER' && !tx.metadata?.broadcasted)}
+                          variant={signedTransactions.some(tx => 
+                            tx.metadata?.type === 'OWNERSHIP_TRANSFER' && 
+                            tx.metadata?.broadcasted === false
+                          ) ? "default" : "outline"}
+                          disabled={!signedTransactions.some(tx => 
+                            tx.metadata?.type === 'OWNERSHIP_TRANSFER' && 
+                            tx.metadata?.broadcasted === false
+                          ) || !isRoleConnected(contractInfo.broadcaster)}
                         >
                           <Radio className="h-4 w-4" />
                           Broadcast
@@ -1008,7 +1006,7 @@ export function SecurityDetails() {
                         actionType="ownership"
                         currentValue={contractInfo?.owner}
                         currentValueLabel="Current Owner"
-                        actionLabel={pendingOwnershipTx ? "Approve Transfer" : "Request Transfer"}
+                        actionLabel={pendingOwnershipTx ? "Sign Meta Transaction" : "Request Transfer"}
                         requiredRole={pendingOwnershipTx ? "owner_or_recovery" : "recovery"}
                         connectedAddress={connectedAddress}
                         pendingTx={pendingOwnershipTx || undefined}
@@ -1016,6 +1014,8 @@ export function SecurityDetails() {
                         onSubmit={async () => handleTransferOwnershipRequest()}
                         onApprove={handleTransferOwnershipApproval}
                         onCancel={handleTransferOwnershipCancellation}
+                        showMetaTxOption={!!(pendingOwnershipTx && isRoleConnected(contractInfo.owner))}
+                        metaTxDescription="Sign a meta transaction to approve the ownership transfer. This will be broadcasted by the broadcaster."
                       />
                     </>
                   )}
@@ -1074,10 +1074,19 @@ export function SecurityDetails() {
                         <div className="h-6 w-[1px] bg-border" />
                         <Button 
                           onClick={() => handleBroadcast('BROADCASTER_UPDATE')}
-                          className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'BROADCASTER_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
+                          className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => 
+                            tx.metadata?.type === 'BROADCASTER_UPDATE' && 
+                            tx.metadata?.broadcasted === false
+                          ) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
                           size="sm"
-                          variant={signedTransactions.some(tx => tx.metadata?.type === 'BROADCASTER_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
-                          disabled={!signedTransactions.some(tx => tx.metadata?.type === 'BROADCASTER_UPDATE' && !tx.metadata?.broadcasted)}
+                          variant={signedTransactions.some(tx => 
+                            tx.metadata?.type === 'BROADCASTER_UPDATE' && 
+                            tx.metadata?.broadcasted === false
+                          ) ? "default" : "outline"}
+                          disabled={!signedTransactions.some(tx => 
+                            tx.metadata?.type === 'BROADCASTER_UPDATE' && 
+                            tx.metadata?.broadcasted === false
+                          ) || !isRoleConnected(contractInfo.broadcaster)}
                         >
                           <Radio className="h-4 w-4" />
                           Broadcast
@@ -1149,7 +1158,7 @@ export function SecurityDetails() {
                       className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
                       size="sm"
                       variant={signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
-                      disabled={!signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted)}
+                      disabled={!signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) || !isRoleConnected(contractInfo.broadcaster)}
                     >
                       <Radio className="h-4 w-4" />
                       Broadcast
@@ -1220,7 +1229,7 @@ export function SecurityDetails() {
                       className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
                       size="sm"
                       variant={signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
-                      disabled={!signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted)}
+                      disabled={!signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) || !isRoleConnected(contractInfo.broadcaster)}
                     >
                       <Radio className="h-4 w-4" />
                       Broadcast
