@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
-import { Loader2, X, CheckCircle2, Clock, Shield, Wallet, Radio } from "lucide-react"
+import { Loader2, X, CheckCircle2, Clock, Shield, Wallet } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { TxRecord } from "../particle-core/sdk/typescript/interfaces/lib.index"
 import { formatAddress } from "@/lib/utils"
