@@ -60,7 +60,7 @@ export function Navbar() {
               Docs
             </Link>
             <a
-              href="https://github.com/particlecs-com"
+              href="https://github.com/PracticalParticle/sand-blox"
               target="_blank"
               rel="noopener noreferrer"
               className="hidden md:flex rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground glow-primary"
@@ -142,7 +142,7 @@ export function Navbar() {
                 Docs
               </Link>
               <a
-                href="https://github.com/particlecs-com"
+                href="https://github.com/PracticalParticle/sand-blox"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
