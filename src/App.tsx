@@ -13,6 +13,8 @@ import BloxMiniApp from './pages/BloxMiniApp';
 import Blockchains from './pages/Blockchains';
 import BlockchainDetails from './pages/BlockchainDetails';
 import Documentation from './pages/Documentation';
+import { Terms } from './pages/Terms';
+import { Privacy } from './pages/Privacy';
 
 export default function App() {
   return (
@@ -35,6 +37,8 @@ export default function App() {
               <Route path="/blockchains/:id" element={<BlockchainDetails />} />
               <Route path="/docs" element={<Documentation />} />
               <Route path="/docs/:slug" element={<Documentation />} />
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/privacy" element={<Privacy />} />
             </Routes>
           </div>
         </main>

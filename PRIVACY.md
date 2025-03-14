@@ -101,7 +101,7 @@ If significant updates occur, we may notify users through SandBlox, but **we are
 If you have any questions about this Privacy Policy, contact us at:  
 
 **Particle Crypto Security**  
-📧 **Email:** support@particlecs.com  
+📧 **Email:**  [support@prtcl.atlassian.net](mailto:support@prtcl.atlassian.net)  
 📍 **Location:** Ashdod, Israel  
 
 ---
@@ -117,3 +117,5 @@ If you have any questions about this Privacy Policy, contact us at:
 ---
 
 **Copyright © 2025 Particle Crypto Security. All rights reserved.**  
+
+*Last Updated: March 14, 2025*
