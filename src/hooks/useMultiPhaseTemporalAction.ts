@@ -21,10 +21,6 @@ interface UseMultiPhaseTemporalActionState {
   isApproving: boolean
   isCancelling: boolean
   isSigning: boolean
-  signedMetaTx: {
-    type: 'approve' | 'cancel'
-    signedData: string
-  } | null
 }
 
 interface UseMultiPhaseTemporalActionActions {
@@ -33,7 +29,6 @@ interface UseMultiPhaseTemporalActionActions {
   handleApprove: (txId: number) => Promise<void>
   handleCancel: (txId: number) => Promise<void>
   handleMetaTxSign: (type: 'approve' | 'cancel', metaTxType: 'broadcaster' | 'ownership') => Promise<void>
-  handleBroadcast: (type: 'approve' | 'cancel') => Promise<void>
 }
 
 export function useMultiPhaseTemporalAction({
@@ -51,11 +46,6 @@ export function useMultiPhaseTemporalAction({
   const [isSigning, setIsSigning] = useState(false)
   const { signBroadcasterUpdateApproval, signTransferOwnershipApproval, signBroadcasterUpdateCancellation, signTransferOwnershipCancellation } = useSecureContract()
   const { storeTransaction } = useTransactionManager(pendingTx?.contractAddress || '')
-
-  const [signedMetaTx, setSignedMetaTx] = useState<{
-    type: 'approve' | 'cancel'
-    signedData: string
-  } | null>(null)
   const { toast } = useToast()
 
   // Reset state when dialog opens/closes
@@ -65,7 +55,6 @@ export function useMultiPhaseTemporalAction({
       setIsApproving(false)
       setIsCancelling(false)
       setIsSigning(false)
-      setSignedMetaTx(null)
     }
   }, [isOpen])
 
@@ -193,23 +182,17 @@ export function useMultiPhaseTemporalAction({
     }
   }
 
-  const handleBroadcast = async (type: 'approve' | 'cancel') => {
-    return;
-  }
-
   return {
     // State
     newValue,
     isApproving,
     isCancelling,
     isSigning,
-    signedMetaTx,
     // Actions
     setNewValue,
     handleSubmit,
     handleApprove,
     handleCancel,
-    handleMetaTxSign,
-    handleBroadcast
+    handleMetaTxSign
   }
 } 

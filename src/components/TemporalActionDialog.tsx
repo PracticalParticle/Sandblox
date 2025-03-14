@@ -71,13 +71,11 @@ export function TemporalActionDialog({
     isApproving,
     isCancelling,
     isSigning,
-    signedMetaTx,
     setNewValue,
     handleSubmit,
     handleApprove,
     handleCancel,
-    handleMetaTxSign,
-    handleBroadcast
+    handleMetaTxSign
   } = useMultiPhaseTemporalAction({
     isOpen,
     onOpenChange,
@@ -323,9 +321,7 @@ export function TemporalActionDialog({
                           <TooltipTrigger asChild>
                             <div className="flex-1">
                               <Button
-                                onClick={() => signedMetaTx?.type === 'approve' 
-                                  ? handleBroadcast('approve')
-                                  : handleMetaTxSign('approve', actionType === 'broadcaster' ? 'broadcaster' : 'ownership')}
+                                onClick={() => handleMetaTxSign('approve', actionType === 'broadcaster' ? 'broadcaster' : 'ownership')}
                                 disabled={isLoading || isSigning || !isConnectedWalletValid}
                                 className={`w-full transition-all duration-200 flex items-center justify-center
                                   bg-emerald-50 text-emerald-700 hover:bg-emerald-100 
@@ -337,15 +333,10 @@ export function TemporalActionDialog({
                                 `}
                                 variant="outline"
                               >
-                                {isSigning && !signedMetaTx?.type ? (
+                                {isSigning ? (
                                   <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                     Signing...
-                                  </>
-                                ) : signedMetaTx?.type === 'approve' ? (
-                                  <>
-                                    <Radio className="mr-2 h-4 w-4" />
-                                    Broadcast
                                   </>
                                 ) : (
                                   <>
@@ -367,9 +358,7 @@ export function TemporalActionDialog({
                           <TooltipTrigger asChild>
                             <div className="flex-1">
                               <Button
-                                onClick={() => signedMetaTx?.type === 'cancel' 
-                                  ? handleBroadcast('cancel')
-                                  : handleMetaTxSign('cancel', actionType === 'broadcaster' ? 'broadcaster' : 'ownership')}
+                                onClick={() => handleMetaTxSign('cancel', actionType === 'broadcaster' ? 'broadcaster' : 'ownership')}
                                 disabled={isLoading || isCancelling || !isConnectedWalletValid}
                                 className={`w-full transition-all duration-200 flex items-center justify-center
                                   bg-rose-50 text-rose-700 hover:bg-rose-100 
@@ -381,15 +370,10 @@ export function TemporalActionDialog({
                                 `}
                                 variant="outline"
                               >
-                                {isSigning && !signedMetaTx?.type ? (
+                                {isSigning ? (
                                   <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                     Signing...
-                                  </>
-                                ) : signedMetaTx?.type === 'cancel' ? (
-                                  <>
-                                    <Radio className="mr-2 h-4 w-4" />
-                                    Broadcast
                                   </>
                                 ) : (
                                   <>
