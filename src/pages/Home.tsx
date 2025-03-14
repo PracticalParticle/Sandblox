@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { 
   ArrowRight, Zap, Github, BookOpen, Blocks, 
-  Wallet, Terminal, Library, Lock, TestTube, Users, Twitter 
+  Wallet, Terminal, Library, Lock, TestTube, Users, X
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAccount } from 'wagmi'
@@ -421,12 +421,12 @@ export function Home() {
                 className="hero-gradient-button w-full sm:w-auto"
               >
                 <a
-                  href="https://twitter.com/Particle_CS"
+                  href="https://x.com/Particle_CS"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center justify-center gap-2"
                 >
-                  <Twitter className="h-5 w-5" />
+                  <X className="h-5 w-5" />
                   <span>Join Our Community</span>
                   <ArrowRight className="h-4 w-4 ml-1 transition-transform group-hover:translate-x-1" />
                 </a>
