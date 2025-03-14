@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog'
 import { Button } from './ui/button'
 import { useContractDeployment } from '../lib/deployment'
@@ -8,6 +8,8 @@ import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { isAddress } from 'viem'
 import { env } from '@/config/env'
+import { useDeployedContract } from '@/contexts/DeployedContractContext'
+import type { SecureContractInfo } from '@/lib/types'
 
 interface DeploymentDialogProps {
   isOpen: boolean
@@ -35,6 +37,7 @@ export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: 
     timeLockPeriodInDays: '7'
   })
   const [formErrors, setFormErrors] = useState<Partial<FormData>>({})
+  const { addDeployedContract } = useDeployedContract()
   
   const { data: walletClient } = useWalletClient()
 
@@ -52,6 +55,24 @@ export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: 
       MultiPhaseSecureOperation: env.VITE_LIBRARY_MULTI_PHASE_SECURE_OPERATION as `0x${string}`
     }
   })
+
+  useEffect(() => {
+    if (isSuccess && contractAddress) {
+      const contractInfo: SecureContractInfo = {
+        contractAddress: contractAddress,
+        timeLockPeriodInMinutes: parseInt(formData.timeLockPeriodInDays) * 24 * 60,
+        chainId,
+        chainName: getChainName(),
+        broadcaster: formData.broadcaster,
+        owner: formData.initialOwner,
+        recoveryAddress: formData.recovery,
+        contractType: contractId,
+        contractName: contractName
+      }
+      
+      addDeployedContract(contractInfo)
+    }
+  }, [isSuccess, contractAddress, formData, chainId, contractId, contractName, addDeployedContract])
 
   const validateForm = () => {
     const errors: Partial<FormData> = {}

@@ -27,6 +27,7 @@ import { identifyContract } from '../lib/verification'
 import { getAllContracts } from '../lib/catalog'
 import { formatTokenBalance } from '@/lib/utils'
 import type { SecureContractInfo } from '@/lib/types'
+import { useDeployedContract } from '@/contexts/DeployedContractContext'
 
 const container = {
   hidden: { opacity: 0 },
@@ -204,6 +205,7 @@ export function Dashboard(): JSX.Element {
     return storedContracts ? JSON.parse(storedContracts) : []
   })
   const publicClient = usePublicClient()
+  const { lastDeployedContract } = useDeployedContract()
 
   useEffect(() => {
     if (!isConnected) {
@@ -214,6 +216,36 @@ export function Dashboard(): JSX.Element {
   useEffect(() => {
     localStorage.setItem('dashboardContracts', JSON.stringify(contracts))
   }, [contracts])
+
+  // Add effect to handle newly deployed contracts
+  useEffect(() => {
+    if (lastDeployedContract) {
+      // Check if contract already exists in the dashboard
+      const contractExists = contracts.some(c => 
+        c.address.toLowerCase() === lastDeployedContract.contractAddress.toLowerCase()
+      )
+
+      if (!contractExists) {
+        // Add the newly deployed contract to the dashboard
+        const newContract = {
+          id: lastDeployedContract.contractAddress,
+          name: lastDeployedContract.contractName || 'Deployed Contract',
+          address: lastDeployedContract.contractAddress,
+          type: lastDeployedContract.contractType || 'unknown',
+          chainId: lastDeployedContract.chainId,
+          chainName: lastDeployedContract.chainName
+        }
+
+        setContracts(prev => [...prev, newContract])
+        
+        toast({
+          title: "Contract automatically imported",
+          description: "Your newly deployed contract has been added to the dashboard.",
+          variant: "default"
+        })
+      }
+    }
+  }, [lastDeployedContract, contracts, toast])
 
   const handleUnloadContract = (address: string) => {
     setContracts(prev => {
