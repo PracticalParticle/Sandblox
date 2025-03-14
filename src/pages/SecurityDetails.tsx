@@ -48,6 +48,7 @@ interface ExtendedSignedTransaction {
   timestamp: number
   metadata?: {
     type: 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE' | 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE'
+    action?: 'approve' | 'cancel'
     broadcasted: boolean
   }
 }
@@ -504,7 +505,13 @@ export function SecurityDetails() {
         walletClient,
         contractAddress as `0x${string}`,
         chain,
-        storeTransaction
+        // Wrap storeTransaction to include action field for approval
+        (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
+          ...metadata, 
+          type: 'RECOVERY_UPDATE', 
+          action: 'approve',
+          broadcasted: false 
+        })
       );
 
       // Prepare and sign the recovery update transaction
@@ -553,7 +560,13 @@ export function SecurityDetails() {
         walletClient,
         contractAddress as `0x${string}`,
         chain,
-        storeTransaction
+        // Wrap storeTransaction to include action field for approval
+        (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
+          ...metadata, 
+          type: 'TIMELOCK_UPDATE', 
+          action: 'approve',
+          broadcasted: false 
+        })
       );
       // Prepare and sign the timelock update transaction
       await manager.prepareAndSignTimeLockUpdate(
@@ -660,7 +673,7 @@ export function SecurityDetails() {
     return connectedAddress?.toLowerCase() === roleAddress?.toLowerCase();
   };
 
-  // Add this new handler function near the other handlers
+  // Update handleBroadcast function to accept action type argument
   const handleBroadcast = async (type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE') => {
     try {
       // Find the matching unsigned transaction
@@ -677,6 +690,14 @@ export function SecurityDetails() {
       }
       console.log('pendingTx', pendingTx);
       console.log('pendingTx signedData', pendingTx.signedData);
+      
+      // Extract the action type from metadata
+      const action = pendingTx.metadata?.action as 'approve' | 'cancel';
+      
+      if (!action) {
+        throw new Error('Action type not found in transaction metadata');
+      }
+      
       // Parse the signed transaction data
       const signedData = JSON.parse(pendingTx.signedData, (_key: string, value: any): any => {
         if (typeof value === 'string' && /^\d+n$/.test(value)) {
@@ -700,17 +721,17 @@ export function SecurityDetails() {
         chain,
         storeTransaction
       );
-      // Prepare and sign the recovery update transaction
+      // Prepare and sign the update transaction
       const txHash = await manager.executeMetaTransaction(
         signedData,
         { from: connectedAddress as `0x${string}` },
         type,// Ensure signedData is parsed correctly
-        'approve',
+        action,
       );
       console.log('txHash', txHash);
       toast({
         title: "Success",
-        description: "Recovery update transaction signed and stored",
+        description: "Transaction signed and stored",
       });
       // Wait for transaction confirmation
       await publicClient?.waitForTransactionReceipt({ hash: txHash });
@@ -720,15 +741,6 @@ export function SecurityDetails() {
         ...pendingTx.metadata,
         broadcasted: true
       });
-      // Send the transaction
-      // const hash = await walletClient.sendTransaction(signedData);
-
-      // toast({
-      //   title: "Transaction Sent",
-      //   description: "The transaction has been broadcasted to the network.",
-      // });
-      // Wait for transaction confirmation
-      await publicClient?.waitForTransactionReceipt({ hash: txHash });
 
       // Reload contract info after broadcast
       await loadContractInfo();
@@ -975,20 +987,11 @@ export function SecurityDetails() {
                         </Button>
                         <div className="h-6 w-[1px] bg-border" />
                         <Button 
-                          onClick={() => handleBroadcast('OWNERSHIP_TRANSFER')}
-                          className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => 
-                            tx.metadata?.type === 'OWNERSHIP_TRANSFER' && 
-                            tx.metadata?.broadcasted === false
-                          ) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
+                          onClick={() => handleBroadcast('RECOVERY_UPDATE')}
+                          className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
                           size="sm"
-                          variant={signedTransactions.some(tx => 
-                            tx.metadata?.type === 'OWNERSHIP_TRANSFER' && 
-                            tx.metadata?.broadcasted === false
-                          ) ? "default" : "outline"}
-                          disabled={!signedTransactions.some(tx => 
-                            tx.metadata?.type === 'OWNERSHIP_TRANSFER' && 
-                            tx.metadata?.broadcasted === false
-                          ) || !isRoleConnected(contractInfo.broadcaster)}
+                          variant={signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
+                          disabled={!signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) || !isRoleConnected(contractInfo.broadcaster)}
                         >
                           <Radio className="h-4 w-4" />
                           Broadcast
