@@ -2,7 +2,6 @@ import { usePublicClient, useWalletClient, useChainId, useConfig } from 'wagmi'
 import { Address, Hash } from 'viem'
 import { SecureContractInfo } from '../lib/types'
 import { CONTRACT_ERRORS } from '@/constants/contract'
-import { useTransactionManager } from '@/hooks/useTransactionManager'
 import { generateNewSecureOwnableManager } from '@/lib/utils'
 
 export function useSecureContract() {

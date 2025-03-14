@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import { useToast } from "@/components/ui/use-toast"
 import { useTransactionManager } from '@/hooks/useTransactionManager'
 import { useSecureContract } from "./useSecureContract"
-import { getMetaTransactionSignature, broadcastMetaTransaction } from "@/utils/metaTransaction"
+import { broadcastMetaTransaction } from "@/utils/metaTransaction"
 import { TxRecord } from "../particle-core/sdk/typescript/interfaces/lib.index"
 import { Address } from "viem"
 
@@ -138,11 +138,10 @@ export function useMultiPhaseTemporalAction({
         throw new Error('Contract address is required for storing meta transactions');
       }
 
-      let signedData: string;
       if (metaTxType === 'broadcaster') {
-        signedData = await signBroadcasterUpdate(pendingTx?.contractAddress, txId, storeTransaction);
+        await signBroadcasterUpdate(pendingTx?.contractAddress, txId, storeTransaction);
       } else if (metaTxType === 'ownership') {
-        signedData = await signTransferOwnership(pendingTx?.contractAddress, txId, storeTransaction);
+        await signTransferOwnership(pendingTx?.contractAddress, txId, storeTransaction);
       } else {
         throw new Error('Unsupported meta transaction type');
       }

@@ -40,6 +40,8 @@ interface TemporalActionDialogProps {
   showNewValueInput?: boolean
   newValueLabel?: string
   newValuePlaceholder?: string
+  showMetaTxOption?: boolean
+  metaTxDescription?: string
 }
 
 export function TemporalActionDialog({
@@ -60,7 +62,9 @@ export function TemporalActionDialog({
   pendingTx,
   showNewValueInput = true,
   newValueLabel,
-  newValuePlaceholder
+  newValuePlaceholder,
+  showMetaTxOption,
+  metaTxDescription
 }: TemporalActionDialogProps) {
   const {
     newValue,
@@ -178,8 +182,8 @@ export function TemporalActionDialog({
     const isRecoveryWallet = connectedAddress?.toLowerCase() === contractInfo?.recoveryAddress?.toLowerCase()
     const isOwnershipAction = actionType === 'ownership'
     
-    // Hide meta transactions tab for recovery wallet in ownership actions
-    const showMetaTxTab = !(isOwnershipAction && isRecoveryWallet)
+    // Control meta transaction tab visibility with showMetaTxOption prop if provided
+    const showMetaTxTab = showMetaTxOption !== undefined ? showMetaTxOption : !(isOwnershipAction && isRecoveryWallet)
 
     return (
       <div className="space-y-4">
@@ -305,7 +309,7 @@ export function TemporalActionDialog({
                 <CardContent className="pt-6">
                   <div className="space-y-4">
                     <div className="text-sm text-muted-foreground">
-                      Approve using meta-transactions. This requires no gas fees but needs the broadcaster wallet.
+                      {metaTxDescription || "Sign a meta transaction that will be broadcasted by the broadcaster wallet. This doesn't require gas fees."}
                     </div>
 
                     <div className="flex justify-between text-sm">

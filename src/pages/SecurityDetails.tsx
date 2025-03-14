@@ -1014,7 +1014,7 @@ export function SecurityDetails() {
                         onSubmit={async () => handleTransferOwnershipRequest()}
                         onApprove={handleTransferOwnershipApproval}
                         onCancel={handleTransferOwnershipCancellation}
-                        showMetaTxOption={pendingOwnershipTx && isRoleConnected(contractInfo.owner)}
+                        showMetaTxOption={!!(pendingOwnershipTx && isRoleConnected(contractInfo.owner))}
                         metaTxDescription="Sign a meta transaction to approve the ownership transfer. This will be broadcasted by the broadcaster."
                       />
                     </>
