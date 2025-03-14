@@ -45,9 +45,9 @@ By using SandBlox, you agree to:
 
 SandBlox integrates with third-party services like:  
 
-- **Cloudflare Pages** – Provides hosting services. See Cloudflare’s Privacy Policy: [Link]  
-- **RainbowKit** – Manages wallet connections. See RainbowKit’s Privacy Policy: [Link]  
-- **Dune Analytics** – Analyzes blockchain data. See Dune’s Privacy Policy: [Link]  
+- **Cloudflare Pages** – Provides hosting services. See Cloudflare's Privacy Policy: [Link]  
+- **RainbowKit** – Manages wallet connections. See RainbowKit's Privacy Policy: [Link]  
+- **Dune Analytics** – Analyzes blockchain data. See Dune's Privacy Policy: [Link]  
 
 We **do not control or endorse** third-party services and are **not responsible** for their content, security, or privacy practices. Your use of third-party services is **at your own risk**.  
 
@@ -96,5 +96,12 @@ These Terms **replace any previous agreements** regarding SandBlox.
 For questions or support, contact us at:  
 
 **Particle Crypto Security**  
-📧 Email: [support@particlecs.com](mailto:support@particlecs.com)  
+📧 Email: [support@prtcl.atlassian.net](mailto:support@prtcl.atlassian.net)  
 📍 Location: Ashdod, Israel  
+
+---
+**Copyright © 2025 Particle Crypto Security. All rights reserved.**  
+
+*Last Updated: March 14, 2025*
+
+
