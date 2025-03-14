@@ -622,7 +622,7 @@ export class SecureOwnableManager {
       if (this.storeTransaction) {
         this.storeTransaction(
           txId.toString(),
-          JSON.stringify(signedMetaTx),
+          JSON.stringify(signedMetaTx, this.bigIntReplacer),
           {
             type: 'BROADCASTER_UPDATE',
             broadcasted: false
@@ -630,7 +630,7 @@ export class SecureOwnableManager {
         );
       }
 
-      return JSON.stringify(signedMetaTx);
+      return JSON.stringify(signedMetaTx, this.bigIntReplacer);
     } catch (error) {
       console.error('Error preparing broadcaster cancellation meta transaction:', error);
       throw error;

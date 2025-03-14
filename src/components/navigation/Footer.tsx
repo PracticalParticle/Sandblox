@@ -37,6 +37,18 @@ export const Footer: FC = () => {
           >
             Documentation
           </a>
+          <a
+            href="/terms"
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            Terms
+          </a>
+          <a
+            href="/privacy"
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            Privacy
+          </a>
         </div>
       </div>
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import { useToast } from "@/components/ui/use-toast"
 import { useTransactionManager } from '@/hooks/useTransactionManager'
 import { useSecureContract } from "./useSecureContract"
-import { broadcastMetaTransaction } from "@/utils/metaTransaction"
+// import { broadcastMetaTransaction } from "@/utils/metaTransaction"
 import { TxRecord } from "../particle-core/sdk/typescript/interfaces/lib.index"
 import { Address } from "viem"
 
@@ -21,10 +21,6 @@ interface UseMultiPhaseTemporalActionState {
   isApproving: boolean
   isCancelling: boolean
   isSigning: boolean
-  signedMetaTx: {
-    type: 'approve' | 'cancel'
-    signedData: string
-  } | null
 }
 
 interface UseMultiPhaseTemporalActionActions {
@@ -33,12 +29,11 @@ interface UseMultiPhaseTemporalActionActions {
   handleApprove: (txId: number) => Promise<void>
   handleCancel: (txId: number) => Promise<void>
   handleMetaTxSign: (type: 'approve' | 'cancel', metaTxType: 'broadcaster' | 'ownership') => Promise<void>
-  handleBroadcast: (type: 'approve' | 'cancel') => Promise<void>
 }
 
 export function useMultiPhaseTemporalAction({
   isOpen,
-  onOpenChange,
+  // onOpenChange,
   onSubmit,
   onApprove,
   onCancel,
@@ -49,13 +44,8 @@ export function useMultiPhaseTemporalAction({
   const [isApproving, setIsApproving] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [isSigning, setIsSigning] = useState(false)
-  const { signBroadcasterUpdate, signTransferOwnership } = useSecureContract()
+  const { signBroadcasterUpdateApproval, signTransferOwnershipApproval, signBroadcasterUpdateCancellation, signTransferOwnershipCancellation } = useSecureContract()
   const { storeTransaction } = useTransactionManager(pendingTx?.contractAddress || '')
-
-  const [signedMetaTx, setSignedMetaTx] = useState<{
-    type: 'approve' | 'cancel'
-    signedData: string
-  } | null>(null)
   const { toast } = useToast()
 
   // Reset state when dialog opens/closes
@@ -65,7 +55,6 @@ export function useMultiPhaseTemporalAction({
       setIsApproving(false)
       setIsCancelling(false)
       setIsSigning(false)
-      setSignedMetaTx(null)
     }
   }, [isOpen])
 
@@ -138,10 +127,42 @@ export function useMultiPhaseTemporalAction({
         throw new Error('Contract address is required for storing meta transactions');
       }
 
-      if (metaTxType === 'broadcaster') {
-        await signBroadcasterUpdate(pendingTx?.contractAddress, txId, storeTransaction);
-      } else if (metaTxType === 'ownership') {
-        await signTransferOwnership(pendingTx?.contractAddress, txId, storeTransaction);
+      if (metaTxType === 'broadcaster' && type === 'approve') {
+        await signBroadcasterUpdateApproval(pendingTx?.contractAddress, txId, 
+          (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
+            ...metadata, 
+            type: 'BROADCASTER_UPDATE', 
+            action: type,
+            broadcasted: false 
+          })
+        );
+      } else if (metaTxType === 'broadcaster' && type === 'cancel') {
+        await signBroadcasterUpdateCancellation(pendingTx?.contractAddress, txId, 
+          (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
+            ...metadata, 
+            type: 'BROADCASTER_UPDATE', 
+            action: type,
+            broadcasted: false 
+          })
+        );
+      } else if (metaTxType === 'ownership' && type === 'approve') {
+        await signTransferOwnershipApproval(pendingTx?.contractAddress, txId, 
+          (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
+            ...metadata, 
+            type: 'OWNERSHIP_TRANSFER', 
+            action: type,
+            broadcasted: false 
+          })
+        );
+      } else if (metaTxType === 'ownership' && type === 'cancel') {
+        await signTransferOwnershipCancellation(pendingTx?.contractAddress, txId, 
+          (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
+            ...metadata, 
+            type: 'OWNERSHIP_TRANSFER', 
+            action: type,
+            broadcasted: false 
+          })
+        );
       } else {
         throw new Error('Unsupported meta transaction type');
       }
@@ -161,41 +182,17 @@ export function useMultiPhaseTemporalAction({
     }
   }
 
-  const handleBroadcast = async (type: 'approve' | 'cancel') => {
-    if (!signedMetaTx || signedMetaTx.type !== type) return
-    
-    try {
-      await broadcastMetaTransaction(signedMetaTx.signedData)
-      
-      toast({
-        title: "Success",
-        description: `Transaction ${type} broadcasted successfully`,
-      })
-      
-      // Close the dialog after successful broadcast
-      onOpenChange(false)
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || `Failed to broadcast ${type} transaction`,
-        variant: "destructive",
-      })
-    }
-  }
-
   return {
     // State
     newValue,
     isApproving,
     isCancelling,
     isSigning,
-    signedMetaTx,
     // Actions
     setNewValue,
     handleSubmit,
     handleApprove,
     handleCancel,
-    handleMetaTxSign,
-    handleBroadcast
+    handleMetaTxSign
   }
 } 
