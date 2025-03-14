@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import { Toaster } from "./components/ui/toaster";
 import { MainLayout } from './components/layouts/MainLayout';
+import { TestnetBanner } from './components/ui/TestnetBanner';
 import { Home } from './pages/Home';
 import { Dashboard } from './pages/Dashboard';
 import { BloxContracts } from './pages/BloxContracts';
@@ -12,13 +13,15 @@ import BloxMiniApp from './pages/BloxMiniApp';
 import Blockchains from './pages/Blockchains';
 import BlockchainDetails from './pages/BlockchainDetails';
 import Documentation from './pages/Documentation';
-import BugHunt from './pages/BugHunt';
 
 export default function App() {
   return (
     <MainLayout>
       <div className="flex flex-col min-h-screen">
-        <Navbar />
+        <div className="sticky top-0 z-50">
+          <TestnetBanner />
+          <Navbar />
+        </div>
         <main className="flex-1 flex flex-col">
           <div className="mx-auto w-full  flex-1">
             <Routes>
@@ -32,8 +35,6 @@ export default function App() {
               <Route path="/blockchains/:id" element={<BlockchainDetails />} />
               <Route path="/docs" element={<Documentation />} />
               <Route path="/docs/:slug" element={<Documentation />} />
-              <Route path="/bug-hunt" element={<BugHunt />} />
-              <Route path="/bug-hunt/:type/:address" element={<BugHunt />} />
             </Routes>
           </div>
         </main>

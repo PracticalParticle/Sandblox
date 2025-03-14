@@ -16,7 +16,7 @@ export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b glass transition-colors duration-300">
+    <header className="w-full border-b glass transition-colors duration-300">
       <nav className="container flex h-16 items-center justify-between relative">
         {/* Logo & Desktop Navigation */}
         <div className="flex items-center gap-6">
@@ -50,9 +50,7 @@ export function Navbar() {
                 <DropdownMenuItem asChild>
                   <a href="/blockchains">Blockchains</a>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <a href="/bug-hunt">Bug Hunt</a>
-                </DropdownMenuItem>
+               
               </DropdownMenuContent>
             </DropdownMenu>
             <a
