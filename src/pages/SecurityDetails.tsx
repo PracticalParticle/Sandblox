@@ -44,6 +44,7 @@ import { MetaTransaction, TxRecord } from '@/particle-core/sdk/typescript/interf
 import { TxStatus } from '@/particle-core/sdk/typescript/types/lib.index'
 import { MetaTxActionDialog } from '@/components/MetaTxActionDialog'
 import { TransactionManagerProvider } from '@/contexts/TransactionManager'
+import { SecurityWorkflowProvider, useSecurityWorkflowContext, ActionType } from '@/contexts/SecurityWorkflowContext'
 
 interface ExtendedSignedTransaction {
   txId: string
@@ -83,6 +84,221 @@ const formatTimeValue = (value: string | number): string => {
   return `${days} day${days === 1 ? '' : 's'}${remainingMinutes > 0 ? ` ${remainingMinutes} minute${remainingMinutes === 1 ? '' : 's'}` : ''}`;
 };
 
+// Add this new component for role-based action feedback
+function ActionStatusInfo({ 
+  action, 
+  pendingTx = null,
+  className = "",
+  contractInfo,
+  signedTransactions,
+  isRoleConnected
+}: { 
+  action: ActionType, 
+  pendingTx?: TxRecord | null,
+  className?: string,
+  contractInfo: SecureContractInfo,
+  signedTransactions: Array<{
+    metadata?: {
+      type: string;
+      broadcasted: boolean;
+    };
+  }>,
+  isRoleConnected: (address: string) => boolean
+}) {
+  useSecurityWorkflowContext()
+  
+  const getActionStatus = () => {
+    // Check for signed but not broadcasted transactions
+    const hasPendingBroadcast = signedTransactions.some(tx => {
+      const matchesAction = {
+        'transfer_ownership': 'OWNERSHIP_TRANSFER',
+        'update_broadcaster': 'BROADCASTER_UPDATE',
+        'update_recovery': 'RECOVERY_UPDATE',
+        'update_timelock': 'TIMELOCK_UPDATE'
+      }[action] === tx.metadata?.type;
+      return matchesAction && !tx.metadata?.broadcasted;
+    });
+
+    // If there's a transaction waiting to be broadcasted
+    if (hasPendingBroadcast) {
+      if (isRoleConnected(contractInfo.broadcaster)) {
+        return (
+          <div className="flex flex-col space-y-2">
+            <div className="flex items-center text-emerald-600 dark:text-emerald-400">
+              <Radio className="h-4 w-4 mr-2" />
+              <span className="font-medium">Ready to Broadcast</span>
+            </div>
+            <p className="text-muted-foreground">
+              You can broadcast this transaction using your broadcaster wallet.
+            </p>
+          </div>
+        )
+      }
+      return (
+        <div className="flex flex-col space-y-3">
+          <div className="flex items-center text-amber-600 dark:text-amber-400">
+            <Clock className="h-4 w-4 mr-2" />
+            <span className="font-medium">Awaiting Broadcast</span>
+          </div>
+          <div className="space-y-2 text-muted-foreground">
+            <p>Transaction is waiting for the broadcaster to process it.</p>
+            {isRoleConnected(contractInfo.owner) && (
+              <div className="flex items-start mt-1 bg-muted/50 rounded-md p-2">
+                <Shield className="h-4 w-4 mr-2 mt-0.5 text-blue-500" />
+                <p>As the owner, you have the option to approve or cancel this transaction directly through the contract.</p>
+              </div>
+            )}
+            <div className="flex items-start mt-1 bg-muted/50 rounded-md p-2">
+              <Timer className="h-4 w-4 mr-2 mt-0.5 text-purple-500" />
+              <p>Once the time delay expires, the transaction can proceed without requiring the broadcaster.</p>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    if (!pendingTx) {
+      // Initial state - no pending transaction
+      if (action === 'transfer_ownership') {
+        if (isRoleConnected(contractInfo.recoveryAddress)) {
+          return (
+            <div className="flex flex-col space-y-2">
+              <div className="flex items-center text-emerald-600 dark:text-emerald-400">
+                <Key className="h-4 w-4 mr-2" />
+                <span className="font-medium">Recovery Action Available</span>
+              </div>
+              <p className="text-muted-foreground">
+                Using your recovery wallet, you can initiate an ownership transfer request.
+              </p>
+            </div>
+          )
+        }
+        return (
+          <div className="flex items-center text-muted-foreground">
+            <Clock className="h-4 w-4 mr-2" />
+            <span>Waiting for recovery wallet to initiate the transfer process</span>
+          </div>
+        )
+      } 
+      
+      if (action === 'update_broadcaster') {
+        if (isRoleConnected(contractInfo.owner)) {
+          return (
+            <div className="flex flex-col space-y-2">
+              <div className="flex items-center text-emerald-600 dark:text-emerald-400">
+                <Shield className="h-4 w-4 mr-2" />
+                <span className="font-medium">Owner Action Available</span>
+              </div>
+              <p className="text-muted-foreground">
+                As the owner, you can submit a request to update the broadcaster.
+              </p>
+            </div>
+          )
+        }
+        return (
+          <div className="flex items-center text-muted-foreground">
+            <Shield className="h-4 w-4 mr-2" />
+            <span>Only the owner can request a broadcaster update</span>
+          </div>
+        )
+      }
+      
+      if (action === 'update_recovery' || action === 'update_timelock') {
+        if (isRoleConnected(contractInfo.owner)) {
+          return (
+            <div className="flex flex-col space-y-2">
+              <div className="flex items-center text-emerald-600 dark:text-emerald-400">
+                <Shield className="h-4 w-4 mr-2" />
+                <span className="font-medium">Owner Action Available</span>
+              </div>
+              <p className="text-muted-foreground">
+                As the owner, you can update the {action === 'update_recovery' ? 'recovery address' : 'timelock period'} using a meta-transaction.
+              </p>
+            </div>
+          )
+        }
+        return (
+          <div className="flex items-center text-muted-foreground">
+            <Shield className="h-4 w-4 mr-2" />
+            <span>Only the owner can update the {action === 'update_recovery' ? 'recovery address' : 'timelock period'}</span>
+          </div>
+        )
+      }
+    } else {
+      // There is a pending transaction
+      if (action === 'transfer_ownership') {
+        if (isRoleConnected(contractInfo.owner)) {
+          return (
+            <div className="flex flex-col space-y-2">
+              <div className="flex items-center text-emerald-600 dark:text-emerald-400">
+                <Shield className="h-4 w-4 mr-2" />
+                <span className="font-medium">Owner Approval Required</span>
+              </div>
+              <p className="text-muted-foreground">
+                You can approve this ownership transfer using a meta-transaction.
+              </p>
+            </div>
+          )
+        }
+        if (isRoleConnected(contractInfo.recoveryAddress)) {
+          return (
+            <div className="flex flex-col space-y-2">
+              <div className="flex items-center text-emerald-600 dark:text-emerald-400">
+                <Key className="h-4 w-4 mr-2" />
+                <span className="font-medium">Recovery Approval Required</span>
+              </div>
+              <p className="text-muted-foreground">
+                You can approve this ownership transfer using your recovery wallet.
+              </p>
+            </div>
+          )
+        }
+        return (
+          <div className="flex items-center text-muted-foreground">
+            <Clock className="h-4 w-4 mr-2" />
+            <span>Waiting for owner or recovery wallet approval</span>
+          </div>
+        )
+      }
+      
+      if (action === 'update_broadcaster') {
+        if (isRoleConnected(contractInfo.owner)) {
+          return (
+            <div className="flex flex-col space-y-2">
+              <div className="flex items-center text-emerald-600 dark:text-emerald-400">
+                <Shield className="h-4 w-4 mr-2" />
+                <span className="font-medium">Owner Approval Required</span>
+              </div>
+              <p className="text-muted-foreground">
+                You can approve this broadcaster update request.
+              </p>
+            </div>
+          )
+        }
+        return (
+          <div className="flex items-center text-muted-foreground">
+            <Clock className="h-4 w-4 mr-2" />
+            <span>Waiting for owner approval</span>
+          </div>
+        )
+      }
+    }
+
+    return (
+      <div className="flex items-center text-muted-foreground">
+        <Clock className="h-4 w-4 mr-2" />
+        <span>No actions available for your current role</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className={`mt-4 ${className}`}>
+      {getActionStatus()}
+    </div>
+  )
+}
+
 export function SecurityDetails() {
   const { address: contractAddress } = useParams<{ address: string }>()
   const { address: connectedAddress, isConnected } = useAccount()
@@ -113,6 +329,8 @@ export function SecurityDetails() {
   const [pendingOwnershipTx, setPendingOwnershipTx] = useState<TxRecord | null>(null)
   const [pendingBroadcasterTx, setPendingBroadcasterTx] = useState<TxRecord | null>(null)
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
+  const [isBroadcasting, setIsBroadcasting] = useState(false)
+  const [lastBroadcastTime, setLastBroadcastTime] = useState(0)
 
 
   useEffect(() => {
@@ -699,9 +917,23 @@ export function SecurityDetails() {
     return connectedAddress?.toLowerCase() === roleAddress?.toLowerCase();
   };
 
-  // Update handleBroadcast function to accept action type argument
+  // Add debounced broadcast handler
   const handleBroadcast = async (type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE') => {
     try {
+      // Prevent multiple rapid clicks
+      const now = Date.now()
+      if (now - lastBroadcastTime < 2000) { // 2 second cooldown
+        return
+      }
+      
+      // Prevent multiple concurrent broadcasts
+      if (isBroadcasting) {
+        return
+      }
+
+      setIsBroadcasting(true)
+      setLastBroadcastTime(now)
+
       // Find the matching unsigned transaction
       const pendingTx = signedTransactions.find(tx => 
         tx.metadata?.type === type && !tx.metadata?.broadcasted
@@ -714,8 +946,6 @@ export function SecurityDetails() {
       if (!walletClient || !connectedAddress) {
         throw new Error('Wallet not connected');
       }
-      console.log('pendingTx', pendingTx);
-      console.log('pendingTx signedData', pendingTx.signedData);
       
       // Extract the action type from metadata
       const action = pendingTx.metadata?.action as 'approve' | 'cancel';
@@ -739,6 +969,7 @@ export function SecurityDetails() {
       if (!chain) {
         throw new Error('Chain not found');
       }
+
       // Create manager instance with transaction storage
       const manager = await generateNewSecureOwnableManager(
         publicClient,
@@ -747,18 +978,20 @@ export function SecurityDetails() {
         chain,
         storeTransaction
       );
-      // Prepare and sign the update transaction
+
+      // Execute the transaction
       const txHash = await manager.executeMetaTransaction(
         signedData,
         { from: connectedAddress as `0x${string}` },
-        type,// Ensure signedData is parsed correctly
+        type,
         action,
       );
-      console.log('txHash', txHash);
+
       toast({
         title: "Success",
         description: "Transaction signed and stored",
       });
+
       // Wait for transaction confirmation
       await publicClient?.waitForTransactionReceipt({ hash: txHash });
 
@@ -778,6 +1011,8 @@ export function SecurityDetails() {
         description: error instanceof Error ? error.message : "Failed to broadcast transaction",
         variant: "destructive"
       });
+    } finally {
+      setIsBroadcasting(false)
     }
   };
 
@@ -842,627 +1077,702 @@ export function SecurityDetails() {
   }
 
   return (
-    <TransactionManagerProvider>
-      <div className="container py-8 min-h-screen flex flex-col">
-        <motion.div
-          variants={container}
-          initial="hidden"
-          animate="show"
-          className="flex flex-col space-y-8 flex-1"
-        >
-          {/* Header */}
-          <motion.div variants={item} className="flex flex-col gap-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-[64px] z-40 w-full">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              <div className="flex items-start lg:items-center gap-4">
-                <Button
-                  variant="ghost"
-                  onClick={() => navigate('/dashboard')}
-                  className="mr-4 hidden lg:flex"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <div className="space-y-3 lg:space-y-2">
-                  <div className="flex items-center gap-3">
-                    <Button
-                      variant="ghost"
-                      onClick={() => navigate('/dashboard')}
-                      className="lg:hidden h-8 w-8 p-0"
-                    >
-                      <ArrowLeft className="h-4 w-4" />
-                    </Button>
-                    <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Security Details</h1>
+    <SecurityWorkflowProvider
+      contractInfo={contractInfo}
+      pendingTransactions={contractInfo?.operationHistory || []}
+    >
+      <TransactionManagerProvider>
+        <div className="container py-8 min-h-screen flex flex-col">
+          <motion.div
+            variants={container}
+            initial="hidden"
+            animate="show"
+            className="flex flex-col space-y-8 flex-1"
+          >
+            {/* Header */}
+            <motion.div variants={item} className="flex flex-col gap-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-[64px] z-40 w-full">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="flex items-start lg:items-center gap-4">
+                  <Button
+                    variant="ghost"
+                    onClick={() => navigate('/dashboard')}
+                    className="mr-4 hidden lg:flex"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                  <div className="space-y-3 lg:space-y-2">
+                    <div className="flex items-center gap-3">
+                      <Button
+                        variant="ghost"
+                        onClick={() => navigate('/dashboard')}
+                        className="lg:hidden h-8 w-8 p-0"
+                      >
+                        <ArrowLeft className="h-4 w-4" />
+                      </Button>
+                      <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Security Details</h1>
+                    </div>
+                   
                   </div>
-                 
                 </div>
-              </div>
-              {connectedAddress && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex items-center gap-3 bg-card rounded-lg px-4 py-2 border shadow-sm shrink-0"
-                >
-                  <div className="flex flex-col items-start">
-                    
-                    <div className="flex flex-wrap items-center gap-2">
-                      {isRoleConnected(contractInfo.owner) && (
-                        <Badge variant="default" className="bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 font-medium">
-                          <Shield className="h-3 w-3 mr-1" />
-                          Owner
-                        </Badge>
-                      )}
-                      {isRoleConnected(contractInfo.broadcaster) && (
-                        <Badge variant="default" className="bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 font-medium">
-                          <Radio className="h-3 w-3 mr-1" />
-                          Broadcaster
-                        </Badge>
-                      )}
-                      {isRoleConnected(contractInfo.recoveryAddress) && (
-                        <Badge variant="default" className="bg-green-500/10 text-green-500 hover:bg-green-500/20 font-medium">
-                          <Key className="h-3 w-3 mr-1" />
-                          Recovery
-                        </Badge>
-                      )}
-                      {!isRoleConnected(contractInfo.owner) && 
-                       !isRoleConnected(contractInfo.broadcaster) && 
-                       !isRoleConnected(contractInfo.recoveryAddress) && (
-                        <Badge variant="default" className="bg-orange-500/10 text-orange-500 hover:bg-orange-500/20 font-medium">
-                          <Eye className="h-3 w-3 mr-1" />
-                          Observer
-                        </Badge>
-                      )}
+                {connectedAddress && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-center gap-3 bg-card rounded-lg px-4 py-2 border shadow-sm shrink-0"
+                  >
+                    <div className="flex flex-col items-start">
+                      
+                      <div className="flex flex-wrap items-center gap-2">
+                        {isRoleConnected(contractInfo.owner) && (
+                          <Badge variant="default" className="bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 font-medium">
+                            <Shield className="h-3 w-3 mr-1" />
+                            Owner
+                          </Badge>
+                        )}
+                        {isRoleConnected(contractInfo.broadcaster) && (
+                          <Badge variant="default" className="bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 font-medium">
+                            <Radio className="h-3 w-3 mr-1" />
+                            Broadcaster
+                          </Badge>
+                        )}
+                        {isRoleConnected(contractInfo.recoveryAddress) && (
+                          <Badge variant="default" className="bg-green-500/10 text-green-500 hover:bg-green-500/20 font-medium">
+                            <Key className="h-3 w-3 mr-1" />
+                            Recovery
+                          </Badge>
+                        )}
+                        {!isRoleConnected(contractInfo.owner) && 
+                         !isRoleConnected(contractInfo.broadcaster) && 
+                         !isRoleConnected(contractInfo.recoveryAddress) && (
+                          <Badge variant="default" className="bg-orange-500/10 text-orange-500 hover:bg-orange-500/20 font-medium">
+                            <Eye className="h-3 w-3 mr-1" />
+                            Observer
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="outline" className="font-mono text-xs">Wallet</Badge>
+                        <p className="text-xs text-muted-foreground font-mono">
+                          {connectedAddress.slice(0, 6)}...{connectedAddress.slice(-4)}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline" className="font-mono text-xs">Wallet</Badge>
-                      <p className="text-xs text-muted-foreground font-mono">
-                        {connectedAddress.slice(0, 6)}...{connectedAddress.slice(-4)}
-                      </p>
+                    <div className="h-8 w-[1px] bg-border/50" />
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            className="h-6 w-6 p-0 hover:bg-muted"
+                            onClick={handleDisconnect}
+                          >
+                            <LogOut className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Disconnect wallet</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </motion.div>
+                )}
+              </div>
+            </motion.div>
+
+            {/* Contract Info */}
+            <motion.div variants={item} className="grid gap-6">
+              <Card className="p-6">
+                <h2 className="text-xl font-bold mb-2">Contract Information</h2>
+                <div className="flex mb-6 flex-col sm:flex-row sm:items-center gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Badge variant="outline" className="font-mono shrink-0">
+                          Contract
+                        </Badge>
+                        <p className="text-muted-foreground font-mono text-sm truncate">
+                          {contractAddress}
+                        </p>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                className="h-6 w-6 p-0 shrink-0"
+                                onClick={() => navigator.clipboard.writeText(contractAddress)}
+                              >
+                                <Copy className="h-3 w-3" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Copy address</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                      <div className="hidden sm:block h-4 w-[1px] bg-border shrink-0" />
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge variant="outline" className="font-mono">
+                          Roles
+                        </Badge>
+                        <div className="flex -space-x-1">
+                          <div className="h-2 w-2 rounded-full bg-blue-500" />
+                          <div className="h-2 w-2 rounded-full bg-purple-500" />
+                          <div className="h-2 w-2 rounded-full bg-green-500" />
+                        </div>
+                        <span className="text-sm text-muted-foreground">3 Total</span>
+                      </div>
+                      <div className="hidden sm:block h-4 w-[1px] bg-border shrink-0" />
+
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Badge variant="outline" className="font-mono shrink-0">
+                          TimeLock
+                        </Badge>
+                        <div className="flex items-center  text-muted-foreground font-mono text-sm truncate">
+                        <Clock className="h-3 w-3 mr-1" />
+                        {contractInfo.timeLockPeriodInMinutes} min
+                        </div>
+                        <TooltipProvider>
+                          <Tooltip>
+                        
+                            <TooltipContent>
+                              <p>TimeLock Period</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+
+
+                    
+                    </div>
+                <div className="space-y-6">
+                  <div className="grid grid-cols-2 gap-8">
+                    <div className="space-y-6">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground mb-2">Owner</p>
+                        <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{contractInfo.owner}</p>
+                          </div>
+                          {isRoleConnected(contractInfo.owner) ? (
+                            <Badge variant="default" className="bg-blue-500/10 text-blue-500 shrink-0">Connected</Badge>
+                          ) : (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7"
+                                    onClick={() => handleConnect('owner')}
+                                  >
+                                    <SwitchCamera className="h-3 w-3 mr-1" />
+                                    Connect
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Switch to owner wallet</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground mb-2">Broadcaster</p>
+                        <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{contractInfo.broadcaster}</p>
+                          </div>
+                          {isRoleConnected(contractInfo.broadcaster) ? (
+                            <Badge variant="default" className="bg-purple-500/10 text-purple-500 shrink-0">Connected</Badge>
+                          ) : (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7"
+                                    onClick={() => handleConnect('broadcaster')}
+                                  >
+                                    <SwitchCamera className="h-3 w-3 mr-1" />
+                                    Connect
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Switch to broadcaster wallet</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-6">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground mb-2">Recovery</p>
+                        <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{contractInfo.recoveryAddress}</p>
+                          </div>
+                          {isRoleConnected(contractInfo.recoveryAddress) ? (
+                            <Badge variant="default" className="bg-green-500/10 text-green-500 shrink-0">Connected</Badge>
+                          ) : (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7"
+                                    onClick={() => handleConnect('recovery')}
+                                  >
+                                    <SwitchCamera className="h-3 w-3 mr-1" />
+                                    Connect
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Switch to recovery wallet</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground mb-2">TimeLock Period</p>
+                        <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">{formatTimeValue(contractInfo.timeLockPeriodInMinutes)}</p>
+                          </div>
+                          <Badge variant="outline" className="shrink-0">
+                            <Clock className="h-3 w-3 mr-1" />
+                            {contractInfo.timeLockPeriodInMinutes} min
+                          </Badge>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div className="h-8 w-[1px] bg-border/50" />
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          className="h-6 w-6 p-0 hover:bg-muted"
-                          onClick={handleDisconnect}
-                        >
-                          <LogOut className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Disconnect wallet</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </motion.div>
-              )}
-            </div>
-          </motion.div>
+                </div>
+              </Card>
 
-          {/* Contract Info */}
-          <motion.div variants={item} className="grid gap-6">
-            <Card className="p-6">
-              <h2 className="text-xl font-bold mb-2">Contract Information</h2>
-              <div className="flex mb-6 flex-col sm:flex-row sm:items-center gap-3">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Badge variant="outline" className="font-mono shrink-0">
-                        Contract
-                      </Badge>
-                      <p className="text-muted-foreground font-mono text-sm truncate">
-                        {contractAddress}
-                      </p>
+              {/* Management Tiles */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Ownership Management */}
+                <Card className="relative">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle>Recovery (Transfer Ownership)</CardTitle>
                       <TooltipProvider>
                         <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              className="h-6 w-6 p-0 shrink-0"
-                              onClick={() => navigator.clipboard.writeText(contractAddress)}
-                            >
-                              <Copy className="h-3 w-3" />
-                            </Button>
+                          <TooltipTrigger>
+                            <Badge variant="secondary" className="flex items-center gap-1">
+                              <Timer className="h-3 w-3" />
+                              <span>Temporal</span>
+                            </Badge>
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>Copy address</p>
+                            <p>Two-phase temporal security</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                     </div>
-                    <div className="hidden sm:block h-4 w-[1px] bg-border shrink-0" />
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Badge variant="outline" className="font-mono">
-                        Roles
-                      </Badge>
-                      <div className="flex -space-x-1">
-                        <div className="h-2 w-2 rounded-full bg-blue-500" />
-                        <div className="h-2 w-2 rounded-full bg-purple-500" />
-                        <div className="h-2 w-2 rounded-full bg-green-500" />
+                  </CardHeader>
+                  <CardContent>
+                    {isLoadingHistory ? (
+                      <div className="flex items-center justify-center py-2">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                       </div>
-                      <span className="text-sm text-muted-foreground">3 Total</span>
-                    </div>
-                    <div className="hidden sm:block h-4 w-[1px] bg-border shrink-0" />
+                    ) : (
+                      <>
+                        <div className="flex justify-center items-center gap-2">
+                          <Button 
+                            onClick={() => setShowOwnershipDialog(true)}
+                            className="flex items-center justify-center gap-2"
+                            size="sm"
+                            variant={!pendingOwnershipTx && isRoleConnected(contractInfo.recoveryAddress) ? "default" : "outline"}
+                            disabled={!!pendingOwnershipTx || !isRoleConnected(contractInfo.recoveryAddress)}
+                          >
+                            <Wallet className="h-4 w-4" />
+                            Request Transfer
+                          </Button>
+                          <ChevronDown className="h-4 w-4 rotate-[-90deg] text-muted-foreground" />
+                          <Button 
+                            onClick={() => setShowOwnershipDialog(true)}
+                            className="flex items-center justify-center gap-2"
+                            size="sm"
+                            variant={!!pendingOwnershipTx && (isRoleConnected(contractInfo.owner) || isRoleConnected(contractInfo.recoveryAddress)) ? "default" : "outline"}
+                            disabled={!pendingOwnershipTx || !(isRoleConnected(contractInfo.owner) || isRoleConnected(contractInfo.recoveryAddress))}
+                          >
+                            <Shield className="h-4 w-4" />
+                            Approve Transfer
+                          </Button>
+                          <div className="h-6 w-[1px] bg-border" />
+                          <Button 
+                            onClick={() => handleBroadcast('OWNERSHIP_TRANSFER')}
+                            className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'OWNERSHIP_TRANSFER' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
+                            size="sm"
+                            variant={signedTransactions.some(tx => tx.metadata?.type === 'OWNERSHIP_TRANSFER' && !tx.metadata?.broadcasted) ? "default" : "outline"}
+                            disabled={!signedTransactions.some(tx => tx.metadata?.type === 'OWNERSHIP_TRANSFER' && !tx.metadata?.broadcasted) || !isRoleConnected(contractInfo.broadcaster) || isBroadcasting}
+                          >
+                            {isBroadcasting ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span>Broadcasting...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Radio className="h-4 w-4" />
+                                <span>Broadcast</span>
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                        
+                        <ActionStatusInfo 
+                          action="transfer_ownership"
+                          pendingTx={pendingOwnershipTx}
+                          className="text-center"
+                          contractInfo={contractInfo}
+                          signedTransactions={signedTransactions}
+                          isRoleConnected={isRoleConnected}
+                        />
 
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Badge variant="outline" className="font-mono shrink-0">
-                        TimeLock
-                      </Badge>
-                      <div className="flex items-center  text-muted-foreground font-mono text-sm truncate">
-                      <Clock className="h-3 w-3 mr-1" />
-                      {contractInfo.timeLockPeriodInMinutes} min
-                      </div>
+                        <TemporalActionDialog
+                          isOpen={showOwnershipDialog}
+                          onOpenChange={setShowOwnershipDialog}
+                          title="Transfer Ownership"
+                          contractInfo={{
+                            ...contractInfo,
+                            contractAddress: contractAddress || ''
+                          }}
+                          actionType="ownership"
+                          currentValue={contractInfo?.owner}
+                          currentValueLabel="Current Owner"
+                          actionLabel={pendingOwnershipTx ? "Sign Meta Transaction" : "Request Transfer"}
+                          requiredRole={pendingOwnershipTx ? "owner_or_recovery" : "recovery"}
+                          connectedAddress={connectedAddress}
+                          pendingTx={pendingOwnershipTx || undefined}
+                          showNewValueInput={false}
+                          onSubmit={async () => handleTransferOwnershipRequest()}
+                          onApprove={handleTransferOwnershipApproval}
+                          onCancel={handleTransferOwnershipCancellation}
+                          showMetaTxOption={!!(pendingOwnershipTx && isRoleConnected(contractInfo.owner))}
+                          metaTxDescription="Sign a meta transaction to approve the ownership transfer. This will be broadcasted by the broadcaster."
+                        />
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Broadcaster Management */}
+                <Card className="relative">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle>Broadcaster Configuration</CardTitle>
                       <TooltipProvider>
                         <Tooltip>
-                      
+                          <TooltipTrigger>
+                            <Badge variant="secondary" className="flex items-center gap-1">
+                              <Timer className="h-3 w-3" />
+                              <span>Temporal</span>
+                            </Badge>
+                          </TooltipTrigger>
                           <TooltipContent>
-                            <p>TimeLock Period</p>
+                            <p>Two-phase temporal security</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                     </div>
+                  </CardHeader>
+                  <CardContent>
+                    {isLoadingHistory ? (
+                      <div className="flex items-center justify-center py-2">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex justify-center items-center gap-2">
+                          <Button 
+                            onClick={() => setShowBroadcasterDialog(true)}
+                            className="flex items-center justify-center gap-2"
+                            size="sm"
+                            variant={!pendingBroadcasterTx && isRoleConnected(contractInfo.owner) ? "default" : "outline"}
+                            disabled={!!pendingBroadcasterTx || !isRoleConnected(contractInfo.owner)}
+                          >
+                            <Wallet className="h-4 w-4" />
+                            Request Update
+                          </Button>
+                          <ChevronDown className="h-4 w-4 rotate-[-90deg] text-muted-foreground" />
+                          <Button 
+                            onClick={() => setShowBroadcasterDialog(true)}
+                            className="flex items-center justify-center gap-2"
+                            size="sm"
+                            variant={!!pendingBroadcasterTx && isRoleConnected(contractInfo.owner) ? "default" : "outline"}
+                            disabled={!pendingBroadcasterTx || !isRoleConnected(contractInfo.owner)}
+                          >
+                            <Shield className="h-4 w-4" />
+                            Approve Update
+                          </Button>
+                          <div className="h-6 w-[1px] bg-border" />
+                          <Button 
+                            onClick={() => handleBroadcast('BROADCASTER_UPDATE')}
+                            className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => 
+                              tx.metadata?.type === 'BROADCASTER_UPDATE' && 
+                              tx.metadata?.broadcasted === false
+                            ) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
+                            size="sm"
+                            variant={signedTransactions.some(tx => 
+                              tx.metadata?.type === 'BROADCASTER_UPDATE' && 
+                              tx.metadata?.broadcasted === false
+                            ) ? "default" : "outline"}
+                            disabled={!signedTransactions.some(tx => 
+                              tx.metadata?.type === 'BROADCASTER_UPDATE' && 
+                              tx.metadata?.broadcasted === false
+                            ) || !isRoleConnected(contractInfo.broadcaster) || isBroadcasting}
+                          >
+                            {isBroadcasting ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span>Broadcasting...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Radio className="h-4 w-4" />
+                                <span>Broadcast</span>
+                              </>
+                            )}
+                          </Button>
+                        </div>
 
+                        <ActionStatusInfo 
+                          action="update_broadcaster"
+                          pendingTx={pendingBroadcasterTx}
+                          className="text-center"
+                          contractInfo={contractInfo}
+                          signedTransactions={signedTransactions}
+                          isRoleConnected={isRoleConnected}
+                        />
 
-                  
-                  </div>
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-8">
-                  <div className="space-y-6">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground mb-2">Owner</p>
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{contractInfo.owner}</p>
-                        </div>
-                        {isRoleConnected(contractInfo.owner) ? (
-                          <Badge variant="default" className="bg-blue-500/10 text-blue-500 shrink-0">Connected</Badge>
+                        <TemporalActionDialog
+                          isOpen={showBroadcasterDialog}
+                          onOpenChange={setShowBroadcasterDialog}
+                          title="Update Broadcaster"
+                          contractInfo={{
+                            ...contractInfo,
+                            contractAddress: contractAddress || ''
+                          }}
+                          actionType="broadcaster"
+                          currentValue={contractInfo?.broadcaster}
+                          currentValueLabel="Current Broadcaster"
+                          actionLabel={pendingBroadcasterTx ? "Approve Update" : "Request Update"}
+                          requiredRole={pendingBroadcasterTx ? "owner" : "owner"}
+                          connectedAddress={connectedAddress}
+                          pendingTx={pendingBroadcasterTx || undefined}
+                          showNewValueInput={true}
+                          newValueLabel="New Broadcaster Address"
+                          newValuePlaceholder="Enter new broadcaster address"
+                          onSubmit={handleUpdateBroadcasterRequest}
+                          onApprove={handleUpdateBroadcasterApproval}
+                          onCancel={handleUpdateBroadcasterCancellation}
+                        />
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Recovery Management */}
+                <Card className="relative">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle>Recovery Configuration</CardTitle>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Badge variant="secondary" className="flex items-center gap-1">
+                              <Network className="h-3 w-3" />
+                              <span>Meta Tx</span>
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Single-phase meta tx security</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex justify-center items-center gap-2">
+                      <Button 
+                        onClick={() => setShowRecoveryDialog(true)}
+                        className="flex items-center justify-center gap-2"
+                        size="sm"
+                        variant={isRoleConnected(contractInfo.owner) && !isSigningTx ? "default" : "outline"}
+                        disabled={!isRoleConnected(contractInfo.owner) || isSigningTx}
+                      >
+                        <Key className="h-4 w-4" />
+                        {isSigningTx ? "Signing..." : "Update Recovery"}
+                      </Button>
+                      <ChevronDown className="h-4 w-4 rotate-[-90deg] text-muted-foreground" />
+                      <Button 
+                        onClick={() => handleBroadcast('RECOVERY_UPDATE')}
+                        className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
+                        size="sm"
+                        variant={signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
+                        disabled={!signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) || !isRoleConnected(contractInfo.broadcaster) || isBroadcasting}
+                      >
+                        {isBroadcasting ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Broadcasting...</span>
+                          </>
                         ) : (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button 
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7"
-                                  onClick={() => handleConnect('owner')}
-                                >
-                                  <SwitchCamera className="h-3 w-3 mr-1" />
-                                  Connect
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Switch to owner wallet</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
+                          <>
+                            <Radio className="h-4 w-4" />
+                            <span>Broadcast</span>
+                          </>
                         )}
-                      </div>
+                      </Button>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground mb-2">Broadcaster</p>
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{contractInfo.broadcaster}</p>
-                        </div>
-                        {isRoleConnected(contractInfo.broadcaster) ? (
-                          <Badge variant="default" className="bg-purple-500/10 text-purple-500 shrink-0">Connected</Badge>
+                    
+                    <ActionStatusInfo 
+                      action="update_recovery"
+                      className="text-center"
+                      contractInfo={contractInfo}
+                      signedTransactions={signedTransactions}
+                      isRoleConnected={isRoleConnected}
+                    />
+
+                    <MetaTxActionDialog
+                      isOpen={showRecoveryDialog}
+                      onOpenChange={setShowRecoveryDialog}
+                      title="Update Recovery Address"
+                      description="Update the recovery address for this contract. This will be executed via meta-transaction."
+                      contractInfo={contractInfo}
+                      actionType="recovery"
+                      currentValue={contractInfo.recoveryAddress}
+                      currentValueLabel="Current Recovery Address"
+                      actionLabel={isSigningTx ? "Signing..." : "Sign Transaction"}
+                      requiredRole="owner"
+                      connectedAddress={connectedAddress}
+                      newValue={newRecoveryAddress}
+                      onNewValueChange={setNewRecoveryAddress}
+                      newValueLabel="New Recovery Address"
+                      newValuePlaceholder="Enter new recovery address"
+                      validateNewValue={(value) => ({
+                        isValid: isValidEthereumAddress(value),
+                        message: "Please enter a valid Ethereum address"
+                      })}
+                      isSigning={isSigningTx}
+                      onSubmit={handleUpdateRecoveryRequest}
+                    />
+                  </CardContent>
+                </Card>
+
+                {/* TimeLock Management */}
+                <Card className="relative">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle>TimeLock Configuration</CardTitle>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Badge variant="secondary" className="flex items-center gap-1">
+                              <Network className="h-3 w-3" />
+                              <span>Meta Tx</span>
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Single-phase meta tx security</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex justify-center items-center gap-2">
+                      <Button 
+                        onClick={() => setShowTimeLockDialog(true)}
+                        className="flex items-center justify-center gap-2"
+                        size="sm"
+                        variant={isRoleConnected(contractInfo.owner) && !isSigningTx ? "default" : "outline"}
+                        disabled={!isRoleConnected(contractInfo.owner) || isSigningTx}
+                      >
+                        <Clock className="h-4 w-4" />
+                        Update TimeLock
+                      </Button>
+                      <ChevronDown className="h-4 w-4 rotate-[-90deg] text-muted-foreground" />
+                      <Button 
+                        onClick={() => handleBroadcast('TIMELOCK_UPDATE')}
+                        className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
+                        size="sm"
+                        variant={signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
+                        disabled={!signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) || !isRoleConnected(contractInfo.broadcaster) || isBroadcasting}
+                      >
+                        {isBroadcasting ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Broadcasting...</span>
+                          </>
                         ) : (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button 
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7"
-                                  onClick={() => handleConnect('broadcaster')}
-                                >
-                                  <SwitchCamera className="h-3 w-3 mr-1" />
-                                  Connect
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Switch to broadcaster wallet</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
+                          <>
+                            <Radio className="h-4 w-4" />
+                            <span>Broadcast</span>
+                          </>
                         )}
-                      </div>
+                      </Button>
                     </div>
-                  </div>
-                  <div className="space-y-6">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground mb-2">Recovery</p>
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{contractInfo.recoveryAddress}</p>
-                        </div>
-                        {isRoleConnected(contractInfo.recoveryAddress) ? (
-                          <Badge variant="default" className="bg-green-500/10 text-green-500 shrink-0">Connected</Badge>
-                        ) : (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button 
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7"
-                                  onClick={() => handleConnect('recovery')}
-                                >
-                                  <SwitchCamera className="h-3 w-3 mr-1" />
-                                  Connect
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Switch to recovery wallet</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground mb-2">TimeLock Period</p>
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">{formatTimeValue(contractInfo.timeLockPeriodInMinutes)}</p>
-                        </div>
-                        <Badge variant="outline" className="shrink-0">
-                          <Clock className="h-3 w-3 mr-1" />
-                          {contractInfo.timeLockPeriodInMinutes} min
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                    
+                    <ActionStatusInfo 
+                      action="update_timelock"
+                      className="text-center"
+                      contractInfo={contractInfo}
+                      signedTransactions={signedTransactions}
+                      isRoleConnected={isRoleConnected}
+                    />
+
+                    <MetaTxActionDialog
+                      isOpen={showTimeLockDialog}
+                      onOpenChange={setShowTimeLockDialog}
+                      title="Update TimeLock Period"
+                      description={`Enter a new time lock period between ${TIMELOCK_PERIODS.MIN} and ${TIMELOCK_PERIODS.MAX} minutes.`}
+                      contractInfo={contractInfo}
+                      actionType="timelock"
+                      currentValue={formatTimeValue(contractInfo?.timeLockPeriodInMinutes)}
+                      currentValueLabel="Current TimeLock Period"
+                      actionLabel="Sign Transaction"
+                      requiredRole="owner"
+                      connectedAddress={connectedAddress}
+                      newValue={newTimeLockPeriod}
+                      onNewValueChange={setNewTimeLockPeriod}
+                      newValueLabel="New TimeLock Period"
+                      newValuePlaceholder="Enter period in minutes"
+                      validateNewValue={(value) => {
+                        const period = parseInt(value);
+                        return {
+                          isValid: !isNaN(period) && period >= TIMELOCK_PERIODS.MIN && period <= TIMELOCK_PERIODS.MAX,
+                          message: `Please enter a period between ${TIMELOCK_PERIODS.MIN} and ${TIMELOCK_PERIODS.MAX} minutes`
+                        };
+                      }}
+                      onSubmit={handleUpdateTimeLockRequest}
+                    />
+                  </CardContent>
+                </Card>
               </div>
-            </Card>
 
-            {/* Management Tiles */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Ownership Management */}
-              <Card className="relative">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>Recovery (Transfer Ownership)</CardTitle>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <Badge variant="secondary" className="flex items-center gap-1">
-                            <Timer className="h-3 w-3" />
-                            <span>Temporal</span>
-                          </Badge>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Two-phase temporal security</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {isLoadingHistory ? (
-                    <div className="flex items-center justify-center py-2">
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex justify-center items-center gap-2">
-                        <Button 
-                          onClick={() => setShowOwnershipDialog(true)}
-                          className="flex items-center justify-center gap-2"
-                          size="sm"
-                          variant={!pendingOwnershipTx && isRoleConnected(contractInfo.recoveryAddress) ? "default" : "outline"}
-                          disabled={!!pendingOwnershipTx || !isRoleConnected(contractInfo.recoveryAddress)}
-                        >
-                          <Wallet className="h-4 w-4" />
-                          Request Transfer
-                        </Button>
-                        <ChevronDown className="h-4 w-4 rotate-[-90deg] text-muted-foreground" />
-                        <Button 
-                          onClick={() => setShowOwnershipDialog(true)}
-                          className="flex items-center justify-center gap-2"
-                          size="sm"
-                          variant={!!pendingOwnershipTx && (isRoleConnected(contractInfo.owner) || isRoleConnected(contractInfo.recoveryAddress)) ? "default" : "outline"}
-                          disabled={!pendingOwnershipTx || !(isRoleConnected(contractInfo.owner) || isRoleConnected(contractInfo.recoveryAddress))}
-                        >
-                          <Shield className="h-4 w-4" />
-                          Approve Transfer
-                        </Button>
-                        <div className="h-6 w-[1px] bg-border" />
-                        <Button 
-                          onClick={() => handleBroadcast('RECOVERY_UPDATE')}
-                          className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
-                          size="sm"
-                          variant={signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
-                          disabled={!signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) || !isRoleConnected(contractInfo.broadcaster)}
-                        >
-                          <Radio className="h-4 w-4" />
-                          Broadcast
-                        </Button>
-                      </div>
-                      
-                      <TemporalActionDialog
-                        isOpen={showOwnershipDialog}
-                        onOpenChange={setShowOwnershipDialog}
-                        title="Transfer Ownership"
-                        contractInfo={{
-                          ...contractInfo,
-                          contractAddress: contractAddress || ''
-                        }}
-                        actionType="ownership"
-                        currentValue={contractInfo?.owner}
-                        currentValueLabel="Current Owner"
-                        actionLabel={pendingOwnershipTx ? "Sign Meta Transaction" : "Request Transfer"}
-                        requiredRole={pendingOwnershipTx ? "owner_or_recovery" : "recovery"}
-                        connectedAddress={connectedAddress}
-                        pendingTx={pendingOwnershipTx || undefined}
-                        showNewValueInput={false}
-                        onSubmit={async () => handleTransferOwnershipRequest()}
-                        onApprove={handleTransferOwnershipApproval}
-                        onCancel={handleTransferOwnershipCancellation}
-                        showMetaTxOption={!!(pendingOwnershipTx && isRoleConnected(contractInfo.owner))}
-                        metaTxDescription="Sign a meta transaction to approve the ownership transfer. This will be broadcasted by the broadcaster."
-                      />
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Broadcaster Management */}
-              <Card className="relative">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>Broadcaster Configuration</CardTitle>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <Badge variant="secondary" className="flex items-center gap-1">
-                            <Timer className="h-3 w-3" />
-                            <span>Temporal</span>
-                          </Badge>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Two-phase temporal security</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {isLoadingHistory ? (
-                    <div className="flex items-center justify-center py-2">
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex justify-center items-center gap-2">
-                        <Button 
-                          onClick={() => setShowBroadcasterDialog(true)}
-                          className="flex items-center justify-center gap-2"
-                          size="sm"
-                          variant={!pendingBroadcasterTx && isRoleConnected(contractInfo.owner) ? "default" : "outline"}
-                          disabled={!!pendingBroadcasterTx || !isRoleConnected(contractInfo.owner)}
-                        >
-                          <Wallet className="h-4 w-4" />
-                          Request Update
-                        </Button>
-                        <ChevronDown className="h-4 w-4 rotate-[-90deg] text-muted-foreground" />
-                        <Button 
-                          onClick={() => setShowBroadcasterDialog(true)}
-                          className="flex items-center justify-center gap-2"
-                          size="sm"
-                          variant={!!pendingBroadcasterTx && isRoleConnected(contractInfo.owner) ? "default" : "outline"}
-                          disabled={!pendingBroadcasterTx || !isRoleConnected(contractInfo.owner)}
-                        >
-                          <Shield className="h-4 w-4" />
-                          Approve Update
-                        </Button>
-                        <div className="h-6 w-[1px] bg-border" />
-                        <Button 
-                          onClick={() => handleBroadcast('BROADCASTER_UPDATE')}
-                          className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => 
-                            tx.metadata?.type === 'BROADCASTER_UPDATE' && 
-                            tx.metadata?.broadcasted === false
-                          ) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
-                          size="sm"
-                          variant={signedTransactions.some(tx => 
-                            tx.metadata?.type === 'BROADCASTER_UPDATE' && 
-                            tx.metadata?.broadcasted === false
-                          ) ? "default" : "outline"}
-                          disabled={!signedTransactions.some(tx => 
-                            tx.metadata?.type === 'BROADCASTER_UPDATE' && 
-                            tx.metadata?.broadcasted === false
-                          ) || !isRoleConnected(contractInfo.broadcaster)}
-                        >
-                          <Radio className="h-4 w-4" />
-                          Broadcast
-                        </Button>
-                      </div>
-
-                      <TemporalActionDialog
-                        isOpen={showBroadcasterDialog}
-                        onOpenChange={setShowBroadcasterDialog}
-                        title="Update Broadcaster"
-                        contractInfo={{
-                          ...contractInfo,
-                          contractAddress: contractAddress || ''
-                        }}
-                        actionType="broadcaster"
-                        currentValue={contractInfo?.broadcaster}
-                        currentValueLabel="Current Broadcaster"
-                        actionLabel={pendingBroadcasterTx ? "Approve Update" : "Request Update"}
-                        requiredRole={pendingBroadcasterTx ? "owner" : "owner"}
-                        connectedAddress={connectedAddress}
-                        pendingTx={pendingBroadcasterTx || undefined}
-                        showNewValueInput={true}
-                        newValueLabel="New Broadcaster Address"
-                        newValuePlaceholder="Enter new broadcaster address"
-                        onSubmit={handleUpdateBroadcasterRequest}
-                        onApprove={handleUpdateBroadcasterApproval}
-                        onCancel={handleUpdateBroadcasterCancellation}
-                      />
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Recovery Management */}
-              <Card className="relative">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>Recovery Configuration</CardTitle>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <Badge variant="secondary" className="flex items-center gap-1">
-                            <Network className="h-3 w-3" />
-                            <span>Meta Tx</span>
-                          </Badge>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Single-phase meta tx security</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex justify-center items-center gap-2">
-                    <Button 
-                      onClick={() => setShowRecoveryDialog(true)}
-                      className="flex items-center justify-center gap-2"
-                      size="sm"
-                      variant={isRoleConnected(contractInfo.owner) && !isSigningTx ? "default" : "outline"}
-                      disabled={!isRoleConnected(contractInfo.owner) || isSigningTx}
-                    >
-                      <Key className="h-4 w-4" />
-                      {isSigningTx ? "Signing..." : "Update Recovery"}
-                    </Button>
-                    <ChevronDown className="h-4 w-4 rotate-[-90deg] text-muted-foreground" />
-                    <Button 
-                      onClick={() => handleBroadcast('RECOVERY_UPDATE')}
-                      className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
-                      size="sm"
-                      variant={signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
-                      disabled={!signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) || !isRoleConnected(contractInfo.broadcaster)}
-                    >
-                      <Radio className="h-4 w-4" />
-                      Broadcast
-                    </Button>
-                  </div>
-                  
-                  <MetaTxActionDialog
-                    isOpen={showRecoveryDialog}
-                    onOpenChange={setShowRecoveryDialog}
-                    title="Update Recovery Address"
-                    description="Update the recovery address for this contract. This will be executed via meta-transaction."
-                    contractInfo={contractInfo}
-                    actionType="recovery"
-                    currentValue={contractInfo.recoveryAddress}
-                    currentValueLabel="Current Recovery Address"
-                    actionLabel={isSigningTx ? "Signing..." : "Sign Transaction"}
-                    requiredRole="owner"
-                    connectedAddress={connectedAddress}
-                    newValue={newRecoveryAddress}
-                    onNewValueChange={setNewRecoveryAddress}
-                    newValueLabel="New Recovery Address"
-                    newValuePlaceholder="Enter new recovery address"
-                    validateNewValue={(value) => ({
-                      isValid: isValidEthereumAddress(value),
-                      message: "Please enter a valid Ethereum address"
-                    })}
-                    isSigning={isSigningTx}
-                    onSubmit={handleUpdateRecoveryRequest}
-                  />
-                </CardContent>
-              </Card>
-
-              {/* TimeLock Management */}
-              <Card className="relative">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>TimeLock Configuration</CardTitle>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <Badge variant="secondary" className="flex items-center gap-1">
-                            <Network className="h-3 w-3" />
-                            <span>Meta Tx</span>
-                          </Badge>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Single-phase meta tx security</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex justify-center items-center gap-2">
-                    <Button 
-                      onClick={() => setShowTimeLockDialog(true)}
-                      className="flex items-center justify-center gap-2"
-                      size="sm"
-                      variant={isRoleConnected(contractInfo.owner) && !isSigningTx ? "default" : "outline"}
-                      disabled={!isRoleConnected(contractInfo.owner) || isSigningTx}
-                    >
-                      <Clock className="h-4 w-4" />
-                      Update TimeLock
-                    </Button>
-                    <ChevronDown className="h-4 w-4 rotate-[-90deg] text-muted-foreground" />
-                    <Button 
-                      onClick={() => handleBroadcast('TIMELOCK_UPDATE')}
-                      className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
-                      size="sm"
-                      variant={signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
-                      disabled={!signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) || !isRoleConnected(contractInfo.broadcaster)}
-                    >
-                      <Radio className="h-4 w-4" />
-                      Broadcast
-                    </Button>
-                  </div>
-                  
-                  <MetaTxActionDialog
-                    isOpen={showTimeLockDialog}
-                    onOpenChange={setShowTimeLockDialog}
-                    title="Update TimeLock Period"
-                    description={`Enter a new time lock period between ${TIMELOCK_PERIODS.MIN} and ${TIMELOCK_PERIODS.MAX} minutes.`}
-                    contractInfo={contractInfo}
-                    actionType="timelock"
-                    currentValue={formatTimeValue(contractInfo?.timeLockPeriodInMinutes)}
-                    currentValueLabel="Current TimeLock Period"
-                    actionLabel="Sign Transaction"
-                    requiredRole="owner"
-                    connectedAddress={connectedAddress}
-                    newValue={newTimeLockPeriod}
-                    onNewValueChange={setNewTimeLockPeriod}
-                    newValueLabel="New TimeLock Period"
-                    newValuePlaceholder="Enter period in minutes"
-                    validateNewValue={(value) => {
-                      const period = parseInt(value);
-                      return {
-                        isValid: !isNaN(period) && period >= TIMELOCK_PERIODS.MIN && period <= TIMELOCK_PERIODS.MAX,
-                        message: `Please enter a period between ${TIMELOCK_PERIODS.MIN} and ${TIMELOCK_PERIODS.MAX} minutes`
-                      };
-                    }}
-                    onSubmit={handleUpdateTimeLockRequest}
-                  />
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Operation History Section */}
-            <motion.div variants={item} className="mt-6">
-              <OpHistory
-                contractAddress={contractAddress as `0x${string}`}
-                operations={contractInfo?.operationHistory || []}
-                isLoading={loading}
-              />
+              {/* Operation History Section */}
+              <motion.div variants={item} className="mt-6">
+                <OpHistory
+                  contractAddress={contractAddress as `0x${string}`}
+                  operations={contractInfo?.operationHistory || []}
+                  isLoading={loading}
+                />
+              </motion.div>
             </motion.div>
           </motion.div>
-        </motion.div>
-      </div>
-    </TransactionManagerProvider>
+        </div>
+      </TransactionManagerProvider>
+    </SecurityWorkflowProvider>
   )
 }
