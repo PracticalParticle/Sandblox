@@ -1,4 +1,3 @@
-
 import { useAccount, useDisconnect, usePublicClient, useWalletClient, useConfig } from 'wagmi'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useState, useEffect } from 'react'
@@ -52,6 +51,7 @@ interface ExtendedSignedTransaction {
   timestamp: number
   metadata?: {
     type: 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE' | 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE'
+    purpose?: 'address_update' | 'ownership_transfer'
     action?: 'approve' | 'cancel'
     broadcasted: boolean
   }
@@ -242,16 +242,24 @@ export function SecurityDetails() {
         throw new Error('Chain not found');
       }
 
-      const manager = await generateNewSecureOwnableManager(publicClient, walletClient, contractInfo.address, chain);
+      const manager = await generateNewSecureOwnableManager(
+        publicClient,
+        walletClient,
+        contractInfo.address,
+        chain,
+        // Add purpose field to distinguish from recovery address update
+        (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
+          ...metadata, 
+          type: 'RECOVERY_UPDATE',
+          purpose: 'ownership_transfer',
+          action: 'approve',
+          broadcasted: false 
+        })
+      );
       const tx = await manager.transferOwnership({
         from: connectedAddress as `0x${string}`
       });
 
-      // toast({
-      //   title: "Transaction Sent",
-      //   description: "The transaction has been broadcasted to the network.",
-      // });
-      // Wait for transaction confirmation
       await publicClient.waitForTransactionReceipt({ hash: tx });
 
       toast({
@@ -259,7 +267,6 @@ export function SecurityDetails() {
         description: "Transfer ownership request has been submitted.",
       });
       
-      // Add a small delay before reloading contract info to allow transaction to be mined
       setTimeout(async () => {
         await loadContractInfo();
       }, 2000);
@@ -509,10 +516,11 @@ export function SecurityDetails() {
         walletClient,
         contractAddress as `0x${string}`,
         chain,
-        // Wrap storeTransaction to include action field for approval
+        // Wrap storeTransaction to include purpose field to distinguish from transfer ownership
         (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
           ...metadata, 
-          type: 'RECOVERY_UPDATE', 
+          type: 'RECOVERY_UPDATE',
+          purpose: 'address_update',
           action: 'approve',
           broadcasted: false 
         })
@@ -700,8 +708,8 @@ export function SecurityDetails() {
     return connectedAddress?.toLowerCase() === roleAddress?.toLowerCase();
   };
 
-  // Update handleBroadcast function to accept action type argument
-  const handleBroadcast = async (type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE') => {
+  // Update handleBroadcast function to handle both types
+  const handleBroadcast = async (type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'RECOVERY_ADDRESS_UPDATE' | 'TIMELOCK_UPDATE') => {
     try {
       // Find the matching unsigned transaction
       const pendingTx = signedTransactions.find(tx => 
@@ -748,11 +756,15 @@ export function SecurityDetails() {
         chain,
         storeTransaction
       );
+
+      // Map RECOVERY_ADDRESS_UPDATE to RECOVERY_UPDATE for contract interaction
+      const contractType = type === 'RECOVERY_ADDRESS_UPDATE' ? 'RECOVERY_UPDATE' : type;
+      
       // Prepare and sign the update transaction
       const txHash = await manager.executeMetaTransaction(
         signedData,
         { from: connectedAddress as `0x${string}` },
-        type,// Ensure signedData is parsed correctly
+        contractType,
         action,
       );
       console.log('txHash', txHash);
@@ -1120,10 +1132,10 @@ export function SecurityDetails() {
             </Card>
 
             {/* Management Tiles */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {/* Ownership Management */}
-              <Card className="relative">
-                <CardHeader>
+              <Card className="relative overflow-hidden">
+                <CardHeader className="border-b">
                   <div className="flex items-center justify-between">
                     <CardTitle>Recovery (Transfer Ownership)</CardTitle>
                     <TooltipProvider>
@@ -1141,48 +1153,206 @@ export function SecurityDetails() {
                     </TooltipProvider>
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-6">
                   {isLoadingHistory ? (
                     <div className="flex items-center justify-center py-2">
                       <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                     </div>
                   ) : (
                     <>
-                      <div className="flex justify-center items-center gap-2">
-                        <Button 
-                          onClick={() => setShowOwnershipDialog(true)}
-                          className="flex items-center justify-center gap-2"
-                          size="sm"
-                          variant={!pendingOwnershipTx && isRoleConnected(contractInfo.recoveryAddress) ? "default" : "outline"}
-                          disabled={!!pendingOwnershipTx || !isRoleConnected(contractInfo.recoveryAddress)}
-                        >
-                          <Wallet className="h-4 w-4" />
-                          Request Transfer
-                        </Button>
-                        <ChevronDown className="h-4 w-4 rotate-[-90deg] text-muted-foreground" />
-                        <Button 
-                          onClick={() => setShowOwnershipDialog(true)}
-                          className="flex items-center justify-center gap-2"
-                          size="sm"
-                          variant={!!pendingOwnershipTx && (isRoleConnected(contractInfo.owner) || isRoleConnected(contractInfo.recoveryAddress)) ? "default" : "outline"}
-                          disabled={!pendingOwnershipTx || !(isRoleConnected(contractInfo.owner) || isRoleConnected(contractInfo.recoveryAddress))}
-                        >
-                          <Shield className="h-4 w-4" />
-                          Approve Transfer
-                        </Button>
-                        <div className="h-6 w-[1px] bg-border" />
-                        <Button 
-                          onClick={() => handleBroadcast('RECOVERY_UPDATE')}
-                          className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
-                          size="sm"
-                          variant={signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
-                          disabled={!signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) || !isRoleConnected(contractInfo.broadcaster)}
-                        >
-                          <Radio className="h-4 w-4" />
-                          Broadcast
-                        </Button>
+                      <div className="space-y-8">
+                        {/* Step 1 */}
+                        <div className="relative">
+                          <div className="flex items-center gap-4 mb-4">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 border-2 border-primary">
+                              <span className="text-sm font-bold text-primary">1</span>
+                            </div>
+                            <h3 className="font-medium">Request Transfer</h3>
+                          </div>
+                          
+                          <div className="pl-12">
+                            <div className="mb-3 flex items-center gap-2">
+                              <Badge variant="default" className="bg-green-500/10 text-green-500 hover:bg-green-500/20">
+                                <Key className="h-3 w-3 mr-1" />
+                                Recovery
+                              </Badge>
+                              <span className="text-sm text-muted-foreground">required to initiate ownership transfer</span>
+                            </div>
+
+                            <Button 
+                              onClick={() => setShowOwnershipDialog(true)}
+                              className="w-full"
+                              size="sm"
+                              variant={!pendingOwnershipTx && isRoleConnected(contractInfo.recoveryAddress) ? "default" : "outline"}
+                              disabled={!!pendingOwnershipTx || !isRoleConnected(contractInfo.recoveryAddress)}
+                            >
+                              <Wallet className="h-4 w-4 mr-2" />
+                              Request Transfer
+                            </Button>
+                          </div>
+
+                          {/* Step connector */}
+                          <div className="absolute left-4 top-12 bottom-0 w-[2px] bg-border" />
+                        </div>
+
+                        {/* Step 2 */}
+                        <div className="relative">
+                          <div className="flex items-center gap-4 mb-4">
+                            <div className={`flex h-8 w-8 items-center justify-center rounded-full ${pendingOwnershipTx ? 'bg-primary/10 border-2 border-primary' : 'bg-muted border-2'}`}>
+                              <span className={`text-sm font-bold ${pendingOwnershipTx ? 'text-primary' : 'text-muted-foreground'}`}>2</span>
+                            </div>
+                            <h3 className="font-medium">Approve Transfer</h3>
+                          </div>
+
+                          <div className="pl-12">
+                            <div className="mb-3 flex items-center gap-2 flex-wrap">
+                              <Badge variant="default" className="bg-blue-500/10 text-blue-500 hover:bg-blue-500/20">
+                                <Shield className="h-3 w-3 mr-1" />
+                                Owner
+                              </Badge>
+                              <span className="text-sm text-muted-foreground">or</span>
+                              <Badge variant="default" className="bg-green-500/10 text-green-500 hover:bg-green-500/20">
+                                <Key className="h-3 w-3 mr-1" />
+                                Recovery
+                              </Badge>
+                              <span className="text-sm text-muted-foreground">must approve the transfer</span>
+                            </div>
+
+                            <Button 
+                              onClick={() => setShowOwnershipDialog(true)}
+                              className="w-full"
+                              size="sm"
+                              variant={!!pendingOwnershipTx && (isRoleConnected(contractInfo.owner) || isRoleConnected(contractInfo.recoveryAddress)) ? "default" : "outline"}
+                              disabled={!pendingOwnershipTx || !(isRoleConnected(contractInfo.owner) || isRoleConnected(contractInfo.recoveryAddress))}
+                            >
+                              <Shield className="h-4 w-4 mr-2" />
+                              Approve Transfer
+                            </Button>
+                          </div>
+
+                          {/* Step connector */}
+                          <div className="absolute left-4 top-12 bottom-0 w-[2px] bg-border" />
+                        </div>
+
+                        {/* Step 3 */}
+                        <div className="relative">
+                          <div className="flex items-center gap-4 mb-4">
+                            <div className={`flex h-8 w-8 items-center justify-center rounded-full ${signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? 'bg-primary/10 border-2 border-primary' : 'bg-muted border-2'}`}>
+                              <span className={`text-sm font-bold ${signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? 'text-primary' : 'text-muted-foreground'}`}>3</span>
+                            </div>
+                            <h3 className="font-medium">Broadcast Transaction</h3>
+                          </div>
+
+                          <div className="pl-12">
+                            <div className="mb-3 flex items-center gap-2">
+                              <Badge variant="default" className="bg-purple-500/10 text-purple-500 hover:bg-purple-500/20">
+                                <Radio className="h-3 w-3 mr-1" />
+                                Broadcaster
+                              </Badge>
+                              <span className="text-sm text-muted-foreground">submits the transaction to network</span>
+                            </div>
+
+                            <Button 
+                              onClick={() => handleBroadcast('RECOVERY_UPDATE')}
+                              className={`w-full ${signedTransactions.some(tx => 
+                                tx.metadata?.type === 'RECOVERY_UPDATE' && 
+                                tx.metadata?.purpose === 'ownership_transfer' && 
+                                !tx.metadata?.broadcasted
+                              ) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
+                              size="sm"
+                              variant={signedTransactions.some(tx => 
+                                tx.metadata?.type === 'RECOVERY_UPDATE' && 
+                                tx.metadata?.purpose === 'ownership_transfer' && 
+                                !tx.metadata?.broadcasted
+                              ) ? "default" : "outline"}
+                              disabled={!signedTransactions.some(tx => 
+                                tx.metadata?.type === 'RECOVERY_UPDATE' && 
+                                tx.metadata?.purpose === 'ownership_transfer' && 
+                                !tx.metadata?.broadcasted
+                              ) || !isRoleConnected(contractInfo.broadcaster)}
+                            >
+                              <Radio className="h-4 w-4 mr-2" />
+                              Broadcast
+                            </Button>
+                          </div>
+                        </div>
                       </div>
+
+                      {/* Next Step Indicator - Ownership Management */}
+                      {pendingOwnershipTx && (
+                        <div className="mt-6 p-4 bg-muted/50 rounded-lg border">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-medium">Next Required Action:</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {isRoleConnected(contractInfo.owner) || isRoleConnected(contractInfo.recoveryAddress) ? (
+                              <div className="flex items-center gap-2">
+                                {isRoleConnected(contractInfo.owner) ? (
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="default" className="bg-blue-500/10 text-blue-500">
+                                      <Shield className="h-3 w-3 mr-1" />
+                                      Owner
+                                    </Badge>
+                                    <span className="text-sm">approval required</span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="default" className="bg-green-500/10 text-green-500">
+                                      <Key className="h-3 w-3 mr-1" />
+                                      Recovery
+                                    </Badge>
+                                    <span className="text-sm">approval required</span>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <Badge variant="default" className="bg-blue-500/10 text-blue-500">
+                                  <Shield className="h-3 w-3 mr-1" />
+                                  Owner
+                                </Badge>
+                                <span className="text-sm">connection required</span>
+                                <span className="text-sm text-muted-foreground">or</span>
+                                <Badge variant="default" className="bg-green-500/10 text-green-500">
+                                  <Key className="h-3 w-3 mr-1" />
+                                  Recovery
+                                </Badge>
+                                <span className="text-sm">connection required</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                       
+                      {signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) && (
+                        <div className="mt-6 p-4 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                          <div className="flex items-center gap-2 mb-2">
+                            <AlertCircle className="h-4 w-4 text-yellow-500" />
+                            <span className="font-medium text-yellow-500">Pending Broadcast:</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {isRoleConnected(contractInfo.broadcaster) ? (
+                              <div className="flex items-center gap-2">
+                                <Badge variant="default" className="bg-purple-500/10 text-purple-500">
+                                  <Radio className="h-3 w-3 mr-1" />
+                                  Broadcaster
+                                </Badge>
+                                <span className="text-sm">ready to broadcast</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <Badge variant="default" className="bg-purple-500/10 text-purple-500">
+                                  <Radio className="h-3 w-3 mr-1" />
+                                  Broadcaster
+                                </Badge>
+                                <span className="text-sm">connection required</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       <TemporalActionDialog
                         isOpen={showOwnershipDialog}
                         onOpenChange={setShowOwnershipDialog}
@@ -1211,8 +1381,8 @@ export function SecurityDetails() {
               </Card>
 
               {/* Broadcaster Management */}
-              <Card className="relative">
-                <CardHeader>
+              <Card className="relative overflow-hidden">
+                <CardHeader className="border-b">
                   <div className="flex items-center justify-between">
                     <CardTitle>Broadcaster Configuration</CardTitle>
                     <TooltipProvider>
@@ -1230,56 +1400,170 @@ export function SecurityDetails() {
                     </TooltipProvider>
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-6">
                   {isLoadingHistory ? (
                     <div className="flex items-center justify-center py-2">
                       <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                     </div>
                   ) : (
                     <>
-                      <div className="flex justify-center items-center gap-2">
-                        <Button 
-                          onClick={() => setShowBroadcasterDialog(true)}
-                          className="flex items-center justify-center gap-2"
-                          size="sm"
-                          variant={!pendingBroadcasterTx && isRoleConnected(contractInfo.owner) ? "default" : "outline"}
-                          disabled={!!pendingBroadcasterTx || !isRoleConnected(contractInfo.owner)}
-                        >
-                          <Wallet className="h-4 w-4" />
-                          Request Update
-                        </Button>
-                        <ChevronDown className="h-4 w-4 rotate-[-90deg] text-muted-foreground" />
-                        <Button 
-                          onClick={() => setShowBroadcasterDialog(true)}
-                          className="flex items-center justify-center gap-2"
-                          size="sm"
-                          variant={!!pendingBroadcasterTx && isRoleConnected(contractInfo.owner) ? "default" : "outline"}
-                          disabled={!pendingBroadcasterTx || !isRoleConnected(contractInfo.owner)}
-                        >
-                          <Shield className="h-4 w-4" />
-                          Approve Update
-                        </Button>
-                        <div className="h-6 w-[1px] bg-border" />
-                        <Button 
-                          onClick={() => handleBroadcast('BROADCASTER_UPDATE')}
-                          className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => 
-                            tx.metadata?.type === 'BROADCASTER_UPDATE' && 
-                            tx.metadata?.broadcasted === false
-                          ) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
-                          size="sm"
-                          variant={signedTransactions.some(tx => 
-                            tx.metadata?.type === 'BROADCASTER_UPDATE' && 
-                            tx.metadata?.broadcasted === false
-                          ) ? "default" : "outline"}
-                          disabled={!signedTransactions.some(tx => 
-                            tx.metadata?.type === 'BROADCASTER_UPDATE' && 
-                            tx.metadata?.broadcasted === false
-                          ) || !isRoleConnected(contractInfo.broadcaster)}
-                        >
-                          <Radio className="h-4 w-4" />
-                          Broadcast
-                        </Button>
+                      <div className="space-y-8">
+                        {/* Step 1 */}
+                        <div className="relative">
+                          <div className="flex items-center gap-4 mb-4">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 border-2 border-primary">
+                              <span className="text-sm font-bold text-primary">1</span>
+                            </div>
+                            <h3 className="font-medium">Request Update</h3>
+                          </div>
+                          
+                          <div className="pl-12">
+                            <div className="mb-3 flex items-center gap-2">
+                              <Badge variant="default" className="bg-blue-500/10 text-blue-500 hover:bg-blue-500/20">
+                                <Shield className="h-3 w-3 mr-1" />
+                                Owner
+                              </Badge>
+                              <span className="text-sm text-muted-foreground">initiates broadcaster change</span>
+                            </div>
+
+                            <Button 
+                              onClick={() => setShowBroadcasterDialog(true)}
+                              className="w-full"
+                              size="sm"
+                              variant={!pendingBroadcasterTx && isRoleConnected(contractInfo.owner) ? "default" : "outline"}
+                              disabled={!!pendingBroadcasterTx || !isRoleConnected(contractInfo.owner)}
+                            >
+                              <Wallet className="h-4 w-4 mr-2" />
+                              Request Update
+                            </Button>
+                          </div>
+
+                          {/* Step connector */}
+                          <div className="absolute left-4 top-12 bottom-0 w-[2px] bg-border" />
+                        </div>
+
+                        {/* Step 2 */}
+                        <div className="relative">
+                          <div className="flex items-center gap-4 mb-4">
+                            <div className={`flex h-8 w-8 items-center justify-center rounded-full ${pendingBroadcasterTx ? 'bg-primary/10 border-2 border-primary' : 'bg-muted border-2'}`}>
+                              <span className={`text-sm font-bold ${pendingBroadcasterTx ? 'text-primary' : 'text-muted-foreground'}`}>2</span>
+                            </div>
+                            <h3 className="font-medium">Approve Update</h3>
+                          </div>
+
+                          <div className="pl-12">
+                            <div className="mb-3 flex items-center gap-2">
+                              <Badge variant="default" className="bg-blue-500/10 text-blue-500 hover:bg-blue-500/20">
+                                <Shield className="h-3 w-3 mr-1" />
+                                Owner
+                              </Badge>
+                              <span className="text-sm text-muted-foreground">confirms after timelock period</span>
+                            </div>
+
+                            <Button 
+                              onClick={() => setShowBroadcasterDialog(true)}
+                              className="w-full"
+                              size="sm"
+                              variant={!!pendingBroadcasterTx && isRoleConnected(contractInfo.owner) ? "default" : "outline"}
+                              disabled={!pendingBroadcasterTx || !isRoleConnected(contractInfo.owner)}
+                            >
+                              <Shield className="h-4 w-4 mr-2" />
+                              Approve Update
+                            </Button>
+                          </div>
+
+                          {/* Step connector */}
+                          <div className="absolute left-4 top-12 bottom-0 w-[2px] bg-border" />
+                        </div>
+
+                        {/* Step 3 */}
+                        <div className="relative">
+                          <div className="flex items-center gap-4 mb-4">
+                            <div className={`flex h-8 w-8 items-center justify-center rounded-full ${signedTransactions.some(tx => tx.metadata?.type === 'BROADCASTER_UPDATE' && !tx.metadata?.broadcasted) ? 'bg-primary/10 border-2 border-primary' : 'bg-muted border-2'}`}>
+                              <span className={`text-sm font-bold ${signedTransactions.some(tx => tx.metadata?.type === 'BROADCASTER_UPDATE' && !tx.metadata?.broadcasted) ? 'text-primary' : 'text-muted-foreground'}`}>3</span>
+                            </div>
+                            <h3 className="font-medium">Broadcast Transaction</h3>
+                          </div>
+
+                          <div className="pl-12">
+                            <div className="mb-3 flex items-center gap-2">
+                              <Badge variant="default" className="bg-purple-500/10 text-purple-500 hover:bg-purple-500/20">
+                                <Radio className="h-3 w-3 mr-1" />
+                                Broadcaster
+                              </Badge>
+                              <span className="text-sm text-muted-foreground">executes the update</span>
+                            </div>
+
+                            <Button 
+                              onClick={() => handleBroadcast('BROADCASTER_UPDATE')}
+                              className={`w-full ${signedTransactions.some(tx => tx.metadata?.type === 'BROADCASTER_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
+                              size="sm"
+                              variant={signedTransactions.some(tx => tx.metadata?.type === 'BROADCASTER_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
+                              disabled={!signedTransactions.some(tx => tx.metadata?.type === 'BROADCASTER_UPDATE' && !tx.metadata?.broadcasted) || !isRoleConnected(contractInfo.broadcaster)}
+                            >
+                              <Radio className="h-4 w-4 mr-2" />
+                              Broadcast
+                            </Button>
+                          </div>
+                        </div>
                       </div>
+
+                      {/* Next Step Indicator - Broadcaster Management */}
+                      {pendingBroadcasterTx && (
+                        <div className="mt-6 p-4 bg-muted/50 rounded-lg border">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-medium">Next Required Action:</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {isRoleConnected(contractInfo.owner) ? (
+                              <div className="flex items-center gap-2">
+                                <Badge variant="default" className="bg-blue-500/10 text-blue-500">
+                                  <Shield className="h-3 w-3 mr-1" />
+                                  Owner
+                                </Badge>
+                                <span className="text-sm">approval required</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <Badge variant="default" className="bg-blue-500/10 text-blue-500">
+                                  <Shield className="h-3 w-3 mr-1" />
+                                  Owner
+                                </Badge>
+                                <span className="text-sm">connection required</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {signedTransactions.some(tx => tx.metadata?.type === 'BROADCASTER_UPDATE' && !tx.metadata?.broadcasted) && (
+                        <div className="mt-6 p-4 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                          <div className="flex items-center gap-2 mb-2">
+                            <AlertCircle className="h-4 w-4 text-yellow-500" />
+                            <span className="font-medium text-yellow-500">Pending Broadcast:</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {isRoleConnected(contractInfo.broadcaster) ? (
+                              <div className="flex items-center gap-2">
+                                <Badge variant="default" className="bg-purple-500/10 text-purple-500">
+                                  <Radio className="h-3 w-3 mr-1" />
+                                  Broadcaster
+                                </Badge>
+                                <span className="text-sm">ready to broadcast</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <Badge variant="default" className="bg-purple-500/10 text-purple-500">
+                                  <Radio className="h-3 w-3 mr-1" />
+                                  Broadcaster
+                                </Badge>
+                                <span className="text-sm">connection required</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
 
                       <TemporalActionDialog
                         isOpen={showBroadcasterDialog}
@@ -1309,8 +1593,8 @@ export function SecurityDetails() {
               </Card>
 
               {/* Recovery Management */}
-              <Card className="relative">
-                <CardHeader>
+              <Card className="relative overflow-hidden">
+                <CardHeader className="border-b">
                   <div className="flex items-center justify-between">
                     <CardTitle>Recovery Configuration</CardTitle>
                     <TooltipProvider>
@@ -1328,30 +1612,102 @@ export function SecurityDetails() {
                     </TooltipProvider>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="flex justify-center items-center gap-2">
-                    <Button 
-                      onClick={() => setShowRecoveryDialog(true)}
-                      className="flex items-center justify-center gap-2"
-                      size="sm"
-                      variant={isRoleConnected(contractInfo.owner) && !isSigningTx ? "default" : "outline"}
-                      disabled={!isRoleConnected(contractInfo.owner) || isSigningTx}
-                    >
-                      <Key className="h-4 w-4" />
-                      {isSigningTx ? "Signing..." : "Update Recovery"}
-                    </Button>
-                    <ChevronDown className="h-4 w-4 rotate-[-90deg] text-muted-foreground" />
-                    <Button 
-                      onClick={() => handleBroadcast('RECOVERY_UPDATE')}
-                      className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
-                      size="sm"
-                      variant={signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
-                      disabled={!signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) || !isRoleConnected(contractInfo.broadcaster)}
-                    >
-                      <Radio className="h-4 w-4" />
-                      Broadcast
-                    </Button>
+                <CardContent className="p-6">
+                  <div className="space-y-8">
+                    {/* Step 1 */}
+                    <div className="relative">
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 border-2 border-primary">
+                          <span className="text-sm font-bold text-primary">1</span>
+                        </div>
+                        <h3 className="font-medium">Sign Meta Transaction</h3>
+                      </div>
+                      
+                      <div className="pl-12">
+                        <div className="mb-3 flex items-center gap-2">
+                          <Badge variant="default" className="bg-blue-500/10 text-blue-500 hover:bg-blue-500/20">
+                            <Shield className="h-3 w-3 mr-1" />
+                            Owner
+                          </Badge>
+                          <span className="text-sm text-muted-foreground">signs meta-transaction</span>
+                        </div>
+
+                        <Button 
+                          onClick={() => setShowRecoveryDialog(true)}
+                          className="w-full"
+                          size="sm"
+                          variant={isRoleConnected(contractInfo.owner) && !isSigningTx ? "default" : "outline"}
+                          disabled={!isRoleConnected(contractInfo.owner) || isSigningTx}
+                        >
+                          <Key className="h-4 w-4 mr-2" />
+                          {isSigningTx ? "Signing..." : "Update Recovery"}
+                        </Button>
+                      </div>
+
+                      {/* Step connector */}
+                      <div className="absolute left-4 top-12 bottom-0 w-[2px] bg-border" />
+                    </div>
+
+                    {/* Step 2 */}
+                    <div className="relative">
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className={`flex h-8 w-8 items-center justify-center rounded-full ${signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? 'bg-primary/10 border-2 border-primary' : 'bg-muted border-2'}`}>
+                          <span className={`text-sm font-bold ${signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? 'text-primary' : 'text-muted-foreground'}`}>2</span>
+                        </div>
+                        <h3 className="font-medium">Broadcast Transaction</h3>
+                      </div>
+
+                      <div className="pl-12">
+                        <div className="mb-3 flex items-center gap-2">
+                          <Badge variant="default" className="bg-purple-500/10 text-purple-500 hover:bg-purple-500/20">
+                            <Radio className="h-3 w-3 mr-1" />
+                            Broadcaster
+                          </Badge>
+                          <span className="text-sm text-muted-foreground">executes the update</span>
+                        </div>
+
+                        <Button 
+                          onClick={() => handleBroadcast('RECOVERY_UPDATE')}
+                          className={`w-full ${signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
+                          size="sm"
+                          variant={signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
+                          disabled={!signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) || !isRoleConnected(contractInfo.broadcaster)}
+                        >
+                          <Radio className="h-4 w-4 mr-2" />
+                          Broadcast
+                        </Button>
+                      </div>
+                    </div>
                   </div>
+                  
+                  {/* Next Step Indicator - Recovery Management */}
+                  {signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) && (
+                    <div className="mt-6 p-4 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                      <div className="flex items-center gap-2 mb-2">
+                        <AlertCircle className="h-4 w-4 text-yellow-500" />
+                        <span className="font-medium text-yellow-500">Pending Broadcast:</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {isRoleConnected(contractInfo.broadcaster) ? (
+                          <div className="flex items-center gap-2">
+                            <Badge variant="default" className="bg-purple-500/10 text-purple-500">
+                              <Radio className="h-3 w-3 mr-1" />
+                              Broadcaster
+                            </Badge>
+                            <span className="text-sm">ready to broadcast</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <Badge variant="default" className="bg-purple-500/10 text-purple-500">
+                              <Radio className="h-3 w-3 mr-1" />
+                              Broadcaster
+                            </Badge>
+                            <span className="text-sm">connection required</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   
                   <MetaTxActionDialog
                     isOpen={showRecoveryDialog}
@@ -1380,8 +1736,8 @@ export function SecurityDetails() {
               </Card>
 
               {/* TimeLock Management */}
-              <Card className="relative">
-                <CardHeader>
+              <Card className="relative overflow-hidden">
+                <CardHeader className="border-b">
                   <div className="flex items-center justify-between">
                     <CardTitle>TimeLock Configuration</CardTitle>
                     <TooltipProvider>
@@ -1399,30 +1755,102 @@ export function SecurityDetails() {
                     </TooltipProvider>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="flex justify-center items-center gap-2">
-                    <Button 
-                      onClick={() => setShowTimeLockDialog(true)}
-                      className="flex items-center justify-center gap-2"
-                      size="sm"
-                      variant={isRoleConnected(contractInfo.owner) && !isSigningTx ? "default" : "outline"}
-                      disabled={!isRoleConnected(contractInfo.owner) || isSigningTx}
-                    >
-                      <Clock className="h-4 w-4" />
-                      Update TimeLock
-                    </Button>
-                    <ChevronDown className="h-4 w-4 rotate-[-90deg] text-muted-foreground" />
-                    <Button 
-                      onClick={() => handleBroadcast('TIMELOCK_UPDATE')}
-                      className={`flex items-center justify-center gap-2 ${signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
-                      size="sm"
-                      variant={signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
-                      disabled={!signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) || !isRoleConnected(contractInfo.broadcaster)}
-                    >
-                      <Radio className="h-4 w-4" />
-                      Broadcast
-                    </Button>
+                <CardContent className="p-6">
+                  <div className="space-y-8">
+                    {/* Step 1 */}
+                    <div className="relative">
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 border-2 border-primary">
+                          <span className="text-sm font-bold text-primary">1</span>
+                        </div>
+                        <h3 className="font-medium">Sign Meta Transaction</h3>
+                      </div>
+                      
+                      <div className="pl-12">
+                        <div className="mb-3 flex items-center gap-2">
+                          <Badge variant="default" className="bg-blue-500/10 text-blue-500 hover:bg-blue-500/20">
+                            <Shield className="h-3 w-3 mr-1" />
+                            Owner
+                          </Badge>
+                          <span className="text-sm text-muted-foreground">signs meta-transaction</span>
+                        </div>
+
+                        <Button 
+                          onClick={() => setShowTimeLockDialog(true)}
+                          className="w-full"
+                          size="sm"
+                          variant={isRoleConnected(contractInfo.owner) && !isSigningTx ? "default" : "outline"}
+                          disabled={!isRoleConnected(contractInfo.owner) || isSigningTx}
+                        >
+                          <Clock className="h-4 w-4 mr-2" />
+                          Update TimeLock
+                        </Button>
+                      </div>
+
+                      {/* Step connector */}
+                      <div className="absolute left-4 top-12 bottom-0 w-[2px] bg-border" />
+                    </div>
+
+                    {/* Step 2 */}
+                    <div className="relative">
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className={`flex h-8 w-8 items-center justify-center rounded-full ${signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) ? 'bg-primary/10 border-2 border-primary' : 'bg-muted border-2'}`}>
+                          <span className={`text-sm font-bold ${signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) ? 'text-primary' : 'text-muted-foreground'}`}>2</span>
+                        </div>
+                        <h3 className="font-medium">Broadcast Transaction</h3>
+                      </div>
+
+                      <div className="pl-12">
+                        <div className="mb-3 flex items-center gap-2">
+                          <Badge variant="default" className="bg-purple-500/10 text-purple-500 hover:bg-purple-500/20">
+                            <Radio className="h-3 w-3 mr-1" />
+                            Broadcaster
+                          </Badge>
+                          <span className="text-sm text-muted-foreground">executes the update</span>
+                        </div>
+
+                        <Button 
+                          onClick={() => handleBroadcast('TIMELOCK_UPDATE')}
+                          className={`w-full ${signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
+                          size="sm"
+                          variant={signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
+                          disabled={!signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) || !isRoleConnected(contractInfo.broadcaster)}
+                        >
+                          <Radio className="h-4 w-4 mr-2" />
+                          Broadcast
+                        </Button>
+                      </div>
+                    </div>
                   </div>
+                  
+                  {/* Next Step Indicator - TimeLock Management */}
+                  {signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) && (
+                    <div className="mt-6 p-4 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                      <div className="flex items-center gap-2 mb-2">
+                        <AlertCircle className="h-4 w-4 text-yellow-500" />
+                        <span className="font-medium text-yellow-500">Pending Broadcast:</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {isRoleConnected(contractInfo.broadcaster) ? (
+                          <div className="flex items-center gap-2">
+                            <Badge variant="default" className="bg-purple-500/10 text-purple-500">
+                              <Radio className="h-3 w-3 mr-1" />
+                              Broadcaster
+                            </Badge>
+                            <span className="text-sm">ready to broadcast</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <Badge variant="default" className="bg-purple-500/10 text-purple-500">
+                              <Radio className="h-3 w-3 mr-1" />
+                              Broadcaster
+                            </Badge>
+                            <span className="text-sm">connection required</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   
                   <MetaTxActionDialog
                     isOpen={showTimeLockDialog}

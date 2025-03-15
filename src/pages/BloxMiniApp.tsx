@@ -230,7 +230,7 @@ const BloxMiniApp: React.FC = () => {
   }, [chainId, contractInfo?.chainId]);
 
   return (
-    <div className="flex flex-col flex-1">
+    <div className="mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
       <div className="flex items-center justify-between p-6 border-b">
         <h1 className="text-2xl font-bold">Blox Mini App</h1>
