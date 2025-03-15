@@ -1118,18 +1118,7 @@ export function SecurityDetails() {
                         )}
                       </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground mb-2">TimeLock Period</p>
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">{formatTimeValue(contractInfo.timeLockPeriodInMinutes)}</p>
-                        </div>
-                        <Badge variant="outline" className="shrink-0">
-                          <Clock className="h-3 w-3 mr-1" />
-                          {contractInfo.timeLockPeriodInMinutes} min
-                        </Badge>
-                      </div>
-                    </div>
+                   
                   </div>
                 </div>
               </div>
