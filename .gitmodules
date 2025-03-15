@@ -1,3 +1,4 @@
 [submodule "src/particle-core"]
 	path = src/particle-core
-	url = https://github.com/PracticalParticle/particle-core.git
+
+	url = git@github.com:PracticalParticle/particle-core.git
