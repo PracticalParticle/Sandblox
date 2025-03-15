@@ -628,28 +628,31 @@ export function SecurityDetails() {
             description: `Connected wallet does not match the ${targetRole} address. Please try again with the correct wallet.`,
             variant: "destructive"
           });
-          // Optionally disconnect the wrong wallet
-          disconnect();
+          // Disconnect the wrong wallet
+          handleDisconnect();
         }
         setTargetRole(null);
       }
     }
-  }, [isConnected, connectedAddress, targetRole, contractInfo, isConnecting]);
+  }, [isConnected, connectedAddress, targetRole, isConnecting]);
 
   const handleConnect = async (role: string) => {
     console.log('Attempting to connect role:', role);
     try {
       // Set the target role we're trying to connect
       setTargetRole(role);
+      setIsConnecting(true);
       
+      // If already connected, first disconnect
       if (isConnected) {
         console.log('Disconnecting current wallet');
-        setIsConnecting(true);
-        disconnect();
-      } else {
-        console.log('No wallet connected, opening connect modal directly');
-        openConnectModal?.();
+        await disconnect();
+        // Small delay to ensure disconnect completes
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
+      
+      // Open connect modal
+      openConnectModal?.();
     } catch (error) {
       console.error('Error in wallet connection flow:', error);
       toast({
@@ -662,12 +665,32 @@ export function SecurityDetails() {
     }
   };
 
+  const handleDisconnect = async () => {
+    try {
+      await disconnect();
+      // Clear any stored state
+      setTargetRole(null);
+      setIsConnecting(false);
+      
+      toast({
+        title: "Disconnected",
+        description: "Wallet disconnected successfully",
+      });
+    } catch (error) {
+      console.error('Error disconnecting wallet:', error);
+      toast({
+        title: "Error",
+        description: "Failed to disconnect wallet",
+        variant: "destructive"
+      });
+    }
+  };
+
   // Watch for disconnect to trigger connect modal
   useEffect(() => {
     if (!isConnected && isConnecting) {
       console.log('Wallet disconnected, opening connect modal');
       openConnectModal?.();
-      setIsConnecting(false);
     }
   }, [isConnected, isConnecting, openConnectModal]);
 
@@ -828,7 +851,7 @@ export function SecurityDetails() {
           className="flex flex-col space-y-8 flex-1"
         >
           {/* Header */}
-          <motion.div variants={item} className="flex flex-col gap-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-[64px] z-40 w-full border-b pb-6">
+          <motion.div variants={item} className="flex flex-col gap-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-[64px] z-40 w-full">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div className="flex items-start lg:items-center gap-4">
                 <Button
@@ -849,45 +872,7 @@ export function SecurityDetails() {
                     </Button>
                     <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Security Details</h1>
                   </div>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Badge variant="outline" className="font-mono shrink-0">
-                        Contract
-                      </Badge>
-                      <p className="text-muted-foreground font-mono text-sm truncate">
-                        {contractAddress}
-                      </p>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              className="h-6 w-6 p-0 shrink-0"
-                              onClick={() => navigator.clipboard.writeText(contractAddress)}
-                            >
-                              <Copy className="h-3 w-3" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Copy address</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                    <div className="hidden sm:block h-4 w-[1px] bg-border shrink-0" />
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Badge variant="outline" className="font-mono">
-                        Roles
-                      </Badge>
-                      <div className="flex -space-x-1">
-                        <div className="h-2 w-2 rounded-full bg-blue-500" />
-                        <div className="h-2 w-2 rounded-full bg-purple-500" />
-                        <div className="h-2 w-2 rounded-full bg-green-500" />
-                      </div>
-                      <span className="text-sm text-muted-foreground">3 Total</span>
-                    </div>
-                  </div>
+                 
                 </div>
               </div>
               {connectedAddress && (
@@ -897,6 +882,7 @@ export function SecurityDetails() {
                   className="flex items-center gap-3 bg-card rounded-lg px-4 py-2 border shadow-sm shrink-0"
                 >
                   <div className="flex flex-col items-start">
+                    
                     <div className="flex flex-wrap items-center gap-2">
                       {isRoleConnected(contractInfo.owner) && (
                         <Badge variant="default" className="bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 font-medium">
@@ -940,7 +926,7 @@ export function SecurityDetails() {
                           variant="ghost" 
                           size="sm"
                           className="h-6 w-6 p-0 hover:bg-muted"
-                          onClick={() => disconnect()}
+                          onClick={handleDisconnect}
                         >
                           <LogOut className="h-4 w-4" />
                         </Button>
@@ -958,7 +944,68 @@ export function SecurityDetails() {
           {/* Contract Info */}
           <motion.div variants={item} className="grid gap-6">
             <Card className="p-6">
-              <h2 className="text-xl font-bold mb-6">Contract Information</h2>
+              <h2 className="text-xl font-bold mb-2">Contract Information</h2>
+              <div className="flex mb-6 flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Badge variant="outline" className="font-mono shrink-0">
+                        Contract
+                      </Badge>
+                      <p className="text-muted-foreground font-mono text-sm truncate">
+                        {contractAddress}
+                      </p>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              className="h-6 w-6 p-0 shrink-0"
+                              onClick={() => navigator.clipboard.writeText(contractAddress)}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Copy address</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    <div className="hidden sm:block h-4 w-[1px] bg-border shrink-0" />
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant="outline" className="font-mono">
+                        Roles
+                      </Badge>
+                      <div className="flex -space-x-1">
+                        <div className="h-2 w-2 rounded-full bg-blue-500" />
+                        <div className="h-2 w-2 rounded-full bg-purple-500" />
+                        <div className="h-2 w-2 rounded-full bg-green-500" />
+                      </div>
+                      <span className="text-sm text-muted-foreground">3 Total</span>
+                    </div>
+                    <div className="hidden sm:block h-4 w-[1px] bg-border shrink-0" />
+
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Badge variant="outline" className="font-mono shrink-0">
+                        TimeLock
+                      </Badge>
+                      <div className="flex items-center  text-muted-foreground font-mono text-sm truncate">
+                      <Clock className="h-3 w-3 mr-1" />
+                      {contractInfo.timeLockPeriodInMinutes} min
+                      </div>
+                      <TooltipProvider>
+                        <Tooltip>
+                      
+                          <TooltipContent>
+                            <p>TimeLock Period</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+
+
+                  
+                  </div>
               <div className="space-y-6">
                 <div className="grid grid-cols-2 gap-8">
                   <div className="space-y-6">
