@@ -26,6 +26,28 @@ const codeTheme = {
   },
 }
 
+async function loadBloxConfig(contractId: string) {
+  try {
+    // First, try to load from the new structure
+    const module = await import(`../blox/${contractId}/${contractId}.blox.json`)
+    return module.default
+  } catch (err) {
+    // If that fails, try the legacy path format with PascalCase
+    const pascalCaseId = contractId
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join('')
+    
+    try {
+      const module = await import(`../blox/${pascalCaseId}/${pascalCaseId}.blox.json`)
+      return module.default
+    } catch (err2) {
+      console.error('Failed to load blox config:', err2)
+      return null
+    }
+  }
+}
+
 export function ContractDetails() {
   const { contractId } = useParams<{ contractId: string }>()
   const { isConnected } = useAccount()
@@ -35,6 +57,7 @@ export function ContractDetails() {
   const [error, setError] = useState<string | null>(null)
   const [showDeployDialog, setShowDeployDialog] = useState(false)
   const [isCodeExpanded, setIsCodeExpanded] = useState(false)
+  const [bloxConfig, setBloxConfig] = useState<any>(null)
 
   useEffect(() => {
     if (contractId) {
@@ -43,11 +66,17 @@ export function ContractDetails() {
 
       Promise.all([
         getContractDetails(contractId),
-        getContractCode(contractId)
+        getContractCode(contractId),
+        loadBloxConfig(contractId)
       ])
-        .then(([details, code]) => {
+        .then(([details, code, config]) => {
           setContract(details)
           setContractCode(code)
+          setBloxConfig(config)
+          
+          if (!config) {
+            console.error('No blox config found for:', contractId)
+          }
         })
         .catch(err => {
           console.error(err)
@@ -205,12 +234,13 @@ export function ContractDetails() {
           </Button>
         </div>
 
-        {contract && (
+        {contract && bloxConfig && (
           <DeploymentDialog
             isOpen={showDeployDialog}
             onClose={() => setShowDeployDialog(false)}
             contractId={contract.id}
             contractName={contract.name}
+            bloxConfig={bloxConfig}
           />
         )}
       </div>

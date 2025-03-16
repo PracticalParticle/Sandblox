@@ -21,5 +21,42 @@
       "name": "MultiPhaseSecureOperation",
       "description": "Library for implementing secure multi-phase operations with time-locks and meta-transactions"
     }
+  },
+  "constructor": {
+    "requiresParams": true,
+    "params": [
+      {
+        "name": "initialOwner",
+        "label": "Initial Owner Address",
+        "type": "address",
+        "description": "The primary address that will control the vault",
+        "required": true
+      },
+      {
+        "name": "broadcaster",
+        "label": "Broadcaster Address",
+        "type": "address",
+        "description": "Address authorized to broadcast meta-transactions",
+        "required": true
+      },
+      {
+        "name": "recovery",
+        "label": "Recovery Address",
+        "type": "address",
+        "description": "Backup address for emergency access",
+        "required": true
+      },
+      {
+        "name": "timeLockPeriodInMinutes",
+        "label": "Time Lock Period (Minutes)",
+        "type": "uint256",
+        "description": "Withdrawal delay in minutes  (1440-129600)",
+        "required": true,
+        "validation": {
+          "min": 1440,
+          "max": 129600
+        }
+      }
+    ]
   }
 } 

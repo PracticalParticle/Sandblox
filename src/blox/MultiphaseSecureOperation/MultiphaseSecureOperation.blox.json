@@ -1,0 +1,24 @@
+{
+  "id": "multiphase-secure-operation",
+  "name": "Multiphase Secure Operation",
+  "description": "A library for implementing secure multi-phase operations with time-locks and meta-transactions.",
+  "category": "Security",
+  "securityLevel": "Advanced",
+  "features": [
+    "Time-locked operations",
+    "Meta-transaction support",
+    "Role-based access control",
+    "Multiple execution types",
+    "Payment handling"
+  ],
+  "requirements": [
+    "Ethereum wallet",
+    "ETH for gas fees"
+  ],
+  "deployments": 0,
+  "lastUpdated": "2024-02-15",
+  "constructor": {
+    "requiresParams": false,
+    "description": "This contract is a library and does not require constructor parameters"
+  }
+} 

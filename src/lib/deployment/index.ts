@@ -59,13 +59,12 @@ export function useContractDeployment(config: DeploymentConfig): DeploymentResul
     
     // Ensure bytecode starts with 0x
     let processedBytecode = bytecode.startsWith('0x') ? bytecode.slice(2) : bytecode
-    
     console.log('Initial bytecode:', {
       length: processedBytecode.length,
       hasPrefix: bytecode.startsWith('0x'),
       start: processedBytecode.slice(0, 64)
     })
-
+    console.log('Libraries:', libraries)
     for (const [libName, libAddress] of Object.entries(libraries)) {
       // Remove '0x' prefix if it exists
       const cleanAddress = libAddress.toLowerCase().replace('0x', '')

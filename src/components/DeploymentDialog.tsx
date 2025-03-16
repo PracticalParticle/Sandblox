@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog'
 import { Button } from './ui/button'
 import { useContractDeployment } from '../lib/deployment'
@@ -9,34 +9,106 @@ import { Label } from './ui/label'
 import { isAddress } from 'viem'
 import { env } from '@/config/env'
 
+interface ConstructorParam {
+  name: string
+  type: string
+  description: string
+  required: boolean
+  label?: string
+  defaultValue?: string | number
+  validation?: {
+    min?: number
+    max?: number
+  }
+}
+
+interface Constructor {
+  requiresParams: boolean
+  description?: string
+  params?: ConstructorParam[]
+}
+
+interface BloxConfig {
+  id: string
+  name: string
+  description: string
+  category: string
+  securityLevel: string
+  features: string[]
+  requirements: string[]
+  deployments: number
+  lastUpdated: string
+  libraries?: Record<string, { name: string; description: string }>
+  constructor: Constructor
+}
+
 interface DeploymentDialogProps {
   isOpen: boolean
   onClose: () => void
   contractId: string
   contractName: string
+  bloxConfig: BloxConfig
 }
 
 interface FormData {
-  initialOwner: string
-  broadcaster: string
-  recovery: string
-  timeLockPeriodInDays: string
+  [key: string]: string
 }
 
-export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: DeploymentDialogProps) {
+const DEFAULT_CONSTRUCTOR: Constructor = {
+  requiresParams: false,
+  params: []
+}
+
+const DEFAULT_BLOX_CONFIG: BloxConfig = {
+  id: '',
+  name: '',
+  description: '',
+  category: '',
+  securityLevel: '',
+  features: [],
+  requirements: [],
+  deployments: 0,
+  lastUpdated: '',
+  constructor: DEFAULT_CONSTRUCTOR
+}
+
+export function DeploymentDialog({ 
+  isOpen, 
+  onClose, 
+  contractId, 
+  contractName, 
+  bloxConfig = DEFAULT_BLOX_CONFIG 
+}: DeploymentDialogProps) {
   const chainId = useChainId()
   const config = useConfig()
   const { address } = useAccount()
   const [deploymentStarted, setDeploymentStarted] = useState(false)
-  const [formData, setFormData] = useState<FormData>({
-    initialOwner: address || '',
-    broadcaster: '',
-    recovery: '',
-    timeLockPeriodInDays: '7'
-  })
-  const [formErrors, setFormErrors] = useState<Partial<FormData>>({})
+  const [formData, setFormData] = useState<FormData>({})
+  const [formErrors, setFormErrors] = useState<FormData>({})
   
   const { data: walletClient } = useWalletClient()
+
+  // Initialize form data with default values
+  useEffect(() => {
+    if (!bloxConfig?.constructor) return
+
+    const constructor = bloxConfig.constructor
+    if (constructor.requiresParams && constructor.params) {
+      const initialData: FormData = {}
+      constructor.params.forEach(param => {
+        if (param.defaultValue !== undefined) {
+          initialData[param.name] = param.defaultValue.toString()
+        } else if (param.name === 'initialOwner' && address) {
+          initialData[param.name] = address
+        } else if (param.type === 'uint256' && param.validation?.min !== undefined) {
+          initialData[param.name] = param.validation.min.toString()
+        } else {
+          initialData[param.name] = ''
+        }
+      })
+      setFormData(initialData)
+    }
+  }, [bloxConfig?.constructor, address])
 
   const {
     deploy,
@@ -48,31 +120,47 @@ export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: 
     address: contractAddress,
   } = useContractDeployment({
     contractId,
-    libraries: {
+    libraries: bloxConfig?.libraries?.MultiPhaseSecureOperation ? {
       MultiPhaseSecureOperation: env.VITE_LIBRARY_MULTI_PHASE_SECURE_OPERATION as `0x${string}`
-    }
+    } : {}
   })
 
   const validateForm = () => {
-    const errors: Partial<FormData> = {}
+    if (!bloxConfig?.constructor?.requiresParams) return true
+
+    const errors: FormData = {}
     
-    if (!isAddress(formData.initialOwner)) {
-      errors.initialOwner = 'Invalid address'
-    }
-    if (!isAddress(formData.broadcaster)) {
-      errors.broadcaster = 'Invalid address'
-    }
-    if (!isAddress(formData.recovery)) {
-      errors.recovery = 'Invalid address'
-    }
-    
-    const days = parseInt(formData.timeLockPeriodInDays)
-    if (isNaN(days) || days < 1) {
-      errors.timeLockPeriodInDays = 'Must be a positive number'
-    }
+    bloxConfig.constructor.params?.forEach((param) => {
+      if (!formData[param.name] && param.required) {
+        errors[param.name] = 'This field is required'
+      } else if (param.type === 'address' && formData[param.name] && !isAddress(formData[param.name])) {
+        errors[param.name] = 'Invalid address'
+      } else if (param.type === 'uint256' && formData[param.name]) {
+        const value = parseInt(formData[param.name])
+        if (isNaN(value)) {
+          errors[param.name] = 'Must be a valid number'
+        } else if (param.validation?.min !== undefined && value < param.validation.min) {
+          errors[param.name] = `Must be at least ${param.validation.min}`
+        } else if (param.validation?.max !== undefined && value > param.validation.max) {
+          errors[param.name] = `Must be at most ${param.validation.max}`
+        }
+      }
+    })
 
     setFormErrors(errors)
     return Object.keys(errors).length === 0
+  }
+
+  const getConstructorParams = () => {
+    if (!bloxConfig?.constructor?.requiresParams) return []
+
+    return bloxConfig.constructor.params?.map((param) => {
+      const value = formData[param.name]
+      if (param.type === 'uint256') {
+        return parseInt(value)
+      }
+      return value
+    }) ?? []
   }
 
   const handleDeploy = async () => {
@@ -84,12 +172,7 @@ export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: 
         throw new Error("Wallet client is not available")
       }
       
-      await deploy([
-        formData.initialOwner,
-        formData.broadcaster,
-        formData.recovery,
-        parseInt(formData.timeLockPeriodInDays)
-      ])
+      await deploy(getConstructorParams())
       
       console.log("Transaction sent")
     } catch (err) {
@@ -110,6 +193,39 @@ export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: 
     return chain?.name || 'the current network'
   }
 
+  const renderFormFields = () => {
+    if (!bloxConfig?.constructor?.requiresParams) return null
+
+    return (
+      <div className="space-y-4">
+        {bloxConfig.constructor.params?.map((param) => (
+          <div key={param.name} className="space-y-2">
+            <Label htmlFor={param.name}>
+              {param.label || param.name}
+              {param.required && <span className="text-destructive ml-1">*</span>}
+            </Label>
+            <Input
+              id={param.name}
+              value={formData[param.name] || ''}
+              onChange={(e) => setFormData(prev => ({ ...prev, [param.name]: e.target.value }))}
+              placeholder={param.type === 'address' ? '0x...' : ''}
+              type={param.type === 'uint256' ? 'number' : 'text'}
+              min={param.validation?.min}
+              max={param.validation?.max}
+              required={param.required}
+            />
+            <p className="text-xs text-muted-foreground">
+              {param.description}
+            </p>
+            {formErrors[param.name] && (
+              <p className="text-sm text-destructive">{formErrors[param.name]}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-[425px]">
@@ -125,63 +241,10 @@ export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: 
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 You are about to deploy the {contractName} contract to {getChainName()}.
-                Please configure the constructor parameters below.
+                {bloxConfig.constructor?.requiresParams && " Please configure the constructor parameters below."}
               </p>
 
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="initialOwner">Initial Owner</Label>
-                  <Input
-                    id="initialOwner"
-                    value={formData.initialOwner}
-                    onChange={(e) => setFormData(prev => ({ ...prev, initialOwner: e.target.value }))}
-                    placeholder="0x..."
-                  />
-                  {formErrors.initialOwner && (
-                    <p className="text-sm text-destructive">{formErrors.initialOwner}</p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="broadcaster">Broadcaster</Label>
-                  <Input
-                    id="broadcaster"
-                    value={formData.broadcaster}
-                    onChange={(e) => setFormData(prev => ({ ...prev, broadcaster: e.target.value }))}
-                    placeholder="0x..."
-                  />
-                  {formErrors.broadcaster && (
-                    <p className="text-sm text-destructive">{formErrors.broadcaster}</p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="recovery">Recovery Address</Label>
-                  <Input
-                    id="recovery"
-                    value={formData.recovery}
-                    onChange={(e) => setFormData(prev => ({ ...prev, recovery: e.target.value }))}
-                    placeholder="0x..."
-                  />
-                  {formErrors.recovery && (
-                    <p className="text-sm text-destructive">{formErrors.recovery}</p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="timeLockPeriodInDays">Time Lock Period (days)</Label>
-                  <Input
-                    id="timeLockPeriodInDays"
-                    type="number"
-                    min="1"
-                    value={formData.timeLockPeriodInDays}
-                    onChange={(e) => setFormData(prev => ({ ...prev, timeLockPeriodInDays: e.target.value }))}
-                  />
-                  {formErrors.timeLockPeriodInDays && (
-                    <p className="text-sm text-destructive">{formErrors.timeLockPeriodInDays}</p>
-                  )}
-                </div>
-              </div>
+              {renderFormFields()}
 
               <div className="flex justify-end gap-3">
                 <Button variant="outline" onClick={onClose}>
@@ -220,30 +283,27 @@ export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: 
 
               {isSuccess && (
                 <div className="flex flex-col items-center justify-center space-y-4 py-8">
-                  <CheckCircle2 className="h-8 w-8 text-green-500" />
+                  <CheckCircle2 className="h-8 w-8 text-primary" />
                   <div className="text-center">
-                    <p className="font-semibold">Deployment Successful!</p>
+                    <p className="font-semibold">Deployment Successful</p>
                     <p className="text-sm text-muted-foreground">
                       Your contract has been deployed successfully.
                     </p>
-                    <p className="mt-2 font-mono text-sm">
+                    <p className="mt-2 font-mono text-sm break-all">
                       Contract Address: {contractAddress}
                     </p>
+                    <a
+                      href={getExplorerLink()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 text-sm text-primary hover:underline"
+                    >
+                      View on Explorer
+                    </a>
                   </div>
-                  <div className="flex gap-3">
-                    <Button variant="outline" onClick={onClose}>
-                      Close
-                    </Button>
-                    <Button asChild>
-                      <a
-                        href={getExplorerLink()}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        View on Explorer
-                      </a>
-                    </Button>
-                  </div>
+                  <Button variant="outline" onClick={onClose}>
+                    Close
+                  </Button>
                 </div>
               )}
             </div>

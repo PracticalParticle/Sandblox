@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 // Particle imports
-import "../../particle-core/contracts/core/access/SecureOwnable.sol";
+import "../core/access/SecureOwnable.sol";
 
 contract SimpleVault is SecureOwnable {
     using SafeERC20 for IERC20;
@@ -20,7 +20,7 @@ contract SimpleVault is SecureOwnable {
     bytes4 private constant WITHDRAW_TOKEN_SELECTOR = bytes4(keccak256("executeWithdrawToken(address,address,uint256)"));
 
     // Timelock period constants (in minutes)
-    uint256 private constant MIN_TIMELOCK_PERIOD = 24 * 60; // 1 day
+    uint256 private constant MIN_TIMELOCK_PERIOD = 1 * 15; // 15 minutes
     uint256 private constant MAX_TIMELOCK_PERIOD = 90 * 24 * 60; // 90 days
 
     // Struct for meta-transaction parameters
@@ -45,11 +45,11 @@ contract SimpleVault is SecureOwnable {
         address initialOwner,
         address broadcaster,
         address recovery,
-        uint256 timeLockPeriodInMinutes     
+        uint256 timeLockPeriodInMinutes
     ) SecureOwnable(initialOwner, broadcaster, recovery, timeLockPeriodInMinutes) {
         require(timeLockPeriodInMinutes >= MIN_TIMELOCK_PERIOD, "Time lock period must be at least 1 day (1440 minutes)");
         require(timeLockPeriodInMinutes <= MAX_TIMELOCK_PERIOD, "Time lock period must be less than 90 days (129600 minutes)");
-        
+
         // Add operation types with human-readable names
         MultiPhaseSecureOperation.ReadableOperationType memory ethWithdraw = MultiPhaseSecureOperation.ReadableOperationType({
             operationType: WITHDRAW_ETH,
@@ -59,7 +59,7 @@ contract SimpleVault is SecureOwnable {
             operationType: WITHDRAW_TOKEN,
             name: "WITHDRAW_TOKEN"
         });
-        
+
         MultiPhaseSecureOperation.addOperationType(_getSecureState(), ethWithdraw);
         MultiPhaseSecureOperation.addOperationType(_getSecureState(), tokenWithdraw);
     }
@@ -108,7 +108,7 @@ contract SimpleVault is SecureOwnable {
             gasleft(),
             WITHDRAW_ETH,
             MultiPhaseSecureOperation.ExecutionType.STANDARD,
-            executionOptions     
+            executionOptions
         );
 
         addOperation(txRecord);
@@ -166,7 +166,7 @@ contract SimpleVault is SecureOwnable {
         MultiPhaseSecureOperation.TxRecord memory txRecord = MultiPhaseSecureOperation.txApprovalWithMetaTx(
             _getSecureState(),
             metaTx
-        ); 
+        );
         return txRecord;
     }
 
