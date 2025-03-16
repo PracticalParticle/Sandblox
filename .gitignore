@@ -25,6 +25,8 @@ build
 out
 # Generated contract files for production
 public/blox/
+public/TERMS.md
+public/PRIVACY.md
 
 # Testing
 coverage

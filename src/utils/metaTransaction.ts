@@ -66,34 +66,3 @@ export async function getMetaTransactionSignature(
     throw new Error(`Failed to sign meta transaction: ${error.message}`);
   }
 }
-
-/**
- * Broadcast a signed meta transaction
- * @param signedData The signed meta transaction data
- */
-export async function broadcastMetaTransaction(signedData: string): Promise<void> {
-  try {
-    const data = JSON.parse(signedData);
-    
-    // Here you would typically send this to your relayer service
-    // This is a placeholder for the actual implementation
-    const response = await fetch('/api/relay', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(data)
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to broadcast transaction');
-    }
-
-    const result = await response.json();
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to broadcast transaction');
-    }
-  } catch (error: any) {
-    throw new Error(`Failed to broadcast meta transaction: ${error.message}`);
-  }
-} 

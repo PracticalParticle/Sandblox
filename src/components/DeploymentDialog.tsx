@@ -8,6 +8,8 @@ import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { isAddress } from 'viem'
 import { env } from '@/config/env'
+import { useDeployedContract } from '@/contexts/DeployedContractContext'
+import type { SecureContractInfo } from '@/lib/types'
 
 interface ConstructorParam {
   name: string
@@ -72,12 +74,12 @@ const DEFAULT_BLOX_CONFIG: BloxConfig = {
   constructor: DEFAULT_CONSTRUCTOR
 }
 
-export function DeploymentDialog({ 
-  isOpen, 
-  onClose, 
-  contractId, 
-  contractName, 
-  bloxConfig = DEFAULT_BLOX_CONFIG 
+export function DeploymentDialog({
+  isOpen,
+  onClose,
+  contractId,
+  contractName,
+  bloxConfig = DEFAULT_BLOX_CONFIG
 }: DeploymentDialogProps) {
   const chainId = useChainId()
   const config = useConfig()
@@ -85,7 +87,8 @@ export function DeploymentDialog({
   const [deploymentStarted, setDeploymentStarted] = useState(false)
   const [formData, setFormData] = useState<FormData>({})
   const [formErrors, setFormErrors] = useState<FormData>({})
-  
+  const { addDeployedContract } = useDeployedContract()
+  const [contractAdded, setContractAdded] = useState(false)
   const { data: walletClient } = useWalletClient()
 
   // Initialize form data with default values
@@ -125,11 +128,37 @@ export function DeploymentDialog({
     } : {}
   })
 
+  useEffect(() => {
+      if (isSuccess && contractAddress && !contractAdded) {
+        const contractInfo: SecureContractInfo = {
+          contractAddress: contractAddress,
+          timeLockPeriodInMinutes: convertToMinutes(formData.timeLockPeriod, formData.timeUnit),
+          chainId,
+          chainName: getChainName(),
+          broadcaster: formData.broadcaster,
+          owner: formData.initialOwner,
+          recoveryAddress: formData.recovery,
+          contractType: contractId,
+          contractName: contractName
+        }
+
+        addDeployedContract(contractInfo)
+        setContractAdded(true)
+      }
+    }, [isSuccess, contractAddress, formData, chainId, contractId, contractName, addDeployedContract, contractAdded])
+
+    useEffect(() => {
+      if (!isOpen) {
+        setContractAdded(false)
+      }
+    }, [isOpen])
+
+
   const validateForm = () => {
     if (!bloxConfig?.constructor?.requiresParams) return true
 
     const errors: FormData = {}
-    
+
     bloxConfig.constructor.params?.forEach((param) => {
       if (!formData[param.name] && param.required) {
         errors[param.name] = 'This field is required'
@@ -165,15 +194,15 @@ export function DeploymentDialog({
 
   const handleDeploy = async () => {
     if (!validateForm()) return
-    
+
     setDeploymentStarted(true)
     try {
       if (!walletClient) {
         throw new Error("Wallet client is not available")
       }
-      
+
       await deploy(getConstructorParams())
-      
+
       console.log("Transaction sent")
     } catch (err) {
       console.error("Deployment error:", err)

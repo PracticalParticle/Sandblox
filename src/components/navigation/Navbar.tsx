@@ -4,6 +4,7 @@ import { Menu, X, Github, ChevronDown } from 'lucide-react'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ThemeToggle } from '../ThemeToggle'
+import { Link } from 'react-router-dom'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,53 +17,50 @@ export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b glass transition-colors duration-300">
+    <header className="w-full border-b glass transition-colors duration-300">
       <nav className="container flex h-16 items-center justify-between relative">
         {/* Logo & Desktop Navigation */}
         <div className="flex items-center gap-6">
-          <a
+          <Link
             className="flex items-center gap-2 text-lg font-bold hover-lift"
-            href="/"
+            to="/"
           >
             <div className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/50 text-primary-foreground">
               OB
             </div>
             <span className="hidden sm:inline-block bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent font-bold">SandBlox</span>
-          </a>
+          </Link>
           <div className="hidden md:flex md:items-center md:gap-6">
             {isConnected && (
-              <a
+              <Link
                 className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
-                href="/dashboard"
+                to="/dashboard"
               >
                 My Blox
-              </a>
+              </Link>
             )}
             <DropdownMenu>
-              <DropdownMenuTrigger className="flex items-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift">
+              <DropdownMenuTrigger className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift whitespace-nowrap">
                 Explore
-                <ChevronDown className="h-4 w-4" />
+                <ChevronDown className="h-4 w-4 shrink-0" />
               </DropdownMenuTrigger>
               <DropdownMenuContent>
                 <DropdownMenuItem asChild>
-                  <a href="/blox-contracts">Contracts</a>
+                  <Link to="/blox-contracts">Contracts</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <a href="/blockchains">Blockchains</a>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <a href="/bug-hunt">Bug Hunt</a>
+                  <Link to="/blockchains">Blockchains</Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <a
+            <Link
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
-              href="/docs"
+              to="/docs"
             >
               Docs
-            </a>
+            </Link>
             <a
-              href="https://github.com/particlecs-com"
+              href="https://github.com/PracticalParticle/sand-blox"
               target="_blank"
               rel="noopener noreferrer"
               className="hidden md:flex rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground glow-primary"
@@ -106,29 +104,29 @@ export function Navbar() {
           >
             <div className="container flex flex-col space-y-4 py-4">
               {isConnected && (
-                <a
+                <Link
                   className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
-                  href="/dashboard"
+                  to="/dashboard"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   My Blox
-                </a>
+                </Link>
               )}
               <div className="text-sm font-medium text-muted-foreground">Explore</div>
-              <a
+              <Link
                 className="pl-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
-                href="/blox-contracts"
+                to="/blox-contracts"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Contracts
-              </a>
-              <a
+              </Link>
+              <Link
                 className="pl-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
-                href="/blockchains"
+                to="/blockchains"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Blockchains
-              </a>
+              </Link>
               <a
                 className="pl-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
                 href="/bug-hunt"
@@ -136,15 +134,15 @@ export function Navbar() {
               >
                 Bug Hunt
               </a>
-              <a
+              <Link
                 className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
-                href="/docs"
+                to="/docs"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Docs
-              </a>
+              </Link>
               <a
-                href="https://github.com/particlecs-com"
+                href="https://github.com/PracticalParticle/sand-blox"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"

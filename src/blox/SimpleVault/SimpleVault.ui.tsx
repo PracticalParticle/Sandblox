@@ -33,6 +33,7 @@ import { useWalletBalances, TokenBalance } from '@/hooks/useWalletBalances';
 import { useTimeLockActions } from './hooks/useTimeLockActions';
 import { useMetaTxActions } from './hooks/useMetaTxActions';
 import { useActionPermissions } from '@/hooks/useActionPermissions';
+import { useRoleValidation } from "@/hooks/useRoleValidation";
 
 // Extend the base ContractInfo interface to include broadcaster and other properties
 interface ContractInfo extends BaseContractInfo {
@@ -354,13 +355,17 @@ interface DepositFormProps {
     isLoading: boolean;
     error: Error | null;
   };
+  contractAddress: Address;
 }
 
-const DepositForm = React.memo(({ onSubmit, isLoading, walletBalances }: DepositFormProps) => {
+const DepositForm = React.memo(({ onSubmit, isLoading, walletBalances, contractAddress }: DepositFormProps) => {
   const [amount, setAmount] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [selectedTokenAddress, setSelectedTokenAddress] = useState<string>("ETH");
   const [tokenBalances] = useAtom(tokenBalanceAtom);
+  const { address: connectedAddress } = useAccount();
+  const chain = useChain();
+  const { isOwner } = useRoleValidation(contractAddress, connectedAddress, chain);
 
   const selectedToken = selectedTokenAddress === "ETH" ? undefined : tokenBalances[selectedTokenAddress as Address];
   const tokenDecimals = selectedToken?.metadata?.decimals ?? 18;
@@ -536,7 +541,7 @@ const DepositForm = React.memo(({ onSubmit, isLoading, walletBalances }: Deposit
       )}
 
       <Button type="submit" disabled={isLoading} className="w-full">
-        {isLoading ? "Processing..." : `Deposit ${
+        {isLoading ? "Processing..." : `${isOwner ? "Deposit" : "Send"} ${
           selectedTokenAddress === "ETH" ? "ETH" : selectedToken?.metadata?.symbol || "Token"
         }`}
       </Button>
@@ -781,6 +786,9 @@ function SimpleVaultUIContent({
   const { data: walletClient } = _mock?.walletClient || useWalletClient();
   const chain = _mock?.chain || useChain();
   const navigate = useNavigate();
+  
+  // Add useRoleValidation hook
+  const { isOwner } = useRoleValidation(contractAddress as Address, address, chain);
   
   // State declarations
   const [ethBalance, setEthBalance] = useState<bigint>(_mock?.initialData?.ethBalance || BigInt(0));
@@ -1244,34 +1252,52 @@ function SimpleVaultUIContent({
   }
 
   // Update the dashboard mode view
-  if (dashboardMode && pendingTxs.length > 0) {
+  if (dashboardMode) {
     return (
       <div className="space-y-4">
-        <h3 className="font-medium">Pending Transactions</h3>
         <div className="space-y-2">
-          {filteredPendingTxs.slice(0, 2).map((tx) => (
-            <PendingTransaction
-              key={tx.txId}
-              tx={tx}
-              onApprove={handleApproveWithdrawal}
-              onCancel={handleCancelWithdrawal}
-              isLoading={loadingState.approval[Number(tx.txId)] || loadingState.cancellation[Number(tx.txId)]}
-              contractAddress={typedContractAddress}
-              onNotification={handleNotification}
-              onRefresh={handleRefresh}
-              mode="timelock"
-            />
-          ))}
-          {filteredPendingTxs.length > 2 && (
-            <Button
-              variant="link"
-              className="w-full"
-              onClick={() => navigate(`/contracts/${contractAddress}`)}
-            >
-              View All Transactions
-            </Button>
-          )}
+          <h3 className="font-medium">Deposit</h3>
+          <Card>
+            <CardContent className="pt-6">
+              <DepositForm
+                onSubmit={handleDeposit}
+                isLoading={loadingState.deposit}
+                walletBalances={walletBalances}
+                contractAddress={typedContractAddress}
+              />
+            </CardContent>
+          </Card>
         </div>
+
+        {pendingTxs.length > 0 && (
+          <div className="space-y-2">
+            <h3 className="font-medium">Pending Transactions</h3>
+            <div className="space-y-2">
+              {filteredPendingTxs.slice(0, 2).map((tx) => (
+                <PendingTransaction
+                  key={tx.txId}
+                  tx={tx}
+                  onApprove={handleApproveWithdrawal}
+                  onCancel={handleCancelWithdrawal}
+                  isLoading={loadingState.approval[Number(tx.txId)] || loadingState.cancellation[Number(tx.txId)]}
+                  contractAddress={typedContractAddress}
+                  onNotification={handleNotification}
+                  onRefresh={handleRefresh}
+                  mode="timelock"
+                />
+              ))}
+              {filteredPendingTxs.length > 2 && (
+                <Button
+                  variant="link"
+                  className="w-full"
+                  onClick={() => navigate(`/contracts/${contractAddress}`)}
+                >
+                  View All Transactions
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1364,9 +1390,12 @@ function SimpleVaultUIContent({
                   <TabsContent value="deposit">
                     <Card>
                       <CardHeader>
-                        <CardTitle>Deposit</CardTitle>
+                        <CardTitle>{isOwner ? "Deposit" : "Send"}</CardTitle>
                         <CardDescription>
-                          Deposit ETH or tokens into your vault
+                          {isOwner 
+                            ? "Deposit ETH or tokens into your vault"
+                            : "Send ETH or tokens to the vault owner"
+                          }
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
@@ -1374,6 +1403,7 @@ function SimpleVaultUIContent({
                           onSubmit={handleDeposit}
                           isLoading={loadingState.deposit}
                           walletBalances={walletBalances}
+                          contractAddress={contractAddress as Address}
                         />
                       </CardContent>
                     </Card>

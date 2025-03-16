@@ -36,6 +36,11 @@
   }
 }
 
+/* Add this to your existing global CSS file */
+.chip {
+  @apply inline-flex items-center justify-center border-2 border-gray-400 rounded-full px-3 py-1 text-sm font-medium text-gray-800 dark:text-gray-200 bg-transparent transition-colors duration-200;
+}
+
 /* Remove duplicate RainbowKit overrides */
 [data-rk] {
   --rk-colors-accentColor: hsl(var(--primary));
@@ -50,4 +55,75 @@
 
 [data-rk] .rk-connect-button {
   @apply !font-sans;
+}
+
+/* Custom button styles for hero section */
+.hero-gradient-button {
+  @apply inline-flex items-center justify-center px-6 py-6 rounded-full text-white !important;
+  background: linear-gradient(92.88deg, rgb(69, 94, 181) 9.16%, rgb(86, 67, 204) 43.89%, rgb(103, 63, 215) 64.72%);
+  transition: all 0.3s ease-in-out;
+  height: 48px;
+}
+
+.hero-gradient-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(103, 63, 215, 0.2);
+}
+
+.hero-outline-button {
+  @apply inline-flex items-center justify-center px-6 py-6 rounded-full border border-primary/20 text-foreground !important;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease-in-out;
+  height: 48px;
+}
+
+.hero-outline-button:hover {
+  @apply border-primary/50 bg-primary/10;
+  transform: translateY(-2px);
+}
+
+/* Feature chip styles */
+.feature-chip {
+  @apply inline-flex items-center gap-2 px-4 py-2 rounded-full  bg-background/60 backdrop-blur-sm text-sm font-medium transition-colors hover:bg-background/80 hover:border-primary/50;
+  height: 36px;
+  white-space: nowrap;
+}
+
+.hero-section {
+  @apply relative min-h-[65vh] flex items-center justify-center w-full px-4;
+  background: radial-gradient(circle at top center, rgba(103, 63, 215, 0.1) 0%, transparent 70%);
+}
+
+.hero-content {
+  @apply w-full max-w-4xl mx-auto py-12 sm:py-20;
+}
+
+.hero-title {
+  @apply space-y-6 mb-12;
+}
+
+.hero-features {
+  @apply w-full;
+}
+
+.hero-cta {
+  @apply w-full;
+}
+
+@media (max-width: 640px) {
+  .hero-content {
+    @apply py-8;
+  }
+  
+  .feature-chip {
+    @apply px-3 py-1.5 text-xs;
+    height: 32px;
+  }
+  
+  .hero-gradient-button,
+  .hero-outline-button {
+    @apply px-4 py-2 text-sm;
+    height: 40px;
+  }
 } 

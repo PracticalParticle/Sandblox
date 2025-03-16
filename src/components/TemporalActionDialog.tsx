@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
-import { Loader2, X, CheckCircle2, Clock, Shield, Wallet, Radio } from "lucide-react"
+import { Loader2, X, CheckCircle2, Clock, Shield, Wallet } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { TxRecord } from "../particle-core/sdk/typescript/interfaces/lib.index"
 import { formatAddress } from "@/lib/utils"
@@ -40,6 +40,8 @@ interface TemporalActionDialogProps {
   showNewValueInput?: boolean
   newValueLabel?: string
   newValuePlaceholder?: string
+  showMetaTxOption?: boolean
+  metaTxDescription?: string
 }
 
 export function TemporalActionDialog({
@@ -60,20 +62,20 @@ export function TemporalActionDialog({
   pendingTx,
   showNewValueInput = true,
   newValueLabel,
-  newValuePlaceholder
+  newValuePlaceholder,
+  showMetaTxOption,
+  metaTxDescription
 }: TemporalActionDialogProps) {
   const {
     newValue,
     isApproving,
     isCancelling,
     isSigning,
-    signedMetaTx,
     setNewValue,
     handleSubmit,
     handleApprove,
     handleCancel,
-    handleMetaTxSign,
-    handleBroadcast
+    handleMetaTxSign
   } = useMultiPhaseTemporalAction({
     isOpen,
     onOpenChange,
@@ -101,14 +103,14 @@ export function TemporalActionDialog({
     }
   };
 
-  const isConnectedWalletValid = connectedAddress && 
-    requiredRole && 
-    contractInfo && 
+  const isConnectedWalletValid = connectedAddress &&
+    requiredRole &&
+    contractInfo &&
     (() => {
       const roleAddress = getRoleAddress(requiredRole);
       if (Array.isArray(roleAddress)) {
         // For owner_or_recovery role, check if connected address matches either
-        return roleAddress.some(addr => 
+        return roleAddress.some(addr =>
           addr?.toLowerCase() === connectedAddress.toLowerCase()
         );
       }
@@ -145,8 +147,8 @@ export function TemporalActionDialog({
           </Alert>
         )}
 
-        <Button 
-          type="submit" 
+        <Button
+          type="submit"
           disabled={showNewValueInput ? (!newValue || !isConnectedWalletValid || isLoading) : (!isConnectedWalletValid || isLoading)}
           className="w-full"
         >
@@ -177,9 +179,9 @@ export function TemporalActionDialog({
     // Check if the connected wallet is recovery address for ownership actions
     const isRecoveryWallet = connectedAddress?.toLowerCase() === contractInfo?.recoveryAddress?.toLowerCase()
     const isOwnershipAction = actionType === 'ownership'
-    
-    // Hide meta transactions tab for recovery wallet in ownership actions
-    const showMetaTxTab = !(isOwnershipAction && isRecoveryWallet)
+
+    // Control meta transaction tab visibility with showMetaTxOption prop if provided
+    const showMetaTxTab = showMetaTxOption !== undefined ? showMetaTxOption : !(isOwnershipAction && isRecoveryWallet)
 
     return (
       <div className="space-y-4">
@@ -214,8 +216,8 @@ export function TemporalActionDialog({
                     <span>Time Lock Progress</span>
                     <span>{Math.round(progress)}%</span>
                   </div>
-                  <Progress 
-                    value={progress} 
+                  <Progress
+                    value={progress}
                     className={`h-2 ${isTimeLockComplete ? 'bg-muted' : ''}`}
                     aria-label="Time lock progress"
                     aria-valuemin={0}
@@ -232,7 +234,7 @@ export function TemporalActionDialog({
                               onClick={() => handleApprove(Number(pendingTx.txId))}
                               disabled={isLoading || isApproving || !isConnectedWalletValid || (!isTimeLockComplete && isRecoveryWallet)}
                               className={`w-full transition-all duration-200 flex items-center justify-center
-                                ${isTimeLockComplete 
+                                ${isTimeLockComplete
                                   ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800'
                                   : 'bg-slate-50 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
                                 }
@@ -255,8 +257,8 @@ export function TemporalActionDialog({
                           </div>
                         </TooltipTrigger>
                         <TooltipContent side="bottom">
-                          {!isTimeLockComplete 
-                            ? "Time lock period not complete" 
+                          {!isTimeLockComplete
+                            ? "Time lock period not complete"
                             : "Approve this request using the timelock mechanism"}
                         </TooltipContent>
                       </Tooltip>
@@ -269,7 +271,7 @@ export function TemporalActionDialog({
                             <Button
                               onClick={() => handleCancel(Number(pendingTx.txId))}
                               disabled={isLoading || isCancelling || !isConnectedWalletValid}
-                              className="w-full bg-rose-50 text-rose-700 hover:bg-rose-100 
+                              className="w-full bg-rose-50 text-rose-700 hover:bg-rose-100
                                 dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
                                 border border-rose-200 dark:border-rose-800"
                               variant="outline"
@@ -305,7 +307,7 @@ export function TemporalActionDialog({
                 <CardContent className="pt-6">
                   <div className="space-y-4">
                     <div className="text-sm text-muted-foreground">
-                      Approve using meta-transactions. This requires no gas fees but needs the broadcaster wallet.
+                      {metaTxDescription || "Sign a meta transaction that will be broadcasted by the broadcaster wallet. This doesn't require gas fees."}
                     </div>
 
                     <div className="flex justify-between text-sm">
@@ -319,29 +321,22 @@ export function TemporalActionDialog({
                           <TooltipTrigger asChild>
                             <div className="flex-1">
                               <Button
-                                onClick={() => signedMetaTx?.type === 'approve' 
-                                  ? handleBroadcast('approve')
-                                  : handleMetaTxSign('approve', actionType === 'broadcaster' ? 'broadcaster' : 'ownership')}
+                                onClick={() => handleMetaTxSign('approve', actionType === 'broadcaster' ? 'broadcaster' : 'ownership')}
                                 disabled={isLoading || isSigning || !isConnectedWalletValid}
                                 className={`w-full transition-all duration-200 flex items-center justify-center
-                                  bg-emerald-50 text-emerald-700 hover:bg-emerald-100 
-                                  dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 
+                                  bg-emerald-50 text-emerald-700 hover:bg-emerald-100
+                                  dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50
                                   border border-emerald-200 dark:border-emerald-800
-                                  disabled:opacity-50 disabled:cursor-not-allowed 
-                                  disabled:bg-slate-50 disabled:text-slate-400 
+                                  disabled:opacity-50 disabled:cursor-not-allowed
+                                  disabled:bg-slate-50 disabled:text-slate-400
                                   disabled:dark:bg-slate-900 disabled:dark:text-slate-500
                                 `}
                                 variant="outline"
                               >
-                                {isSigning && !signedMetaTx?.type ? (
+                                {isSigning ? (
                                   <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                     Signing...
-                                  </>
-                                ) : signedMetaTx?.type === 'approve' ? (
-                                  <>
-                                    <Radio className="mr-2 h-4 w-4" />
-                                    Broadcast
                                   </>
                                 ) : (
                                   <>
@@ -363,29 +358,22 @@ export function TemporalActionDialog({
                           <TooltipTrigger asChild>
                             <div className="flex-1">
                               <Button
-                                onClick={() => signedMetaTx?.type === 'cancel' 
-                                  ? handleBroadcast('cancel')
-                                  : handleMetaTxSign('cancel', actionType === 'broadcaster' ? 'broadcaster' : 'ownership')}
+                                onClick={() => handleMetaTxSign('cancel', actionType === 'broadcaster' ? 'broadcaster' : 'ownership')}
                                 disabled={isLoading || isCancelling || !isConnectedWalletValid}
                                 className={`w-full transition-all duration-200 flex items-center justify-center
-                                  bg-rose-50 text-rose-700 hover:bg-rose-100 
+                                  bg-rose-50 text-rose-700 hover:bg-rose-100
                                   dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
                                   border border-rose-200 dark:border-rose-800
-                                  disabled:opacity-50 disabled:cursor-not-allowed 
-                                  disabled:bg-slate-50 disabled:text-slate-400 
+                                  disabled:opacity-50 disabled:cursor-not-allowed
+                                  disabled:bg-slate-50 disabled:text-slate-400
                                   disabled:dark:bg-slate-900 disabled:dark:text-slate-500
                                 `}
                                 variant="outline"
                               >
-                                {isSigning && !signedMetaTx?.type ? (
+                                {isSigning ? (
                                   <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                     Signing...
-                                  </>
-                                ) : signedMetaTx?.type === 'cancel' ? (
-                                  <>
-                                    <Radio className="mr-2 h-4 w-4" />
-                                    Broadcast
                                   </>
                                 ) : (
                                   <>

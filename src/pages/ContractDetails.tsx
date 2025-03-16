@@ -86,6 +86,12 @@ export function ContractDetails() {
     }
   }, [contractId])
 
+  // Handle dialog close - we don't need to do anything special here
+  // as the DeploymentDialog component will handle adding the contract to the context
+  const handleCloseDeployDialog = () => {
+    setShowDeployDialog(false)
+  }
+
   if (loading) {
     return (
       <div className="container py-8">
@@ -237,7 +243,7 @@ export function ContractDetails() {
         {contract && bloxConfig && (
           <DeploymentDialog
             isOpen={showDeployDialog}
-            onClose={() => setShowDeployDialog(false)}
+            onClose={handleCloseDeployDialog}
             contractId={contract.id}
             contractName={contract.name}
             bloxConfig={bloxConfig}
