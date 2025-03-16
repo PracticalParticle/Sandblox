@@ -36,6 +36,7 @@ interface MetaTxActionDialogProps {
   newValuePlaceholder?: string
   validateNewValue?: (value: string) => { isValid: boolean; message?: string }
   isSigning?: boolean
+  customInput?: React.ReactNode
 }
 
 export function MetaTxActionDialog({
@@ -57,7 +58,8 @@ export function MetaTxActionDialog({
   newValueLabel,
   newValuePlaceholder,
   validateNewValue,
-  isSigning = false
+  isSigning = false,
+  customInput
 }: MetaTxActionDialogProps) {
   const {
     validationResult,
@@ -111,14 +113,17 @@ export function MetaTxActionDialog({
                   </div>
 
                   <div className="space-y-2">
-                    <Label>{newValueLabel}</Label>
-                    <Input
-                      value={newValue}
-                      onChange={(e) => onNewValueChange(e.target.value)}
-                      placeholder={newValuePlaceholder}
-                      disabled={isLoading || isSigning}
-                      className={!validationResult.isValid && newValue ? "border-destructive" : ""}
-                    />
+                    <Label htmlFor="newValue">{newValueLabel}</Label>
+                    {customInput || (
+                      <Input
+                        id="newValue"
+                        value={newValue}
+                        onChange={(e) => onNewValueChange(e.target.value)}
+                        placeholder={newValuePlaceholder}
+                        disabled={isLoading || isSigning}
+                        className={!validationResult.isValid && newValue ? "border-destructive" : ""}
+                      />
+                    )}
                     {!validationResult.isValid && newValue && (
                       <p className="text-sm text-destructive">
                         {validationResult.message}

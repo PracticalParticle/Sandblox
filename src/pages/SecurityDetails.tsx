@@ -44,6 +44,7 @@ import { TxStatus } from '@/particle-core/sdk/typescript/types/lib.index'
 import { MetaTxActionDialog } from '@/components/MetaTxActionDialog'
 import { TransactionManagerProvider } from '@/contexts/TransactionManager'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Input } from "@/components/ui/input"
 
 interface ExtendedSignedTransaction {
   txId: string
@@ -76,12 +77,33 @@ const formatTimeValue = (value: string | number): string => {
   const numValue = typeof value === 'string' ? parseInt(value) : value;
   if (isNaN(numValue)) return value.toString();
   
-  if (numValue === 0) return '0 minutes';
-  if (numValue < 60) return `${numValue} minute${numValue === 1 ? '' : 's'}`;
-  if (numValue < 1440) return `${Math.floor(numValue / 60)} hour${Math.floor(numValue / 60) === 1 ? '' : 's'}${numValue % 60 > 0 ? ` ${numValue % 60} minute${numValue % 60 === 1 ? '' : 's'}` : ''}`;
+  // Convert to days/hours/minutes format
   const days = Math.floor(numValue / 1440);
-  const remainingMinutes = numValue % 1440;
-  return `${days} day${days === 1 ? '' : 's'}${remainingMinutes > 0 ? ` ${remainingMinutes} minute${remainingMinutes === 1 ? '' : 's'}` : ''}`;
+  const hours = Math.floor((numValue % 1440) / 60);
+  const minutes = numValue % 60;
+
+  const parts = [];
+  if (days > 0) parts.push(`${days} day${days === 1 ? '' : 's'}`);
+  if (hours > 0) parts.push(`${hours} hour${hours === 1 ? '' : 's'}`);
+  if (minutes > 0 || parts.length === 0) parts.push(`${minutes} minute${minutes === 1 ? '' : 's'}`);
+
+  return parts.join(' ');
+};
+
+const convertToMinutes = (value: string, unit: 'days' | 'hours' | 'minutes'): number => {
+  const numValue = parseInt(value);
+  if (isNaN(numValue)) return 0;
+  
+  switch (unit) {
+    case 'days':
+      return numValue * 24 * 60;
+    case 'hours':
+      return numValue * 60;
+    case 'minutes':
+      return numValue;
+    default:
+      return numValue;
+  }
 };
 
 export function SecurityDetails() {
@@ -104,6 +126,7 @@ export function SecurityDetails() {
   // State for input fields
   const [newRecoveryAddress, setNewRecoveryAddress] = useState('')
   const [newTimeLockPeriod, setNewTimeLockPeriod] = useState('')
+  const [timeLockUnit, setTimeLockUnit] = useState<'days' | 'hours' | 'minutes'>('minutes')
   const [showBroadcasterDialog, setShowBroadcasterDialog] = useState(false)
   const [showRecoveryDialog, setShowRecoveryDialog] = useState(false)
   const [showTimeLockDialog, setShowTimeLockDialog] = useState(false)
@@ -1927,7 +1950,7 @@ export function SecurityDetails() {
                         isOpen={showTimeLockDialog}
                         onOpenChange={setShowTimeLockDialog}
                         title="Update TimeLock Period"
-                        description={`Enter a new time lock period between ${TIMELOCK_PERIODS.MIN} and ${TIMELOCK_PERIODS.MAX} minutes.`}
+                        description={`Enter a new time lock period. Minimum ${formatTimeValue(TIMELOCK_PERIODS.MIN)} and maximum ${formatTimeValue(TIMELOCK_PERIODS.MAX)}.`}
                         contractInfo={contractInfo}
                         actionType="timelock"
                         currentValue={formatTimeValue(contractInfo?.timeLockPeriodInMinutes)}
@@ -1938,15 +1961,46 @@ export function SecurityDetails() {
                         newValue={newTimeLockPeriod}
                         onNewValueChange={setNewTimeLockPeriod}
                         newValueLabel="New TimeLock Period"
-                        newValuePlaceholder="Enter period in minutes"
+                        newValuePlaceholder="Enter period value"
+                        customInput={
+                          <div className="flex space-x-2">
+                            <Input
+                              type="number"
+                              min="1"
+                              className="flex-1"
+                              value={newTimeLockPeriod}
+                              onChange={(e) => setNewTimeLockPeriod(e.target.value)}
+                              placeholder="Enter period value"
+                            />
+                            <select
+                              value={timeLockUnit}
+                              onChange={(e) => setTimeLockUnit(e.target.value as 'days' | 'hours' | 'minutes')}
+                              className="w-28 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                            >
+                              <option value="days">Days</option>
+                              <option value="hours">Hours</option>
+                              <option value="minutes">Minutes</option>
+                            </select>
+                          </div>
+                        }
                         validateNewValue={(value) => {
                           const period = parseInt(value);
+                          if (isNaN(period) || period < 1) {
+                            return {
+                              isValid: false,
+                              message: "Please enter a positive number"
+                            };
+                          }
+                          
+                          // Convert input to minutes based on selected unit
+                          const totalMinutes = convertToMinutes(value, timeLockUnit);
+                          
                           return {
-                            isValid: !isNaN(period) && period >= TIMELOCK_PERIODS.MIN && period <= TIMELOCK_PERIODS.MAX,
-                            message: `Please enter a period between ${TIMELOCK_PERIODS.MIN} and ${TIMELOCK_PERIODS.MAX} minutes`
+                            isValid: totalMinutes >= TIMELOCK_PERIODS.MIN && totalMinutes <= TIMELOCK_PERIODS.MAX,
+                            message: `Please enter a period between ${formatTimeValue(TIMELOCK_PERIODS.MIN)} and ${formatTimeValue(TIMELOCK_PERIODS.MAX)}`
                           };
                         }}
-                        onSubmit={handleUpdateTimeLockRequest}
+                        onSubmit={() => handleUpdateTimeLockRequest(convertToMinutes(newTimeLockPeriod, timeLockUnit).toString())}
                       />
                     </CardContent>
                   </CollapsibleContent>
