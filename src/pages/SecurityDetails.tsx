@@ -13,11 +13,7 @@ import {
   Wallet,
   Timer,
   Network,
-  SwitchCamera,
-  Copy,
-  Eye,
-  LogOut
-} from 'lucide-react'
+  AppWindow} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -44,6 +40,9 @@ import { TxStatus } from '@/particle-core/sdk/typescript/types/lib.index'
 import { MetaTxActionDialog } from '@/components/MetaTxActionDialog'
 import { TransactionManagerProvider } from '@/contexts/TransactionManager'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Input } from "@/components/ui/input"
+import { ContractInfo } from '@/components/ContractInfo'
+import { WalletStatusBadge } from '@/components/WalletStatusBadge'
 
 interface ExtendedSignedTransaction {
   txId: string
@@ -76,12 +75,33 @@ const formatTimeValue = (value: string | number): string => {
   const numValue = typeof value === 'string' ? parseInt(value) : value;
   if (isNaN(numValue)) return value.toString();
   
-  if (numValue === 0) return '0 minutes';
-  if (numValue < 60) return `${numValue} minute${numValue === 1 ? '' : 's'}`;
-  if (numValue < 1440) return `${Math.floor(numValue / 60)} hour${Math.floor(numValue / 60) === 1 ? '' : 's'}${numValue % 60 > 0 ? ` ${numValue % 60} minute${numValue % 60 === 1 ? '' : 's'}` : ''}`;
+  // Convert to days/hours/minutes format
   const days = Math.floor(numValue / 1440);
-  const remainingMinutes = numValue % 1440;
-  return `${days} day${days === 1 ? '' : 's'}${remainingMinutes > 0 ? ` ${remainingMinutes} minute${remainingMinutes === 1 ? '' : 's'}` : ''}`;
+  const hours = Math.floor((numValue % 1440) / 60);
+  const minutes = numValue % 60;
+
+  const parts = [];
+  if (days > 0) parts.push(`${days} day${days === 1 ? '' : 's'}`);
+  if (hours > 0) parts.push(`${hours} hour${hours === 1 ? '' : 's'}`);
+  if (minutes > 0 || parts.length === 0) parts.push(`${minutes} minute${minutes === 1 ? '' : 's'}`);
+
+  return parts.join(' ');
+};
+
+const convertToMinutes = (value: string, unit: 'days' | 'hours' | 'minutes'): number => {
+  const numValue = parseInt(value);
+  if (isNaN(numValue)) return 0;
+  
+  switch (unit) {
+    case 'days':
+      return numValue * 24 * 60;
+    case 'hours':
+      return numValue * 60;
+    case 'minutes':
+      return numValue;
+    default:
+      return numValue;
+  }
 };
 
 export function SecurityDetails() {
@@ -104,6 +124,7 @@ export function SecurityDetails() {
   // State for input fields
   const [newRecoveryAddress, setNewRecoveryAddress] = useState('')
   const [newTimeLockPeriod, setNewTimeLockPeriod] = useState('')
+  const [timeLockUnit, setTimeLockUnit] = useState<'days' | 'hours' | 'minutes'>('minutes')
   const [showBroadcasterDialog, setShowBroadcasterDialog] = useState(false)
   const [showRecoveryDialog, setShowRecoveryDialog] = useState(false)
   const [showTimeLockDialog, setShowTimeLockDialog] = useState(false)
@@ -893,236 +914,27 @@ export function SecurityDetails() {
                 </div>
               </div>
               {connectedAddress && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex items-center gap-3 bg-card rounded-lg px-4 py-2 border shadow-sm shrink-0"
-                >
-                  <div className="flex flex-col items-start">
-                    
-                    <div className="flex flex-wrap items-center gap-2">
-                      {isRoleConnected(contractInfo.owner) && (
-                        <Badge variant="default" className="bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 font-medium">
-                          <Shield className="h-3 w-3 mr-1" />
-                          Owner
-                        </Badge>
-                      )}
-                      {isRoleConnected(contractInfo.broadcaster) && (
-                        <Badge variant="default" className="bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 font-medium">
-                          <Radio className="h-3 w-3 mr-1" />
-                          Broadcaster
-                        </Badge>
-                      )}
-                      {isRoleConnected(contractInfo.recoveryAddress) && (
-                        <Badge variant="default" className="bg-green-500/10 text-green-500 hover:bg-green-500/20 font-medium">
-                          <Key className="h-3 w-3 mr-1" />
-                          Recovery
-                        </Badge>
-                      )}
-                      {!isRoleConnected(contractInfo.owner) && 
-                       !isRoleConnected(contractInfo.broadcaster) && 
-                       !isRoleConnected(contractInfo.recoveryAddress) && (
-                        <Badge variant="default" className="bg-orange-500/10 text-orange-500 hover:bg-orange-500/20 font-medium">
-                          <Eye className="h-3 w-3 mr-1" />
-                          Observer
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline" className="font-mono text-xs">Wallet</Badge>
-                      <p className="text-xs text-muted-foreground font-mono">
-                        {connectedAddress.slice(0, 6)}...{connectedAddress.slice(-4)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="h-8 w-[1px] bg-border/50" />
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          className="h-6 w-6 p-0 hover:bg-muted"
-                          onClick={handleDisconnect}
-                        >
-                          <LogOut className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Disconnect wallet</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </motion.div>
+                <WalletStatusBadge
+                  connectedAddress={connectedAddress}
+                  contractInfo={contractInfo}
+                  onDisconnect={handleDisconnect}
+                />
               )}
             </div>
           </motion.div>
 
           {/* Contract Info */}
           <motion.div variants={item} className="grid gap-6">
-            <Card className="p-6">
-              <h2 className="text-xl font-bold mb-2">Contract Information</h2>
-              <div className="flex mb-6 flex-col sm:flex-row sm:items-center gap-3">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Badge variant="outline" className="font-mono shrink-0">
-                        Contract
-                      </Badge>
-                      <p className="text-muted-foreground font-mono text-sm truncate">
-                        {contractAddress}
-                      </p>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              className="h-6 w-6 p-0 shrink-0"
-                              onClick={() => navigator.clipboard.writeText(contractAddress)}
-                            >
-                              <Copy className="h-3 w-3" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Copy address</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                    <div className="hidden sm:block h-4 w-[1px] bg-border shrink-0" />
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Badge variant="outline" className="font-mono">
-                        Roles
-                      </Badge>
-                      <div className="flex -space-x-1">
-                        <div className="h-2 w-2 rounded-full bg-blue-500" />
-                        <div className="h-2 w-2 rounded-full bg-purple-500" />
-                        <div className="h-2 w-2 rounded-full bg-green-500" />
-                      </div>
-                      <span className="text-sm text-muted-foreground">3 Total</span>
-                    </div>
-                    <div className="hidden sm:block h-4 w-[1px] bg-border shrink-0" />
+          <ContractInfo 
+            address={connectedAddress} 
+            contractInfo={contractInfo} 
+            connectedAddress={connectedAddress} 
+            onConnect={handleConnect}
+            navigationIcon={<AppWindow className="h-4 w-4" />}
+            navigationTooltip="View in Blox"
+            navigateTo={`/blox/${contractInfo.type}/${contractAddress}`}
+          />
 
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Badge variant="outline" className="font-mono shrink-0">
-                        TimeLock
-                      </Badge>
-                      <div className="flex items-center  text-muted-foreground font-mono text-sm truncate">
-                      <Clock className="h-3 w-3 mr-1" />
-                      {contractInfo.timeLockPeriodInMinutes} min
-                      </div>
-                      <TooltipProvider>
-                        <Tooltip>
-                      
-                          <TooltipContent>
-                            <p>TimeLock Period</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-
-
-                  
-                  </div>
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-8">
-                  <div className="space-y-6">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground mb-2">Owner</p>
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{contractInfo.owner}</p>
-                        </div>
-                        {isRoleConnected(contractInfo.owner) ? (
-                          <Badge variant="default" className="bg-blue-500/10 text-blue-500 shrink-0">Connected</Badge>
-                        ) : (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button 
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7"
-                                  onClick={() => handleConnect('owner')}
-                                >
-                                  <SwitchCamera className="h-3 w-3 mr-1" />
-                                  Connect
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Switch to owner wallet</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground mb-2">Broadcaster</p>
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{contractInfo.broadcaster}</p>
-                        </div>
-                        {isRoleConnected(contractInfo.broadcaster) ? (
-                          <Badge variant="default" className="bg-purple-500/10 text-purple-500 shrink-0">Connected</Badge>
-                        ) : (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button 
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7"
-                                  onClick={() => handleConnect('broadcaster')}
-                                >
-                                  <SwitchCamera className="h-3 w-3 mr-1" />
-                                  Connect
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Switch to broadcaster wallet</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-6">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground mb-2">Recovery</p>
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{contractInfo.recoveryAddress}</p>
-                        </div>
-                        {isRoleConnected(contractInfo.recoveryAddress) ? (
-                          <Badge variant="default" className="bg-green-500/10 text-green-500 shrink-0">Connected</Badge>
-                        ) : (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button 
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7"
-                                  onClick={() => handleConnect('recovery')}
-                                >
-                                  <SwitchCamera className="h-3 w-3 mr-1" />
-                                  Connect
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Switch to recovery wallet</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
-                      </div>
-                    </div>
-                   
-                  </div>
-                </div>
-              </div>
-            </Card>
 
             {/* Management Tiles */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -1925,7 +1737,7 @@ export function SecurityDetails() {
                         isOpen={showTimeLockDialog}
                         onOpenChange={setShowTimeLockDialog}
                         title="Update TimeLock Period"
-                        description={`Enter a new time lock period between ${TIMELOCK_PERIODS.MIN} and ${TIMELOCK_PERIODS.MAX} minutes.`}
+                        description={`Enter a new time lock period. Minimum ${formatTimeValue(TIMELOCK_PERIODS.MIN)} and maximum ${formatTimeValue(TIMELOCK_PERIODS.MAX)}.`}
                         contractInfo={contractInfo}
                         actionType="timelock"
                         currentValue={formatTimeValue(contractInfo?.timeLockPeriodInMinutes)}
@@ -1936,15 +1748,46 @@ export function SecurityDetails() {
                         newValue={newTimeLockPeriod}
                         onNewValueChange={setNewTimeLockPeriod}
                         newValueLabel="New TimeLock Period"
-                        newValuePlaceholder="Enter period in minutes"
+                        newValuePlaceholder="Enter period value"
+                        customInput={
+                          <div className="flex space-x-2">
+                            <Input
+                              type="number"
+                              min="1"
+                              className="flex-1"
+                              value={newTimeLockPeriod}
+                              onChange={(e) => setNewTimeLockPeriod(e.target.value)}
+                              placeholder="Enter period value"
+                            />
+                            <select
+                              value={timeLockUnit}
+                              onChange={(e) => setTimeLockUnit(e.target.value as 'days' | 'hours' | 'minutes')}
+                              className="w-28 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                            >
+                              <option value="days">Days</option>
+                              <option value="hours">Hours</option>
+                              <option value="minutes">Minutes</option>
+                            </select>
+                          </div>
+                        }
                         validateNewValue={(value) => {
                           const period = parseInt(value);
+                          if (isNaN(period) || period < 1) {
+                            return {
+                              isValid: false,
+                              message: "Please enter a positive number"
+                            };
+                          }
+                          
+                          // Convert input to minutes based on selected unit
+                          const totalMinutes = convertToMinutes(value, timeLockUnit);
+                          
                           return {
-                            isValid: !isNaN(period) && period >= TIMELOCK_PERIODS.MIN && period <= TIMELOCK_PERIODS.MAX,
-                            message: `Please enter a period between ${TIMELOCK_PERIODS.MIN} and ${TIMELOCK_PERIODS.MAX} minutes`
+                            isValid: totalMinutes >= TIMELOCK_PERIODS.MIN && totalMinutes <= TIMELOCK_PERIODS.MAX,
+                            message: `Please enter a period between ${formatTimeValue(TIMELOCK_PERIODS.MIN)} and ${formatTimeValue(TIMELOCK_PERIODS.MAX)}`
                           };
                         }}
-                        onSubmit={handleUpdateTimeLockRequest}
+                        onSubmit={() => handleUpdateTimeLockRequest(convertToMinutes(newTimeLockPeriod, timeLockUnit).toString())}
                       />
                     </CardContent>
                   </CollapsibleContent>

@@ -1,7 +1,8 @@
 import { motion } from 'framer-motion'
 import { 
   ArrowRight, Zap, Github, BookOpen, Blocks, 
-  Wallet, Terminal, Library, Lock, TestTube, Users, X
+  Wallet, Terminal, Library, Lock, TestTube, Users, X,
+  Sparkles
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAccount } from 'wagmi'
@@ -33,7 +34,7 @@ export function Home() {
                 <span className="gradient-text tracking-tight">SandBlox</span>
                 <br />
                 <span className="mt-6 block text-2xl sm:text-4xl">
-                  Building Blox for Web3
+                  Building blocks for Web3
                 </span>
                 <span className="mt-4 block text-xl sm:text-2xl font-medium text-muted-foreground">
                   Development toolkit for blockchain applications
@@ -81,15 +82,18 @@ export function Home() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.4 }}
             >
-              <Button
-                onClick={() => navigate('/blox-contracts')}
-                size="lg"
-                className="hero-gradient-button"
-              >
-                <Wallet className="h-5 w-5 mr-2" />
-                Launch SandBlox
-                <ArrowRight className="h-5 w-5 ml-2 transition-transform group-hover:translate-x-1" />
-              </Button>
+            
+              <Button 
+              size="lg" 
+              aria-label="chat with AI"
+              className="hero-gradient-button"
+
+              onClick={() => window.open('https://www.perplexity.ai/search/you-are-particle-crypto-securi-.8Y9s72dQpmAF_i4bHjXxA', '_blank')}
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              Chat with AI
+              
+            </Button>
               
               {isConnected && (
                 <Button
