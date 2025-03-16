@@ -1035,7 +1035,9 @@ export function SecurityDetails() {
                           <Tooltip>
                             <TooltipTrigger className="flex items-center gap-1">
                               <span>{formatTimeValue(contractInfo.timeLockPeriodInMinutes)}</span>
-                              <span className="text-xs opacity-50">({contractInfo.timeLockPeriodInMinutes} min)</span>
+                              {contractInfo.timeLockPeriodInMinutes >= 1440 && ( // 1440 minutes = 1 day
+                                  <span className="text-xs opacity-50">({contractInfo.timeLockPeriodInMinutes} min)</span>
+                              )}
                             </TooltipTrigger>
                             <TooltipContent>
                               <p>TimeLock Period</p>
