@@ -22,7 +22,8 @@ interface FormData {
   initialOwner: string
   broadcaster: string
   recovery: string
-  timeLockPeriodInDays: string
+  timeLockPeriod: string
+  timeUnit: 'days' | 'hours' | 'minutes'
 }
 
 export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: DeploymentDialogProps) {
@@ -34,7 +35,8 @@ export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: 
     initialOwner: address || '',
     broadcaster: '',
     recovery: '',
-    timeLockPeriodInDays: '7'
+    timeLockPeriod: '1',
+    timeUnit: 'days'
   })
   const [formErrors, setFormErrors] = useState<Partial<FormData>>({})
   const { addDeployedContract } = useDeployedContract()
@@ -57,11 +59,25 @@ export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: 
     }
   })
 
+  const convertToMinutes = (value: string, unit: 'days' | 'hours' | 'minutes'): number => {
+    const numValue = parseInt(value)
+    switch (unit) {
+      case 'days':
+        return numValue * 24 * 60
+      case 'hours':
+        return numValue * 60
+      case 'minutes':
+        return numValue
+      default:
+        return numValue * 24 * 60 // default to days
+    }
+  }
+
   useEffect(() => {
     if (isSuccess && contractAddress && !contractAdded) {
       const contractInfo: SecureContractInfo = {
         contractAddress: contractAddress,
-        timeLockPeriodInMinutes: parseInt(formData.timeLockPeriodInDays) * 24 * 60,
+        timeLockPeriodInMinutes: convertToMinutes(formData.timeLockPeriod, formData.timeUnit),
         chainId,
         chainName: getChainName(),
         broadcaster: formData.broadcaster,
@@ -95,9 +111,16 @@ export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: 
       errors.recovery = 'Invalid address'
     }
     
-    const days = parseInt(formData.timeLockPeriodInDays)
-    if (isNaN(days) || days < 1) {
-      errors.timeLockPeriodInDays = 'Must be a positive number'
+    const value = parseInt(formData.timeLockPeriod)
+    const minMinutes = 24 * 60 // 1 day in minutes
+    
+    if (isNaN(value) || value < 1) {
+      errors.timeLockPeriod = 'Must be a positive number'
+    } else {
+      const totalMinutes = convertToMinutes(formData.timeLockPeriod, formData.timeUnit)
+      if (totalMinutes < minMinutes) {
+        errors.timeLockPeriod = 'Minimum time lock period is 1 day'
+      }
     }
 
     setFormErrors(errors)
@@ -117,7 +140,7 @@ export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: 
         formData.initialOwner,
         formData.broadcaster,
         formData.recovery,
-        parseInt(formData.timeLockPeriodInDays)
+        convertToMinutes(formData.timeLockPeriod, formData.timeUnit)
       ])
       
       console.log("Transaction sent")
@@ -198,16 +221,29 @@ export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: 
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="timeLockPeriodInDays">Time Lock Period (days)</Label>
-                  <Input
-                    id="timeLockPeriodInDays"
-                    type="number"
-                    min="1"
-                    value={formData.timeLockPeriodInDays}
-                    onChange={(e) => setFormData(prev => ({ ...prev, timeLockPeriodInDays: e.target.value }))}
-                  />
-                  {formErrors.timeLockPeriodInDays && (
-                    <p className="text-sm text-destructive">{formErrors.timeLockPeriodInDays}</p>
+                  <Label htmlFor="timeLockPeriod">Time Lock Period</Label>
+                  <div className="flex space-x-2">
+                    <Input
+                      id="timeLockPeriod"
+                      type="number"
+                      min="1"
+                      className="flex-1"
+                      value={formData.timeLockPeriod}
+                      onChange={(e) => setFormData(prev => ({ ...prev, timeLockPeriod: e.target.value }))}
+                    />
+                    <select
+                      id="timeUnit"
+                      value={formData.timeUnit}
+                      onChange={(e) => setFormData(prev => ({ ...prev, timeUnit: e.target.value as 'days' | 'hours' | 'minutes' }))}
+                      className="w-28 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    >
+                      <option value="days">Days</option>
+                      <option value="hours">Hours</option>
+                      <option value="minutes">Minutes</option>
+                    </select>
+                  </div>
+                  {formErrors.timeLockPeriod && (
+                    <p className="text-sm text-destructive">{formErrors.timeLockPeriod}</p>
                   )}
                 </div>
               </div>

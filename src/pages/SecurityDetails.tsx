@@ -1006,18 +1006,20 @@ export function SecurityDetails() {
                       <Badge variant="outline" className="font-mono shrink-0">
                         TimeLock
                       </Badge>
-                      <div className="flex items-center  text-muted-foreground font-mono text-sm truncate">
-                      <Clock className="h-3 w-3 mr-1" />
-                      {contractInfo.timeLockPeriodInMinutes} min
+                      <div className="flex items-center text-muted-foreground font-mono text-sm truncate">
+                        <Clock className="h-3 w-3 mr-1" />
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger className="flex items-center gap-1">
+                              <span>{formatTimeValue(contractInfo.timeLockPeriodInMinutes)}</span>
+                              <span className="text-xs opacity-50">({contractInfo.timeLockPeriodInMinutes} min)</span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>TimeLock Period</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </div>
-                      <TooltipProvider>
-                        <Tooltip>
-                      
-                          <TooltipContent>
-                            <p>TimeLock Period</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
                     </div>
 
 
