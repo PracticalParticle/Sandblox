@@ -149,9 +149,15 @@ const BloxMiniApp: React.FC = () => {
         }
 
         // Load blox contract details from catalog
-        const bloxDetails = await getContractDetails(type);
+        // If type is not provided in URL, try to get it from contract info
+        const contractType = type || info.type;
+        if (!contractType) {
+          throw new Error('Contract type not found');
+        }
+
+        const bloxDetails = await getContractDetails(contractType);
         if (!bloxDetails) {
-          throw new Error(`Unknown Blox type: ${type}`);
+          throw new Error(`Unknown Blox type: ${contractType}`);
         }
         setBloxContract(bloxDetails);
       } catch (error) {
