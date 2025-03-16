@@ -90,7 +90,7 @@ const formatTimeValue = (value: string | number): string => {
 
 const convertToMinutes = (value: string, unit: 'days' | 'hours' | 'minutes'): number => {
   const numValue = parseInt(value);
-  if (isNaN(numValue)) return 0;
+  if (isNaN(numValue) || numValue < 0) return 0;
   
   switch (unit) {
     case 'days':
@@ -590,14 +590,20 @@ export function SecurityDetails() {
         throw new Error('Chain not found');
       }
 
+      // Convert the period to minutes before sending
+      const periodInMinutes = parseInt(newPeriod);
+      if (isNaN(periodInMinutes) || periodInMinutes < TIMELOCK_PERIODS.MIN || periodInMinutes > TIMELOCK_PERIODS.MAX) {
+        throw new Error(`Period must be between ${TIMELOCK_PERIODS.MIN} and ${TIMELOCK_PERIODS.MAX} minutes`);
+      }
+
       setIsSigningTx(true);
+      
       // Create manager instance with transaction storage
       const manager = await generateNewSecureOwnableManager(
         publicClient,
         walletClient,
         contractAddress as `0x${string}`,
         chain,
-        // Wrap storeTransaction to include action field for approval
         (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
           ...metadata, 
           type: 'TIMELOCK_UPDATE', 
@@ -605,9 +611,10 @@ export function SecurityDetails() {
           broadcasted: false 
         })
       );
-      // Prepare and sign the timelock update transaction
+
+      // Prepare and sign the timelock update transaction with BigInt conversion
       await manager.prepareAndSignTimeLockUpdate(
-        BigInt(newPeriod),
+        BigInt(periodInMinutes),
         { from: connectedAddress as `0x${string}` }
       );
 
@@ -925,16 +932,15 @@ export function SecurityDetails() {
 
           {/* Contract Info */}
           <motion.div variants={item} className="grid gap-6">
-          <ContractInfo 
-            address={connectedAddress} 
-            contractInfo={contractInfo} 
-            connectedAddress={connectedAddress} 
-            onConnect={handleConnect}
-            navigationIcon={<AppWindow className="h-4 w-4" />}
-            navigationTooltip="View in Blox"
-            navigateTo={`/blox/${contractInfo.type}/${contractAddress}`}
-          />
-
+            <ContractInfo 
+              address={contractAddress}
+              contractInfo={contractInfo} 
+              connectedAddress={connectedAddress} 
+              onConnect={handleConnect}
+              navigationIcon={<AppWindow className="h-4 w-4" />}
+              navigationTooltip="View Blox Data"
+              navigateTo={`/blox/${contractInfo.type}/${contractAddress}`}
+            />
 
             {/* Management Tiles */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -1737,7 +1743,7 @@ export function SecurityDetails() {
                         isOpen={showTimeLockDialog}
                         onOpenChange={setShowTimeLockDialog}
                         title="Update TimeLock Period"
-                        description={`Enter a new time lock period. Minimum ${formatTimeValue(TIMELOCK_PERIODS.MIN)} and maximum ${formatTimeValue(TIMELOCK_PERIODS.MAX)}.`}
+                        description={`Enter a new time lock period. Current period is ${formatTimeValue(contractInfo.timeLockPeriodInMinutes)}. Valid range: ${formatTimeValue(TIMELOCK_PERIODS.MIN)} to ${formatTimeValue(TIMELOCK_PERIODS.MAX)}.`}
                         contractInfo={contractInfo}
                         actionType="timelock"
                         currentValue={formatTimeValue(contractInfo?.timeLockPeriodInMinutes)}
@@ -1771,23 +1777,23 @@ export function SecurityDetails() {
                           </div>
                         }
                         validateNewValue={(value) => {
-                          const period = parseInt(value);
-                          if (isNaN(period) || period < 1) {
+                          const minutes = convertToMinutes(value, timeLockUnit);
+                          if (minutes === 0) {
                             return {
                               isValid: false,
-                              message: "Please enter a positive number"
+                              message: "Please enter a valid positive number"
                             };
                           }
                           
-                          // Convert input to minutes based on selected unit
-                          const totalMinutes = convertToMinutes(value, timeLockUnit);
-                          
                           return {
-                            isValid: totalMinutes >= TIMELOCK_PERIODS.MIN && totalMinutes <= TIMELOCK_PERIODS.MAX,
+                            isValid: minutes >= TIMELOCK_PERIODS.MIN && minutes <= TIMELOCK_PERIODS.MAX,
                             message: `Please enter a period between ${formatTimeValue(TIMELOCK_PERIODS.MIN)} and ${formatTimeValue(TIMELOCK_PERIODS.MAX)}`
                           };
                         }}
-                        onSubmit={() => handleUpdateTimeLockRequest(convertToMinutes(newTimeLockPeriod, timeLockUnit).toString())}
+                        onSubmit={() => {
+                          const minutes = convertToMinutes(newTimeLockPeriod, timeLockUnit);
+                          return handleUpdateTimeLockRequest(minutes.toString());
+                        }}
                       />
                     </CardContent>
                   </CollapsibleContent>
