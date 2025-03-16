@@ -11,7 +11,10 @@ import {
   Wallet,
   CircuitBoard,
   Activity,
-  CheckCircle2
+  CheckCircle2,
+  Copy,
+  Radio,
+  Key
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '../components/ui/card'
@@ -28,6 +31,8 @@ import { getAllContracts } from '../lib/catalog'
 import { formatTokenBalance } from '@/lib/utils'
 import type { SecureContractInfo } from '@/lib/types'
 import { useDeployedContract } from '@/contexts/DeployedContractContext'
+import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 const container = {
   hidden: { opacity: 0 },
@@ -44,17 +49,22 @@ const item = {
   show: { opacity: 1, y: 0 },
 }
 
+interface ContractWithRoles {
+  id: string;
+  name: string;
+  address: string;
+  type: string;
+  chainId: number;
+  chainName: string;
+  owner?: string;
+  broadcaster?: string;
+  recoveryAddress?: string;
+}
+
 interface DeployedContractProps {
-  contract: {
-    id: string;
-    name: string;
-    address: string;
-    type: string;
-    chainId: number;
-    chainName: string;
-  }
-  onDetectType: (address: string) => Promise<void>
-  isDetecting: boolean
+  contract: ContractWithRoles;
+  onDetectType: (address: string) => Promise<void>;
+  isDetecting: boolean;
 }
 
 const DeployedContract = ({ 
@@ -68,6 +78,7 @@ const DeployedContract = ({
   onTypeChange: (address: string, type: string, name: string) => void 
 }) => {
   const navigate = useNavigate();
+  const { address: connectedAddress } = useAccount();
   const [availableTypes, setAvailableTypes] = useState<Array<{id: string, name: string}>>([]);
   
   useEffect(() => {
@@ -84,38 +95,97 @@ const DeployedContract = ({
     navigate(`/blox/${contract.type}/${contract.address}`);
   };
 
+  const isRoleConnected = (roleAddress?: string) => {
+    if (!connectedAddress || !roleAddress) return false;
+    return connectedAddress.toLowerCase() === roleAddress.toLowerCase();
+  };
+
   return (
     <Card className="p-4">
-      <div className="mb-4 flex justify-between items-center">
-        <div>
-          <h3 className="text-lg font-semibold">{contract.name}</h3>
-          <p className="text-sm text-muted-foreground">{contract.address}</p>
-          <div className="flex items-center gap-2 mt-1">
-            <p className="text-xs text-muted-foreground">
-              Type: {contract.type === 'unknown' ? 'Not detected' : contract.type}
-            </p>
-            {contract.chainName && (
-              <>
-                <span className="text-xs text-muted-foreground">•</span>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Activity className="h-3 w-3" />
-                  {contract.chainName}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 p-4">
+        <div className="space-y-3">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold truncate max-w-[300px] sm:max-w-[400px]">{contract.name}</h3>
+              <div className="flex flex-wrap items-center gap-2">
+                {contract.owner && isRoleConnected(contract.owner) && (
+                  <Badge variant="default" className="bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 font-medium">
+                    <Shield className="h-3 w-3 mr-1" />
+                    Owner
+                  </Badge>
+                )}
+                {contract.broadcaster && isRoleConnected(contract.broadcaster) && (
+                  <Badge variant="default" className="bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 font-medium">
+                    <Radio className="h-3 w-3 mr-1" />
+                    Broadcaster
+                  </Badge>
+                )}
+                {contract.recoveryAddress && isRoleConnected(contract.recoveryAddress) && (
+                  <Badge variant="default" className="bg-green-500/10 text-green-500 hover:bg-green-500/20 font-medium">
+                    <Key className="h-3 w-3 mr-1" />
+                    Recovery
+                  </Badge>
+                )}
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="font-mono text-xs">Contract</Badge>
+                <p className="text-sm text-muted-foreground font-mono break-all">
+                  {contract.address}
                 </p>
-              </>
-            )}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                        onClick={() => navigator.clipboard.writeText(contract.address)}
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Copy address</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="font-mono text-xs shrink-0">Type</Badge>
+                  <p className="text-sm text-muted-foreground">
+                    {contract.type === 'unknown' ? 'Not detected' : contract.type}
+                  </p>
+                </div>
+                <div className="hidden sm:block h-4 w-[1px] bg-border shrink-0" />
+
+                {contract.chainName && (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="font-mono text-xs shrink-0">Network</Badge>
+                    <p className="text-sm text-muted-foreground flex items-center gap-1">
+                      <Activity className="h-3 w-3" />
+                      {contract.chainName}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
-        <div className="flex gap-2">
-          {contract.type === 'unknown' && (
-            <>
+        
+        <div className="flex flex-wrap gap-2 mt-4 lg:mt-0">
+          {contract.type === 'unknown' ? (
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" className="w-full sm:w-auto">
                     Select Type
                     <ChevronDown className="ml-2 h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent>
+                <DropdownMenuContent align="end" className="w-[200px]">
                   {availableTypes.map((type) => (
                     <DropdownMenuItem
                       key={type.id}
@@ -131,6 +201,7 @@ const DeployedContract = ({
                 size="sm"
                 onClick={() => onDetectType(contract.address)}
                 disabled={isDetecting}
+                className="w-full sm:w-auto"
               >
                 {isDetecting ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
@@ -143,29 +214,19 @@ const DeployedContract = ({
                 variant="outline"
                 size="sm"
                 onClick={() => navigate(`/blox-security/${contract.address}`)}
+                className="w-full sm:w-auto"
               >
                 <Shield className="h-4 w-4 mr-2" aria-hidden="true" />
                 Manage Security
               </Button>
-            </>
-          )}
-          {onUnload && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onUnload(contract.address)}
-              className="text-muted-foreground hover:text-muted-foreground/80 hover:bg-muted/50"
-            >
-              <PackageX className="h-4 w-4 mr-2" aria-hidden="true" />
-              Unload
-            </Button>
-          )}
-          {contract.type !== 'unknown' && (
-            <>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
               <Button 
                 variant="outline"
                 size="sm"
                 onClick={() => navigate(`/blox-security/${contract.address}`)}
+                className="w-full sm:w-auto"
               >
                 <Shield className="h-4 w-4 mr-2" aria-hidden="true" />
                 Manage Security
@@ -174,10 +235,22 @@ const DeployedContract = ({
                 variant="default" 
                 size="sm"
                 onClick={handleEnterBlox}
+                className="w-full sm:w-auto"
               >
                 Enter Blox
               </Button>
-            </>
+            </div>
+          )}
+          {onUnload && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onUnload(contract.address)}
+              className="text-muted-foreground hover:text-muted-foreground/80 hover:bg-muted/50 w-full sm:w-auto"
+            >
+              <PackageX className="h-4 w-4 mr-2" aria-hidden="true" />
+              Unload
+            </Button>
           )}
         </div>
       </div>
