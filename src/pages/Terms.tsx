@@ -20,7 +20,7 @@ export function Terms() {
   }, []);
 
   return (
-    <div className="container py-4">
+    <div className="container py-8">
       <article className="prose prose-sm dark:prose-invert max-w-none [&>*]:my-1 [&>h1]:mb-2 [&>h2]:mb-2 [&>h2]:mt-3">
         <ReactMarkdown 
           remarkPlugins={[remarkGfm]}
