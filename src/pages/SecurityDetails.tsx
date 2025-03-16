@@ -1082,21 +1082,18 @@ export function SecurityDetails() {
                                 </div>
 
                                 <Button 
-                                  onClick={() => handleBroadcast('RECOVERY_UPDATE')}
+                                  onClick={() => handleBroadcast('OWNERSHIP_TRANSFER')}
                                   className={`w-full ${signedTransactions.some(tx => 
-                                    tx.metadata?.type === 'RECOVERY_UPDATE' && 
-                                    tx.metadata?.purpose === 'ownership_transfer' && 
+                                    tx.metadata?.type === 'OWNERSHIP_TRANSFER' && 
                                     !tx.metadata?.broadcasted
                                   ) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
                                   size="sm"
                                   variant={signedTransactions.some(tx => 
-                                    tx.metadata?.type === 'RECOVERY_UPDATE' && 
-                                    tx.metadata?.purpose === 'ownership_transfer' && 
+                                    tx.metadata?.type === 'OWNERSHIP_TRANSFER' && 
                                     !tx.metadata?.broadcasted
                                   ) ? "default" : "outline"}
                                   disabled={!signedTransactions.some(tx => 
-                                    tx.metadata?.type === 'RECOVERY_UPDATE' && 
-                                    tx.metadata?.purpose === 'ownership_transfer' && 
+                                    tx.metadata?.type === 'OWNERSHIP_TRANSFER' &&                                     
                                     !tx.metadata?.broadcasted
                                   ) || !isRoleConnected(contractInfo.broadcaster)}
                                 >
