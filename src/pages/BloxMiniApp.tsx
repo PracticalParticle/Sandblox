@@ -1,21 +1,38 @@
 import { useState, useEffect, Suspense } from 'react';
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { useParams, useNavigate } from 'react-router-dom';
-import { AlertCircle, Info, AlertTriangle, CheckCircle, Shield, Timer, Network, Wallet, Key, Clock, Radio as RadioIcon, Copy, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { Badge } from "@/components/ui/badge";
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { ChevronLeft, ChevronRight, ArrowLeft, Shield } from 'lucide-react';
 import { useSecureContract } from '@/hooks/useSecureContract';
 import type { SecureContractInfo } from '@/lib/types';
 import { Button } from "@/components/ui/button";
 import { getContractDetails } from '@/lib/catalog';
 import type { BloxContract } from '@/lib/catalog/types';
 import { initializeUIComponents, getUIComponent } from '@/lib/catalog/bloxUIComponents';
-import { useConfig, useChainId, useConnect } from 'wagmi'
+import { useConfig, useChainId, useConnect, useAccount, useDisconnect } from 'wagmi'
 import React from 'react';
+import { motion } from 'framer-motion';
+import { useToast } from '@/components/ui/use-toast';
+import { ContractInfo } from '@/components/ContractInfo';
+import { WalletStatusBadge } from '@/components/WalletStatusBadge';
+
+// Animation variants
+const container = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+    },
+  },
+};
+
+const item = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0 },
+};
+
+// Helper function to format time values
 
 interface Message {
   type: 'error' | 'warning' | 'info' | 'success';
@@ -26,12 +43,13 @@ interface Message {
 
 const BloxMiniApp: React.FC = () => {
   const { type, address } = useParams<{ type: string; address: string }>();
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
-  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const { address: connectedAddress } = useAccount();
+  const { disconnect } = useDisconnect();
+  const [, setMessages] = useState<Message[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [contractInfo, setContractInfo] = useState<SecureContractInfo>();
+  const [contractInfo, setContractInfo] = useState<SecureContractInfo | undefined>(undefined);
   const [bloxContract, setBloxContract] = useState<BloxContract>();
   const [uiInitialized, setUiInitialized] = useState(false);
   const { validateAndLoadContract } = useSecureContract();
@@ -40,6 +58,7 @@ const BloxMiniApp: React.FC = () => {
   const chainId = useChainId()
   const { connectAsync, connectors } = useConnect()
   const navigate = useNavigate()
+  const { toast } = useToast()
 
   // Initialize UI components on mount
   useEffect(() => {
@@ -66,7 +85,7 @@ const BloxMiniApp: React.FC = () => {
 
     const loadContractInfo = async () => {
       // Skip if we already have the contract info for this address
-      if (contractInfo?.address === address) return;
+      if (contractInfo?.contractAddress === address) return;
 
       setLoading(true);
       setError(null);
@@ -74,6 +93,15 @@ const BloxMiniApp: React.FC = () => {
       try {
         // Load secure contract info
         const info = await validateAndLoadContract(address as `0x${string}`);
+        if (!info) {
+          throw new Error('Contract info not found');
+        }
+        
+        // Ensure all required fields are present
+        if (!info.owner || !info.broadcaster || !info.recoveryAddress) {
+          throw new Error('Invalid contract info - missing required fields');
+        }
+
         setContractInfo(info);
 
         // Get chain name for error messages
@@ -144,17 +172,21 @@ const BloxMiniApp: React.FC = () => {
     });
   }, []);
 
-  const formatAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    addMessage({
-      type: 'success',
-      title: 'Copied',
-      description: 'Address copied to clipboard'
-    });
+  const handleDisconnect = async () => {
+    try {
+      await disconnect();
+      toast({
+        title: "Disconnected",
+        description: "Wallet disconnected successfully",
+      });
+    } catch (error) {
+      console.error('Error disconnecting wallet:', error);
+      toast({
+        title: "Error",
+        description: "Failed to disconnect wallet",
+        variant: "destructive"
+      });
+    }
   };
 
   // Render the appropriate Blox UI based on type
@@ -197,21 +229,15 @@ const BloxMiniApp: React.FC = () => {
             chainName: (contractInfo as SecureContractInfo).chainName
           }}
           onError={(error: Error) => {
-            addMessage({
-              type: 'error',
-              title: 'Operation Failed',
-              description: error.message || 'Failed to perform operation'
+            toast({
+              title: "Operation Failed",
+              description: error.message || 'Failed to perform operation',
+              variant: "destructive"
             });
           }}
         />
       </Suspense>
     );
-  };
-
-  // Helper function to get chain name
-  const getChainName = (chainId: number) => {
-    const chain = config.chains.find(c => c.id === chainId);
-    return chain?.name || 'Unknown Network';
   };
 
   // Modify the chain ID warning effect to prevent repeated warnings
@@ -230,337 +256,129 @@ const BloxMiniApp: React.FC = () => {
   }, [chainId, contractInfo?.chainId]);
 
   return (
-    <div className="mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
-      <div className="flex items-center justify-between p-6 border-b">
-        <h1 className="text-2xl font-bold">Blox Mini App</h1>
-        {contractInfo && chainId !== contractInfo.chainId && (
-          <Alert>
-            <AlertDescription>
-              This contract is deployed on {getChainName(contractInfo.chainId)}. 
-              Please switch networks to interact with it.
-            </AlertDescription>
-          </Alert>
-        )}
-        <div className="flex items-center space-x-4">
-          {/* Add header controls here */}
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 flex">
-        {/* Left Sidebar */}
-        <Card className={`border-r m-4 rounded-lg shadow-lg transition-all duration-300 ${isSidebarOpen ? 'w-80' : 'w-0 opacity-0 m-0'}`}>
-          <div className="h-full">
-            <div className="p-4 border-b flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Blox Info</h2>
+    <div className="container py-8">
+      <motion.div variants={container} initial="hidden" animate="show">
+        {/* Header */}
+        <motion.div variants={item} className="flex flex-col gap-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-[64px] z-40 w-full">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex items-start lg:items-center gap-4">
               <Button
                 variant="ghost"
-                size="icon"
-                onClick={() => setIsSidebarOpen(false)}
-                className="h-8 w-8"
+                onClick={() => navigate('/dashboard')}
+                className="mr-4 hidden lg:flex"
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ArrowLeft className="h-4 w-4" />
               </Button>
-            </div>
-            <ScrollArea className="h-[calc(100%-3rem)] p-4">
-              {!loading && !error && bloxContract && (
-                <Suspense fallback={
-                  <div className="flex items-center justify-center py-4">
-                    <p className="text-sm text-muted-foreground">Loading sidebar...</p>
-                  </div>
-                }>
-                  {(() => {
-                    const BloxUI = getUIComponent(bloxContract.id);
-                    if (!BloxUI) return null;
-                    return (
-                      <BloxUI 
-                        contractAddress={address as `0x${string}`}
-                        contractInfo={{
-                          address: address as `0x${string}`,
-                          type: bloxContract.id,
-                          name: bloxContract.name,
-                          category: bloxContract.category,
-                          description: bloxContract.description,
-                          bloxId: bloxContract.id,
-                          chainId: (contractInfo as SecureContractInfo).chainId,
-                          chainName: (contractInfo as SecureContractInfo).chainName
-                        }}
-                        onError={(error: Error) => {
-                          addMessage({
-                            type: 'error',
-                            title: 'Operation Failed',
-                            description: error.message || 'Failed to perform operation'
-                          });
-                        }}
-                        renderSidebar
-                      />
-                    );
-                  })()}
-                </Suspense>
-              )}
-            </ScrollArea>
-          </div>
-        </Card>
-
-        {/* Main Workspace */}
-        <div className="flex-1 p-4">
-          {!isSidebarOpen && (
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setIsSidebarOpen(true)}
-              className="mb-4"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          )}
-          <Card className="h-full rounded-lg shadow-lg">
-            <div className="p-6">
-              <h2 className="text-xl font-semibold mb-4">
-                {type ? `${type.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}` : 'Workspace'}
-                {address && <span className="text-sm text-gray-500 ml-2">({address})</span>}
-              </h2>
-              <Separator className="my-4" />
-              <div className="grid grid-cols-1 gap-4">
-                {renderBloxUI()}
+              <div className="space-y-3 lg:space-y-2">
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="ghost"
+                    onClick={() => navigate('/dashboard')}
+                    className="lg:hidden h-8 w-8 p-0"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                  <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Blox Mini App</h1>
+                </div>
               </div>
             </div>
-          </Card>
-        </div>
-
-        {/* Right Sidebar - Properties & Messages */}
-        <Card className="w-72 border-l m-4 rounded-lg shadow-lg">
-          <div className="flex flex-col h-full">
-            {/* Properties Section */}
-            <Collapsible open={isPropertiesOpen} onOpenChange={setIsPropertiesOpen}>
-              <CollapsibleTrigger className="w-full">
-                <div className="p-4 flex items-center justify-between">
-                  <h2 className="text-lg font-semibold">Security Settings</h2>
-                </div>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <ScrollArea className="h-[calc(50vh-8rem)] p-4">
-                  {loading ? (
-                    <div className="flex items-center justify-center py-4">
-                      <p className="text-sm text-muted-foreground">Loading security settings...</p>
-                    </div>
-                  ) : error ? (
-                    <div className="p-4">
-                      <Alert variant="destructive">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>{error}</AlertDescription>
-                      </Alert>
-                    </div>
-                  ) : contractInfo ? (
-                    <div className="space-y-2">
-                      {/* Owner */}
-                      <div className="p-2 rounded-lg border bg-card">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger>
-                                  <div className="flex items-center gap-2">
-                                    <Wallet className="h-4 w-4 text-primary" />
-                                    <span className="font-medium text-sm">Owner</span>
-                                    <Timer className="h-3 w-3 text-muted-foreground" />
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Two-phase temporal security</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <code className="text-xs text-muted-foreground">
-                              {formatAddress(contractInfo.owner)}
-                            </code>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={() => copyToClipboard(contractInfo.owner)}
-                            >
-                              <Copy className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Broadcaster */}
-                      <div className="p-2 rounded-lg border bg-card">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger>
-                                  <div className="flex items-center gap-2">
-                                    <RadioIcon className="h-4 w-4 text-primary" />
-                                    <span className="font-medium text-sm">Broadcaster</span>
-                                    <Timer className="h-3 w-3 text-muted-foreground" />
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Two-phase temporal security</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <code className="text-xs text-muted-foreground">
-                              {formatAddress(contractInfo.broadcaster)}
-                            </code>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={() => copyToClipboard(contractInfo.broadcaster)}
-                            >
-                              <Copy className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Recovery Address */}
-                      <div className="p-2 rounded-lg border bg-card">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger>
-                                  <div className="flex items-center gap-2">
-                                    <Key className="h-4 w-4 text-primary" />
-                                    <span className="font-medium text-sm">Recovery</span>
-                                    <Network className="h-3 w-3 text-muted-foreground" />
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Single-phase meta tx security</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <code className="text-xs text-muted-foreground">
-                              {formatAddress(contractInfo.recoveryAddress)}
-                            </code>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={() => copyToClipboard(contractInfo.recoveryAddress)}
-                            >
-                              <Copy className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* TimeLock Period */}
-                      <div className="p-2 rounded-lg border bg-card">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger>
-                                  <div className="flex items-center gap-2">
-                                    <Clock className="h-4 w-4 text-primary" />
-                                    <span className="font-medium text-sm">TimeLock</span>
-                                    <Network className="h-3 w-3 text-muted-foreground" />
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Single-phase meta tx security</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span className="text-xs text-muted-foreground">
-                              {Math.floor(contractInfo.timeLockPeriodInMinutes / 1440)} days {contractInfo.timeLockPeriodInMinutes % 1440 > 0 ? `${contractInfo.timeLockPeriodInMinutes % 1440} minutes` : ''}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Manage Security Button */}
-                      <div className="mt-4">
-                        <Button
-                          variant="outline"
-                          className="w-full"
-                          onClick={() => navigate(`/blox-security/${address}`)}
-                        >
-                          <Shield className="h-4 w-4 mr-2" aria-hidden="true" />
-                          Manage Security
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center py-4">
-                      <p className="text-sm text-muted-foreground">No contract selected</p>
-                    </div>
-                  )}
-                </ScrollArea>
-              </CollapsibleContent>
-            </Collapsible>
-
-            {/* Notifications Section */}
-            <Collapsible open={isNotificationsOpen} onOpenChange={setIsNotificationsOpen}>
-              <CollapsibleTrigger className="w-full">
-                <div className="p-4 flex items-center justify-between">
-                  <h2 className="text-lg font-semibold">Notifications</h2>
-                  {messages.length > 0 && (
-                    <Badge 
-                      variant="secondary" 
-                      className="ml-2 bg-primary/10 text-primary hover:bg-primary/20"
-                    >
-                      {messages.length}
-                    </Badge>
-                  )}
-                </div>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <ScrollArea className="h-[calc(50vh-8rem)] p-4">
-                  <div className="space-y-2">
-                    {messages.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        No notifications to display
-                      </p>
-                    ) : (
-                      messages.map((message, index) => (
-                        <Alert 
-                          key={index} 
-                          variant={message.type === 'error' ? 'destructive' : 'default'}
-                          className={`text-sm ${
-                            message.type === 'warning' ? 'border-yellow-500 text-yellow-700' :
-                            message.type === 'success' ? 'border-green-500 text-green-700' :
-                            message.type === 'info' ? 'border-blue-500 text-blue-700' : ''
-                          }`}
-                        >
-                          {message.type === 'error' && <AlertCircle className="h-4 w-4" />}
-                          {message.type === 'warning' && <AlertTriangle className="h-4 w-4" />}
-                          {message.type === 'info' && <Info className="h-4 w-4" />}
-                          {message.type === 'success' && <CheckCircle className="h-4 w-4" />}
-                          <AlertTitle className="text-xs">{message.title}</AlertTitle>
-                          <AlertDescription className="text-xs mt-1">
-                            {message.description}
-                            <div className="text-[10px] mt-1 opacity-70">
-                              {message.timestamp.toLocaleTimeString()}
-                            </div>
-                          </AlertDescription>
-                        </Alert>
-                      ))
-                    )}
-                  </div>
-                </ScrollArea>
-              </CollapsibleContent>
-            </Collapsible>
+            {connectedAddress && (
+              <WalletStatusBadge
+                connectedAddress={connectedAddress}
+                contractInfo={contractInfo as SecureContractInfo}
+                onDisconnect={handleDisconnect}
+              />
+            )}
           </div>
-        </Card>
-      </div>
+        </motion.div>
+      
+        {/* Contract Info & Security Settings */}
+        <motion.div variants={item} className="mt-6">
+          <ContractInfo 
+            address={address} 
+            contractInfo={contractInfo as SecureContractInfo} 
+            connectedAddress={connectedAddress}
+            navigationIcon={<Shield className="h-4 w-4" />}
+            navigationTooltip="Security Settings"
+            navigateTo={`/blox-security/${address}`}
+          />
+        </motion.div>
+
+        {/* Main Content */}
+        <div className="flex-1 flex mt-6">
+          {/* Left Sidebar */}
+          <Card className={`border-r m-4 rounded-lg shadow-lg transition-all duration-300 ${isSidebarOpen ? 'w-80' : 'w-0 opacity-0 m-0'}`}>
+            <div className="h-full">
+              <div className="p-4 border-b flex items-center justify-between">
+                <h2 className="text-lg font-semibold">Blox Info</h2>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsSidebarOpen(false)}
+                  className="h-8 w-8"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+              </div>
+              <ScrollArea className="h-[calc(100%-3rem)] p-4">
+                {!loading && !error && bloxContract && (
+                  <Suspense fallback={
+                    <div className="flex items-center justify-center py-4">
+                      <p className="text-sm text-muted-foreground">Loading sidebar...</p>
+                    </div>
+                  }>
+                    {(() => {
+                      const BloxUI = getUIComponent(bloxContract.id);
+                      if (!BloxUI) return null;
+                      return (
+                        <BloxUI 
+                          contractAddress={address as `0x${string}`}
+                          contractInfo={{
+                            address: address as `0x${string}`,
+                            type: bloxContract.id,
+                            name: bloxContract.name,
+                            category: bloxContract.category,
+                            description: bloxContract.description,
+                            bloxId: bloxContract.id,
+                            chainId: (contractInfo as SecureContractInfo).chainId,
+                            chainName: (contractInfo as SecureContractInfo).chainName
+                          }}
+                          onError={(error: Error) => {
+                            toast({
+                              title: "Operation Failed",
+                              description: error.message || 'Failed to perform operation',
+                              variant: "destructive"
+                            });
+                          }}
+                          renderSidebar
+                        />
+                      );
+                    })()}
+                  </Suspense>
+                )}
+              </ScrollArea>
+            </div>
+          </Card>
+
+          {/* Main Workspace */}
+          <div className="flex-1">
+            {!isSidebarOpen && (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setIsSidebarOpen(true)}
+                className="mb-4"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            )}
+            
+            <div className="grid grid-cols-1 gap-4">
+              {renderBloxUI()}
+            </div>
+          </div>
+        </div>
+      </motion.div>
     </div>
   );
 };

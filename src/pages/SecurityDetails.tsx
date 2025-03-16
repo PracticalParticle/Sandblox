@@ -13,11 +13,7 @@ import {
   Wallet,
   Timer,
   Network,
-  SwitchCamera,
-  Copy,
-  Eye,
-  LogOut
-} from 'lucide-react'
+  AppWindow} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -45,6 +41,8 @@ import { MetaTxActionDialog } from '@/components/MetaTxActionDialog'
 import { TransactionManagerProvider } from '@/contexts/TransactionManager'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
+import { ContractInfo } from '@/components/ContractInfo'
+import { WalletStatusBadge } from '@/components/WalletStatusBadge'
 
 interface ExtendedSignedTransaction {
   txId: string
@@ -916,240 +914,27 @@ export function SecurityDetails() {
                 </div>
               </div>
               {connectedAddress && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex items-center gap-3 bg-card rounded-lg px-4 py-2 border shadow-sm shrink-0"
-                >
-                  <div className="flex flex-col items-start">
-                    
-                    <div className="flex flex-wrap items-center gap-2">
-                      {isRoleConnected(contractInfo.owner) && (
-                        <Badge variant="default" className="bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 font-medium">
-                          <Shield className="h-3 w-3 mr-1" />
-                          Owner
-                        </Badge>
-                      )}
-                      {isRoleConnected(contractInfo.broadcaster) && (
-                        <Badge variant="default" className="bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 font-medium">
-                          <Radio className="h-3 w-3 mr-1" />
-                          Broadcaster
-                        </Badge>
-                      )}
-                      {isRoleConnected(contractInfo.recoveryAddress) && (
-                        <Badge variant="default" className="bg-green-500/10 text-green-500 hover:bg-green-500/20 font-medium">
-                          <Key className="h-3 w-3 mr-1" />
-                          Recovery
-                        </Badge>
-                      )}
-                      {!isRoleConnected(contractInfo.owner) && 
-                       !isRoleConnected(contractInfo.broadcaster) && 
-                       !isRoleConnected(contractInfo.recoveryAddress) && (
-                        <Badge variant="default" className="bg-orange-500/10 text-orange-500 hover:bg-orange-500/20 font-medium">
-                          <Eye className="h-3 w-3 mr-1" />
-                          Observer
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline" className="font-mono text-xs">Wallet</Badge>
-                      <p className="text-xs text-muted-foreground font-mono">
-                        {connectedAddress.slice(0, 6)}...{connectedAddress.slice(-4)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="h-8 w-[1px] bg-border/50" />
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          className="h-6 w-6 p-0 hover:bg-muted"
-                          onClick={handleDisconnect}
-                        >
-                          <LogOut className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Disconnect wallet</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </motion.div>
+                <WalletStatusBadge
+                  connectedAddress={connectedAddress}
+                  contractInfo={contractInfo}
+                  onDisconnect={handleDisconnect}
+                />
               )}
             </div>
           </motion.div>
 
           {/* Contract Info */}
           <motion.div variants={item} className="grid gap-6">
-            <Card className="p-6">
-              <h2 className="text-xl font-bold mb-2">Contract Information</h2>
-              <div className="flex mb-6 flex-col sm:flex-row sm:items-center gap-3">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Badge variant="outline" className="font-mono shrink-0">
-                        Contract
-                      </Badge>
-                      <p className="text-muted-foreground font-mono text-sm truncate">
-                        {contractAddress}
-                      </p>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              className="h-6 w-6 p-0 shrink-0"
-                              onClick={() => navigator.clipboard.writeText(contractAddress)}
-                            >
-                              <Copy className="h-3 w-3" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Copy address</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                    <div className="hidden sm:block h-4 w-[1px] bg-border shrink-0" />
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Badge variant="outline" className="font-mono">
-                        Roles
-                      </Badge>
-                      <div className="flex -space-x-1">
-                        <div className="h-2 w-2 rounded-full bg-blue-500" />
-                        <div className="h-2 w-2 rounded-full bg-purple-500" />
-                        <div className="h-2 w-2 rounded-full bg-green-500" />
-                      </div>
-                      <span className="text-sm text-muted-foreground">3 Total</span>
-                    </div>
-                    <div className="hidden sm:block h-4 w-[1px] bg-border shrink-0" />
+          <ContractInfo 
+            address={connectedAddress} 
+            contractInfo={contractInfo} 
+            connectedAddress={connectedAddress} 
+            onConnect={handleConnect}
+            navigationIcon={<AppWindow className="h-4 w-4" />}
+            navigationTooltip="Open Blox App"
+            navigateTo={`/blox/${contractInfo.type}/${contractAddress}`}
+          />
 
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Badge variant="outline" className="font-mono shrink-0">
-                        TimeLock
-                      </Badge>
-                      <div className="flex items-center text-muted-foreground font-mono text-sm truncate">
-                        <Clock className="h-3 w-3 mr-1" />
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger className="flex items-center gap-1">
-                              <span>{formatTimeValue(contractInfo.timeLockPeriodInMinutes)}</span>
-                              {contractInfo.timeLockPeriodInMinutes >= 1440 && ( // 1440 minutes = 1 day
-                                  <span className="text-xs opacity-50">({contractInfo.timeLockPeriodInMinutes} min)</span>
-                              )}
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>TimeLock Period</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                    </div>
-
-
-                  
-                  </div>
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-8">
-                  <div className="space-y-6">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground mb-2">Owner</p>
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{contractInfo.owner}</p>
-                        </div>
-                        {isRoleConnected(contractInfo.owner) ? (
-                          <Badge variant="default" className="bg-blue-500/10 text-blue-500 shrink-0">Connected</Badge>
-                        ) : (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button 
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7"
-                                  onClick={() => handleConnect('owner')}
-                                >
-                                  <SwitchCamera className="h-3 w-3 mr-1" />
-                                  Connect
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Switch to owner wallet</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground mb-2">Broadcaster</p>
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{contractInfo.broadcaster}</p>
-                        </div>
-                        {isRoleConnected(contractInfo.broadcaster) ? (
-                          <Badge variant="default" className="bg-purple-500/10 text-purple-500 shrink-0">Connected</Badge>
-                        ) : (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button 
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7"
-                                  onClick={() => handleConnect('broadcaster')}
-                                >
-                                  <SwitchCamera className="h-3 w-3 mr-1" />
-                                  Connect
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Switch to broadcaster wallet</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-6">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground mb-2">Recovery</p>
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{contractInfo.recoveryAddress}</p>
-                        </div>
-                        {isRoleConnected(contractInfo.recoveryAddress) ? (
-                          <Badge variant="default" className="bg-green-500/10 text-green-500 shrink-0">Connected</Badge>
-                        ) : (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button 
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7"
-                                  onClick={() => handleConnect('recovery')}
-                                >
-                                  <SwitchCamera className="h-3 w-3 mr-1" />
-                                  Connect
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Switch to recovery wallet</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
-                      </div>
-                    </div>
-                   
-                  </div>
-                </div>
-              </div>
-            </Card>
 
             {/* Management Tiles */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">

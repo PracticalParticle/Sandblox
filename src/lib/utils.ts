@@ -112,6 +112,11 @@ export function truncate(str: string, length: number): string {
   return str.slice(0, length) + "..."
 }
 
+export function truncateAddress(address: string, startLength: number = 7, endLength: number = 6): string {
+  if (address.length <= startLength + endLength) return address; // Return the full address if it's short enough
+  return `${address.slice(0, startLength)}...${address.slice(-endLength)}`;
+}
+
 // Updated Chain type to support any chain ID
 export type Chain = number
 
