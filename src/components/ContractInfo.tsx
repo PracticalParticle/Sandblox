@@ -68,9 +68,9 @@ export function ContractInfo({
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  variant="outline"
+                  variant="default"
                   size="icon"
-                  className="h-8 w-8"
+                  className="h-8 w-8 hover-lift"
                   onClick={() => navigate(navigateTo)}
                 >
                   {navigationIcon}
@@ -155,19 +155,19 @@ export function ContractInfo({
       </div>
 
       <div className="space-y-6">
-        <div className="flex flex-wrap gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {/* Owner Address */}
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 group hover:bg-muted/70 transition-colors flex-1 min-w-[250px]">
-            <div className="flex items-center gap-2 min-w-[100px]">
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 group hover:bg-muted/70 transition-colors">
+            <div className="flex items-center gap-2 shrink-0">
               <div className="h-2 w-2 rounded-full bg-blue-500" />
-              <p className="text-sm font-medium text-muted-foreground">Owner</p>
+              <p className="text-sm font-medium text-muted-foreground whitespace-nowrap">Owner</p>
             </div>
-            <div className="flex-1 flex items-center justify-between gap-3">
-              <p className="text-sm font-mono truncate hover:text-clip">
+            <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+              <p className="text-sm font-mono truncate">
                 {truncateAddress(contractInfo?.owner || '')}
               </p>
               {isRoleConnected(contractInfo?.owner) ? (
-                <Badge variant="default" className="bg-blue-500/10 text-blue-500 shrink-0 shadow-sm">Connected</Badge>
+                <Badge variant="default" className="bg-blue-500/10 text-blue-500 shrink-0 shadow-sm whitespace-nowrap">Connected</Badge>
               ) : (
                 <TooltipProvider>
                   <Tooltip>
@@ -175,11 +175,11 @@ export function ContractInfo({
                       <Button 
                         variant="outline"
                         size="sm"
-                        className="h-7 shadow-sm hover:bg-blue-500/5"
+                        className="h-7 shadow-sm hover:bg-blue-500/5 shrink-0"
                         onClick={() => handleConnect('owner')}
                       >
                         <SwitchCamera className="h-3 w-3 mr-1" />
-                        Connect
+                        <span className="whitespace-nowrap">Connect</span>
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
@@ -192,17 +192,17 @@ export function ContractInfo({
           </div>
 
           {/* Broadcaster Address */}
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 group hover:bg-muted/70 transition-colors flex-1 min-w-[250px]">
-            <div className="flex items-center gap-2 min-w-[100px]">
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 group hover:bg-muted/70 transition-colors">
+            <div className="flex items-center gap-2 shrink-0">
               <div className="h-2 w-2 rounded-full bg-purple-500" />
-              <p className="text-sm font-medium text-muted-foreground">Broadcaster</p>
+              <p className="text-sm font-medium text-muted-foreground whitespace-nowrap">Broadcaster</p>
             </div>
-            <div className="flex-1 flex items-center justify-between gap-3">
-              <p className="text-sm font-mono truncate hover:text-clip">
+            <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+              <p className="text-sm font-mono truncate">
                 {truncateAddress(contractInfo?.broadcaster || '')}
               </p>
               {isRoleConnected(contractInfo?.broadcaster) ? (
-                <Badge variant="default" className="bg-purple-500/10 text-purple-500 shrink-0 shadow-sm">Connected</Badge>
+                <Badge variant="default" className="bg-purple-500/10 text-purple-500 shrink-0 shadow-sm whitespace-nowrap">Connected</Badge>
               ) : (
                 <TooltipProvider>
                   <Tooltip>
@@ -210,11 +210,11 @@ export function ContractInfo({
                       <Button 
                         variant="outline"
                         size="sm"
-                        className="h-7 shadow-sm hover:bg-purple-500/5"
+                        className="h-7 shadow-sm hover:bg-purple-500/5 shrink-0"
                         onClick={() => handleConnect('broadcaster')}
                       >
                         <SwitchCamera className="h-3 w-3 mr-1" />
-                        Connect
+                        <span className="whitespace-nowrap">Connect</span>
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
@@ -227,17 +227,17 @@ export function ContractInfo({
           </div>
 
           {/* Recovery Address */}
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 group hover:bg-muted/70 transition-colors flex-1 min-w-[250px]">
-            <div className="flex items-center gap-2 min-w-[100px]">
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 group hover:bg-muted/70 transition-colors">
+            <div className="flex items-center gap-2 shrink-0">
               <div className="h-2 w-2 rounded-full bg-green-500" />
-              <p className="text-sm font-medium text-muted-foreground">Recovery</p>
+              <p className="text-sm font-medium text-muted-foreground whitespace-nowrap">Recovery</p>
             </div>
-            <div className="flex-1 flex items-center justify-between gap-3">
-              <p className="text-sm font-mono truncate hover:text-clip">
+            <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+              <p className="text-sm font-mono truncate">
                 {truncateAddress(contractInfo?.recoveryAddress || '')}
               </p>
               {isRoleConnected(contractInfo?.recoveryAddress) ? (
-                <Badge variant="default" className="bg-green-500/10 text-green-500 shrink-0 shadow-sm">Connected</Badge>
+                <Badge variant="default" className="bg-green-500/10 text-green-500 shrink-0 shadow-sm whitespace-nowrap">Connected</Badge>
               ) : (
                 <TooltipProvider>
                   <Tooltip>
@@ -245,11 +245,11 @@ export function ContractInfo({
                       <Button 
                         variant="outline"
                         size="sm"
-                        className="h-7 shadow-sm hover:bg-green-500/5"
+                        className="h-7 shadow-sm hover:bg-green-500/5 shrink-0"
                         onClick={() => handleConnect('recovery')}
                       >
                         <SwitchCamera className="h-3 w-3 mr-1" />
-                        Connect
+                        <span className="whitespace-nowrap">Connect</span>
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>

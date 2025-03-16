@@ -2,7 +2,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, ArrowLeft, Shield } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ArrowLeft, Shield, ChevronUp, ChevronDown } from 'lucide-react';
 import { useSecureContract } from '@/hooks/useSecureContract';
 import type { SecureContractInfo } from '@/lib/types';
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,24 @@ const BloxMiniApp: React.FC = () => {
   const { connectAsync, connectors } = useConnect()
   const navigate = useNavigate()
   const { toast } = useToast()
+
+  // Add new state for mobile view
+  const [isMobileView, setIsMobileView] = useState(false);
+
+  // Add useEffect to handle screen size changes
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobileView(window.innerWidth < 768);
+      // Set default sidebar state based on screen size
+      setIsSidebarOpen(window.innerWidth >= 768);
+    };
+
+    // Initial check
+    handleResize();
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Initialize UI components on mount
   useEffect(() => {
@@ -305,20 +323,53 @@ const BloxMiniApp: React.FC = () => {
         </motion.div>
 
         {/* Main Content */}
-        <div className="flex-1 flex mt-6">
-          {/* Left Sidebar */}
-          <Card className={`border-r m-4 rounded-lg shadow-lg transition-all duration-300 ${isSidebarOpen ? 'w-80' : 'w-0 opacity-0 m-0'}`}>
-            <div className="h-full">
+        <div className="flex-1 flex flex-col md:flex-row mt-6">
+          {/* Collapse/Expand Button for Mobile */}
+          {isMobileView && (
+            <Button
+              variant="outline"
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="mb-4 w-full flex items-center justify-between"
+            >
+              <span className="flex items-center gap-2">
+                <Shield className="h-4 w-4" />
+                Blox Info
+              </span>
+              {isSidebarOpen ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </Button>
+          )}
+
+          {/* Sidebar */}
+          <Card 
+            className={`
+              transition-all duration-300
+              ${isMobileView 
+                ? `w-full ${isSidebarOpen 
+                    ? 'max-h-[500px] mb-4' 
+                    : 'max-h-0 overflow-hidden opacity-0 m-0 p-0'}`
+                : `border-r rounded-lg shadow-lg ${isSidebarOpen 
+                    ? 'w-80 m-4' 
+                    : 'w-0 opacity-0 m-0 p-0'}`
+              }
+            `}
+          >
+            <div className={`h-full ${!isSidebarOpen ? 'hidden' : ''}`}>
               <div className="p-4 border-b flex items-center justify-between">
                 <h2 className="text-lg font-semibold">Blox Info</h2>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setIsSidebarOpen(false)}
-                  className="h-8 w-8"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
+                {!isMobileView && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsSidebarOpen(false)}
+                    className="h-8 w-8"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
               <ScrollArea className="h-[calc(100%-3rem)] p-4">
                 {!loading && !error && bloxContract && (
@@ -361,15 +412,15 @@ const BloxMiniApp: React.FC = () => {
           </Card>
 
           {/* Main Workspace */}
-          <div className="flex-1">
-            {!isSidebarOpen && (
+          <div className="flex-1 pl-0">
+            {!isMobileView && !isSidebarOpen && (
               <Button
                 variant="outline"
-                size="icon"
                 onClick={() => setIsSidebarOpen(true)}
-                className="mb-4"
+                className="mb-4 ml-4 flex items-center gap-2"
               >
                 <ChevronRight className="h-4 w-4" />
+                <span>Show Blox Info</span>
               </Button>
             )}
             

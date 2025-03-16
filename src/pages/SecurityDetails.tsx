@@ -931,7 +931,7 @@ export function SecurityDetails() {
             connectedAddress={connectedAddress} 
             onConnect={handleConnect}
             navigationIcon={<AppWindow className="h-4 w-4" />}
-            navigationTooltip="Open Blox App"
+            navigationTooltip="View in Blox"
             navigateTo={`/blox/${contractInfo.type}/${contractAddress}`}
           />
 
