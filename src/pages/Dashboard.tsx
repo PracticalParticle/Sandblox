@@ -159,7 +159,7 @@ const DeployedContract = ({
                     {contract.type === 'unknown' ? 'Not detected' : contract.type}
                   </p>
                 </div>
-                <div className="hidden sm:block h-4 w-[1px] bg-border shrink-0" />
+                                    <div className="hidden sm:block h-4 w-[1px] bg-border shrink-0" />
 
                 {contract.chainName && (
                   <div className="flex items-center gap-2">
@@ -499,7 +499,7 @@ export function Dashboard(): JSX.Element {
                 Detected Types
               </div>
               <p className="text-2xl font-bold" tabIndex={0}>
-                {contracts.filter(c => c.type !== 'unknown').length}
+                {Array.from(new Set(contracts.map(c => c.type))).filter(type => type !== 'unknown').length}
               </p>
               <p className="text-xs text-muted-foreground">
                 Contracts with detected types
