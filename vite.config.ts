@@ -17,38 +17,24 @@ function cspPlugin(isDev: boolean): Plugin {
   };
 }
 
-// Plugin to serve markdown files from the docs directory
-function docsPlugin(): Plugin {
+// Plugin to handle markdown files
+function markdownPlugin(): Plugin {
   return {
-    name: 'vite-plugin-docs',
+    name: 'vite-plugin-markdown',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        if (req.url?.startsWith('/docs/') && req.url.endsWith('.md')) {
-          const filePath = path.join(__dirname, req.url);
-          try {
-            const content = fs.readFileSync(filePath, 'utf-8');
-            res.setHeader('Content-Type', 'text/markdown');
-            res.end(content);
-          } catch (error) {
-            console.error(`Error serving markdown file: ${filePath}`, error);
-            next();
+        if (req.url?.endsWith('.md')) {
+          let filePath: string;
+          
+          // Handle docs directory
+          if (req.url.startsWith('/docs/')) {
+            filePath = path.join(__dirname, req.url);
           }
-        } else {
-          next();
-        }
-      });
-    }
-  };
-}
+          // Handle public directory
+          else {
+            filePath = path.join(__dirname, 'public', path.basename(req.url));
+          }
 
-// Plugin to serve markdown files from the public directory
-function publicMarkdownPlugin(): Plugin {
-  return {
-    name: 'vite-plugin-public-markdown',
-    configureServer(server) {
-      server.middlewares.use((req, res, next) => {
-        if (req.url?.startsWith('/public/') && req.url.endsWith('.md')) {
-          const filePath = path.join(__dirname, req.url);
           try {
             const content = fs.readFileSync(filePath, 'utf-8');
             res.setHeader('Content-Type', 'text/markdown');
@@ -141,8 +127,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       cspPlugin(isDev),
-      docsPlugin(),
-      publicMarkdownPlugin()
+      markdownPlugin()
     ],
     resolve: {
       alias: {
@@ -175,13 +160,19 @@ export default defineConfig(({ mode }) => {
           format: 'es',
           entryFileNames: 'assets/[name]-[hash].js',
           chunkFileNames: 'assets/[name]-[hash].js',
-          assetFileNames: 'assets/[name]-[hash][extname]'
+          assetFileNames: ({ name }) => {
+            // Keep markdown files in their original location
+            if (name?.endsWith('.md')) {
+              return name;
+            }
+            return 'assets/[name]-[hash][extname]';
+          }
         },
         preserveEntrySignatures: 'strict'
       },
-      // Copy docs directory to the build output
+      // Copy docs and public directories to the build output
       copyPublicDir: true,
-      assetsInclude: ['**/*.sol', '**/*.abi.json', '**/*.bin', '**/*.md'],
+      assetsInclude: ['**/*.sol', '**/*.abi.json', '**/*.bin', '**/*.md']
     },
     optimizeDeps: {
       esbuildOptions: {

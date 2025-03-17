@@ -8,7 +8,12 @@ export function Privacy() {
   React.useEffect(() => {
     const fetchContent = async () => {
       try {
-        const response = await fetch('/PRIVACY.md');
+        // Try the direct path first (for production)
+        let response = await fetch('/PRIVACY.md');
+        if (!response.ok) {
+          // Fallback to public path (for development)
+          response = await fetch('/public/PRIVACY.md');
+        }
         const text = await response.text();
         setContent(text);
       } catch (error) {
