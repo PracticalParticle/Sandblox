@@ -43,6 +43,13 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '', onClose }) => {
         { title: 'Reporting Issues', path: '/docs/reporting-issues' },
       ],
     },
+    {
+      title: 'Legal',
+      items: [
+        { title: 'Terms of Service', path: '/terms' },
+        { title: 'Privacy Policy', path: '/privacy' },
+      ],
+    },
    
   ];
 
