@@ -333,29 +333,12 @@ export function SecurityDetails() {
         storeTransaction
       );
 
-      // Check if the connected wallet is recovery address
-      const isRecoveryWallet = connectedAddress.toLowerCase() === contractInfo.recoveryAddress.toLowerCase();
+      const result = await manager.approveOwnershipTransfer(
+        BigInt(txId),
+        { from: connectedAddress as `0x${string}` }
+      );
+      await publicClient.waitForTransactionReceipt({ hash: result });
 
-      if (isRecoveryWallet) {
-        // Recovery wallet must use timelock approval
-        const result = await manager.approveOwnershipTransfer(
-          BigInt(txId),
-          { from: connectedAddress as `0x${string}` }
-        );
-        await publicClient.waitForTransactionReceipt({ hash: result });
-      } else {
-        // Owner uses meta transaction approval
-        console.log('Preparing and signing ownership approval')
-        await manager.prepareAndSignOwnershipApproval(
-          BigInt(txId),
-          { from: connectedAddress as `0x${string}` }
-        );
-
-        toast({
-          title: "Success",
-          description: "Transfer ownership approval transaction signed and stored",
-        });
-      }
 
       await loadContractInfo();
     } catch (error) {
