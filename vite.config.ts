@@ -52,10 +52,14 @@ export default defineConfig(({ mode }) => {
     'default-src': [
       "'self'",
       `https://${GANACHE_ENDPOINT}`,
-      `https://*.${GANACHE_DOMAIN}`
+      `https://*.${GANACHE_DOMAIN}`,
+      'https://sepolia.drpc.org'  // Add Sepolia DRPC
     ],
     'connect-src': [
       "'self'",
+      // Add Sepolia DRPC endpoints
+      'https://sepolia.drpc.org',
+      'ws://sepolia.drpc.org:*',
       // Ganache specific endpoints with full coverage
       `https://${GANACHE_ENDPOINT}`,
       `wss://${GANACHE_ENDPOINT}`,
