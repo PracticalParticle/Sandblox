@@ -41,6 +41,30 @@ function docsPlugin(): Plugin {
   };
 }
 
+// Plugin to serve markdown files from the public directory
+function publicMarkdownPlugin(): Plugin {
+  return {
+    name: 'vite-plugin-public-markdown',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (req.url?.startsWith('/public/') && req.url.endsWith('.md')) {
+          const filePath = path.join(__dirname, req.url);
+          try {
+            const content = fs.readFileSync(filePath, 'utf-8');
+            res.setHeader('Content-Type', 'text/markdown');
+            res.end(content);
+          } catch (error) {
+            console.error(`Error serving markdown file: ${filePath}`, error);
+            next();
+          }
+        } else {
+          next();
+        }
+      });
+    }
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const isDev = mode === 'development';
   
@@ -117,7 +141,8 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       cspPlugin(isDev),
-      docsPlugin()
+      docsPlugin(),
+      publicMarkdownPlugin()
     ],
     resolve: {
       alias: {

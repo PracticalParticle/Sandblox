@@ -8,11 +8,12 @@ export function Privacy() {
   React.useEffect(() => {
     const fetchContent = async () => {
       try {
-        const response = await fetch('/public/PRIVACY.md');
+        const response = await fetch('/PRIVACY.md');
         const text = await response.text();
         setContent(text);
       } catch (error) {
         console.error('Error loading privacy policy:', error);
+        setContent('Error loading privacy policy. Please try again later.');
       }
     };
 

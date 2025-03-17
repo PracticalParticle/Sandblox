@@ -8,11 +8,12 @@ export function Terms() {
   React.useEffect(() => {
     const fetchContent = async () => {
       try {
-        const response = await fetch('/public/TERMS.md');
+        const response = await fetch('/TERMS.md');
         const text = await response.text();
         setContent(text);
       } catch (error) {
         console.error('Error loading terms:', error);
+        setContent('Error loading terms. Please try again later.');
       }
     };
 
