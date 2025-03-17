@@ -25,6 +25,7 @@ build
 out
 # Generated contract files for production
 public/blox/
+public/docs/
 public/TERMS.md
 public/PRIVACY.md
 

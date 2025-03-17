@@ -177,10 +177,10 @@ try {
   copyRootFiles([
     'TERMS.md', 
     'PRIVACY.md',
-    'README.md',
-    'CONTRIBUTING.md',
-    'CHANGELOG.md',
-    'LICENSE',
+    //'README.md',
+    //'CONTRIBUTING.md',
+    //'CHANGELOG.md',
+    //'LICENSE',
     'docs/**/*'
   ], publicDir, stats)
   
