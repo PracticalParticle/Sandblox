@@ -17,7 +17,7 @@ npm install
 
 # Copy contract files explicitly (in case prebuild doesn't run)
 echo "Copying contract files..."
-npx tsx scripts/copy-contracts.ts
+npx tsx scripts/copy-to-public.ts
 
 # Build the project
 npm run build
