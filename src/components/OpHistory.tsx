@@ -5,6 +5,7 @@ import { Address, Hex } from 'viem'
 import { formatTimestamp } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Badge } from './ui/badge'
+import { Progress } from './ui/progress'
 import {
   Table,
   TableBody,
@@ -14,6 +15,7 @@ import {
   TableRow,
 } from "./ui/table"
 import { Loader2, Clock, CheckCircle2, XCircle, AlertTriangle, Filter } from 'lucide-react'
+import { useState, useEffect } from 'react'
 
 import {
   Select,
@@ -35,10 +37,44 @@ const statusVariants: { [key: number]: { variant: "default" | "secondary" | "des
   [TxStatus.REJECTED]: { variant: "destructive", icon: <XCircle className="h-3 w-3" /> }
 }
 
+// Create a new PendingBadge component to handle the progress
+function PendingBadge({ record, contractInfo }: { record: TxRecord, contractInfo: { timeLockPeriodInMinutes: number } }) {
+  const [progress, setProgress] = useState(0)
+
+  useEffect(() => {
+    const calculateProgress = () => {
+      const now = Math.floor(Date.now() / 1000)
+      const releaseTime = Number(record.releaseTime)
+      const timeLockPeriod = (contractInfo.timeLockPeriodInMinutes || 0) * 60
+      const startTime = releaseTime - timeLockPeriod
+      const currentProgress = Math.min(((now - startTime) / timeLockPeriod) * 100, 100)
+      setProgress(currentProgress)
+    }
+
+    calculateProgress()
+    const intervalId = setInterval(calculateProgress, 1000)
+    return () => clearInterval(intervalId)
+  }, [record.releaseTime, contractInfo.timeLockPeriodInMinutes])
+
+  return (
+    <div className="flex items-center gap-2 min-w-[120px]">
+      <Clock className="h-3 w-3" />
+      <div className="flex-1">
+        <Progress value={progress} className="h-2" />
+      </div>
+      <span className="text-xs">{Math.round(progress)}%</span>
+    </div>
+  )
+}
+
 interface OpHistoryProps {
   contractAddress: Address
   operations: TxRecord[]
   isLoading?: boolean
+  contractInfo: {
+    timeLockPeriodInMinutes: number
+    [key: string]: any
+  }
 }
 
 const container = {
@@ -51,7 +87,7 @@ const container = {
   }
 }
 
-export function OpHistory({ contractAddress, operations, isLoading = false }: OpHistoryProps) {
+export function OpHistory({ contractAddress, operations, isLoading = false, contractInfo }: OpHistoryProps) {
   const {
     filteredOperations,
     statusFilter,
@@ -155,13 +191,17 @@ export function OpHistory({ contractAddress, operations, isLoading = false }: Op
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge 
-                      variant={statusVariants[record.status]?.variant || "outline"}
-                      className="flex items-center gap-1"
-                    >
-                      {statusVariants[record.status]?.icon}
-                      <span>{statusToHuman[record.status]}</span>
-                    </Badge>
+                    {record.status === TxStatus.PENDING ? (
+                      <PendingBadge record={record} contractInfo={contractInfo} />
+                    ) : (
+                      <Badge 
+                        variant={statusVariants[record.status]?.variant || "outline"}
+                        className="flex items-center gap-1"
+                      >
+                        {statusVariants[record.status]?.icon}
+                        <span>{statusToHuman[record.status]}</span>
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell>
                     {formatTimestamp(Number(record.releaseTime))}

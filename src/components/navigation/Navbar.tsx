@@ -25,10 +25,8 @@ export function Navbar() {
             className="flex items-center gap-2 text-lg font-bold hover-lift"
             to="/"
           >
-            <div className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/50 text-primary-foreground">
-              OB
-            </div>
-            <span className="hidden sm:inline-block bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent font-bold">SandBlox</span>
+            <img src="/logo.svg" alt="SandBlox Logo" className="h-8 w-8" />
+            <span className="gradient-text tracking-tight">SandBlox</span>
           </Link>
           <div className="hidden md:flex md:items-center md:gap-6">
             {isConnected && (

@@ -11,6 +11,7 @@ import { TxRecord } from "../particle-core/sdk/typescript/interfaces/lib.index"
 import { formatAddress } from "@/lib/utils"
 import { Progress } from "@/components/ui/progress"
 import { useMultiPhaseTemporalAction } from "@/hooks/useMultiPhaseTemporalAction"
+import { useState, useEffect } from "react"
 
 interface TemporalActionDialogProps {
   isOpen: boolean
@@ -168,13 +169,29 @@ export function TemporalActionDialog({
   const renderApprovalPhase = () => {
     if (!pendingTx) return null
 
-    // Calculate time lock progress
-    const now = Math.floor(Date.now() / 1000)
-    const releaseTime = Number(pendingTx.releaseTime)
-    const timeLockPeriod = (contractInfo.timeLockPeriodInMinutes || 0) * 60 // convert minutes to seconds
-    const startTime = releaseTime - timeLockPeriod
-    const progress = Math.min(((now - startTime) / timeLockPeriod) * 100, 100)
-    const isTimeLockComplete = progress >= 100
+    const [currentProgress, setCurrentProgress] = useState(0)
+    const [isTimeLockComplete, setIsTimeLockComplete] = useState(false)
+
+    useEffect(() => {
+      const calculateProgress = () => {
+        const now = Math.floor(Date.now() / 1000)
+        const releaseTime = Number(pendingTx.releaseTime)
+        const timeLockPeriod = (contractInfo.timeLockPeriodInMinutes || 0) * 60
+        const startTime = releaseTime - timeLockPeriod
+        const progress = Math.min(((now - startTime) / timeLockPeriod) * 100, 100)
+        setCurrentProgress(progress)
+        setIsTimeLockComplete(progress >= 100)
+      }
+
+      // Calculate initial progress
+      calculateProgress()
+
+      // Update progress every second
+      const intervalId = setInterval(calculateProgress, 1000)
+
+      // Cleanup interval on unmount
+      return () => clearInterval(intervalId)
+    }, [pendingTx.releaseTime, contractInfo.timeLockPeriodInMinutes])
 
     // Check if the connected wallet is recovery address for ownership actions
     const isRecoveryWallet = connectedAddress?.toLowerCase() === contractInfo?.recoveryAddress?.toLowerCase()
@@ -214,15 +231,15 @@ export function TemporalActionDialog({
 
                   <div className="flex justify-between text-sm">
                     <span>Time Lock Progress</span>
-                    <span>{Math.round(progress)}%</span>
+                    <span>{Math.round(currentProgress)}%</span>
                   </div>
                   <Progress 
-                    value={progress} 
+                    value={currentProgress} 
                     className={`h-2 ${isTimeLockComplete ? 'bg-muted' : ''}`}
                     aria-label="Time lock progress"
                     aria-valuemin={0}
                     aria-valuemax={100}
-                    aria-valuenow={Math.round(progress)}
+                    aria-valuenow={Math.round(currentProgress)}
                   />
 
                   <div className="flex space-x-2">
