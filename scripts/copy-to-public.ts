@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import glob from 'glob'
+import { glob } from 'glob'
 
 interface CopyStats {
   totalFiles: number
