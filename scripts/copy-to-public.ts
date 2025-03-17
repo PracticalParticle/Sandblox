@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import glob from 'glob'
 
 interface CopyStats {
   totalFiles: number
@@ -16,7 +17,10 @@ const ALLOWED_EXTENSIONS = [
   '.abi.json',
   '.bin',
   '.blox.json',
-  '.md'
+  '.md',
+  '.mdx',
+  '.txt',
+  '.pdf'
 ] as const
 
 type AllowedExtension = typeof ALLOWED_EXTENSIONS[number]
@@ -26,36 +30,75 @@ function isAllowedExtension(filename: string): boolean {
 }
 
 /**
- * Copy specific files from root to public directory
+ * Copy specific files from root to public directory, supporting glob patterns
  */
 function copyRootFiles(
-  files: string[],
+  patterns: string[],
   targetDir: string,
   stats: CopyStats
 ): void {
-  files.forEach(file => {
-    const sourcePath = path.resolve(__dirname, '..', file)
-    const targetPath = path.join(targetDir, file)
-
+  patterns.forEach(pattern => {
     try {
-      if (fs.existsSync(sourcePath)) {
-        stats.totalFiles++
-        fs.copyFileSync(sourcePath, targetPath)
-        stats.copiedFiles++
-        console.log(`✓ Copied: ${path.relative(process.cwd(), sourcePath)} → ${path.relative(process.cwd(), targetPath)}`)
-      } else {
-        stats.errors.push({
-          file: sourcePath,
-          error: 'File not found'
+      // Handle glob patterns
+      if (pattern.includes('*')) {
+        const matches = glob.sync(pattern, {
+          cwd: path.resolve(__dirname, '..'),
+          nodir: true
         })
-        console.error(`✗ File not found: ${sourcePath}`)
+        
+        matches.forEach(file => {
+          const sourcePath = path.resolve(__dirname, '..', file)
+          const targetPath = path.join(targetDir, file)
+          
+          // Create target directory if it doesn't exist
+          const targetDirPath = path.dirname(targetPath)
+          if (!fs.existsSync(targetDirPath)) {
+            fs.mkdirSync(targetDirPath, { recursive: true })
+          }
+          
+          try {
+            stats.totalFiles++
+            fs.copyFileSync(sourcePath, targetPath)
+            stats.copiedFiles++
+            console.log(`✓ Copied: ${path.relative(process.cwd(), sourcePath)} → ${path.relative(process.cwd(), targetPath)}`)
+          } catch (error) {
+            stats.errors.push({
+              file: sourcePath,
+              error: error instanceof Error ? error.message : 'Unknown error'
+            })
+            console.error(`✗ Error copying ${sourcePath}:`, error)
+          }
+        })
+      } else {
+        // Handle direct file paths
+        const sourcePath = path.resolve(__dirname, '..', pattern)
+        const targetPath = path.join(targetDir, pattern)
+        
+        if (fs.existsSync(sourcePath)) {
+          // Create target directory if it doesn't exist
+          const targetDirPath = path.dirname(targetPath)
+          if (!fs.existsSync(targetDirPath)) {
+            fs.mkdirSync(targetDirPath, { recursive: true })
+          }
+          
+          stats.totalFiles++
+          fs.copyFileSync(sourcePath, targetPath)
+          stats.copiedFiles++
+          console.log(`✓ Copied: ${path.relative(process.cwd(), sourcePath)} → ${path.relative(process.cwd(), targetPath)}`)
+        } else {
+          stats.errors.push({
+            file: sourcePath,
+            error: 'File not found'
+          })
+          console.error(`✗ File not found: ${sourcePath}`)
+        }
       }
     } catch (error) {
       stats.errors.push({
-        file: sourcePath,
+        file: pattern,
         error: error instanceof Error ? error.message : 'Unknown error'
       })
-      console.error(`✗ Error copying ${sourcePath}:`, error)
+      console.error(`✗ Error processing ${pattern}:`, error)
     }
   })
 }
@@ -129,9 +172,17 @@ try {
   
   const stats = copyContractsRecursively(bloxDir, publicBloxDir)
   
-  // Copy terms and privacy files
-  console.log('\nCopying legal documents...\n')
-  copyRootFiles(['TERMS.md', 'PRIVACY.md'], publicDir, stats)
+  // Copy documentation and legal files
+  console.log('\nCopying documentation and legal files...\n')
+  copyRootFiles([
+    'TERMS.md', 
+    'PRIVACY.md',
+    'README.md',
+    'CONTRIBUTING.md',
+    'CHANGELOG.md',
+    'LICENSE',
+    'docs/**/*'
+  ], publicDir, stats)
   
   console.log('\nCopy process completed:')
   console.log(`Total files processed: ${stats.totalFiles}`)
