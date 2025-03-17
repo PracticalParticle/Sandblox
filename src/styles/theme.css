@@ -146,19 +146,23 @@
 @layer utilities {
   /* Modern Gradients */
   .gradient-primary {
-    @apply bg-gradient-to-r from-[#3b82f6] via-[#8b5cf6] to-[#d946ef] hover:brightness-110 transition-all duration-300;
+    @apply bg-gradient-to-r from-[#3b82f6] via-[#8b5cf6] to-[#d946ef] hover:from-[#3b82f6] hover:via-[#8b5cf6] hover:to-[#4f46e5] transition-all duration-300;
   }
 
   .gradient-secondary {
-    @apply bg-gradient-to-r from-[#6366f1] via-[#8b5cf6] to-[#ec4899] hover:brightness-110 transition-all duration-300;
+    @apply bg-gradient-to-r from-[#6366f1] via-[#8b5cf6] to-[#ec4899] hover:from-[#6366f1] hover:via-[#8b5cf6] hover:to-[#4f46e5] transition-all duration-300;
   }
 
   .gradient-accent {
-    @apply bg-gradient-to-r from-[#14b8a6] via-[#0ea5e9] to-[#6366f1] hover:brightness-110 transition-all duration-300;
+    @apply bg-gradient-to-r from-[#14b8a6] via-[#0ea5e9] to-[#6366f1] hover:from-[#14b8a6] hover:via-[#0ea5e9] hover:to-[#3b82f6] transition-all duration-300;
   }
 
   .gradient-text {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-[#3b82f6] via-[#8b5cf6] to-[#d946ef] hover:from-[#6366f1] hover:via-[#8b5cf6] hover:to-[#ec4899] transition-all duration-300;
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-[#d946ef] via-[#8b5cf6] to-[#3b82f6] hover:from-[#3b82f6] hover:via-[#8b5cf6] hover:to-[#4f46e5] transition-all duration-300;
+  }
+
+  .gradient-text-reversed {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-[#d946ef] via-[#8b5cf6] to-[#3b82f6] hover:from-[#4f46e5] hover:via-[#8b5cf6] hover:to-[#d946ef] transition-all duration-300;
   }
 
   /* Glass Effect */
