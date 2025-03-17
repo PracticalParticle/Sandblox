@@ -374,7 +374,19 @@ export function SecurityDetails() {
         contractAddress as `0x${string}`,
         chain
       );
-
+      if(contractInfo.recoveryAddress.toLowerCase() === connectedAddress.toLowerCase()) {
+        const result = await contract.transferOwnershipCancellation(
+          BigInt(txId),
+          { from: connectedAddress as `0x${string}` }
+        );
+        await result.wait();
+        toast({
+        title: "Cancellation submitted",
+        description: "Transfer ownership cancellation has been submitted.",
+        });
+        await loadContractInfo();
+        return;
+      }
       // Generate meta transaction parameters for cancellation
       const metaTxParams = await contract.createMetaTxParams(
         contractAddress as `0x${string}`,
