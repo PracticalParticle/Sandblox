@@ -1,19 +1,24 @@
 import { FC } from 'react';
+import { Link } from 'react-router-dom';
 
 export const Footer: FC = () => {
   return (
-      <div className="container flex flex-col items-center justify-between gap-4 md:h-24 md:flex-row">
-        <p className="text-center text-sm text-muted-foreground">
-          Built with ❤️ by{' '}
-          <a
-            href="https://particlecs.com"
-            target="_blank"
-            rel="noreferrer"
-            className="font-medium gradient-text hover:text-foreground"
-          >
-            Particle CS
-          </a>
-        </p>
+    <footer className="border-t">
+      <div className="container flex flex-col items-center justify-between gap-4 py-6 md:h-24 md:flex-row md:py-0">
+        <div className="flex items-center gap-2">
+          <img src="/logo.svg" alt="SandBlox Logo" className="h-6 w-6" />
+          <p className="text-center text-sm text-muted-foreground">
+            Built with ❤️ by{' '}
+            <a
+              href="https://particlecs.com"
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium gradient-text hover:text-foreground"
+            >
+              Particle CS
+            </a>
+          </p>
+        </div>
         <div className="flex items-center justify-center gap-4">
           <a
             href="https://x.com/particle_cs"
@@ -31,26 +36,26 @@ export const Footer: FC = () => {
           >
             Discord
           </a>
-          <a
-            href="/docs"
+          <Link
+            to="/docs"
             className="text-sm text-muted-foreground hover:text-foreground"
           >
             Documentation
-          </a>
-          <a
-            href="/terms"
+          </Link>
+          <Link
+            to="/terms"
             className="text-sm text-muted-foreground hover:text-foreground"
           >
             Terms
-          </a>
-          <a
-            href="/privacy"
+          </Link>
+          <Link
+            to="/privacy"
             className="text-sm text-muted-foreground hover:text-foreground"
           >
             Privacy
-          </a>
+          </Link>
         </div>
       </div>
-
+    </footer>
   );
 }; 

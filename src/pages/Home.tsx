@@ -7,6 +7,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { useAccount } from 'wagmi'
 import { Button } from '@/components/ui/button'
+import logo from '/logo.svg'
 
 const SANDBLOX_COLOR = '#3b82f6' // You can adjust this color as needed
 
@@ -25,13 +26,22 @@ export function Home() {
         <div className="container relative z-10">
           <div className="hero-content mx-auto max-w-4xl">
             <div className="hero-title text-center">
+              <motion.img 
+                src={logo}
+                alt="SandBlox Logo"
+                className="mx-auto mb-4 "
+                width={100}
+                height={100}
+                style={{ opacity: 0.7 }}
+              />
               <motion.h1 
                 className="text-4xl font-bold  sm:text-6xl"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
               >
-                <span className="gradient-text tracking-tight">SandBlox</span>
+                
+                <span className="gradient-text-reversed tracking-tight">SandBlox</span>
                 <br />
                 <span className="mt-6 block text-2xl sm:text-4xl">
                   Building blocks for Web3

@@ -12,14 +12,29 @@ interface FrontmatterMetadata {
 }
 
 class DocumentationService {
-  private baseUrl = '/docs';
+  private baseUrl: string;
+
+  constructor() {
+    // In production, we'll use the absolute path to the docs directory
+    this.baseUrl = import.meta.env.PROD 
+      ? '/content/docs'  // This will be the public URL path where docs are served
+      : '/docs';        // Local development path
+  }
 
   async getDocContent(slug: string): Promise<DocContent> {
     try {
-      const response = await fetch(`${this.baseUrl}/${slug}.md`);
-      if (!response.ok) {
-        throw new Error('Documentation not found');
+      // First try to fetch from the content directory
+      let response = await fetch(`${this.baseUrl}/${slug}.md`);
+      
+      // If that fails and we're in development, try the direct docs path
+      if (!response.ok && import.meta.env.DEV) {
+        response = await fetch(`/docs/${slug}.md`);
       }
+
+      if (!response.ok) {
+        throw new Error(`Documentation not found for slug: ${slug}`);
+      }
+
       const content = await response.text();
       
       // Extract metadata from frontmatter
@@ -55,69 +70,86 @@ class DocumentationService {
 
   async getAllDocs(): Promise<DocContent[]> {
     try {
-      // This is a static list of all documentation files
+      // Get the list of documentation files from the public directory
       const docFiles = [
         'introduction',
         'getting-started',
-        'security-architecture',
-        'security-framework',
-        'research-insights',
-        'product-overview',
-        'use-cases',
-        'community-support',
-        'faqs',
-        'updates-releases',
-        'glossary'
+        'quick-start',
+        'core-concepts',
+        'blox-development',
+        'blox-library',
+        'security-guidelines',
+        'account-abstraction',
+        'particle-account-abstraction',
+        'secure-operations',
+        'troubleshooting',
+        'faq',
+        'reporting-issues',
+        'best-practices'
       ];
+
+      console.log(`[DocumentationService] Fetching ${docFiles.length} documentation files`);
 
       const docs = await Promise.all(
         docFiles.map(async (slug) => {
           try {
-            return await this.getDocContent(slug);
+            const doc = await this.getDocContent(slug);
+            console.log(`[DocumentationService] Successfully loaded: ${slug}`);
+            return doc;
           } catch (error) {
-            console.error(`Error loading doc ${slug}:`, error);
+            console.error(`[DocumentationService] Error loading doc ${slug}:`, error);
             return null;
           }
         })
       );
 
-      return docs.filter((doc): doc is DocContent => doc !== null);
+      const validDocs = docs.filter((doc): doc is DocContent => doc !== null);
+      console.log(`[DocumentationService] Successfully loaded ${validDocs.length} of ${docFiles.length} docs`);
+
+      return validDocs;
     } catch (error) {
-      console.error('Error fetching all docs:', error);
+      console.error('[DocumentationService] Error fetching all docs:', error);
       throw error;
     }
   }
 
   private extractFrontmatter(content: string): DocMetadata {
-    const frontmatterRegex = /^---\n([\s\S]*?)\n---/;
-    const match = content.match(frontmatterRegex);
-    if (!match) {
+    try {
+      const frontmatterRegex = /^---\n([\s\S]*?)\n---/;
+      const match = content.match(frontmatterRegex);
+      
+      if (!match) {
+        console.warn('[DocumentationService] No frontmatter found, using default metadata');
+        return this.getDefaultMetadata();
+      }
+
+      const frontmatter = match[1];
+      const metadata: FrontmatterMetadata = {
+        title: '',
+        description: '',
+        author: '',
+        lastUpdated: new Date().toISOString(),
+        tags: [],
+        category: ''
+      };
+      
+      frontmatter.split('\n').forEach(line => {
+        const [key, ...values] = line.split(':');
+        if (key && values.length) {
+          const value = values.join(':').trim();
+          if (key === 'tags') {
+            metadata.tags = value.replace(/[[\]]/g, '').split(',').map(tag => tag.trim());
+          } else {
+            metadata[key.trim()] = value;
+          }
+        }
+      });
+
+      return metadata as DocMetadata;
+    } catch (error) {
+      console.error('[DocumentationService] Error extracting frontmatter:', error);
       return this.getDefaultMetadata();
     }
-
-    const frontmatter = match[1];
-    const metadata: FrontmatterMetadata = {
-      title: '',
-      description: '',
-      author: '',
-      lastUpdated: new Date().toISOString(),
-      tags: [],
-      category: ''
-    };
-    
-    frontmatter.split('\n').forEach(line => {
-      const [key, ...values] = line.split(':');
-      if (key && values.length) {
-        const value = values.join(':').trim();
-        if (key === 'tags') {
-          metadata.tags = value.replace(/[[\]]/g, '').split(',').map(tag => tag.trim());
-        } else {
-          metadata[key.trim()] = value;
-        }
-      }
-    });
-
-    return metadata as DocMetadata;
   }
 
   private getDefaultMetadata(): DocMetadata {
