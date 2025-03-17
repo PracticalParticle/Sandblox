@@ -40,7 +40,7 @@ interface ContractInfo extends BaseContractInfo {
   owner: string;
   broadcaster: string;
   recoveryAddress: string;
-  timeLockPeriod: number;
+  timeLockPeriodInMinutes: number;
 }
 
 // State atoms following .cursorrules state management guidelines
@@ -1284,6 +1284,7 @@ function SimpleVaultUIContent({
                   onNotification={handleNotification}
                   onRefresh={handleRefresh}
                   mode="timelock"
+                  timeLockPeriodInMinutes={contractInfo?.timeLockPeriodInMinutes || 0}
                 />
               ))}
               {filteredPendingTxs.length > 2 && (
@@ -1459,6 +1460,7 @@ function SimpleVaultUIContent({
                                 mode="timelock"
                                 onNotification={addMessage}
                                 connectedAddress={address}
+                                timeLockPeriodInMinutes={contractInfo?.timeLockPeriodInMinutes || 0}
                               />
                             </div>
                           </TabsContent>
@@ -1477,6 +1479,7 @@ function SimpleVaultUIContent({
                                 mode="metatx"
                                 onNotification={addMessage}
                                 connectedAddress={address}
+                                timeLockPeriodInMinutes={contractInfo?.timeLockPeriodInMinutes || 0}
                               />
                             </div>
                           </TabsContent>
@@ -1502,6 +1505,7 @@ function SimpleVaultUIContent({
                           onNotification={handleNotification}
                           onRefresh={handleRefresh}
                           mode="timelock"
+                          timeLockPeriodInMinutes={contractInfo?.timeLockPeriodInMinutes || 0}
                         />
                       ))}
                       {filteredPendingTxs.length > 2 && (
