@@ -161,9 +161,9 @@ export default defineConfig(({ mode }) => {
           entryFileNames: 'assets/[name]-[hash].js',
           chunkFileNames: 'assets/[name]-[hash].js',
           assetFileNames: ({ name }) => {
-            // Keep markdown files in their original location
+            // Keep markdown files in the docs directory structure
             if (name?.endsWith('.md')) {
-              return name;
+              return name.includes('/docs/') ? name.substring(name.indexOf('/docs/')) : `docs/${name}`;
             }
             return 'assets/[name]-[hash][extname]';
           }

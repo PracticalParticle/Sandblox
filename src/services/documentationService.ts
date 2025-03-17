@@ -15,22 +15,17 @@ class DocumentationService {
   private baseUrl: string;
 
   constructor() {
-    // In production, we'll use the absolute path to the docs directory
+    // In production, we'll use the public docs directory
     this.baseUrl = import.meta.env.PROD 
-      ? '/content/docs'  // This will be the public URL path where docs are served
-      : '/docs';        // Local development path
+      ? '/docs'  // This will be the public URL path where docs are served
+      : '/docs';  // Local development path
   }
 
   async getDocContent(slug: string): Promise<DocContent> {
     try {
-      // First try to fetch from the content directory
-      let response = await fetch(`${this.baseUrl}/${slug}.md`);
+      // Try to fetch from the docs directory
+      const response = await fetch(`${this.baseUrl}/${slug}.md`);
       
-      // If that fails and we're in development, try the direct docs path
-      if (!response.ok && import.meta.env.DEV) {
-        response = await fetch(`/docs/${slug}.md`);
-      }
-
       if (!response.ok) {
         throw new Error(`Documentation not found for slug: ${slug}`);
       }
