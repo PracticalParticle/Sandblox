@@ -8,7 +8,12 @@ export function Terms() {
   React.useEffect(() => {
     const fetchContent = async () => {
       try {
-        const response = await fetch('/TERMS.md');
+        // Try the direct path first (for production)
+        let response = await fetch('/TERMS.md');
+        if (!response.ok) {
+          // Fallback to public path (for development)
+          response = await fetch('/public/TERMS.md');
+        }
         const text = await response.text();
         setContent(text);
       } catch (error) {
