@@ -108,7 +108,7 @@ export function BloxContracts() {
         {/* Header */}
         <motion.div variants={item} className="space-y-4">
           <h1 className="text-3xl font-bold tracking-tight">Blox Contracts</h1>
-          <p className="max-w-[750px] text-lg text-muted-foreground text-center mx-auto">
+          <p className="max-w-[750px] text-lg text-muted-foreground text-start ml-0 mx-auto">
             Browse our collection of pre-audited smart contracts. Each contract is
             thoroughly tested and secured with built-in safety features.
           </p>
