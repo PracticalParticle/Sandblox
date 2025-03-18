@@ -1,8 +1,11 @@
+﻿> ⚠️ **WARNING: EXPERIMENTAL SOFTWARE** ⚠️
+> 
+> This repository contains experimental, untested smart contract code. It is not ready for production use and may contain security vulnerabilities. Use at your own risk. Do not use with real assets or in production environments.
+
 # SandBlox
 
 A fast prototyping platform for creating blockchain contracts and applications built on Particle's account abstraction technology.
 
-![SandBlox](public/sandblox-logo.png)
 
 ## What is SandBlox?
 
