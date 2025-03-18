@@ -12,6 +12,7 @@ import { VAULT_OPERATIONS } from "../hooks/useSimpleVaultOperations";
 import { useOperationTypes } from "@/hooks/useOperationTypes";
 import { NotificationMessage } from "../lib/types";
 import { useActionPermissions } from "@/hooks/useActionPermissions";
+import { usePublicClient } from "wagmi"
 
 // Helper function to recursively convert BigInt values to strings
 const convertBigIntsToStrings = (obj: any): any => {
@@ -56,6 +57,7 @@ export interface PendingTransactionsProps {
   mode?: 'timelock' | 'metatx';
   onNotification?: (message: NotificationMessage) => void;
   connectedAddress?: Address;
+  timeLockPeriodInMinutes: number;
 }
 
 export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
@@ -71,7 +73,8 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
   transactions,
   isLoadingTx = false,
   onRefresh,
-  signedMetaTxStates
+  signedMetaTxStates,
+  timeLockPeriodInMinutes
 }) => {
   const [isRefreshing, setIsRefreshing] = React.useState<boolean>(false);
   
@@ -86,6 +89,8 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
     canMetaTxBroadcast,
     isLoading: isLoadingPermissions
   } = useActionPermissions(contractAddress, connectedAddress);
+
+  const publicClient = usePublicClient()
 
   // Refresh pending transactions manually
   const handleRefresh = () => {
@@ -160,6 +165,23 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
   // Handle cancel action
   const handleCancelAction = async (txId: number) => {
     try {
+      if (!publicClient) {
+        throw new Error("Blockchain client not initialized")
+      }
+
+      // Check if we're within the first hour of transaction creation
+      if (transactions[txId]?.releaseTime) {
+        const block = await publicClient.getBlock()
+        const now = Number(block.timestamp)
+        const timeLockPeriodInSeconds = timeLockPeriodInMinutes * 60
+        const startTime = Number(transactions[txId].releaseTime) - timeLockPeriodInSeconds
+        const elapsedTime = now - startTime
+        
+        if (elapsedTime < 3600) { // 3600 seconds = 1 hour
+          throw new Error("Cannot cancel within first hour of creation")
+        }
+      }
+
       if (onCancel) {
         await onCancel(txId);
         onNotification?.({
@@ -253,11 +275,15 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
             const progress = Math.min(((now - (Number(tx.releaseTime) - 24 * 3600)) / (24 * 3600)) * 100, 100);
             const isTimeLockComplete = progress >= 100;
             
+            // Calculate if within first hour
+            const timeLockPeriodInSeconds = timeLockPeriodInMinutes * 60;
+            const startTime = Number(tx.releaseTime) - timeLockPeriodInSeconds;
+            const elapsedTime = now - startTime;
+            const isWithinFirstHour = elapsedTime < 3600;
+
             // Key for meta transaction state
             const approveKey = `${tx.txId}-approve`;
-            //  const cancelKey = `${tx.txId}-cancel`;
             const hasSignedApproval = signedMetaTxStates?.[approveKey]?.type === 'approve';
-            // const hasSignedCancel = signedMetaTxStates?.[cancelKey]?.type === 'cancel';
             
             // Get operation name from hex
             const operationTypeHex = tx.params.operationType as Hex;
@@ -359,16 +385,15 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                 <div className="flex-1">
                                   <Button
                                     onClick={() => handleCancelAction(Number(tx.txId))}
-                                    disabled={!canTimeLockCancel || isLoading || tx.status !== TxStatus.PENDING}
-                                    className={`w-full transition-all duration-200 flex items-center justify-center
+                                    disabled={!canTimeLockCancel || isLoading || tx.status !== TxStatus.PENDING || isWithinFirstHour}
+                                    variant="outline"
+                                    className="w-full transition-all duration-200 flex items-center justify-center
                                       bg-rose-50 text-rose-700 hover:bg-rose-100 
                                       dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
                                       border border-rose-200 dark:border-rose-800
                                       disabled:opacity-50 disabled:cursor-not-allowed 
                                       disabled:bg-slate-50 disabled:text-slate-400 
-                                      disabled:dark:bg-slate-900 disabled:dark:text-slate-500
-                                    `}
-                                    variant="outline"
+                                      disabled:dark:bg-slate-900 disabled:dark:text-slate-500"
                                   >
                                     <X className="h-4 w-4 mr-2" />
                                     <span>Cancel</span>
@@ -378,9 +403,11 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                               <TooltipContent side="bottom">
                                 {!canTimeLockCancel
                                   ? "Only the owner can cancel transactions"
-                                  : tx.status !== TxStatus.PENDING 
-                                    ? "This transaction cannot be cancelled" 
-                                    : "Cancel this withdrawal request"}
+                                  : isWithinFirstHour
+                                    ? "Cannot cancel within first hour of creation"
+                                    : tx.status !== TxStatus.PENDING 
+                                      ? "This transaction cannot be cancelled" 
+                                      : "Cancel this withdrawal request"}
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
@@ -495,6 +522,7 @@ interface SinglePendingTransactionProps {
   mode?: 'timelock' | 'metatx';
   onNotification: (message: NotificationMessage) => void;
   onRefresh?: () => void;
+  timeLockPeriodInMinutes: number;
 }
 
 export const PendingTransaction: React.FC<SinglePendingTransactionProps> = ({
@@ -504,7 +532,8 @@ export const PendingTransaction: React.FC<SinglePendingTransactionProps> = ({
   isLoading,
   contractAddress,
   onNotification,
-  onRefresh
+  onRefresh,
+  timeLockPeriodInMinutes
 }) => {
   // Create a single-item array from the tx prop
   const transactions = [tx];
@@ -520,6 +549,7 @@ export const PendingTransaction: React.FC<SinglePendingTransactionProps> = ({
       transactions={transactions}
       isLoadingTx={false}
       onRefresh={onRefresh}
+      timeLockPeriodInMinutes={timeLockPeriodInMinutes}
     />
   );
 }; 

@@ -5,6 +5,7 @@ import { useSecureContract } from "./useSecureContract"
 // import { broadcastMetaTransaction } from "@/utils/metaTransaction"
 import { TxRecord } from "../particle-core/sdk/typescript/interfaces/lib.index"
 import { Address } from "viem"
+import { usePublicClient } from "wagmi"
 
 interface UseMultiPhaseTemporalActionProps {
   isOpen: boolean
@@ -12,7 +13,7 @@ interface UseMultiPhaseTemporalActionProps {
   onSubmit?: (newValue: string) => Promise<void>
   onApprove?: (txId: number) => Promise<void>
   onCancel?: (txId: number) => Promise<void>
-  pendingTx?: TxRecord & { contractAddress: Address }
+  pendingTx?: TxRecord & { contractAddress: Address, timeLockPeriodInMinutes: number }
   showNewValueInput?: boolean
 }
 
@@ -47,6 +48,7 @@ export function useMultiPhaseTemporalAction({
   const { signBroadcasterUpdateApproval, signTransferOwnershipApproval, signBroadcasterUpdateCancellation, signTransferOwnershipCancellation } = useSecureContract()
   const { storeTransaction } = useTransactionManager(pendingTx?.contractAddress || '')
   const { toast } = useToast()
+  const publicClient = usePublicClient()
 
   // Reset state when dialog opens/closes
   useEffect(() => {
@@ -99,6 +101,22 @@ export function useMultiPhaseTemporalAction({
     if (!onCancel) return
     setIsCancelling(true)
     try {
+      // Check if we're within the first hour of transaction creation
+      if (pendingTx && pendingTx.releaseTime) {
+        if (!publicClient) {
+          throw new Error("Blockchain client not initialized")
+        }
+        const block = await publicClient.getBlock()
+        const now = Number(block.timestamp)
+        const timeLockPeriodInSeconds = pendingTx.timeLockPeriodInMinutes * 60
+        const startTime = Number(pendingTx.releaseTime) - timeLockPeriodInSeconds
+        const elapsedTime = now - startTime
+        
+        if (elapsedTime < 3600) { // 3600 seconds = 1 hour
+          throw new Error("Cannot cancel within first hour of creation")
+        }
+      }
+      
       await onCancel(txId)
       toast({
         title: "Success",

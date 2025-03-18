@@ -83,7 +83,11 @@ export function TemporalActionDialog({
     onSubmit,
     onApprove,
     onCancel,
-    pendingTx: pendingTx ? { ...pendingTx, contractAddress: contractInfo.contractAddress as `0x${string}` } : undefined,
+    pendingTx: pendingTx ? { 
+      ...pendingTx, 
+      contractAddress: contractInfo.contractAddress as `0x${string}`,
+      timeLockPeriodInMinutes: contractInfo.timeLockPeriodInMinutes 
+    } : undefined,
     showNewValueInput
   })
 
