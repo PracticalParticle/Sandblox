@@ -934,8 +934,7 @@ export function SecurityDetails() {
               onConnect={handleConnect}
               navigationIcon={<AppWindow className="h-4 w-4" />}
               navigationTooltip="View Blox Data"
-              navigateTo={`/blox/${contractInfo.type}/${contractAddress}`}
-            />
+              navigateTo={contractInfo?.type ? `/blox/${contractInfo.type}/${contractAddress}` : `/blox/simple-vault/${contractAddress}`}            />
 
             {/* Management Tiles */}
             <div className="grid lg:grid-cols-2 gap-6">
