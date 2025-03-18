@@ -320,8 +320,8 @@ export function DeploymentDialog({ isOpen, onClose, contractId, contractName }: 
                   <p>
                     By deploying this contract, you agree to our 
                     <br />
-                    <a href="/privacy" className="text-blue-500 underline"> Privacy Policy</a> and 
-                    <a href="/terms" className="text-blue-500 underline"> Terms and Conditions</a>.
+                    <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline"> Privacy Policy</a> and 
+                    <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline"> Terms and Conditions</a>.
                   </p>
                 </div>
         </div>
