@@ -43,6 +43,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Input } from "@/components/ui/input"
 import { ContractInfo } from '@/components/ContractInfo'
 import { WalletStatusBadge } from '@/components/WalletStatusBadge'
+import { SignedMetaTxTable } from '@/components/SignedMetaTxTable'
 
 interface ExtendedSignedTransaction {
   txId: string
@@ -111,7 +112,7 @@ export function SecurityDetails() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { transactions = {}, storeTransaction } = useTransactionManager(contractAddress || '')
+  const { transactions = {}, storeTransaction, clearTransactions, removeTransaction } = useTransactionManager(contractAddress || '')
   const [signedTransactions, setSignedTransactions] = useState<ExtendedSignedTransaction[]>([])
   const [contractInfo, setContractInfo] = useState<SecureContractInfo | null>(null)
   const { validateAndLoadContract, updateBroadcaster, approveOperation } = useSecureContract()
@@ -1777,6 +1778,48 @@ export function SecurityDetails() {
 
               
             </div>
+          </motion.div>
+
+          {/* Signed Meta Transactions Table */}
+          <motion.div variants={item} className="mt-6">
+            <SignedMetaTxTable
+              transactions={signedTransactions}
+              onClearAll={() => {
+                try {
+                  clearTransactions();
+                  setSignedTransactions([]);
+                  toast({
+                    title: "Success",
+                    description: "All pending transactions cleared",
+                  });
+                } catch (error) {
+                  console.error('Error clearing transactions:', error);
+                  toast({
+                    title: "Error",
+                    description: "Failed to clear transactions",
+                    variant: "destructive"
+                  });
+                }
+              }}
+              onRemoveTransaction={(txId) => {
+                try {
+                  if (!contractAddress) return;
+                  removeTransaction(txId);
+                  setSignedTransactions(prev => prev.filter(tx => tx.txId !== txId));
+                  toast({
+                    title: "Success",
+                    description: "Transaction removed",
+                  });
+                } catch (error) {
+                  console.error('Error removing transaction:', error);
+                  toast({
+                    title: "Error",
+                    description: "Failed to remove transaction",
+                    variant: "destructive"
+                  });
+                }
+              }}
+            />
           </motion.div>
 
           {/* Operation History Section */}
