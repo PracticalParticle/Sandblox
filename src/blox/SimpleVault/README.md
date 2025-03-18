@@ -10,7 +10,7 @@ A secure, time-locked digital asset vault built on Particle's Account Abstractio
 - **Self-Custody**: Maintain control while adding additional security layers
 - **Multi-Role Access Control**: Separate roles for management, recovery, and operations
 - **Multi-Token Support**: Store both ETH and any ERC20 tokens
-- **Gasless Operations**: Support for meta-transactions to approve withdrawals (paid by broadcaster role)
+- **delegated Operations**: Support for meta-transactions to approve withdrawals (paid by broadcaster role)
 - **Modern UI**: Beautiful React interface for easy management
 
 ## Why SimpleVault?

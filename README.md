@@ -21,7 +21,7 @@ SandBlox leverages Particle's revolutionary account abstraction technology, whic
 
 - **Role-Based Security Model**: Distinct owner, broadcaster, and recovery roles with specific permissions
 - **Time-Delayed Operations**: Mandatory waiting periods for critical actions, enabling intervention
-- **Meta-Transaction Support**: Gasless transactions while maintaining security guarantees
+- **Meta-Transaction Support**: delegated transactions while maintaining security guarantees
 - **Decentralized Control**: Preserves self-custody while enhancing security measures
 
 Unlike traditional accounts where a single compromised key means complete asset loss, Particle's implementation distributes authority across specialized roles and introduces time-based security gates for critical operations.

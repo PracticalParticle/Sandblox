@@ -369,7 +369,7 @@ export function TemporalActionDialog({
                             </div>
                           </TooltipTrigger>
                           <TooltipContent side="bottom">
-                            Approve this request using meta-transactions (gasless)
+                            Approve this request using meta-transactions (delegated)
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>

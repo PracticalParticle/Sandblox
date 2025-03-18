@@ -10,7 +10,7 @@ SimpleVault extends the `SecureOwnable` contract to implement a secure vault for
 
 - **Time-Delayed Operations**: Critical withdrawal operations require a mandatory waiting period before execution
 - **Role-Based Security**: Separation of owner, broadcaster, and recovery roles with distinct permissions
-- **Meta-Transaction Support**: Gasless transaction capabilities while maintaining security guarantees
+- **Meta-Transaction Support**: delegated transaction capabilities while maintaining security guarantees
 - **Multi-Phase Security**: Two-phase operations (request → delayed approval) for withdrawals
 
 ## Core Components
@@ -114,7 +114,7 @@ SimpleVault supports the following operation types:
 
 1. **ETH Withdrawals**
    - Request → time delay → approval workflow
-   - Meta-transaction support for gasless approvals
+   - Meta-transaction support for delegated approvals
    
 2. **Token Withdrawals**
    - Support for any ERC20 token
@@ -128,7 +128,7 @@ SimpleVault supports the following operation types:
 
 ## Meta-Transaction Support
 
-SimpleVault fully supports meta-transactions for gasless operations:
+SimpleVault fully supports meta-transactions for delegated operations:
 
 ```typescript
 async generateUnsignedWithdrawalMetaTxApproval(
