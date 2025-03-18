@@ -46,9 +46,9 @@ export function Navbar() {
                 <DropdownMenuItem asChild>
                   <Link to="/blox-contracts">Contracts</Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
+                {/* <DropdownMenuItem asChild>
                   <Link to="/blockchains">Blockchains</Link>
-                </DropdownMenuItem>
+                </DropdownMenuItem> */}
               </DropdownMenuContent>
             </DropdownMenu>
             <Link
@@ -118,13 +118,13 @@ export function Navbar() {
               >
                 Contracts
               </Link>
-              <Link
+              {/* <Link
                 className="pl-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
                 to="/blockchains"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Blockchains
-              </Link>
+              </Link> */}
               <a
                 className="pl-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground hover-lift"
                 href="/bug-hunt"
