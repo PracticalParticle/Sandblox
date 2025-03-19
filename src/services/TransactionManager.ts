@@ -13,7 +13,7 @@ export interface SignedTransaction {
  * Interface for the contract transactions mapping
  */
 export interface ContractTransactions {
-  [txId: string]: SignedTransaction;
+  [txId: number]: SignedTransaction;
 }
 
 /**
@@ -57,12 +57,62 @@ export class TransactionManager {
   }
 
   /**
+   * Validates transaction data structure
+   */
+  private validateTransactionData(data: unknown): data is TransactionStorage {
+    if (!data || typeof data !== 'object') return false;
+
+    for (const [address, transactions] of Object.entries(data)) {
+      // Validate address
+      if (!this.validateAddress(address)) return false;
+
+      // Validate transactions object
+      if (!transactions || typeof transactions !== 'object') return false;
+
+      for (const [txId, tx] of Object.entries(transactions)) {
+        // Validate transaction ID is a number
+        if (isNaN(Number(txId))) return false;
+
+        // Validate transaction structure
+        if (!tx || typeof tx !== 'object') return false;
+        
+        // Type assertion to access properties safely
+        const transaction = tx as Partial<SignedTransaction>;
+        
+        if (typeof transaction.signedData !== 'string') return false;
+        if (typeof transaction.timestamp !== 'number') return false;
+        if (transaction.metadata !== undefined && (typeof transaction.metadata !== 'object' || transaction.metadata === null)) return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
    * Gets all transaction data from localStorage
    */
   private getTransactionData(): TransactionStorage {
     try {
       const data = localStorage.getItem(this.storageKey);
-      return data ? JSON.parse(data) : {};
+      if (!data) return {};
+
+      const parsedData = JSON.parse(data);
+      if (!this.validateTransactionData(parsedData)) {
+        console.warn('Invalid transaction data found in storage, resetting...');
+        localStorage.removeItem(this.storageKey);
+        return {};
+      }
+
+      // Convert string txIds to numbers
+      const normalizedData: TransactionStorage = {};
+      for (const [address, transactions] of Object.entries(parsedData)) {
+        normalizedData[address] = {};
+        for (const [txId, tx] of Object.entries(transactions)) {
+          normalizedData[address][Number(txId)] = tx;
+        }
+      }
+
+      return normalizedData;
     } catch (error) {
       console.error('Error reading from localStorage:', error);
       throw new Error(TransactionError.SERIALIZATION_ERROR);
@@ -90,7 +140,7 @@ export class TransactionManager {
    */
   public storeSignedTransaction(
     contractAddress: string,
-    txId: string,
+    txId: string | number,
     signedTx: string,
     metadata?: Record<string, unknown>
   ): void {
@@ -98,7 +148,8 @@ export class TransactionManager {
       throw new Error('Invalid contract address');
     }
 
-    if (!txId || !signedTx) {
+    const numericTxId = Number(txId);
+    if (isNaN(numericTxId) || !signedTx) {
       throw new Error(TransactionError.INVALID_DATA);
     }
 
@@ -108,7 +159,7 @@ export class TransactionManager {
       data[contractAddress] = {};
     }
 
-    data[contractAddress][txId] = {
+    data[contractAddress][numericTxId] = {
       signedData: signedTx,
       timestamp: Date.now(),
       metadata
@@ -122,14 +173,19 @@ export class TransactionManager {
    */
   public getSignedTransaction(
     contractAddress: string,
-    txId: string
+    txId: string | number
   ): SignedTransaction | null {
     if (!this.validateAddress(contractAddress)) {
       throw new Error('Invalid contract address');
     }
 
+    const numericTxId = Number(txId);
+    if (isNaN(numericTxId)) {
+      throw new Error(TransactionError.INVALID_DATA);
+    }
+
     const data = this.getTransactionData();
-    return data[contractAddress]?.[txId] || null;
+    return data[contractAddress]?.[numericTxId] || null;
   }
 
   /**
@@ -151,16 +207,21 @@ export class TransactionManager {
    */
   public removeSignedTransaction(
     contractAddress: string,
-    txId: string
+    txId: string | number
   ): void {
     if (!this.validateAddress(contractAddress)) {
       throw new Error('Invalid contract address');
     }
 
+    const numericTxId = Number(txId);
+    if (isNaN(numericTxId)) {
+      throw new Error(TransactionError.INVALID_DATA);
+    }
+
     const data = this.getTransactionData();
     
-    if (data[contractAddress]?.[txId]) {
-      delete data[contractAddress][txId];
+    if (data[contractAddress]?.[numericTxId]) {
+      delete data[contractAddress][numericTxId];
       
       // Remove the contract address if no transactions remain
       if (Object.keys(data[contractAddress]).length === 0) {
