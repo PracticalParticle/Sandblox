@@ -13,16 +13,19 @@ import {
 import { Trash2, AlertCircle, Network } from 'lucide-react'
 import { formatTimestamp } from '@/lib/utils'
 import * as AlertDialog from '@radix-ui/react-alert-dialog'
+import { useOperationTypes } from '@/hooks/useOperationTypes'
+import { Address } from 'viem'
 
 interface ExtendedSignedTransaction {
   txId: string
   signedData: string
   timestamp: number
   metadata?: {
-    type: 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE' | 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE'
+    type: string
     purpose?: 'address_update' | 'ownership_transfer'
     action?: 'approve' | 'cancel'
     broadcasted: boolean
+    operationType?: `0x${string}`
   }
 }
 
@@ -30,6 +33,7 @@ interface SignedMetaTxTableProps {
   transactions: ExtendedSignedTransaction[]
   onClearAll: () => void
   onRemoveTransaction: (txId: string) => void
+  contractAddress: Address
 }
 
 const container = {
@@ -42,27 +46,43 @@ const container = {
   }
 }
 
+export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransaction, contractAddress }: SignedMetaTxTableProps) {
+  const { getOperationName } = useOperationTypes(contractAddress)
 
-const getTypeLabel = (type: string, purpose?: string) => {
-  switch (type) {
-    case 'RECOVERY_UPDATE':
-      return purpose === 'address_update' ? 'Recovery Address Update' : 'Recovery Ownership Transfer'
-    case 'TIMELOCK_UPDATE':
-      return 'TimeLock Period Update'
-    case 'OWNERSHIP_TRANSFER':
-      return 'Ownership Transfer'
-    case 'BROADCASTER_UPDATE':
-      return 'Broadcaster Update'
-    default:
-      return type
-  }
-}
-
-export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransaction }: SignedMetaTxTableProps) {
-  const pendingTransactions = transactions.filter(tx => !tx.metadata?.broadcasted)
+  // Filter out any transactions that have been broadcasted
+  const pendingTransactions = transactions
 
   if (pendingTransactions.length === 0) {
     return null
+  }
+
+  const getTypeLabel = (tx: ExtendedSignedTransaction): string => {
+    // First priority: Check for dynamic operation type
+    if (tx.metadata?.operationType) {
+      const dynamicOpName = getOperationName(tx.metadata.operationType)
+      if (dynamicOpName && dynamicOpName !== 'Unknown Operation') {
+        return dynamicOpName
+      }
+    }
+
+    // Second priority: Handle static operation types
+    if (tx.metadata?.type) {
+      switch (tx.metadata.type) {
+        case 'RECOVERY_UPDATE':
+          return tx.metadata.purpose === 'address_update' ? 'Recovery Address Update' : 'Recovery Ownership Transfer'
+        case 'TIMELOCK_UPDATE':
+          return 'TimeLock Period Update'
+        case 'OWNERSHIP_TRANSFER':
+          return 'Ownership Transfer'
+        case 'BROADCASTER_UPDATE':
+          return 'Broadcaster Update'
+        default:
+          // If it's not a known static type, it might be a dynamic type name
+          return tx.metadata.type
+      }
+    }
+
+    return 'Unknown Operation'
   }
 
   return (
@@ -124,7 +144,7 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
                   <TableCell className="font-medium">{tx.txId}</TableCell>
                   <TableCell>
                     <Badge variant="outline">
-                      {getTypeLabel(tx.metadata?.type || '', tx.metadata?.purpose)}
+                      {getTypeLabel(tx)}
                     </Badge>
                   </TableCell>
                   <TableCell>
