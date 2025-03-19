@@ -450,24 +450,7 @@ export function SecurityDetails() {
     }
   };
 
-  const handleUpdateBroadcasterApproval = async (txId: number) => {
-    try {
-      await approveOperation(contractAddress as `0x${string}`, txId, 'broadcaster');
-      toast({
-        title: "Approval submitted",
-        description: "Broadcaster update approval has been submitted.",
-      });
-      await loadContractInfo();
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to approve broadcaster update.",
-        variant: "destructive"
-      });
-    }
-  }
-
-  const handleUpdateBroadcasterCancellation = async (txId: number) => {
+  const handleApproveOperation = async (txId: number) => {
     try {
       if (!contractInfo || !connectedAddress || !contractAddress || !publicClient || !walletClient) {
         toast({
@@ -483,7 +466,7 @@ export function SecurityDetails() {
         throw new Error('Chain not found');
       }
 
-      // Create contract instance
+      // Create contract instance to get operation types
       const contract = new SecureOwnable(
         publicClient,
         walletClient,
@@ -491,24 +474,43 @@ export function SecurityDetails() {
         chain
       );
 
-      // Execute the direct cancellation since we're the owner
-      const result = await contract.updateBroadcasterCancellation(
-        BigInt(txId),
-        { from: connectedAddress as `0x${string}` }
+      // Get supported operation types
+      const supportedTypes = await contract.getSupportedOperationTypes();
+      const typeMap = new Map(
+        supportedTypes.map(({ operationType, name }) => [operationType, name])
       );
 
-      await result.wait();
+      // Find the transaction in operation history
+      const tx = contractInfo.operationHistory.find((tx: TxRecord) => tx.txId === BigInt(txId));
+      if (!tx) {
+        throw new Error('Transaction not found');
+      }
 
+      // Get operation name and determine type
+      const operationName = typeMap.get(tx.params.operationType);
+      let operationType: 'ownership' | 'broadcaster';
+      
+      if (operationName?.includes('OWNERSHIP')) {
+        operationType = 'ownership';
+      } else if (operationName?.includes('BROADCASTER')) {
+        operationType = 'broadcaster';
+      } else {
+        throw new Error('Unsupported operation type');
+      }
+
+      await approveOperation(contractAddress as `0x${string}`, txId, operationType);
+      
       toast({
-        title: "Cancellation submitted",
-        description: "Broadcaster update cancellation has been submitted.",
+        title: "Success",
+        description: "Operation approved successfully",
       });
+
       await loadContractInfo();
     } catch (error) {
-      console.error('Error in broadcaster update cancellation:', error);
+      console.error('Error approving operation:', error);
       toast({
         title: "Error",
-        description: "Failed to cancel broadcaster update.",
+        description: error instanceof Error ? error.message : "Failed to approve operation",
         variant: "destructive"
       });
     }
@@ -821,6 +823,53 @@ export function SecurityDetails() {
       });
     }
   };
+
+  const handleUpdateBroadcasterCancellation = async (txId: number) => {
+    try {
+      if (!contractInfo || !connectedAddress || !contractAddress || !publicClient || !walletClient) {
+        toast({
+          title: "Error",
+          description: "Missing required information",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const chain = config.chains.find((c) => c.id === contractInfo.chainId);
+      if (!chain) {
+        throw new Error('Chain not found');
+      }
+
+      // Create contract instance
+      const contract = new SecureOwnable(
+        publicClient,
+        walletClient,
+        contractAddress as `0x${string}`,
+        chain
+      );
+
+      // Execute the direct cancellation since we're the owner
+      const result = await contract.updateBroadcasterCancellation(
+        BigInt(txId),
+        { from: connectedAddress as `0x${string}` }
+      );
+
+      await result.wait();
+
+      toast({
+        title: "Cancellation submitted",
+        description: "Broadcaster update cancellation has been submitted.",
+      });
+      await loadContractInfo();
+    } catch (error) {
+      console.error('Error in broadcaster update cancellation:', error);
+      toast({
+        title: "Error",
+        description: "Failed to cancel broadcaster update.",
+        variant: "destructive"
+      });
+    }
+  }
 
   if (!contractAddress || error) {
     return (
@@ -1359,7 +1408,7 @@ export function SecurityDetails() {
                                 newValueLabel="New Broadcaster Address"
                                 newValuePlaceholder="Enter new broadcaster address"
                                 onSubmit={handleUpdateBroadcasterRequest}
-                                onApprove={handleUpdateBroadcasterApproval}
+                                onApprove={handleApproveOperation}
                                 onCancel={handleUpdateBroadcasterCancellation}
                               />
                             </>
@@ -1829,6 +1878,8 @@ export function SecurityDetails() {
               operations={contractInfo?.operationHistory || []}
               isLoading={loading}
               contractInfo={contractInfo}
+              onApprove={handleApproveOperation}
+              onCancel={handleUpdateBroadcasterCancellation}
             />
           </motion.div>
         </motion.div>

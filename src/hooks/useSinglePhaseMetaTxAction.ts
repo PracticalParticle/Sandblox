@@ -1,16 +1,17 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useToast } from "@/components/ui/use-toast"
 
 interface UseSinglePhaseMetaTxActionProps {
   isOpen: boolean
   onSubmit?: (newValue: string) => Promise<void>
-  onNewValueChange: (value: string) => void
-  newValue: string
+  onNewValueChange?: (value: string) => void
+  newValue?: string
   validateNewValue?: (value: string) => { isValid: boolean; message?: string }
 }
 
 interface UseSinglePhaseMetaTxActionState {
   validationResult: { isValid: boolean; message?: string }
+  isSigning: boolean
 }
 
 interface UseSinglePhaseMetaTxActionActions {
@@ -27,15 +28,17 @@ export function useSinglePhaseMetaTxAction({
   isOpen,
   onSubmit,
   onNewValueChange,
-  newValue,
+  newValue = "",
   validateNewValue,
 }: UseSinglePhaseMetaTxActionProps): UseSinglePhaseMetaTxActionState & UseSinglePhaseMetaTxActionActions {
   const { toast } = useToast()
+  const [isSigning, setIsSigning] = useState(false)
 
   // Reset state when dialog opens/closes
   useEffect(() => {
     if (!isOpen) {
-      onNewValueChange("")
+      onNewValueChange?.("")
+      setIsSigning(false)
     }
   }, [isOpen, onNewValueChange])
 
@@ -44,6 +47,7 @@ export function useSinglePhaseMetaTxAction({
     if (!onSubmit) return
 
     try {
+      setIsSigning(true)
       await onSubmit(newValue)
     } catch (error: any) {
       toast({
@@ -51,6 +55,8 @@ export function useSinglePhaseMetaTxAction({
         description: error.message || "Failed to submit request",
         variant: "destructive",
       })
+    } finally {
+      setIsSigning(false)
     }
   }
 
@@ -84,6 +90,7 @@ export function useSinglePhaseMetaTxAction({
   return {
     // State
     validationResult,
+    isSigning,
     // Actions
     handleSubmit,
     getRoleAddress,
