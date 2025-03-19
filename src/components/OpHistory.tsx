@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index'
 import { TxStatus } from '../particle-core/sdk/typescript/types/lib.index'
-import { Address, Hex } from 'viem'
+import { Hex } from 'viem'
 import { formatTimestamp } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Badge } from './ui/badge'
@@ -16,6 +16,7 @@ import {
 } from "./ui/table"
 import { Loader2, Clock, CheckCircle2, XCircle, AlertTriangle, Filter } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import { useAccount } from 'wagmi'
 
 import {
   Select,
@@ -26,6 +27,8 @@ import {
 } from "@/components/ui/select"
 import { TxDetailsDialog } from './TxDetailsDialog'
 import { useOperationHistory, statusToHuman } from '@/hooks/useOperationHistory'
+import { SecureContractInfo } from '@/lib/types'
+import { useOperationTypes } from '@/hooks/useOperationTypes'
 
 // Status badge variants mapping
 const statusVariants: { [key: number]: { variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode } } = {
@@ -68,13 +71,17 @@ function PendingBadge({ record, contractInfo }: { record: TxRecord, contractInfo
 }
 
 interface OpHistoryProps {
-  contractAddress: Address
+  contractAddress: `0x${string}`
   operations: TxRecord[]
-  isLoading?: boolean
-  contractInfo: {
-    timeLockPeriodInMinutes: number
-    [key: string]: any
-  }
+  isLoading: boolean
+  contractInfo: SecureContractInfo
+  onApprove?: (txId: number) => Promise<void>
+  onCancel?: (txId: number) => Promise<void>
+  onSubmit?: (newValue: string) => Promise<void>
+  onNewValueChange?: (value: string) => void
+  newValue?: string
+  validateNewValue?: (value: string) => { isValid: boolean; message: string }
+  isSigning?: boolean
 }
 
 const container = {
@@ -87,18 +94,27 @@ const container = {
   }
 }
 
-export function OpHistory({ contractAddress, operations, isLoading = false, contractInfo }: OpHistoryProps) {
+export function OpHistory({
+  contractAddress,
+  operations,
+  isLoading,
+  contractInfo,
+  onApprove,
+  onCancel,
+  onSubmit,
+  onNewValueChange,
+  newValue,
+  validateNewValue,
+  isSigning
+}: OpHistoryProps) {
+  const { address: connectedAddress } = useAccount()
+  
   const {
     filteredOperations,
     statusFilter,
     operationTypeFilter,
     setStatusFilter,
     setOperationTypeFilter,
-    selectedRecord,
-    isDetailsOpen,
-    setIsDetailsOpen,
-    handleRowClick,
-    getOperationName,
     operationTypes,
     loadingTypes
   } = useOperationHistory({
@@ -106,6 +122,15 @@ export function OpHistory({ contractAddress, operations, isLoading = false, cont
     operations,
     isLoading
   })
+
+  const [selectedTx, setSelectedTx] = useState<TxRecord | null>(null)
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false)
+  const { getOperationName: operationTypesGetOperationName } = useOperationTypes(contractAddress)
+
+  const handleRowClick = (record: TxRecord) => {
+    setSelectedTx(record)
+    setIsDetailsOpen(true)
+  }
 
   if (isLoading || loadingTypes) {
     return (
@@ -187,7 +212,7 @@ export function OpHistory({ contractAddress, operations, isLoading = false, cont
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">
-                      {getOperationName(record.params.operationType as Hex)}
+                      {operationTypesGetOperationName(record.params.operationType as Hex)}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -224,10 +249,19 @@ export function OpHistory({ contractAddress, operations, isLoading = false, cont
           </Table>
 
           <TxDetailsDialog
-            record={selectedRecord}
             isOpen={isDetailsOpen}
             onOpenChange={setIsDetailsOpen}
-            operationName={selectedRecord ? getOperationName(selectedRecord.params.operationType as Hex) : ''}
+            record={selectedTx}
+            operationName={selectedTx ? operationTypesGetOperationName(selectedTx.params.operationType as Hex) : ''}
+            contractInfo={contractInfo}
+            connectedAddress={connectedAddress}
+            onApprove={onApprove}
+            onCancel={onCancel}
+            onSubmit={onSubmit}
+            onNewValueChange={onNewValueChange}
+            newValue={newValue}
+            validateNewValue={validateNewValue}
+            isSigning={isSigning}
           />
         </CardContent>
       </Card>
