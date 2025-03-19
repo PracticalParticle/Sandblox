@@ -4,26 +4,19 @@ import { useState, useEffect } from 'react'
 import { Loader2, ChevronDown, ChevronUp } from 'lucide-react'
 import { getContractDetails, getContractCode } from '../lib/catalog'
 import type { BloxContract } from '../lib/catalog/types'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import Prism from 'prismjs'
+import 'prismjs/components/prism-solidity'
+import 'prismjs/themes/prism-tomorrow.css'
 import { DeploymentDialog } from '../components/DeploymentDialog'
 import { Button } from '../components/ui/button'
 
-// Custom dark theme that matches our UI
-const codeTheme = {
-  ...vscDarkPlus,
-  'pre[class*="language-"]': {
-    ...vscDarkPlus['pre[class*="language-"]'],
-    background: 'transparent',
-    margin: 0,
-    padding: 0,
-  },
-  'code[class*="language-"]': {
-    ...vscDarkPlus['code[class*="language-"]'],
-    background: 'transparent',
-    fontSize: '0.875rem',
-    lineHeight: '1.5',
-  },
+// Custom styles for the code block
+const codeBlockStyle = {
+  background: 'transparent',
+  fontSize: '0.875rem',
+  lineHeight: 1.5,
+  margin: 0,
+  padding: 0,
 }
 
 export function ContractDetails() {
@@ -48,6 +41,10 @@ export function ContractDetails() {
         .then(([details, code]) => {
           setContract(details)
           setContractCode(code)
+          // Highlight the code after it's loaded
+          setTimeout(() => {
+            Prism.highlightAll()
+          }, 0)
         })
         .catch(err => {
           console.error(err)
@@ -181,20 +178,11 @@ export function ContractDetails() {
                 isCodeExpanded ? '' : 'max-h-[360px]'
               }`}
             >
-              <SyntaxHighlighter
-                language="solidity"
-                style={codeTheme}
-                customStyle={{
-                  background: 'transparent',
-                  margin: 0,
-                  padding: 0,
-                  height: '100%',
-                }}
-                showLineNumbers
-                wrapLongLines={false}
-              >
-                {contractCode}
-              </SyntaxHighlighter>
+              <pre style={codeBlockStyle}>
+                <code className="language-solidity">
+                  {contractCode}
+                </code>
+              </pre>
             </div>
             {!isCodeExpanded && (
               <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-card to-transparent pointer-events-none" />

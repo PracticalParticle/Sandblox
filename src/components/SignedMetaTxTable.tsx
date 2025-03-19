@@ -13,7 +13,6 @@ import {
 import { Trash2, AlertCircle, Network } from 'lucide-react'
 import { formatTimestamp } from '@/lib/utils'
 import * as AlertDialog from '@radix-ui/react-alert-dialog'
-import { cn } from '@/lib/utils'
 
 interface ExtendedSignedTransaction {
   txId: string
@@ -43,10 +42,6 @@ const container = {
   }
 }
 
-const item = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0 }
-}
 
 const getTypeLabel = (type: string, purpose?: string) => {
   switch (type) {
