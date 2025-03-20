@@ -29,7 +29,7 @@ interface UseMultiPhaseTemporalActionActions {
   handleSubmit: (e: React.FormEvent) => Promise<void>
   handleApprove: (txId: number) => Promise<void>
   handleCancel: (txId: number) => Promise<void>
-  handleMetaTxSign: (type: 'approve' | 'cancel', metaTxType: 'broadcaster' | 'ownership') => Promise<void>
+  handleMetaTxSign: (type: 'approve' | 'cancel', metaTxType: 'broadcaster' | 'ownership' | 'recovery' | 'timelock') => Promise<void>
 }
 
 export function useMultiPhaseTemporalAction({
@@ -133,7 +133,7 @@ export function useMultiPhaseTemporalAction({
     }
   }
 
-  const handleMetaTxSign = async (type: 'approve' | 'cancel', metaTxType: 'broadcaster' | 'ownership') => {
+  const handleMetaTxSign = async (type: 'approve' | 'cancel', metaTxType: 'broadcaster' | 'ownership' | 'recovery' | 'timelock') => {
     console.log('handleMetaTxSign', type, metaTxType);
     setIsSigning(true)
     try {
@@ -145,11 +145,32 @@ export function useMultiPhaseTemporalAction({
         throw new Error('Contract address is required for storing meta transactions');
       }
 
+      // Map the metaTxType to the correct transaction type for metadata
+      let transactionType: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE';
+      
+      switch (metaTxType) {
+        case 'ownership':
+          transactionType = 'OWNERSHIP_TRANSFER';
+          break;
+        case 'broadcaster':
+          transactionType = 'BROADCASTER_UPDATE';
+          break;
+        case 'recovery':
+          transactionType = 'RECOVERY_UPDATE';
+          break;
+        case 'timelock':
+          transactionType = 'TIMELOCK_UPDATE';
+          break;
+        default:
+          // Fallback to OWNERSHIP_TRANSFER if unknown type
+          transactionType = 'OWNERSHIP_TRANSFER';
+      }
+
       if (metaTxType === 'broadcaster' && type === 'approve') {
         await signBroadcasterUpdateApproval(pendingTx?.contractAddress, txId, 
           (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
             ...metadata, 
-            type: 'BROADCASTER_UPDATE', 
+            type: 'BROADCASTER_UPDATE',
             action: type,
             broadcasted: false 
           })
@@ -158,25 +179,25 @@ export function useMultiPhaseTemporalAction({
         await signBroadcasterUpdateCancellation(pendingTx?.contractAddress, txId, 
           (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
             ...metadata, 
-            type: 'BROADCASTER_UPDATE', 
+            type: 'BROADCASTER_UPDATE',
             action: type,
             broadcasted: false 
           })
         );
-      } else if (metaTxType === 'ownership' && type === 'approve') {
+      } else if ((metaTxType === 'ownership' || metaTxType === 'recovery' || metaTxType === 'timelock') && type === 'approve') {
         await signTransferOwnershipApproval(pendingTx?.contractAddress, txId, 
           (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
             ...metadata, 
-            type: 'OWNERSHIP_TRANSFER', 
+            type: transactionType,
             action: type,
             broadcasted: false 
           })
         );
-      } else if (metaTxType === 'ownership' && type === 'cancel') {
+      } else if ((metaTxType === 'ownership' || metaTxType === 'recovery' || metaTxType === 'timelock') && type === 'cancel') {
         await signTransferOwnershipCancellation(pendingTx?.contractAddress, txId, 
           (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
             ...metadata, 
-            type: 'OWNERSHIP_TRANSFER', 
+            type: transactionType,
             action: type,
             broadcasted: false 
           })

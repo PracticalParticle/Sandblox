@@ -14,7 +14,11 @@ import { Trash2, AlertCircle, Network } from 'lucide-react'
 import { formatTimestamp } from '@/lib/utils'
 import * as AlertDialog from '@radix-ui/react-alert-dialog'
 import { useOperationTypes } from '@/hooks/useOperationTypes'
-import { Address } from 'viem'
+import { Address, Hex } from 'viem'
+import { useState } from 'react'
+import { TxDetailsDialog } from './TxDetailsDialog'
+import { TxStatus, ExecutionType } from '../particle-core/sdk/typescript/types/lib.index'
+import { TxRecord, TxParams, PaymentDetails } from '../particle-core/sdk/typescript/interfaces/lib.index'
 
 interface ExtendedSignedTransaction {
   txId: string
@@ -34,6 +38,18 @@ interface SignedMetaTxTableProps {
   onClearAll: () => void
   onRemoveTransaction: (txId: string) => void
   contractAddress: Address
+  contractInfo: {
+    contractAddress: string
+    timeLockPeriodInMinutes: number
+    chainId: number
+    chainName: string
+    broadcaster: string
+    owner: string
+    recoveryAddress: string
+    [key: string]: any
+  }
+  connectedAddress?: Address
+  onBroadcast?: (txId: string, actionType?: string) => Promise<void>
 }
 
 const container = {
@@ -46,11 +62,21 @@ const container = {
   }
 }
 
-export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransaction, contractAddress }: SignedMetaTxTableProps) {
+export function SignedMetaTxTable({ 
+  transactions, 
+  onClearAll, 
+  onRemoveTransaction, 
+  contractAddress, 
+  contractInfo,
+  connectedAddress,
+  onBroadcast
+}: SignedMetaTxTableProps) {
   const { getOperationName } = useOperationTypes(contractAddress)
+  const [selectedTx, setSelectedTx] = useState<ExtendedSignedTransaction | null>(null)
+  const [detailsOpen, setDetailsOpen] = useState(false)
 
   // Filter out any transactions that have been broadcasted
-  const pendingTransactions = transactions
+  const pendingTransactions = transactions.filter(tx => !tx.metadata?.broadcasted)
 
   if (pendingTransactions.length === 0) {
     return null
@@ -76,6 +102,8 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
           return 'Ownership Transfer'
         case 'BROADCASTER_UPDATE':
           return 'Broadcaster Update'
+        case 'RECOVERY_ADDRESS_UPDATE':
+          return 'Recovery Address Update'
         default:
           // If it's not a known static type, it might be a dynamic type name
           return tx.metadata.type
@@ -83,6 +111,65 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
     }
 
     return 'Unknown Operation'
+  }
+
+  // Handle row click to show transaction details
+  const handleRowClick = (tx: ExtendedSignedTransaction) => {
+    setSelectedTx(tx)
+    setDetailsOpen(true)
+  }
+
+  // Handle broadcasting of a transaction
+  const handleBroadcast = async () => {
+    if (!selectedTx || !onBroadcast) return
+    
+    try {
+      // Extract type from metadata or use a default value
+      const actionType = selectedTx.metadata?.type || getTypeLabel(selectedTx)
+      await onBroadcast(selectedTx.txId, actionType)
+      
+      // The parent component will handle removing the transaction from storage
+      // and updating its state. We just need to close the dialog.
+      setDetailsOpen(false)
+      // Clear the selected transaction
+      setSelectedTx(null)
+    } catch (error) {
+      console.error('Error broadcasting transaction:', error)
+    }
+  }
+
+  // Convert to TxRecord format expected by TxDetailsDialog
+  const convertToTxRecord = (tx: ExtendedSignedTransaction): TxRecord | null => {
+    if (!tx) return null
+    
+    // Create a TxRecord object from the signed transaction data
+    const params: TxParams = {
+      requester: contractInfo.owner as Address,
+      target: contractInfo.contractAddress as Address,
+      value: BigInt(0),
+      gasLimit: BigInt(300000),
+      operationType: (tx.metadata?.operationType || '0x00000000') as Hex,
+      executionType: ExecutionType.RAW,
+      executionOptions: '0x' as Hex
+    }
+
+    const payment: PaymentDetails = {
+      recipient: '0x0000000000000000000000000000000000000000' as Address,
+      nativeTokenAmount: BigInt(0),
+      erc20TokenAddress: '0x0000000000000000000000000000000000000000' as Address,
+      erc20TokenAmount: BigInt(0)
+    }
+
+    // For signed meta transactions, ensure they are correctly identified
+    // as pending and already signed (result is '0x')
+    return {
+      txId: BigInt(tx.txId),
+      releaseTime: BigInt(tx.timestamp),
+      status: TxStatus.PENDING,
+      params,
+      result: '0x' as Hex,
+      payment
+    }
   }
 
   return (
@@ -140,7 +227,11 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
             </TableHeader>
             <TableBody>
               {pendingTransactions.map((tx) => (
-                <TableRow key={tx.txId}>
+                <TableRow 
+                  key={tx.txId} 
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => handleRowClick(tx)}
+                >
                   <TableCell className="font-medium">{tx.txId}</TableCell>
                   <TableCell>
                     <Badge variant="outline">
@@ -162,7 +253,14 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
                   <TableCell className="text-right">
                     <AlertDialog.Root>
                       <AlertDialog.Trigger asChild>
-                        <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent row click when clicking delete button
+                          }}
+                        >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </AlertDialog.Trigger>
@@ -180,7 +278,15 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
                               <Button variant="outline" className="mt-2 sm:mt-0">Cancel</Button>
                             </AlertDialog.Cancel>
                             <AlertDialog.Action asChild>
-                              <Button variant="destructive" onClick={() => onRemoveTransaction(tx.txId)}>Remove</Button>
+                              <Button 
+                                variant="destructive" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onRemoveTransaction(tx.txId);
+                                }}
+                              >
+                                Remove
+                              </Button>
                             </AlertDialog.Action>
                           </div>
                         </AlertDialog.Content>
@@ -193,6 +299,8 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
           </Table>
         </CardContent>
       </Card>
+
+     
     </motion.div>
   )
 } 

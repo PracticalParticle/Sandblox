@@ -132,7 +132,8 @@ export function useMetaTxActions(
             type: 'WITHDRAWAL_APPROVAL',
             timestamp: Date.now(),
             action: type,
-            broadcasted: false
+            broadcasted: false,
+            status: 'PENDING'
           }
         );
 

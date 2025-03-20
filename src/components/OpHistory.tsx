@@ -29,6 +29,12 @@ import { TxDetailsDialog } from './TxDetailsDialog'
 import { useOperationHistory, statusToHuman } from '@/hooks/useOperationHistory'
 import { SecureContractInfo } from '@/lib/types'
 import { useOperationTypes } from '@/hooks/useOperationTypes'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 // Status badge variants mapping
 const statusVariants: { [key: number]: { variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode } } = {
@@ -75,6 +81,16 @@ interface OpHistoryProps {
   operations: TxRecord[]
   isLoading: boolean
   contractInfo: SecureContractInfo
+  signedTransactions?: {
+    txId: string
+    timestamp: number
+    metadata?: {
+      type: string
+      action?: 'approve' | 'cancel'
+      broadcasted: boolean
+      status?: 'COMPLETED' | 'PENDING'
+    }
+  }[]
   onApprove?: (txId: number) => Promise<void>
   onCancel?: (txId: number) => Promise<void>
   onSubmit?: (newValue: string) => Promise<void>
@@ -82,6 +98,7 @@ interface OpHistoryProps {
   newValue?: string
   validateNewValue?: (value: string) => { isValid: boolean; message: string }
   isSigning?: boolean
+  showMetaTxOption?: boolean
 }
 
 const container = {
@@ -99,13 +116,15 @@ export function OpHistory({
   operations,
   isLoading,
   contractInfo,
+  signedTransactions = [],
   onApprove,
   onCancel,
   onSubmit,
   onNewValueChange,
   newValue,
   validateNewValue,
-  isSigning
+  isSigning,
+  showMetaTxOption
 }: OpHistoryProps) {
   const { address: connectedAddress } = useAccount()
   
@@ -130,6 +149,13 @@ export function OpHistory({
   const handleRowClick = (record: TxRecord) => {
     setSelectedTx(record)
     setIsDetailsOpen(true)
+  }
+
+  // Determine if this is an ownership operation
+  const isOwnershipOperation = (record: TxRecord | null): boolean => {
+    if (!record) return false;
+    const operationName = operationTypesGetOperationName(record.params.operationType as Hex);
+    return operationName.toLowerCase().includes('ownership');
   }
 
   if (isLoading || loadingTypes) {
@@ -201,7 +227,29 @@ export function OpHistory({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredOperations.map((record) => (
+              {filteredOperations.map((record) => {
+                // Check if there's a signed transaction for this record
+                const hasPendingSignature = signedTransactions?.some(
+                  tx => tx.txId === record.txId.toString() && 
+                       tx.metadata?.status === 'PENDING' && 
+                       !tx.metadata?.broadcasted
+                );
+                
+                // Find the matching signed transaction for tooltip details
+                const matchingSignedTx = hasPendingSignature ? signedTransactions?.find(
+                  tx => tx.txId === record.txId.toString() && 
+                       tx.metadata?.status === 'PENDING' && 
+                       !tx.metadata?.broadcasted
+                ) : null;
+                
+                const action = matchingSignedTx?.metadata?.action;
+                const isApprove = action === 'approve';
+                
+                // Check if the transaction is completed based on both record status and signed transaction metadata
+                const isCompleted = record.status === TxStatus.COMPLETED || 
+                                  (matchingSignedTx?.metadata?.status === 'COMPLETED' && matchingSignedTx?.metadata?.broadcasted);
+                
+                return (
                 <TableRow 
                   key={record.txId.toString()}
                   className="cursor-pointer hover:bg-muted/50 transition-colors"
@@ -216,8 +264,48 @@ export function OpHistory({
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {record.status === TxStatus.PENDING ? (
-                      <PendingBadge record={record} contractInfo={contractInfo} />
+                    {record.status === TxStatus.PENDING && !isCompleted ? (
+                      <div className="flex flex-col gap-2">
+                        <PendingBadge record={record} contractInfo={contractInfo} />
+                        
+                        {/* Show signature indicator for pending transactions with signed meta tx */}
+                        {hasPendingSignature && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge 
+                                  variant="secondary" 
+                                  className={`${isApprove ? 'bg-blue-500/10 text-blue-500 hover:bg-blue-500/20' : 'bg-orange-500/10 text-orange-500 hover:bg-orange-500/20'} flex items-center gap-1 w-fit`}
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+                                    <path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                    <path d="M14.5 9.5 16 8" />
+                                    <path d="m9.5 14.5-1.5 1.5" />
+                                    <path d="M9.5 9.5 8 8" />
+                                    <path d="m14.5 14.5 1.5 1.5" />
+                                    <path d="M20 12h1" />
+                                    <path d="M3 12h1" />
+                                    <path d="M12 20v1" />
+                                    <path d="M12 3v1" />
+                                  </svg>
+                                  Signed {action === 'approve' ? 'Approval' : 'Cancellation'}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent side="right" className="max-w-xs">
+                                <div className="space-y-1">
+                                  <p className="font-medium">Signature Details</p>
+                                  <p className="text-xs">
+                                    Type: {matchingSignedTx?.metadata?.type || 'Unknown'} <br />
+                                    Action: {action || 'Unknown'} <br />
+                                    Status: Pending broadcast <br />
+                                    Signed at: {matchingSignedTx?.timestamp ? formatTimestamp(matchingSignedTx.timestamp / 1000) : 'Unknown'}
+                                  </p>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </div>
                     ) : (
                       <Badge 
                         variant={statusVariants[record.status]?.variant || "outline"}
@@ -237,7 +325,7 @@ export function OpHistory({
                     </Badge>
                   </TableCell>
                 </TableRow>
-              ))}
+              )})}
               {filteredOperations.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground">
@@ -248,21 +336,6 @@ export function OpHistory({
             </TableBody>
           </Table>
 
-          <TxDetailsDialog
-            isOpen={isDetailsOpen}
-            onOpenChange={setIsDetailsOpen}
-            record={selectedTx}
-            operationName={selectedTx ? operationTypesGetOperationName(selectedTx.params.operationType as Hex) : ''}
-            contractInfo={contractInfo}
-            connectedAddress={connectedAddress}
-            onApprove={onApprove}
-            onCancel={onCancel}
-            onSubmit={onSubmit}
-            onNewValueChange={onNewValueChange}
-            newValue={newValue}
-            validateNewValue={validateNewValue}
-            isSigning={isSigning}
-          />
         </CardContent>
       </Card>
     </motion.div>

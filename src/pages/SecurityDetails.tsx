@@ -54,6 +54,8 @@ interface ExtendedSignedTransaction {
     purpose?: 'address_update' | 'ownership_transfer'
     action?: 'approve' | 'cancel'
     broadcasted: boolean
+    operationType?: `0x${string}`
+    status?: 'COMPLETED' | 'PENDING'
   }
 }
 
@@ -799,16 +801,39 @@ export function SecurityDetails() {
       );
       console.log('txHash', txHash);
       toast({
-        title: "Success",
-        description: "Transaction signed and stored",
+        title: "Transaction Submitted",
+        description: "Transaction has been submitted to the network",
       });
+      
       // Wait for transaction confirmation
       await publicClient?.waitForTransactionReceipt({ hash: txHash });
 
-      // Update the transaction metadata to mark as broadcasted
+      // Update the transaction metadata to mark as broadcasted and completed
       storeTransaction(pendingTx.txId, pendingTx.signedData, {
         ...pendingTx.metadata,
-        broadcasted: true
+        broadcasted: true,
+        status: 'COMPLETED'
+      });
+      
+      // Also update local state directly
+      setSignedTransactions(prev => 
+        prev.map(tx => 
+          tx.txId === pendingTx.txId 
+            ? {
+                ...tx,
+                metadata: {
+                  ...tx.metadata,
+                  broadcasted: true,
+                  status: 'COMPLETED'
+                }
+              } as ExtendedSignedTransaction
+            : tx
+        )
+      );
+
+      toast({
+        title: "Transaction Confirmed",
+        description: "Transaction has been confirmed by the network",
       });
 
       // Reload contract info after broadcast
@@ -1771,7 +1796,7 @@ export function SecurityDetails() {
                                               <Key className="h-3 w-3 mr-1" />
                                               Recovery
                                             </Badge>
-                                            <span className="text-sm">approval required</span>
+                                              <span className="text-sm">approval required</span>
                                           </div>
                                         )}
                                       </div>
@@ -1835,35 +1860,69 @@ export function SecurityDetails() {
               transactions={signedTransactions}
               onClearAll={() => {
                 try {
-                  clearTransactions();
-                  setSignedTransactions([]);
+                  clearTransactions()
+                  setSignedTransactions([])
                   toast({
                     title: "Success",
                     description: "All pending transactions cleared",
-                  });
+                  })
                 } catch (error) {
-                  console.error('Error clearing transactions:', error);
+                  console.error('Error clearing transactions:', error)
                   toast({
                     title: "Error",
                     description: "Failed to clear transactions",
                     variant: "destructive"
-                  });
+                  })
                 }
               }}
               onRemoveTransaction={(txId) => {
                 try {
-                  if (!contractAddress) return;
-                  removeTransaction(txId);
-                  setSignedTransactions(prev => prev.filter(tx => tx.txId !== txId));
+                  if (!contractAddress) return
+                  removeTransaction(txId)
+                  setSignedTransactions(prev => prev.filter(tx => tx.txId !== txId))
                   toast({
                     title: "Success",
                     description: "Transaction removed",
-                  });
+                  })
                 } catch (error) {
-                  console.error('Error removing transaction:', error);
+                  console.error('Error removing transaction:', error)
                   toast({
                     title: "Error",
                     description: "Failed to remove transaction",
+                    variant: "destructive"
+                  })
+                }
+              }}
+              contractAddress={contractAddress as `0x${string}`}
+              contractInfo={{
+                contractAddress: contractAddress || '',
+                timeLockPeriodInMinutes: contractInfo?.timeLockPeriodInMinutes || 0,
+                chainId: contractInfo?.chainId || 0,
+                chainName: contractInfo?.chainName || '',
+                broadcaster: contractInfo?.broadcaster || '',
+                owner: contractInfo?.owner || '',
+                recoveryAddress: contractInfo?.recoveryAddress || ''
+              }}
+              connectedAddress={connectedAddress as `0x${string}`}
+              onBroadcast={async (txId, actionType) => {
+                try {
+                  if (!actionType) return;
+                  await handleBroadcast(actionType as 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'RECOVERY_ADDRESS_UPDATE' | 'TIMELOCK_UPDATE');
+                  
+                  // Remove the transaction from the local state after broadcasting
+                  removeTransaction(txId);
+                  
+                  // The UI will automatically update as we filter out broadcasted transactions
+                  
+                  toast({
+                    title: "Success",
+                    description: "Transaction broadcasted successfully",
+                  });
+                } catch (error) {
+                  console.error('Error broadcasting transaction:', error);
+                  toast({
+                    title: "Error",
+                    description: "Failed to broadcast transaction",
                     variant: "destructive"
                   });
                 }
@@ -1878,6 +1937,7 @@ export function SecurityDetails() {
               operations={contractInfo?.operationHistory || []}
               isLoading={loading}
               contractInfo={contractInfo}
+              signedTransactions={signedTransactions}
               onApprove={handleApproveOperation}
               onCancel={handleUpdateBroadcasterCancellation}
             />

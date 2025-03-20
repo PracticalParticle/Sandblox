@@ -12,6 +12,7 @@ import { formatAddress } from "@/lib/utils"
 import { Progress } from "@/components/ui/progress"
 import { useMultiPhaseTemporalAction } from "@/hooks/useMultiPhaseTemporalAction"
 import { useState, useEffect } from "react"
+import { TxInfoCard } from "./TxInfoCard"
 
 interface TemporalActionDialogProps {
   isOpen: boolean
@@ -43,6 +44,7 @@ interface TemporalActionDialogProps {
   newValuePlaceholder?: string
   showMetaTxOption?: boolean
   metaTxDescription?: string
+  operationName?: string
 }
 
 export function TemporalActionDialog({
@@ -65,7 +67,8 @@ export function TemporalActionDialog({
   newValueLabel,
   newValuePlaceholder,
   showMetaTxOption,
-  metaTxDescription
+  metaTxDescription,
+  operationName
 }: TemporalActionDialogProps) {
   const {
     newValue,
@@ -436,6 +439,17 @@ export function TemporalActionDialog({
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Display TxInfoCard when a pending transaction exists */}
+          {pendingTx && (
+            <TxInfoCard 
+              record={pendingTx}
+              operationName={operationName || actionType}
+              showExecutionType={true}
+              showStatus={true}
+              txId={false} // Hide txId since we're already showing it in the section below
+            />
+          )}
+          
           {pendingTx ? renderApprovalPhase() : renderRequestPhase()}
         </div>
       </DialogContent>

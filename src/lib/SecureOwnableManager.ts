@@ -297,7 +297,8 @@ export class SecureOwnableManager {
         {
           type: 'RECOVERY_UPDATE',
           newRecoveryAddress,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          status: 'PENDING'
         }
       );
     }
@@ -377,7 +378,8 @@ export class SecureOwnableManager {
           type: 'TIMELOCK_UPDATE',
           broadcasted: false,
           newTimeLockPeriod: Number(newPeriodInMinutes),
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          status: 'PENDING'
         }
       );
     }
@@ -434,7 +436,8 @@ export class SecureOwnableManager {
           {
             type: 'OWNERSHIP_TRANSFER',
             broadcasted: false,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            status: 'PENDING'
           }
         );
       }
@@ -497,7 +500,8 @@ export class SecureOwnableManager {
           {
             type: 'OWNERSHIP_TRANSFER',
             broadcasted: false,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            status: 'PENDING'
           }
         );
       }
@@ -564,7 +568,8 @@ export class SecureOwnableManager {
           {
             type: 'BROADCASTER_UPDATE',
             broadcasted: false,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            status: 'PENDING'
           }
         );
       }
@@ -626,7 +631,8 @@ export class SecureOwnableManager {
           JSON.stringify(signedMetaTx, this.bigIntReplacer),
           {
             type: 'BROADCASTER_UPDATE',
-            broadcasted: false
+            broadcasted: false,
+            status: 'PENDING'
           }
         );
       }

@@ -1,7 +1,6 @@
 import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index'
 import { TxStatus, ExecutionType } from '../particle-core/sdk/typescript/types/lib.index'
-import { formatAddress, formatTimestamp, isValidEthereumAddress } from '@/lib/utils'
-import { useState } from 'react'
+import { formatAddress, formatTimestamp } from '@/lib/utils'
 import {
   Dialog,
   DialogContent,
@@ -25,8 +24,6 @@ import {
 import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import { TemporalActionContent } from './TemporalActionContent'
-import { MetaTxActionContent } from './MetaTxActionContent'
 
 // Status badge variants mapping with enhanced styling
 const statusVariants: { [key: number]: { variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode; bgColor: string; textColor: string } } = {
@@ -102,137 +99,13 @@ interface TxDetailsDialogProps {
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   operationName: string
-  contractInfo: {
-    contractAddress: string
-    timeLockPeriodInMinutes: number
-    chainId: number
-    chainName: string
-    broadcaster: string
-    owner: string
-    recoveryAddress: string
-    [key: string]: any
-  }
-  connectedAddress?: string
-  onApprove?: (txId: number) => Promise<void>
-  onCancel?: (txId: number) => Promise<void>
-  onSubmit?: (newValue: string) => Promise<void>
-  onNewValueChange?: (value: string) => void
-  newValue?: string
-  validateNewValue?: (value: string) => { isValid: boolean; message: string }
-  isSigning?: boolean
 }
 
-export function TxDetailsDialog({ 
-  record, 
-  isOpen, 
-  onOpenChange, 
-  operationName,
-  contractInfo,
-  connectedAddress,
-  onApprove,
-  onCancel,
-  onSubmit,
-  onNewValueChange,
-  newValue,
-  validateNewValue,
-  isSigning
-}: TxDetailsDialogProps) {
-  // Local state for form values and UI state
-  const [localNewValue, setLocalNewValue] = useState('')
-  const [isLocalSigning, setIsLocalSigning] = useState(false)
-
+export function TxDetailsDialog({ record, isOpen, onOpenChange, operationName }: TxDetailsDialogProps) {
   if (!record) return null
 
   const isPending = record.status === TxStatus.PENDING
   const statusVariant = statusVariants[record.status]
-  const isMetaTx = record.params.executionType === ExecutionType.RAW
-  const isTemporalTx = record.params.executionType === ExecutionType.STANDARD
-
-  // Determine required role based on operation type and execution type
-  const getRequiredRole = () => {
-    if (isMetaTx) {
-      return 'owner' // Meta transactions are always signed by owner
-    }
-    
-    if (isTemporalTx) {
-      switch (operationName.toLowerCase()) {
-        case 'ownership_transfer':
-          return isPending ? 'owner_or_recovery' : 'recovery'
-        case 'broadcaster_update':
-          return 'owner'
-        case 'recovery_update':
-          return 'owner'
-        default:
-          return 'owner'
-      }
-    }
-
-    return 'owner'
-  }
-
-  // Default validation function if none provided
-  const defaultValidateNewValue = (value: string) => ({
-    isValid: isValidEthereumAddress(value),
-    message: "Please enter a valid Ethereum address"
-  })
-
-  const handleNewValueChange = (value: string) => {
-    setLocalNewValue(value)
-    onNewValueChange?.(value)
-  }
-
-  const handleSubmit = async () => {
-    if (!onSubmit) return
-    setIsLocalSigning(true)
-    try {
-      await onSubmit(newValue || localNewValue)
-    } finally {
-      setIsLocalSigning(false)
-    }
-  }
-
-  const renderActionContent = () => {
-    if (!isPending) return null
-
-    const commonProps = {
-      contractInfo,
-      actionType: operationName,
-      currentValue: record.params.target,
-      currentValueLabel: "Target Address",
-      requiredRole: getRequiredRole(),
-      connectedAddress,
-      isOpen,
-      onOpenChange,
-      newValue: newValue || localNewValue,
-      onNewValueChange: handleNewValueChange,
-      validateNewValue: validateNewValue || defaultValidateNewValue,
-      isSigning: isSigning || isLocalSigning
-    }
-
-    if (isMetaTx) {
-      return (
-        <MetaTxActionContent
-          {...commonProps}
-          actionLabel="Sign"
-          onSubmit={handleSubmit}
-        />
-      )
-    }
-
-    if (isTemporalTx) {
-      return (
-        <TemporalActionContent
-          {...commonProps}
-          actionLabel="Approve"
-          pendingTx={record}
-          onApprove={onApprove}
-          onCancel={onCancel}
-        />
-      )
-    }
-
-    return null
-  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -372,8 +245,37 @@ export function TxDetailsDialog({
             </CardContent>
           </Card>
 
-          {/* Action Content for Pending Transactions */}
-          {renderActionContent()}
+          {/* Next Action Alert for Pending Transactions */}
+          {isPending && (
+            <Card className="border-yellow-500/20">
+              <CardContent className="p-6">
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 text-yellow-500" />
+                    <h3 className="font-medium text-yellow-500">Next Required Action</h3>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 ">
+                      <Badge variant="default" className="bg-blue-500/10 text-blue-500">
+                        <Shield className="h-3 w-3 mr-1" />
+                        Owner
+                      </Badge>
+                      <span className="text-sm text-muted-foreground">approval required</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2 ">
+                      <Badge variant="default" className="bg-green-500/10 text-green-500">
+                        <Key className="h-3 w-3 mr-1" />
+                        Recovery
+                      </Badge>
+                      <span className="text-sm text-muted-foreground">approval required</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </DialogContent>
     </Dialog>
