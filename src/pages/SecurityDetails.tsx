@@ -44,20 +44,8 @@ import { Input } from "@/components/ui/input"
 import { ContractInfo } from '@/components/ContractInfo'
 import { WalletStatusBadge } from '@/components/WalletStatusBadge'
 import { SignedMetaTxTable } from '@/components/SignedMetaTxTable'
-
-interface ExtendedSignedTransaction {
-  txId: string
-  signedData: string
-  timestamp: number
-  metadata?: {
-    type: 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE' | 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE'
-    purpose?: 'address_update' | 'ownership_transfer'
-    action?: 'approve' | 'cancel'
-    broadcasted: boolean
-    operationType?: `0x${string}`
-    status?: 'COMPLETED' | 'PENDING'
-  }
-}
+import { BroadcastDialog } from '@/components/BroadcastDialog'
+import { ExtendedSignedTransaction } from '@/components/SignedMetaTxTable'
 
 const container = {
   hidden: { opacity: 0 },
@@ -143,6 +131,12 @@ export function SecurityDetails() {
   const [recoveryExpanded, setRecoveryExpanded] = useState(false)
   const [timelockExpanded, setTimelockExpanded] = useState(false)
 
+  // Add state for Broadcast Dialog
+  const [showBroadcastTimelockDialog, setShowBroadcastTimelockDialog] = useState(false)
+  const [showBroadcastRecoveryDialog, setShowBroadcastRecoveryDialog] = useState(false)
+  const [showBroadcastOwnershipDialog, setShowBroadcastOwnershipDialog] = useState(false)
+  const [showBroadcastBroadcasterDialog, setShowBroadcastBroadcasterDialog] = useState(false)
+  const [activeBroadcastTx, setActiveBroadcastTx] = useState<ExtendedSignedTransaction | null>(null)
 
   useEffect(() => {
     if (!contractAddress) {
@@ -743,10 +737,8 @@ export function SecurityDetails() {
   // Update handleBroadcast function to handle both types
   const handleBroadcast = async (type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'RECOVERY_ADDRESS_UPDATE' | 'TIMELOCK_UPDATE') => {
     try {
-      // Find the matching unsigned transaction
-      const pendingTx = signedTransactions.find(tx => 
-        tx.metadata?.type === type && !tx.metadata?.broadcasted
-      );
+      // Use the activeBroadcastTx that was set in prepareBroadcastDialog
+      const pendingTx = activeBroadcastTx;
 
       if (!pendingTx) {
         throw new Error('No pending transaction found');
@@ -755,8 +747,9 @@ export function SecurityDetails() {
       if (!walletClient || !connectedAddress) {
         throw new Error('Wallet not connected');
       }
-      console.log('pendingTx', pendingTx);
-      console.log('pendingTx signedData', pendingTx.signedData);
+      console.log('Broadcasting transaction:', pendingTx);
+      console.log('Transaction type:', type);
+      console.log('pendingTx metadata:', pendingTx.metadata);
       
       // Extract the action type from metadata
       const action = pendingTx.metadata?.action as 'approve' | 'cancel';
@@ -789,8 +782,29 @@ export function SecurityDetails() {
         storeTransaction
       );
 
-      // Map RECOVERY_ADDRESS_UPDATE to RECOVERY_UPDATE for contract interaction
-      const contractType = type === 'RECOVERY_ADDRESS_UPDATE' ? 'RECOVERY_UPDATE' : type;
+      // Determine the correct type to use for the contract interaction
+      // Handle special cases like RECOVERY_UPDATE with purpose=ownership_transfer
+      let contractType: 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE' | 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' = 
+        type === 'RECOVERY_ADDRESS_UPDATE' ? 'RECOVERY_UPDATE' : 
+        (type as 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE' | 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE');
+      
+      if (pendingTx.metadata?.type === 'RECOVERY_UPDATE' && pendingTx.metadata?.purpose === 'ownership_transfer') {
+        contractType = 'OWNERSHIP_TRANSFER';
+      } else if (pendingTx.metadata?.type) {
+        // Use the type from metadata if available, as it's what was used to sign the transaction
+        // Only use it if it's one of the valid contract types
+        const metadataType = pendingTx.metadata.type;
+        if (
+          metadataType === 'RECOVERY_UPDATE' || 
+          metadataType === 'TIMELOCK_UPDATE' || 
+          metadataType === 'OWNERSHIP_TRANSFER' || 
+          metadataType === 'BROADCASTER_UPDATE'
+        ) {
+          contractType = metadataType;
+        }
+      }
+      
+      console.log('Using contract type for execution:', contractType);
       
       // Prepare and sign the update transaction
       const txHash = await manager.executeMetaTransaction(
@@ -808,37 +822,28 @@ export function SecurityDetails() {
       // Wait for transaction confirmation
       await publicClient?.waitForTransactionReceipt({ hash: txHash });
 
-      // Update the transaction metadata to mark as broadcasted and completed
-      storeTransaction(pendingTx.txId, pendingTx.signedData, {
-        ...pendingTx.metadata,
-        broadcasted: true,
-        status: 'COMPLETED'
-      });
+      // Remove the broadcasted transaction from local storage
+      removeTransaction(pendingTx.txId);
       
-      // Also update local state directly
-      setSignedTransactions(prev => 
-        prev.map(tx => 
-          tx.txId === pendingTx.txId 
-            ? {
-                ...tx,
-                metadata: {
-                  ...tx.metadata,
-                  broadcasted: true,
-                  status: 'COMPLETED'
-                }
-              } as ExtendedSignedTransaction
-            : tx
-        )
-      );
+      // Update local state to remove the broadcasted transaction
+      setSignedTransactions(prev => prev.filter(tx => tx.txId !== pendingTx.txId));
+
+      // Clear the active transaction
+      setActiveBroadcastTx(null);
+
+      // Close all broadcast dialogs
+      setShowBroadcastTimelockDialog(false);
+      setShowBroadcastRecoveryDialog(false);
+      setShowBroadcastOwnershipDialog(false);
+      setShowBroadcastBroadcasterDialog(false);
 
       toast({
         title: "Transaction Confirmed",
-        description: "Transaction has been confirmed by the network",
+        description: "Transaction has been confirmed and removed from pending transactions",
       });
 
       // Reload contract info after broadcast
       await loadContractInfo();
-
     } catch (error) {
       console.error('Broadcast error:', error);
       toast({
@@ -895,6 +900,72 @@ export function SecurityDetails() {
       });
     }
   }
+
+  // Prepare the broadcast dialog for a specific transaction type
+  const prepareBroadcastDialog = (
+    type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'RECOVERY_ADDRESS_UPDATE' | 'TIMELOCK_UPDATE',
+    specificTx?: ExtendedSignedTransaction
+  ) => {
+    console.log('Preparing broadcast dialog for type:', type);
+    console.log('Specific transaction:', specificTx);
+    
+    // If a specific transaction is provided, use it directly
+    if (specificTx) {
+      console.log('Using specific transaction:', specificTx);
+      setActiveBroadcastTx(specificTx);
+    } else {
+      // Find the matching unsigned transaction
+      // We need to handle special cases where the transaction type might be different from what we're looking for
+      let pendingTx: ExtendedSignedTransaction | undefined;
+      
+      if (type === 'OWNERSHIP_TRANSFER') {
+        // For ownership transfer, look for either OWNERSHIP_TRANSFER or RECOVERY_UPDATE with purpose=ownership_transfer
+        pendingTx = signedTransactions.find(tx => 
+          (!tx.metadata?.broadcasted) && (
+            (tx.metadata?.type === 'OWNERSHIP_TRANSFER') || 
+            (tx.metadata?.type === 'RECOVERY_UPDATE' && tx.metadata?.purpose === 'ownership_transfer')
+          )
+        );
+      } else if (type === 'RECOVERY_UPDATE' || type === 'RECOVERY_ADDRESS_UPDATE') {
+        // For recovery updates, look for RECOVERY_UPDATE with purpose=address_update or no purpose
+        pendingTx = signedTransactions.find(tx => 
+          tx.metadata?.type === 'RECOVERY_UPDATE' && 
+          !tx.metadata?.broadcasted && 
+          (tx.metadata?.purpose === 'address_update' || !tx.metadata?.purpose)
+        );
+      } else {
+        // For other types, look for exact match
+        pendingTx = signedTransactions.find(tx => 
+          tx.metadata?.type === type && !tx.metadata?.broadcasted
+        );
+      }
+
+      if (pendingTx) {
+        console.log('Found pending transaction:', pendingTx);
+        setActiveBroadcastTx(pendingTx);
+      } else {
+        console.log('No pending transaction found for type:', type);
+        return; // Don't open dialog if no transaction found
+      }
+    }
+    
+    // Open the appropriate dialog based on type
+    switch (type) {
+      case 'TIMELOCK_UPDATE':
+        setShowBroadcastTimelockDialog(true);
+        break;
+      case 'RECOVERY_UPDATE':
+      case 'RECOVERY_ADDRESS_UPDATE':
+        setShowBroadcastRecoveryDialog(true);
+        break;
+      case 'OWNERSHIP_TRANSFER':  
+        setShowBroadcastOwnershipDialog(true);
+        break;
+      case 'BROADCASTER_UPDATE':
+        setShowBroadcastBroadcasterDialog(true);
+        break;
+    }
+  };
 
   if (!contractAddress || error) {
     return (
@@ -1109,7 +1180,7 @@ export function SecurityDetails() {
                                 </div>
 
                                 <Button 
-                                  onClick={() => handleBroadcast('TIMELOCK_UPDATE')}
+                                  onClick={() => prepareBroadcastDialog('TIMELOCK_UPDATE')}
                                   className={`w-full ${signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
                                   size="sm"
                                   variant={signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
@@ -1344,7 +1415,7 @@ export function SecurityDetails() {
                                     </div>
 
                                     <Button 
-                                      onClick={() => handleBroadcast('BROADCASTER_UPDATE')}
+                                      onClick={() => prepareBroadcastDialog('BROADCASTER_UPDATE')}
                                       className={`w-full ${signedTransactions.some(tx => tx.metadata?.type === 'BROADCASTER_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
                                       size="sm"
                                       variant={signedTransactions.some(tx => tx.metadata?.type === 'BROADCASTER_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
@@ -1546,7 +1617,7 @@ export function SecurityDetails() {
                                 </div>
 
                                 <Button 
-                                  onClick={() => handleBroadcast('RECOVERY_UPDATE')}
+                                  onClick={() => prepareBroadcastDialog('RECOVERY_UPDATE')}
                                   className={`w-full ${signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
                                   size="sm"
                                   variant={signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
@@ -1753,7 +1824,7 @@ export function SecurityDetails() {
                                     </div>
 
                                     <Button 
-                                      onClick={() => handleBroadcast('OWNERSHIP_TRANSFER')}
+                                      onClick={() => prepareBroadcastDialog('OWNERSHIP_TRANSFER')}
                                       className={`w-full ${signedTransactions.some(tx => 
                                         tx.metadata?.type === 'OWNERSHIP_TRANSFER' && 
                                         !tx.metadata?.broadcasted
@@ -1894,37 +1965,27 @@ export function SecurityDetails() {
                 }
               }}
               contractAddress={contractAddress as `0x${string}`}
-              contractInfo={{
-                contractAddress: contractAddress || '',
-                timeLockPeriodInMinutes: contractInfo?.timeLockPeriodInMinutes || 0,
-                chainId: contractInfo?.chainId || 0,
-                chainName: contractInfo?.chainName || '',
-                broadcaster: contractInfo?.broadcaster || '',
-                owner: contractInfo?.owner || '',
-                recoveryAddress: contractInfo?.recoveryAddress || ''
-              }}
-              connectedAddress={connectedAddress as `0x${string}`}
-              onBroadcast={async (txId, actionType) => {
-                try {
-                  if (!actionType) return;
-                  await handleBroadcast(actionType as 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'RECOVERY_ADDRESS_UPDATE' | 'TIMELOCK_UPDATE');
-                  
-                  // Remove the transaction from the local state after broadcasting
-                  removeTransaction(txId);
-                  
-                  // The UI will automatically update as we filter out broadcasted transactions
-                  
-                  toast({
-                    title: "Success",
-                    description: "Transaction broadcasted successfully",
-                  });
-                } catch (error) {
-                  console.error('Error broadcasting transaction:', error);
-                  toast({
-                    title: "Error",
-                    description: "Failed to broadcast transaction",
-                    variant: "destructive"
-                  });
+              onTxClick={(tx: ExtendedSignedTransaction) => {
+                console.log('Transaction clicked:', tx);
+                if (!tx.metadata?.type) {
+                  console.log('No transaction type found');
+                  return;
+                }
+                
+                if (tx.metadata.type === 'RECOVERY_UPDATE') {
+                  if (tx.metadata.purpose === 'ownership_transfer') {
+                    console.log('Opening ownership transfer dialog');
+                    prepareBroadcastDialog('OWNERSHIP_TRANSFER', tx);
+                  } else if (tx.metadata.purpose === 'address_update') {
+                    console.log('Opening recovery address update dialog');
+                    prepareBroadcastDialog('RECOVERY_ADDRESS_UPDATE', tx);
+                  } else {
+                    console.log('Opening general recovery update dialog');
+                    prepareBroadcastDialog('RECOVERY_UPDATE', tx);
+                  }
+                } else {
+                  console.log('Opening dialog for type:', tx.metadata.type);
+                  prepareBroadcastDialog(tx.metadata.type, tx);
                 }
               }}
             />
@@ -1944,6 +2005,83 @@ export function SecurityDetails() {
           </motion.div>
         </motion.div>
       </div>
+
+      {/* Broadcast Dialogs */}
+      <BroadcastDialog
+        isOpen={showBroadcastTimelockDialog}
+        onOpenChange={setShowBroadcastTimelockDialog}
+        title="Broadcast TimeLock Update"
+        description="Broadcast the signed TimeLock period update transaction to the blockchain."
+        contractInfo={{
+          chainId: contractInfo?.chainId || 0,
+          chainName: contractInfo?.chainName || '',
+          broadcaster: contractInfo?.broadcaster || '',
+          owner: contractInfo?.owner || '',
+          contractAddress: contractAddress
+        }}
+        txType="TIMELOCK_UPDATE"
+        pendingTx={activeBroadcastTx || undefined}
+        onBroadcast={handleBroadcast}
+        connectedAddress={connectedAddress}
+        operationName="Time Lock Update"
+      />
+
+      <BroadcastDialog
+        isOpen={showBroadcastRecoveryDialog}
+        onOpenChange={setShowBroadcastRecoveryDialog}
+        title="Broadcast Recovery Update"
+        description="Broadcast the signed recovery address update transaction to the blockchain."
+        contractInfo={{
+          chainId: contractInfo?.chainId || 0,
+          chainName: contractInfo?.chainName || '',
+          broadcaster: contractInfo?.broadcaster || '',
+          owner: contractInfo?.owner || '',
+          contractAddress: contractAddress
+        }}
+        txType="RECOVERY_UPDATE"
+        pendingTx={activeBroadcastTx || undefined}
+        onBroadcast={handleBroadcast}
+        connectedAddress={connectedAddress}
+        operationName="Recovery Update"
+      />
+
+      <BroadcastDialog
+        isOpen={showBroadcastOwnershipDialog}
+        onOpenChange={setShowBroadcastOwnershipDialog}
+        title="Broadcast Ownership Transfer"
+        description="Broadcast the signed ownership transfer transaction to the blockchain."
+        contractInfo={{
+          chainId: contractInfo?.chainId || 0,
+          chainName: contractInfo?.chainName || '',
+          broadcaster: contractInfo?.broadcaster || '',
+          owner: contractInfo?.owner || '',
+          contractAddress: contractAddress
+        }}
+        txType="OWNERSHIP_TRANSFER"
+        pendingTx={activeBroadcastTx || undefined}
+        onBroadcast={handleBroadcast}
+        connectedAddress={connectedAddress}
+        operationName="Ownership Transfer"
+      />
+
+      <BroadcastDialog
+        isOpen={showBroadcastBroadcasterDialog}
+        onOpenChange={setShowBroadcastBroadcasterDialog}
+        title="Broadcast Broadcaster Update"
+        description="Broadcast the signed broadcaster update transaction to the blockchain."
+        contractInfo={{
+          chainId: contractInfo?.chainId || 0,
+          chainName: contractInfo?.chainName || '',
+          broadcaster: contractInfo?.broadcaster || '',
+          owner: contractInfo?.owner || '',
+          contractAddress: contractAddress
+        }}
+        txType="BROADCASTER_UPDATE"
+        pendingTx={activeBroadcastTx || undefined}
+        onBroadcast={handleBroadcast}
+        connectedAddress={connectedAddress}
+        operationName="Broadcaster Update"
+      />
     </TransactionManagerProvider>
   )
 }

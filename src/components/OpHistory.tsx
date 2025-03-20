@@ -25,7 +25,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { TxDetailsDialog } from './TxDetailsDialog'
 import { useOperationHistory, statusToHuman } from '@/hooks/useOperationHistory'
 import { SecureContractInfo } from '@/lib/types'
 import { useOperationTypes } from '@/hooks/useOperationTypes'
@@ -116,17 +115,8 @@ export function OpHistory({
   operations,
   isLoading,
   contractInfo,
-  signedTransactions = [],
-  onApprove,
-  onCancel,
-  onSubmit,
-  onNewValueChange,
-  newValue,
-  validateNewValue,
-  isSigning,
-  showMetaTxOption
-}: OpHistoryProps) {
-  const { address: connectedAddress } = useAccount()
+  signedTransactions = []}: OpHistoryProps) {
+  useAccount()
   
   const {
     filteredOperations,
@@ -142,8 +132,8 @@ export function OpHistory({
     isLoading
   })
 
-  const [selectedTx, setSelectedTx] = useState<TxRecord | null>(null)
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false)
+  const [, setSelectedTx] = useState<TxRecord | null>(null)
+  const [, setIsDetailsOpen] = useState(false)
   const { getOperationName: operationTypesGetOperationName } = useOperationTypes(contractAddress)
 
   const handleRowClick = (record: TxRecord) => {
@@ -152,11 +142,6 @@ export function OpHistory({
   }
 
   // Determine if this is an ownership operation
-  const isOwnershipOperation = (record: TxRecord | null): boolean => {
-    if (!record) return false;
-    const operationName = operationTypesGetOperationName(record.params.operationType as Hex);
-    return operationName.toLowerCase().includes('ownership');
-  }
 
   if (isLoading || loadingTypes) {
     return (
