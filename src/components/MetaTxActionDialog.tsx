@@ -4,13 +4,14 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Card, CardContent } from "@/components/ui/card"
-import { Loader2, Radio, Network } from "lucide-react"
+import { Loader2, Radio, Network, X } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
 import { formatAddress } from "@/lib/utils"
 import { useSinglePhaseMetaTxAction } from "@/hooks/useSinglePhaseMetaTxAction"
 import { TxInfoCard } from "./TxInfoCard"
 import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index'
+import * as DialogPrimitive from "@radix-ui/react-dialog"
 
 interface MetaTxActionDialogProps {
   isOpen: boolean
@@ -83,7 +84,7 @@ export function MetaTxActionDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-md max-w-full max-h-[85vh] overflow-y-auto p-4 overflow-x-hidden">
         <DialogHeader className="sticky top-0 bg-background z-10 pb-4 border-b mb-4">
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
@@ -146,7 +147,7 @@ export function MetaTxActionDialog({
                         onChange={(e) => onNewValueChange(e.target.value)}
                         placeholder={newValuePlaceholder}
                         disabled={isLoading || isSigning}
-                        className={!validationResult.isValid && newValue ? "border-destructive" : ""}
+                        className={`w-full ${!validationResult.isValid && newValue ? "border-destructive" : ""}`}
                       />
                     )}
                     {!validationResult.isValid && newValue && (
@@ -169,30 +170,26 @@ export function MetaTxActionDialog({
                     </Alert>
                   )}
 
-                   
-                          <div className="w-full">
-                            <Button 
-                              type="submit"
-                              disabled={!newValue || !validationResult.isValid || !isConnectedWalletValid || isLoading || isSigning}
-                              className="w-full"
-                            >
-                              {isSigning ? (
-                                <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  Signing...
-                                </>
-                              ) : (
-                                <>
-                                  <Radio className="mr-2 h-4 w-4" />
-                                  {actionLabel}
-                                </>
-                              )}
-                            </Button>
-                          </div>
-
-
+                  <div className="w-full">
+                    <Button 
+                      type="submit"
+                      disabled={!newValue || !validationResult.isValid || !isConnectedWalletValid || isLoading || isSigning}
+                      className="w-full"
+                    >
+                      {isSigning ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Signing...
+                        </>
+                      ) : (
+                        <>
+                          <Radio className="mr-2 h-4 w-4" />
+                          {actionLabel}
+                        </>
+                      )}
+                    </Button>
                   </div>
-                
+                </div>
               </form>
             </CardContent>
           </Card>
