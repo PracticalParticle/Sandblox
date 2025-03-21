@@ -101,6 +101,8 @@ interface OpHistoryProps {
   validateNewValue?: (value: string) => { isValid: boolean; message: string }
   isSigning?: boolean
   showMetaTxOption?: boolean
+  refreshData?: () => void
+  refreshSignedTransactions?: () => void
 }
 
 const container = {
@@ -122,7 +124,9 @@ export function OpHistory({
   onApprove,
   onCancel,
   onSubmit,
-  showMetaTxOption
+  showMetaTxOption,
+  refreshData,
+  refreshSignedTransactions
 }: OpHistoryProps) {
   const { address: connectedAddress } = useAccount()
   const navigate = useNavigate()
@@ -392,6 +396,8 @@ export function OpHistory({
               onCancel={onCancel}
               showMetaTxOption={showMetaTxOption}
               operationName={operationTypesGetOperationName(selectedTx.params.operationType as Hex)}
+              refreshData={refreshData}
+              refreshSignedTransactions={refreshSignedTransactions}
             />
           )}
           

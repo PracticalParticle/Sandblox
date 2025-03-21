@@ -46,6 +46,7 @@ import { WalletStatusBadge } from '@/components/WalletStatusBadge'
 import { SignedMetaTxTable } from '@/components/SignedMetaTxTable'
 import { BroadcastDialog } from '@/components/BroadcastDialog'
 import { ExtendedSignedTransaction } from '@/components/SignedMetaTxTable'
+import { TransactionManager } from '@/services/TransactionManager'
 
 const container = {
   hidden: { opacity: 0 },
@@ -1002,6 +1003,29 @@ export function SecurityDetails() {
     }
   };
 
+  // Add after loadContractInfo function
+  const refreshSignedTransactions = () => {
+    try {
+      // Get the latest transactions from TransactionManager
+      if (contractAddress) {
+        const txManager = new TransactionManager();
+        const latestTxs = txManager.getSignedTransactionsByContract(contractAddress);
+        
+        // Convert to array format
+        const txArray = Object.entries(latestTxs).map(([txId, tx]) => ({
+          txId,
+          signedData: tx.signedData,
+          timestamp: tx.timestamp,
+          metadata: tx.metadata as ExtendedSignedTransaction['metadata']
+        }));
+        
+        setSignedTransactions(txArray);
+      }
+    } catch (error) {
+      console.error('Error refreshing signed transactions:', error);
+    }
+  };
+
   if (!contractAddress || error) {
     return (
       <div className="container py-8">
@@ -1541,6 +1565,8 @@ export function SecurityDetails() {
                                 onSubmit={handleUpdateBroadcasterRequest}
                                 onApprove={handleApproveOperation}
                                 onCancel={handleUpdateBroadcasterCancellation}
+                                refreshData={loadContractInfo}
+                                refreshSignedTransactions={refreshSignedTransactions}
                               />
                             </>
                           )}
@@ -1946,6 +1972,8 @@ export function SecurityDetails() {
                                 onCancel={handleTransferOwnershipCancellation}
                                 showMetaTxOption={!!(pendingOwnershipTx && isRoleConnected(contractInfo.owner))}
                                 metaTxDescription="Sign a meta transaction to approve the ownership transfer. This will be broadcasted by the broadcaster."
+                                refreshData={loadContractInfo}
+                                refreshSignedTransactions={refreshSignedTransactions}
                               />
                             </>
                           )}
@@ -2042,6 +2070,8 @@ export function SecurityDetails() {
               signedTransactions={signedTransactions}
               onApprove={handleApproveOperation}
               onCancel={handleUpdateBroadcasterCancellation}
+              refreshData={loadContractInfo}
+              refreshSignedTransactions={refreshSignedTransactions}
             />
           </motion.div>
         </motion.div>

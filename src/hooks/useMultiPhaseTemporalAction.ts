@@ -15,6 +15,8 @@ interface UseMultiPhaseTemporalActionProps {
   onCancel?: (txId: number) => Promise<void>
   pendingTx?: TxRecord & { contractAddress: Address, timeLockPeriodInMinutes: number }
   showNewValueInput?: boolean
+  onMetaTxSignSuccess?: () => void
+  refreshSignedTransactions?: () => void
 }
 
 interface UseMultiPhaseTemporalActionState {
@@ -39,7 +41,9 @@ export function useMultiPhaseTemporalAction({
   onApprove,
   onCancel,
   pendingTx,
-  showNewValueInput = true
+  showNewValueInput = true,
+  onMetaTxSignSuccess,
+  refreshSignedTransactions
 }: UseMultiPhaseTemporalActionProps): UseMultiPhaseTemporalActionState & UseMultiPhaseTemporalActionActions {
   const [newValue, setNewValue] = useState("")
   const [isApproving, setIsApproving] = useState(false)
@@ -166,9 +170,29 @@ export function useMultiPhaseTemporalAction({
           transactionType = 'OWNERSHIP_TRANSFER';
       }
 
+      // Prepare the callback to store transaction and trigger refresh
+      const storeAndRefresh = (txId: string, signedData: string, metadata: any) => {
+        storeTransaction(txId, signedData, { 
+          ...metadata, 
+          type: transactionType,
+          action: type,
+          broadcasted: false 
+        });
+        
+        // Refresh signed transactions state if the callback is provided
+        if (refreshSignedTransactions) {
+          refreshSignedTransactions();
+        }
+        
+        // Call the success callback if provided
+        if (onMetaTxSignSuccess) {
+          onMetaTxSignSuccess();
+        }
+      };
+
       if (metaTxType === 'broadcaster' && type === 'approve') {
         await signBroadcasterUpdateApproval(pendingTx?.contractAddress, txId, 
-          (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
+          (txId, signedData, metadata) => storeAndRefresh(txId, signedData, { 
             ...metadata, 
             type: 'BROADCASTER_UPDATE',
             action: type,
@@ -177,7 +201,7 @@ export function useMultiPhaseTemporalAction({
         );
       } else if (metaTxType === 'broadcaster' && type === 'cancel') {
         await signBroadcasterUpdateCancellation(pendingTx?.contractAddress, txId, 
-          (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
+          (txId, signedData, metadata) => storeAndRefresh(txId, signedData, { 
             ...metadata, 
             type: 'BROADCASTER_UPDATE',
             action: type,
@@ -186,7 +210,7 @@ export function useMultiPhaseTemporalAction({
         );
       } else if ((metaTxType === 'ownership' || metaTxType === 'recovery' || metaTxType === 'timelock') && type === 'approve') {
         await signTransferOwnershipApproval(pendingTx?.contractAddress, txId, 
-          (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
+          (txId, signedData, metadata) => storeAndRefresh(txId, signedData, { 
             ...metadata, 
             type: transactionType,
             action: type,
@@ -195,7 +219,7 @@ export function useMultiPhaseTemporalAction({
         );
       } else if ((metaTxType === 'ownership' || metaTxType === 'recovery' || metaTxType === 'timelock') && type === 'cancel') {
         await signTransferOwnershipCancellation(pendingTx?.contractAddress, txId, 
-          (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
+          (txId, signedData, metadata) => storeAndRefresh(txId, signedData, { 
             ...metadata, 
             type: transactionType,
             action: type,
@@ -209,7 +233,7 @@ export function useMultiPhaseTemporalAction({
       toast({
         title: "Success",
         description: `Transaction ${type} signed successfully`,
-      })
+      });
     } catch (error: any) {
       toast({
         title: "Error",

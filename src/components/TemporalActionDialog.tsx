@@ -45,6 +45,8 @@ interface TemporalActionDialogProps {
   showMetaTxOption?: boolean
   metaTxDescription?: string
   operationName?: string
+  refreshData?: () => void
+  refreshSignedTransactions?: () => void
 }
 
 export function TemporalActionDialog({
@@ -68,7 +70,9 @@ export function TemporalActionDialog({
   newValuePlaceholder,
   showMetaTxOption,
   metaTxDescription,
-  operationName
+  operationName,
+  refreshData,
+  refreshSignedTransactions
 }: TemporalActionDialogProps) {
   const {
     newValue,
@@ -91,7 +95,9 @@ export function TemporalActionDialog({
       contractAddress: contractInfo.contractAddress as `0x${string}`,
       timeLockPeriodInMinutes: contractInfo.timeLockPeriodInMinutes 
     } : undefined,
-    showNewValueInput
+    showNewValueInput,
+    onMetaTxSignSuccess: refreshData,
+    refreshSignedTransactions
   })
 
   const getRoleAddress = (role: string) => {
