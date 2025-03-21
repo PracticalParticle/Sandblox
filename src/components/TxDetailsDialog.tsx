@@ -1,99 +1,25 @@
 import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index'
-import { TxStatus, ExecutionType } from '../particle-core/sdk/typescript/types/lib.index'
-import { formatAddress, formatTimestamp } from '@/lib/utils'
+import { TxStatus } from '../particle-core/sdk/typescript/types/lib.index'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { 
-  Clock, 
-  CheckCircle2, 
-  XCircle, 
-  AlertTriangle, 
   Shield, 
   Key,
-  Timer,
-  Network,
-  Wallet,
   AlertCircle
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { TxInfoCard } from './TxInfoCard'
 
 // Status badge variants mapping with enhanced styling
-const statusVariants: { [key: number]: { variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode; bgColor: string; textColor: string } } = {
-  [TxStatus.UNDEFINED]: { 
-    variant: "outline", 
-    icon: <AlertTriangle className="h-3 w-3" />,
-    bgColor: "bg-yellow-500/10",
-    textColor: "text-yellow-500"
-  },
-  [TxStatus.PENDING]: { 
-    variant: "secondary", 
-    icon: <Clock className="h-3 w-3" />,
-    bgColor: "bg-blue-500/10",
-    textColor: "text-blue-500"
-  },
-  [TxStatus.CANCELLED]: { 
-    variant: "destructive", 
-    icon: <XCircle className="h-3 w-3" />,
-    bgColor: "bg-red-500/10",
-    textColor: "text-red-500"
-  },
-  [TxStatus.COMPLETED]: { 
-    variant: "default", 
-    icon: <CheckCircle2 className="h-3 w-3" />,
-    bgColor: "bg-green-500/10",
-    textColor: "text-green-500"
-  },
-  [TxStatus.FAILED]: { 
-    variant: "destructive", 
-    icon: <XCircle className="h-3 w-3" />,
-    bgColor: "bg-red-500/10",
-    textColor: "text-red-500"
-  },
-  [TxStatus.REJECTED]: { 
-    variant: "destructive", 
-    icon: <XCircle className="h-3 w-3" />,
-    bgColor: "bg-red-500/10",
-    textColor: "text-red-500"
-  }
-}
 
 // Status to human-readable text
-const statusToHuman: { [key: number]: string } = {
-  [TxStatus.UNDEFINED]: 'Undefined',
-  [TxStatus.PENDING]: 'Pending',
-  [TxStatus.CANCELLED]: 'Cancelled',
-  [TxStatus.COMPLETED]: 'Completed',
-  [TxStatus.FAILED]: 'Failed',
-  [TxStatus.REJECTED]: 'Rejected'
-}
 
 // Execution type to human-readable text with icons
-const executionTypeToHuman: { [key: number]: { text: string; icon: React.ReactNode; description: string } } = {
-  [ExecutionType.NONE]: { 
-    text: 'None',
-    icon: <Network className="h-3 w-3" />,
-    description: 'No specific execution type'
-  },
-  [ExecutionType.STANDARD]: { 
-    text: 'Standard',
-    icon: <Timer className="h-3 w-3" />,
-    description: 'Two-phase temporal security'
-  },
-  [ExecutionType.RAW]: { 
-    text: 'Raw',
-    icon: <Network className="h-3 w-3" />,
-    description: 'Single-phase meta tx security'
-  }
-}
 
 interface TxDetailsDialogProps {
   record: TxRecord | null

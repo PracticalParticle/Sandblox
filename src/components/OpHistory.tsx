@@ -123,7 +123,6 @@ export function OpHistory({
   signedTransactions = [],
   onApprove,
   onCancel,
-  onSubmit,
   showMetaTxOption,
   refreshData,
   refreshSignedTransactions

@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge"
 import { TxInfoCard } from "./TxInfoCard"
 import { useState } from "react"
 import { formatAddress } from "@/lib/utils"
-import { TxRecord } from "../particle-core/sdk/typescript/interfaces/lib.index"
 import { TxStatus } from "../particle-core/sdk/typescript/types/lib.index"
 import { Address } from "viem"
 

@@ -15,7 +15,6 @@ import { formatTimestamp } from '@/lib/utils'
 import * as AlertDialog from '@radix-ui/react-alert-dialog'
 import { useOperationTypes } from '@/hooks/useOperationTypes'
 import { Address } from 'viem'
-import { cn } from '@/lib/utils'
 import { useNavigate } from 'react-router-dom'
 
 export interface ExtendedSignedTransaction {

@@ -178,7 +178,7 @@ export function MetaTxActionDialog({
                         </>
                       )}
                     </Button>
-                    <Button 
+              {/*       <Button 
                       type="button"
                       variant="outline"
                       disabled={!isConnectedWalletValid || isLoading}
@@ -186,7 +186,7 @@ export function MetaTxActionDialog({
                     >
                       <Radio className="mr-2 h-4 w-4" />
                       Broadcast
-                    </Button>
+                    </Button> */}
                   </div>
                 </div>
               </form>
