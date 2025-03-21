@@ -601,6 +601,7 @@ export function SecurityDetails() {
         (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
           ...metadata, 
           type: 'TIMELOCK_UPDATE', 
+          purpose: 'timelock_period',
           action: 'approve',
           broadcasted: false 
         })
@@ -915,7 +916,7 @@ export function SecurityDetails() {
       setActiveBroadcastTx(specificTx);
     } else {
       // Find the matching unsigned transaction
-      // We need to handle special cases where the transaction type might be different from what we're looking for
+      // Each transaction type is now treated independently to avoid overriding
       let pendingTx: ExtendedSignedTransaction | undefined;
       
       if (type === 'OWNERSHIP_TRANSFER') {
@@ -926,12 +927,25 @@ export function SecurityDetails() {
             (tx.metadata?.type === 'RECOVERY_UPDATE' && tx.metadata?.purpose === 'ownership_transfer')
           )
         );
-      } else if (type === 'RECOVERY_UPDATE' || type === 'RECOVERY_ADDRESS_UPDATE') {
-        // For recovery updates, look for RECOVERY_UPDATE with purpose=address_update or no purpose
+      } else if (type === 'RECOVERY_UPDATE') {
+        // For recovery threshold updates
         pendingTx = signedTransactions.find(tx => 
           tx.metadata?.type === 'RECOVERY_UPDATE' && 
           !tx.metadata?.broadcasted && 
-          (tx.metadata?.purpose === 'address_update' || !tx.metadata?.purpose)
+          (tx.metadata?.purpose !== 'address_update' && tx.metadata?.purpose !== 'ownership_transfer')
+        );
+      } else if (type === 'RECOVERY_ADDRESS_UPDATE') {
+        // For recovery address updates, look for RECOVERY_UPDATE with purpose=address_update
+        pendingTx = signedTransactions.find(tx => 
+          tx.metadata?.type === 'RECOVERY_UPDATE' && 
+          !tx.metadata?.broadcasted && 
+          tx.metadata?.purpose === 'address_update'
+        );
+      } else if (type === 'TIMELOCK_UPDATE') {
+        // For timelock updates, look for exact TIMELOCK_UPDATE type 
+        pendingTx = signedTransactions.find(tx => 
+          tx.metadata?.type === 'TIMELOCK_UPDATE' && 
+          !tx.metadata?.broadcasted
         );
       } else {
         // For other types, look for exact match

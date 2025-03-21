@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table"
-import { Trash2, AlertCircle, Network } from 'lucide-react'
+import { Trash2, AlertCircle } from 'lucide-react'
 import { formatTimestamp } from '@/lib/utils'
 import * as AlertDialog from '@radix-ui/react-alert-dialog'
 import { useOperationTypes } from '@/hooks/useOperationTypes'
@@ -72,13 +72,13 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
     if (tx.metadata?.type) {
       switch (tx.metadata.type) {
         case 'RECOVERY_UPDATE':
-          return tx.metadata.purpose === 'address_update' ? 'Recovery Address Update' : 'Recovery Ownership Transfer'
+          return tx.metadata.purpose === 'address_update' ? 'RECOVERY_UPDATE' : 'OWNERSHIP_TRANSFER'
         case 'TIMELOCK_UPDATE':
-          return 'TimeLock Period Update'
+          return 'TIMELOCK_UPDATE'
         case 'OWNERSHIP_TRANSFER':
-          return 'Ownership Transfer'
+          return 'OWNERSHIP_TRANSFER'
         case 'BROADCASTER_UPDATE':
-          return 'Broadcaster Update'
+          return 'BROADCASTER_UPDATE'
         default:
           // If it's not a known static type, it might be a dynamic type name
           return tx.metadata.type
@@ -155,7 +155,7 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
                     }
                   }}
                 >
-                  <TableCell className="font-mono">{tx.txId.slice(0, 10)}...</TableCell>
+                  <TableCell className="font-mono">{tx.txId}</TableCell>
                   <TableCell>
                     <Badge variant="outline">
                       {getTypeLabel(tx)}

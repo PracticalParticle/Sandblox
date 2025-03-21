@@ -11,7 +11,7 @@ export const VAULT_OPERATIONS = {
 
 export type VaultOperationType = typeof VAULT_OPERATIONS[keyof typeof VAULT_OPERATIONS];
 
-export interface UseSimpleVaultOperationsProps {
+interface UseSimpleVaultOperationsProps {
   contractAddress: Address
   operations: TxRecord[]
   isLoading?: boolean
@@ -28,10 +28,6 @@ export function useSimpleVaultOperations({
     operationTypeFilter,
     setStatusFilter,
     setOperationTypeFilter,
-    selectedRecord,
-    isDetailsOpen,
-    setIsDetailsOpen,
-    handleRowClick,
     getOperationName,
     operationTypes,
     loadingTypes
@@ -66,10 +62,6 @@ export function useSimpleVaultOperations({
     operationTypeFilter,
     setStatusFilter,
     setOperationTypeFilter,
-    selectedRecord,
-    isDetailsOpen,
-    setIsDetailsOpen,
-    handleRowClick,
     getOperationName,
     operationTypes: vaultOperationTypes,
     isLoading: isLoading || loadingTypes

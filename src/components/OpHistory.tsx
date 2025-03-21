@@ -14,9 +14,10 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table"
-import { Loader2, Clock, CheckCircle2, XCircle, AlertTriangle, Filter } from 'lucide-react'
+import { Loader2, Clock, CheckCircle2, XCircle, AlertTriangle, Filter, ExternalLink } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useAccount } from 'wagmi'
+import { useNavigate } from 'react-router-dom'
 
 import {
   Select,
@@ -34,6 +35,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { TemporalActionDialog } from './TemporalActionDialog'
+import { TxDetailsDialog } from './TxDetailsDialog'
 
 // Status badge variants mapping
 const statusVariants: { [key: number]: { variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode } } = {
@@ -115,8 +118,14 @@ export function OpHistory({
   operations,
   isLoading,
   contractInfo,
-  signedTransactions = []}: OpHistoryProps) {
-  useAccount()
+  signedTransactions = [],
+  onApprove,
+  onCancel,
+  onSubmit,
+  showMetaTxOption
+}: OpHistoryProps) {
+  const { address: connectedAddress } = useAccount()
+  const navigate = useNavigate()
   
   const {
     filteredOperations,
@@ -132,16 +141,46 @@ export function OpHistory({
     isLoading
   })
 
-  const [, setSelectedTx] = useState<TxRecord | null>(null)
-  const [, setIsDetailsOpen] = useState(false)
+  const [selectedTx, setSelectedTx] = useState<TxRecord | null>(null)
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const { getOperationName: operationTypesGetOperationName } = useOperationTypes(contractAddress)
 
+  // Function to determine the action type and required role based on operation type
+  const getActionTypeAndRole = (operationType: Hex): { actionType: string; requiredRole: string } => {
+    const operationName = operationTypesGetOperationName(operationType)
+    switch (operationName) {
+      case 'OWNERSHIP_TRANSFER':
+        return { actionType: 'ownership', requiredRole: 'owner_or_recovery' }
+      case 'BROADCASTER_UPDATE':
+        return { actionType: 'broadcaster', requiredRole: 'owner' }
+      case 'RECOVERY_UPDATE':
+        return { actionType: 'recovery', requiredRole: 'owner' }
+      case 'TIMELOCK_UPDATE':
+        return { actionType: 'timelock', requiredRole: 'owner' }
+      default:
+        return { actionType: 'unknown', requiredRole: 'owner' }
+    }
+  }
+
+  // Function to determine if an operation is a withdrawal
+  const isWithdrawalOperation = (operationType: Hex): boolean => {
+    const operationName = operationTypesGetOperationName(operationType)
+    return operationName === 'WITHDRAW_ETH' || operationName === 'WITHDRAW_TOKEN'
+  }
+
   const handleRowClick = (record: TxRecord) => {
+    const isWithdrawal = isWithdrawalOperation(record.params.operationType as Hex)
+    
+    // For pending withdrawals, navigate to the blox page
+    if (isWithdrawal && record.status === TxStatus.PENDING) {
+      navigate(`/blox/simple-vault/${contractAddress}`)
+      return
+    }
+
+    // For other transactions, show the details dialog
     setSelectedTx(record)
     setIsDetailsOpen(true)
   }
-
-  // Determine if this is an ownership operation
 
   if (isLoading || loadingTypes) {
     return (
@@ -234,6 +273,9 @@ export function OpHistory({
                 const isCompleted = record.status === TxStatus.COMPLETED || 
                                   (matchingSignedTx?.metadata?.status === 'COMPLETED' && matchingSignedTx?.metadata?.broadcasted);
                 
+                const isWithdrawal = isWithdrawalOperation(record.params.operationType as Hex)
+                const isPending = record.status === TxStatus.PENDING
+                
                 return (
                 <TableRow 
                   key={record.txId.toString()}
@@ -305,8 +347,15 @@ export function OpHistory({
                     {formatTimestamp(Number(record.releaseTime))}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="secondary">
-                      View Details
+                    <Badge variant="secondary" className="flex items-center gap-1">
+                      {isWithdrawal && isPending ? (
+                        <>
+                          <ExternalLink className="h-3 w-3" />
+                          <span>View in Blox</span>
+                        </>
+                      ) : (
+                        <span>View Details</span>
+                      )}
                     </Badge>
                   </TableCell>
                 </TableRow>
@@ -321,6 +370,39 @@ export function OpHistory({
             </TableBody>
           </Table>
 
+          {/* Dialogs */}
+          {selectedTx && selectedTx.status === TxStatus.PENDING && !isWithdrawalOperation(selectedTx.params.operationType as Hex) && (
+            <TemporalActionDialog
+              isOpen={isDetailsOpen}
+              onOpenChange={setIsDetailsOpen}
+              title={`${operationTypesGetOperationName(selectedTx.params.operationType as Hex)} Details`}
+              contractInfo={{
+                ...contractInfo,
+                contractAddress: contractAddress
+              }}
+              {...getActionTypeAndRole(selectedTx.params.operationType as Hex)}
+              currentValue={selectedTx.params.target}
+              currentValueLabel="Target Address"
+              actionLabel="Approve Operation"
+              requiredRole={getActionTypeAndRole(selectedTx.params.operationType as Hex).requiredRole}
+              connectedAddress={connectedAddress}
+              pendingTx={selectedTx}
+              showNewValueInput={false}
+              onApprove={onApprove}
+              onCancel={onCancel}
+              showMetaTxOption={showMetaTxOption}
+              operationName={operationTypesGetOperationName(selectedTx.params.operationType as Hex)}
+            />
+          )}
+          
+          {selectedTx && selectedTx.status !== TxStatus.PENDING && !isWithdrawalOperation(selectedTx.params.operationType as Hex) && (
+            <TxDetailsDialog
+              isOpen={isDetailsOpen}
+              onOpenChange={setIsDetailsOpen}
+              record={selectedTx}
+              operationName={operationTypesGetOperationName(selectedTx.params.operationType as Hex)}
+            />
+          )}
         </CardContent>
       </Card>
     </motion.div>
