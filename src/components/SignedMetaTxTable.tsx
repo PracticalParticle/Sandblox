@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table"
-import { Trash2, AlertCircle, ExternalLink } from 'lucide-react'
+import { Trash2, AlertCircle, ExternalLink, CheckCircle2, Clock } from 'lucide-react'
 import { formatTimestamp } from '@/lib/utils'
 import * as AlertDialog from '@radix-ui/react-alert-dialog'
 import { useOperationTypes } from '@/hooks/useOperationTypes'
@@ -174,7 +174,7 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
                 <TableHead>Action</TableHead>
                 <TableHead>Signed At</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Details</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -200,29 +200,39 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
                   <TableCell>{formatTimestamp(tx.timestamp / 1000)}</TableCell>
                   <TableCell>
                     {tx.metadata?.broadcasted ? (
-                      <Badge variant="default">Broadcasted</Badge>
+                      <Badge variant="default" className="flex w-24 items-center justify-center gap-1.5 py-1">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        <span>Broadcasted</span>
+                      </Badge>
                     ) : (
-                      <Badge variant="secondary">Pending</Badge>
+                      <Badge variant="secondary" className="flex w-24 items-center justify-center gap-1.5 py-1">
+                        <Clock className="h-3.5 w-3.5" />
+                        <span>Pending</span>
+                      </Badge>
                     )}
                   </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className="flex items-center gap-1">
+                  <TableCell className="flex items-center justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1.5"
+                      onClick={() => handleRowClick(tx)}
+                    >
                       {isWithdrawal ? (
                         <>
-                          <ExternalLink className="h-3 w-3" />
+                          <ExternalLink className="h-3.5 w-3.5" />
                           <span>View in Blox</span>
                         </>
                       ) : (
                         <span>View Details</span>
                       )}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
+                    </Button>
                     <AlertDialog.Root>
                       <AlertDialog.Trigger asChild>
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-8 w-8"
                           onClick={(e) => {
                             e.stopPropagation()
                             onRemoveTransaction(tx.txId)

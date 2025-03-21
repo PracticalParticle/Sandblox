@@ -171,8 +171,7 @@ export function BroadcastDialog({
                     <div className="flex items-center gap-2 text-sm">
                       <InfoIcon className="h-4 w-4 text-muted-foreground" />
                       <span className="text-muted-foreground">
-                        This transaction has been signed by the {pendingTx.metadata?.action === 'approve' ? 'owner' : 'recovery'} 
-                        and needs to be broadcasted to the network.
+                        This transaction has been signed by the Owner and needs to be broadcasted to the network.
                       </span>
                     </div>
 

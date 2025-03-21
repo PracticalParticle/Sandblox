@@ -8,19 +8,35 @@ const Collapsible = CollapsiblePrimitive.Root
 const CollapsibleTrigger = React.forwardRef<
   React.ElementRef<typeof CollapsiblePrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof CollapsiblePrimitive.Trigger>
->(({ className, children, ...props }, ref) => (
-  <CollapsiblePrimitive.Trigger
-    ref={ref}
-    className={cn(
-      "flex w-full items-center justify-between rounded-lg p-4 text-left text-sm font-medium transition-all hover:bg-accent hover:text-accent-foreground [&[data-state=open]>svg]:rotate-180",
-      className
-    )}
-    {...props}
-  >
-    {children}
-    <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
-  </CollapsiblePrimitive.Trigger>
-))
+>(({ className, children, ...props }, ref) => {
+  // If asChild is true, don't add our own styling or chevron
+  if (props.asChild) {
+    return (
+      <CollapsiblePrimitive.Trigger
+        ref={ref}
+        className={className}
+        {...props}
+      >
+        {children}
+      </CollapsiblePrimitive.Trigger>
+    );
+  }
+  
+  // Default implementation with our styling and chevron
+  return (
+    <CollapsiblePrimitive.Trigger
+      ref={ref}
+      className={cn(
+        "flex w-full items-center justify-between rounded-lg p-4 text-left text-sm font-medium transition-all hover:bg-accent hover:text-accent-foreground [&[data-state=open]>svg]:rotate-180",
+        className
+      )}
+      {...props}
+    >
+      {children}
+      <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+    </CollapsiblePrimitive.Trigger>
+  );
+})
 CollapsibleTrigger.displayName = CollapsiblePrimitive.Trigger.displayName
 
 const CollapsibleContent = React.forwardRef<

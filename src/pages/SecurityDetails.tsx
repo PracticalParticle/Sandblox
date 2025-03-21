@@ -13,9 +13,15 @@ import {
   Wallet,
   Timer,
   Network,
-  AppWindow} from 'lucide-react'
+  AppWindow,
+  ChevronDown,
+  Settings,
+  AlertTriangle,
+  ShieldAlert,
+  Clock3
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Card, CardTitle, CardContent } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useSecureContract } from '@/hooks/useSecureContract'
 import { useToast } from '../components/ui/use-toast'
@@ -1142,46 +1148,61 @@ export function SecurityDetails() {
               navigateTo={contractInfo?.type ? `/blox/${contractInfo.type}/${contractAddress}` : `/blox/simple-vault/${contractAddress}`}            />
 
             {/* Management Tiles */}
-            <div className="grid lg:grid-cols-2 gap-6">
-              {/* Configuration Management Section - Right Side */}
-              <div className="space-y-4">
-                <h2 className="text-lg font-semibold tracking-tight">Configuration Management</h2>
+            <div className="grid lg:grid-cols-2 gap-8">
+          
+
+              {/* Configuration Management Section */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                    <Settings className="h-5 w-5 text-blue-500" />
+                  </div>
+                  <h2 className="text-lg font-semibold tracking-tight">Configuration Management</h2>
+                </div>
+                
                 <div className="grid gap-4">
                   {/* TimeLock Management */}
                   <Collapsible open={timelockExpanded} onOpenChange={setTimelockExpanded}>
-                    <Card className="relative overflow-hidden">
-                      <CollapsibleTrigger className="w-full">
-                        <CardHeader>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <CardTitle>TimeLock Configuration</CardTitle>
-                              {signedTransactions.some(tx => 
-                                tx.metadata?.type === 'TIMELOCK_UPDATE' && 
-                                !tx.metadata?.broadcasted
-                              ) && (
-                                <Badge variant="default" className="bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20">
-                                  <AlertCircle className="h-3 w-3 mr-1" />
-                                  Action Required
-                                </Badge>
-                              )}
+                    <Card className="relative overflow-hidden border-l-4 border-l-blue-500 dark:border-l-blue-600">
+                      <CollapsibleTrigger asChild>
+                        <div className="w-full p-6 flex items-center justify-between cursor-pointer hover:bg-accent/50 hover:text-accent-foreground transition-colors">
+                          <div className="flex items-center gap-4">
+                            <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                              <Clock3 className="h-5 w-5 text-blue-500" />
                             </div>
-                            <div className="flex items-center gap-2">
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <Badge variant="secondary" className="flex items-center gap-1">
-                                      <Network className="h-3 w-3" />
-                                      <span>Meta Tx</span>
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Single-phase meta tx security</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
+                            <div className="space-y-1">
+                              <CardTitle className="text-base">TimeLock Configuration</CardTitle>
+                              <p className="text-sm text-muted-foreground">
+                                Manage security delay periods
+                              </p>
                             </div>
+                            {signedTransactions.some(tx => 
+                              tx.metadata?.type === 'TIMELOCK_UPDATE' && 
+                              !tx.metadata?.broadcasted
+                            ) && (
+                              <Badge variant="default" className="ml-4 bg-blue-500/10 text-blue-500 hover:bg-blue-500/20">
+                                <AlertCircle className="h-3 w-3 mr-1" />
+                                Action Required
+                              </Badge>
+                            )}
                           </div>
-                        </CardHeader>
+                          <div className="flex items-center gap-3">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="secondary" className="flex items-center gap-1">
+                                    <Network className="h-3 w-3" />
+                                    <span>Meta Tx</span>
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Single-phase meta transaction security</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [data-state=open]:-rotate-180" />
+                          </div>
+                        </div>
                       </CollapsibleTrigger>
                       <CollapsibleContent>
                         <CardContent className="p-6">
@@ -1344,39 +1365,46 @@ export function SecurityDetails() {
 
                   {/* Broadcaster Management */}
                   <Collapsible open={broadcasterExpanded} onOpenChange={setBroadcasterExpanded}>
-                    <Card className="relative overflow-hidden">
-                      <CollapsibleTrigger className="w-full">
-                        <CardHeader>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <CardTitle>Broadcaster Configuration</CardTitle>
-                              {(pendingBroadcasterTx || signedTransactions.some(tx => 
-                                tx.metadata?.type === 'BROADCASTER_UPDATE' && 
-                                !tx.metadata?.broadcasted
-                              )) && (
-                                <Badge variant="default" className="bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20">
-                                  <AlertCircle className="h-3 w-3 mr-1" />
-                                  Action Required
-                                </Badge>
-                              )}
+                    <Card className="relative overflow-hidden border-l-4 border-l-purple-500 dark:border-l-purple-600">
+                      <CollapsibleTrigger asChild>
+                        <div className="w-full p-6 flex items-center justify-between cursor-pointer hover:bg-accent/50 hover:text-accent-foreground transition-colors">
+                          <div className="flex items-center gap-4">
+                            <div className="h-10 w-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                              <Radio className="h-5 w-5 text-purple-500" />
                             </div>
-                            <div className="flex items-center gap-2">
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <Badge variant="secondary" className="flex items-center gap-1">
-                                      <Timer className="h-3 w-3" />
-                                      <span>Temporal</span>
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Two-phase temporal security</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
+                            <div className="space-y-1">
+                              <CardTitle className="text-base">Broadcaster Configuration</CardTitle>
+                              <p className="text-sm text-muted-foreground">
+                                Manage transaction broadcasters
+                              </p>
                             </div>
+                            {(pendingBroadcasterTx || signedTransactions.some(tx => 
+                              tx.metadata?.type === 'BROADCASTER_UPDATE' && 
+                              !tx.metadata?.broadcasted
+                            )) && (
+                              <Badge variant="default" className="ml-4 bg-purple-500/10 text-purple-500 hover:bg-purple-500/20">
+                                <AlertCircle className="h-3 w-3 mr-1" />
+                                Action Required
+                              </Badge>
+                            )}
                           </div>
-                        </CardHeader>
+                          <div className="flex items-center gap-3">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="secondary" className="flex items-center gap-1">
+                                    <Timer className="h-3 w-3" />
+                                    <span>Temporal</span>
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Two-phase temporal security</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [data-state=open]:-rotate-180" />
+                          </div>
+                        </div>
                       </CollapsibleTrigger>
                       <CollapsibleContent>
                         <CardContent className="p-6">
@@ -1574,53 +1602,61 @@ export function SecurityDetails() {
                       </CollapsibleContent>
                     </Card>
                   </Collapsible>
-
-                
                 </div>
               </div>
-              {/* Emergency Management Section - Left Side */}
-              <div className="space-y-4 lg:border-r lg:pr-6">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-semibold tracking-tight">Emergency Management</h2>
-                  
+
+                  {/* Emergency Management Section */}
+                  <div className="space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-red-500/10 flex items-center justify-center">
+                    <AlertTriangle className="h-5 w-5 text-red-500" />
+                  </div>
+                  <h2 className="text-lg font-semibold tracking-tight">Recovery Management</h2>
                 </div>
+                
                 <div className="grid gap-4">
-                    {/* Recovery Configuration */}
-                    <Collapsible open={recoveryExpanded} onOpenChange={setRecoveryExpanded}>
-                    <Card className="relative overflow-hidden">
-                      <CollapsibleTrigger className="w-full">
-                        <CardHeader>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <CardTitle>Recovery Configuration</CardTitle>
-                              {signedTransactions.some(tx => 
-                                tx.metadata?.type === 'RECOVERY_UPDATE' && 
-                                tx.metadata?.purpose === 'address_update' && 
-                                !tx.metadata?.broadcasted
-                              ) && (
-                                <Badge variant="default" className="bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20">
-                                  <AlertCircle className="h-3 w-3 mr-1" />
-                                  Action Required
-                                </Badge>
-                              )}
+                  {/* Recovery Configuration */}
+                  <Collapsible open={recoveryExpanded} onOpenChange={setRecoveryExpanded}>
+                    <Card className="relative overflow-hidden border-l-4 border-l-amber-500 dark:border-l-amber-600">
+                      <CollapsibleTrigger asChild>
+                        <div className="w-full p-6 flex items-center justify-between cursor-pointer hover:bg-accent/50 hover:text-accent-foreground transition-colors">
+                          <div className="flex items-center gap-4">
+                            <div className="h-10 w-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                              <Key className="h-5 w-5 text-amber-500" />
                             </div>
-                            <div className="flex items-center gap-2">
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <Badge variant="secondary" className="flex items-center gap-1">
-                                      <Network className="h-3 w-3" />
-                                      <span>Meta Tx</span>
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Single-phase meta tx security</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
+                            <div className="space-y-1">
+                              <CardTitle className="text-base">Recovery Configuration</CardTitle>
+                              <p className="text-sm text-muted-foreground">
+                                Update recovery address and permissions
+                              </p>
                             </div>
+                            {signedTransactions.some(tx => 
+                              tx.metadata?.type === 'RECOVERY_UPDATE' && 
+                              !tx.metadata?.broadcasted
+                            ) && (
+                              <Badge variant="default" className="ml-4 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20">
+                                <AlertCircle className="h-3 w-3 mr-1" />
+                                Action Required
+                              </Badge>
+                            )}
                           </div>
-                        </CardHeader>
+                          <div className="flex items-center gap-3">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="secondary" className="flex items-center gap-1">
+                                    <Network className="h-3 w-3" />
+                                    <span>Meta Tx</span>
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Single-phase meta transaction security</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [data-state=open]:-rotate-180" />
+                          </div>
+                        </div>
                       </CollapsibleTrigger>
                       <CollapsibleContent>
                         <CardContent className="p-6">
@@ -1636,9 +1672,9 @@ export function SecurityDetails() {
                               
                               <div className="pl-12">
                                 <div className="mb-3 flex items-center gap-2">
-                                  <Badge variant="default" className="bg-blue-500/10 text-blue-500 hover:bg-blue-500/20">
-                                    <Shield className="h-3 w-3 mr-1" />
-                                    Owner
+                                  <Badge variant="default" className="bg-red-500/10 text-red-500 hover:bg-red-500/20">
+                                    <Key className="h-3 w-3 mr-1" />
+                                    Recovery
                                   </Badge>
                                   <span className="text-sm text-muted-foreground">signs meta-transaction</span>
                                 </div>
@@ -1749,40 +1785,46 @@ export function SecurityDetails() {
                   </Collapsible>
                   {/* Ownership Management */}
                   <Collapsible open={ownershipExpanded} onOpenChange={setOwnershipExpanded}>
-                    <Card className="relative overflow-hidden">
-                      <CollapsibleTrigger className="w-full">
-                        <CardHeader>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <CardTitle>Recovery (Transfer Ownership)</CardTitle>
-                              {(pendingOwnershipTx || signedTransactions.some(tx => 
-                                tx.metadata?.type === 'RECOVERY_UPDATE' && 
-                                tx.metadata?.purpose === 'ownership_transfer' && 
-                                !tx.metadata?.broadcasted
-                              )) && (
-                                <Badge variant="default" className="bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20">
-                                  <AlertCircle className="h-3 w-3 mr-1" />
-                                  Action Required
-                                </Badge>
-                              )}
+                    <Card className="relative overflow-hidden border-l-4 border-l-red-500 dark:border-l-red-600">
+                      <CollapsibleTrigger asChild>
+                        <div className="w-full p-6 flex items-center justify-between cursor-pointer hover:bg-accent/50 hover:text-accent-foreground transition-colors">
+                          <div className="flex items-center gap-4">
+                            <div className="h-10 w-10 rounded-lg bg-red-500/10 flex items-center justify-center">
+                              <ShieldAlert className="h-5 w-5 text-red-500" />
                             </div>
-                            <div className="flex items-center gap-2">
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <Badge variant="secondary" className="flex items-center gap-1">
-                                      <Timer className="h-3 w-3" />
-                                      <span>Temporal</span>
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Two-phase temporal security</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
+                            <div className="space-y-1">
+                              <CardTitle className="text-base">Recovery (Transfer Ownership)</CardTitle>
+                              <p className="text-sm text-muted-foreground">
+                                Emergency ownership transfer process
+                              </p>
                             </div>
+                            {(pendingOwnershipTx || signedTransactions.some(tx => 
+                              tx.metadata?.type === 'OWNERSHIP_TRANSFER' && 
+                              !tx.metadata?.broadcasted
+                            )) && (
+                              <Badge variant="default" className="ml-4 bg-red-500/10 text-red-500 hover:bg-red-500/20">
+                                <AlertCircle className="h-3 w-3 mr-1" />
+                                Action Required
+                              </Badge>
+                            )}
                           </div>
-                        </CardHeader>
+                          <div className="flex items-center gap-3">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="secondary" className="flex items-center gap-1">
+                                    <Timer className="h-3 w-3" />
+                                    <span>Temporal</span>
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Two-phase temporal security</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [data-state=open]:-rotate-180" />
+                          </div>
+                        </div>
                       </CollapsibleTrigger>
                       <CollapsibleContent>
                         <CardContent className="p-6">
@@ -1804,7 +1846,7 @@ export function SecurityDetails() {
                                   
                                   <div className="pl-12">
                                     <div className="mb-3 flex items-center gap-2">
-                                      <Badge variant="default" className="bg-green-500/10 text-green-500 hover:bg-green-500/20">
+                                      <Badge variant="default" className="bg-red-500/10 text-red-500 hover:bg-red-500/20">
                                         <Key className="h-3 w-3 mr-1" />
                                         Recovery
                                       </Badge>
@@ -1843,7 +1885,7 @@ export function SecurityDetails() {
                                         Owner
                                       </Badge>
                                       <span className="text-sm text-muted-foreground">or</span>
-                                      <Badge variant="default" className="bg-green-500/10 text-green-500 hover:bg-green-500/20">
+                                      <Badge variant="default" className="bg-red-500/10 text-red-500 hover:bg-red-500/20">
                                         <Key className="h-3 w-3 mr-1" />
                                         Recovery
                                       </Badge>
@@ -1924,7 +1966,7 @@ export function SecurityDetails() {
                                           </div>
                                         ) : (
                                           <div className="flex items-center gap-2">
-                                            <Badge variant="default" className="bg-green-500/10 text-green-500">
+                                            <Badge variant="default" className="bg-red-500/10 text-red-500">
                                               <Key className="h-3 w-3 mr-1" />
                                               Recovery
                                             </Badge>
@@ -1940,7 +1982,7 @@ export function SecurityDetails() {
                                         </Badge>
                                         <span className="text-sm">connection required</span>
                                         <span className="text-sm text-muted-foreground">or</span>
-                                        <Badge variant="default" className="bg-green-500/10 text-green-500">
+                                        <Badge variant="default" className="bg-red-500/10 text-red-500">
                                           <Key className="h-3 w-3 mr-1" />
                                           Recovery
                                         </Badge>
@@ -1983,8 +2025,6 @@ export function SecurityDetails() {
                   </Collapsible>
                 </div>
               </div>
-
-              
             </div>
           </motion.div>
 

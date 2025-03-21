@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/tooltip"
 import { TemporalActionDialog } from './TemporalActionDialog'
 import { TxDetailsDialog } from './TxDetailsDialog'
+import { Button } from './ui/button'
 
 // Status badge variants mapping
 const statusVariants: { [key: number]: { variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode } } = {
@@ -250,7 +251,7 @@ export function OpHistory({
                 <TableHead>Operation</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Release Time</TableHead>
-                <TableHead>Details</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -298,7 +299,6 @@ export function OpHistory({
                       <div className="flex flex-col gap-2">
                         <PendingBadge record={record} contractInfo={contractInfo} />
                         
-                        {/* Show signature indicator for pending transactions with signed meta tx */}
                         {hasPendingSignature && (
                           <TooltipProvider>
                             <Tooltip>
@@ -339,7 +339,7 @@ export function OpHistory({
                     ) : (
                       <Badge 
                         variant={statusVariants[record.status]?.variant || "outline"}
-                        className="flex items-center gap-1"
+                        className="flex w-24 items-center justify-center gap-1.5 py-1"
                       >
                         {statusVariants[record.status]?.icon}
                         <span>{statusToHuman[record.status]}</span>
@@ -349,17 +349,22 @@ export function OpHistory({
                   <TableCell>
                     {formatTimestamp(Number(record.releaseTime))}
                   </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className="flex items-center gap-1">
+                  <TableCell className="text-right">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1.5"
+                      onClick={() => handleRowClick(record)}
+                    >
                       {isWithdrawal && isPending ? (
                         <>
-                          <ExternalLink className="h-3 w-3" />
+                          <ExternalLink className="h-3.5 w-3.5" />
                           <span>View in Blox</span>
                         </>
                       ) : (
                         <span>View Details</span>
                       )}
-                    </Badge>
+                    </Button>
                   </TableCell>
                 </TableRow>
               )})}
