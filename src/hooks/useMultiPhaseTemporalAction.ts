@@ -15,6 +15,8 @@ interface UseMultiPhaseTemporalActionProps {
   onCancel?: (txId: number) => Promise<void>
   pendingTx?: TxRecord & { contractAddress: Address, timeLockPeriodInMinutes: number }
   showNewValueInput?: boolean
+  onMetaTxSignSuccess?: () => void
+  refreshSignedTransactions?: () => void
 }
 
 interface UseMultiPhaseTemporalActionState {
@@ -29,7 +31,7 @@ interface UseMultiPhaseTemporalActionActions {
   handleSubmit: (e: React.FormEvent) => Promise<void>
   handleApprove: (txId: number) => Promise<void>
   handleCancel: (txId: number) => Promise<void>
-  handleMetaTxSign: (type: 'approve' | 'cancel', metaTxType: 'broadcaster' | 'ownership') => Promise<void>
+  handleMetaTxSign: (type: 'approve' | 'cancel', metaTxType: 'broadcaster' | 'ownership' | 'recovery' | 'timelock') => Promise<void>
 }
 
 export function useMultiPhaseTemporalAction({
@@ -39,7 +41,9 @@ export function useMultiPhaseTemporalAction({
   onApprove,
   onCancel,
   pendingTx,
-  showNewValueInput = true
+  showNewValueInput = true,
+  onMetaTxSignSuccess,
+  refreshSignedTransactions
 }: UseMultiPhaseTemporalActionProps): UseMultiPhaseTemporalActionState & UseMultiPhaseTemporalActionActions {
   const [newValue, setNewValue] = useState("")
   const [isApproving, setIsApproving] = useState(false)
@@ -133,7 +137,7 @@ export function useMultiPhaseTemporalAction({
     }
   }
 
-  const handleMetaTxSign = async (type: 'approve' | 'cancel', metaTxType: 'broadcaster' | 'ownership') => {
+  const handleMetaTxSign = async (type: 'approve' | 'cancel', metaTxType: 'broadcaster' | 'ownership' | 'recovery' | 'timelock') => {
     console.log('handleMetaTxSign', type, metaTxType);
     setIsSigning(true)
     try {
@@ -145,38 +149,79 @@ export function useMultiPhaseTemporalAction({
         throw new Error('Contract address is required for storing meta transactions');
       }
 
+      // Map the metaTxType to the correct transaction type for metadata
+      let transactionType: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE';
+      
+      switch (metaTxType) {
+        case 'ownership':
+          transactionType = 'OWNERSHIP_TRANSFER';
+          break;
+        case 'broadcaster':
+          transactionType = 'BROADCASTER_UPDATE';
+          break;
+        case 'recovery':
+          transactionType = 'RECOVERY_UPDATE';
+          break;
+        case 'timelock':
+          transactionType = 'TIMELOCK_UPDATE';
+          break;
+        default:
+          // Fallback to OWNERSHIP_TRANSFER if unknown type
+          transactionType = 'OWNERSHIP_TRANSFER';
+      }
+
+      // Prepare the callback to store transaction and trigger refresh
+      const storeAndRefresh = (txId: string, signedData: string, metadata: any) => {
+        storeTransaction(txId, signedData, { 
+          ...metadata, 
+          type: transactionType,
+          action: type,
+          broadcasted: false 
+        });
+        
+        // Refresh signed transactions state if the callback is provided
+        if (refreshSignedTransactions) {
+          refreshSignedTransactions();
+        }
+        
+        // Call the success callback if provided
+        if (onMetaTxSignSuccess) {
+          onMetaTxSignSuccess();
+        }
+      };
+
       if (metaTxType === 'broadcaster' && type === 'approve') {
         await signBroadcasterUpdateApproval(pendingTx?.contractAddress, txId, 
-          (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
+          (txId, signedData, metadata) => storeAndRefresh(txId, signedData, { 
             ...metadata, 
-            type: 'BROADCASTER_UPDATE', 
+            type: 'BROADCASTER_UPDATE',
             action: type,
             broadcasted: false 
           })
         );
       } else if (metaTxType === 'broadcaster' && type === 'cancel') {
         await signBroadcasterUpdateCancellation(pendingTx?.contractAddress, txId, 
-          (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
+          (txId, signedData, metadata) => storeAndRefresh(txId, signedData, { 
             ...metadata, 
-            type: 'BROADCASTER_UPDATE', 
+            type: 'BROADCASTER_UPDATE',
             action: type,
             broadcasted: false 
           })
         );
-      } else if (metaTxType === 'ownership' && type === 'approve') {
+      } else if ((metaTxType === 'ownership' || metaTxType === 'recovery' || metaTxType === 'timelock') && type === 'approve') {
         await signTransferOwnershipApproval(pendingTx?.contractAddress, txId, 
-          (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
+          (txId, signedData, metadata) => storeAndRefresh(txId, signedData, { 
             ...metadata, 
-            type: 'OWNERSHIP_TRANSFER', 
+            type: transactionType,
             action: type,
             broadcasted: false 
           })
         );
-      } else if (metaTxType === 'ownership' && type === 'cancel') {
+      } else if ((metaTxType === 'ownership' || metaTxType === 'recovery' || metaTxType === 'timelock') && type === 'cancel') {
         await signTransferOwnershipCancellation(pendingTx?.contractAddress, txId, 
-          (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
+          (txId, signedData, metadata) => storeAndRefresh(txId, signedData, { 
             ...metadata, 
-            type: 'OWNERSHIP_TRANSFER', 
+            type: transactionType,
             action: type,
             broadcasted: false 
           })
@@ -188,7 +233,7 @@ export function useMultiPhaseTemporalAction({
       toast({
         title: "Success",
         description: `Transaction ${type} signed successfully`,
-      })
+      });
     } catch (error: any) {
       toast({
         title: "Error",

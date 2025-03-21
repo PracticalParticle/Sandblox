@@ -17,11 +17,6 @@ export interface UseOperationHistoryReturn {
   operationTypeFilter: string
   setStatusFilter: (value: string) => void
   setOperationTypeFilter: (value: string) => void
-  selectedRecord: TxRecord | null
-  setSelectedRecord: (record: TxRecord | null) => void
-  isDetailsOpen: boolean
-  setIsDetailsOpen: (open: boolean) => void
-  handleRowClick: (record: TxRecord) => void
   isLoading: boolean
   getOperationName: (type: Hex) => string
   operationTypes: Map<Hex, string>
@@ -47,8 +42,6 @@ export function useOperationHistory({
   const [filteredOperations, setFilteredOperations] = useState<TxRecord[]>([])
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [operationTypeFilter, setOperationTypeFilter] = useState<string>('all')
-  const [selectedRecord, setSelectedRecord] = useState<TxRecord | null>(null)
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false)
 
   const { getOperationName, operationTypes: rawOperationTypes, loading: loadingTypes } = useOperationTypes(contractAddress)
 
@@ -80,11 +73,6 @@ export function useOperationHistory({
     setFilteredOperations(filtered)
   }, [sortedOperations, statusFilter, operationTypeFilter])
 
-  const handleRowClick = (record: TxRecord) => {
-    setSelectedRecord(record)
-    setIsDetailsOpen(true)
-  }
-
   return {
     sortedOperations,
     filteredOperations,
@@ -92,11 +80,6 @@ export function useOperationHistory({
     operationTypeFilter,
     setStatusFilter,
     setOperationTypeFilter,
-    selectedRecord,
-    setSelectedRecord,
-    isDetailsOpen,
-    setIsDetailsOpen,
-    handleRowClick,
     isLoading,
     getOperationName,
     operationTypes,

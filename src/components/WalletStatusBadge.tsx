@@ -51,7 +51,7 @@ export function WalletStatusBadge({
             </Badge>
           )}
           {contractInfo && isRoleConnected(contractInfo.recoveryAddress) && (
-            <Badge variant="default" className="bg-green-500/10 text-green-500 hover:bg-green-500/20 font-medium">
+            <Badge variant="default" className="bg-red-500/10 text-red-500 hover:bg-red-500/20 font-medium">
               <Key className="h-3 w-3 mr-1" />
               Recovery
             </Badge>

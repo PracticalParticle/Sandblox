@@ -62,7 +62,7 @@ export function useTransactionManager(contractAddress: string): UseTransactionMa
         transactionManager.removeSignedTransaction(contractAddress, txId);
         setTransactions(prev => {
           const newTransactions = { ...prev };
-          delete newTransactions[txId];
+          delete newTransactions[Number(txId)];
           return newTransactions;
         });
         setError(null);

@@ -73,6 +73,10 @@ export function Navbar() {
           <ConnectButton
             showBalance={false}
             chainStatus="icon"
+            accountStatus={{
+              smallScreen: 'avatar',
+              largeScreen: 'full',
+            }}
           />
           <div className="hidden md:block">
             <ThemeToggle />

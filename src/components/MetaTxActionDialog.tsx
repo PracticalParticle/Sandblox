@@ -9,6 +9,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Badge } from "@/components/ui/badge"
 import { formatAddress } from "@/lib/utils"
 import { useSinglePhaseMetaTxAction } from "@/hooks/useSinglePhaseMetaTxAction"
+import { TxInfoCard } from "./TxInfoCard"
+import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index'
 
 interface MetaTxActionDialogProps {
   isOpen: boolean
@@ -37,6 +39,8 @@ interface MetaTxActionDialogProps {
   validateNewValue?: (value: string) => { isValid: boolean; message?: string }
   isSigning?: boolean
   customInput?: React.ReactNode
+  transactionRecord?: TxRecord
+  operationName?: string
 }
 
 export function MetaTxActionDialog({
@@ -59,7 +63,9 @@ export function MetaTxActionDialog({
   newValuePlaceholder,
   validateNewValue,
   isSigning = false,
-  customInput
+  customInput,
+  transactionRecord,
+  operationName
 }: MetaTxActionDialogProps) {
   const {
     validationResult,
@@ -101,6 +107,16 @@ export function MetaTxActionDialog({
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Display transaction info if a record is provided */}
+          {transactionRecord && (
+            <TxInfoCard 
+              record={transactionRecord}
+              operationName={operationName || actionType}
+              showExecutionType={true}
+              showStatus={true}
+            />
+          )}
+
           <Card>
             <CardContent className="pt-6">
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -162,7 +178,7 @@ export function MetaTxActionDialog({
                         </>
                       )}
                     </Button>
-                    <Button 
+              {/*       <Button 
                       type="button"
                       variant="outline"
                       disabled={!isConnectedWalletValid || isLoading}
@@ -170,7 +186,7 @@ export function MetaTxActionDialog({
                     >
                       <Radio className="mr-2 h-4 w-4" />
                       Broadcast
-                    </Button>
+                    </Button> */}
                   </div>
                 </div>
               </form>

@@ -13,9 +13,15 @@ import {
   Wallet,
   Timer,
   Network,
-  AppWindow} from 'lucide-react'
+  AppWindow,
+  ChevronDown,
+  Settings,
+  AlertTriangle,
+  ShieldAlert,
+  Clock3
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Card, CardTitle, CardContent } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useSecureContract } from '@/hooks/useSecureContract'
 import { useToast } from '../components/ui/use-toast'
@@ -43,18 +49,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Input } from "@/components/ui/input"
 import { ContractInfo } from '@/components/ContractInfo'
 import { WalletStatusBadge } from '@/components/WalletStatusBadge'
-
-interface ExtendedSignedTransaction {
-  txId: string
-  signedData: string
-  timestamp: number
-  metadata?: {
-    type: 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE' | 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE'
-    purpose?: 'address_update' | 'ownership_transfer'
-    action?: 'approve' | 'cancel'
-    broadcasted: boolean
-  }
-}
+import { SignedMetaTxTable } from '@/components/SignedMetaTxTable'
+import { BroadcastDialog } from '@/components/BroadcastDialog'
+import { ExtendedSignedTransaction } from '@/components/SignedMetaTxTable'
+import { TransactionManager } from '@/services/TransactionManager'
 
 const container = {
   hidden: { opacity: 0 },
@@ -111,7 +109,7 @@ export function SecurityDetails() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { transactions = {}, storeTransaction } = useTransactionManager(contractAddress || '')
+  const { transactions = {}, storeTransaction, clearTransactions, removeTransaction } = useTransactionManager(contractAddress || '')
   const [signedTransactions, setSignedTransactions] = useState<ExtendedSignedTransaction[]>([])
   const [contractInfo, setContractInfo] = useState<SecureContractInfo | null>(null)
   const { validateAndLoadContract, updateBroadcaster, approveOperation } = useSecureContract()
@@ -140,6 +138,12 @@ export function SecurityDetails() {
   const [recoveryExpanded, setRecoveryExpanded] = useState(false)
   const [timelockExpanded, setTimelockExpanded] = useState(false)
 
+  // Add state for Broadcast Dialog
+  const [showBroadcastTimelockDialog, setShowBroadcastTimelockDialog] = useState(false)
+  const [showBroadcastRecoveryDialog, setShowBroadcastRecoveryDialog] = useState(false)
+  const [showBroadcastOwnershipDialog, setShowBroadcastOwnershipDialog] = useState(false)
+  const [showBroadcastBroadcasterDialog, setShowBroadcastBroadcasterDialog] = useState(false)
+  const [activeBroadcastTx, setActiveBroadcastTx] = useState<ExtendedSignedTransaction | null>(null)
 
   useEffect(() => {
     if (!contractAddress) {
@@ -449,24 +453,7 @@ export function SecurityDetails() {
     }
   };
 
-  const handleUpdateBroadcasterApproval = async (txId: number) => {
-    try {
-      await approveOperation(contractAddress as `0x${string}`, txId, 'broadcaster');
-      toast({
-        title: "Approval submitted",
-        description: "Broadcaster update approval has been submitted.",
-      });
-      await loadContractInfo();
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to approve broadcaster update.",
-        variant: "destructive"
-      });
-    }
-  }
-
-  const handleUpdateBroadcasterCancellation = async (txId: number) => {
+  const handleApproveOperation = async (txId: number) => {
     try {
       if (!contractInfo || !connectedAddress || !contractAddress || !publicClient || !walletClient) {
         toast({
@@ -482,7 +469,7 @@ export function SecurityDetails() {
         throw new Error('Chain not found');
       }
 
-      // Create contract instance
+      // Create contract instance to get operation types
       const contract = new SecureOwnable(
         publicClient,
         walletClient,
@@ -490,24 +477,43 @@ export function SecurityDetails() {
         chain
       );
 
-      // Execute the direct cancellation since we're the owner
-      const result = await contract.updateBroadcasterCancellation(
-        BigInt(txId),
-        { from: connectedAddress as `0x${string}` }
+      // Get supported operation types
+      const supportedTypes = await contract.getSupportedOperationTypes();
+      const typeMap = new Map(
+        supportedTypes.map(({ operationType, name }) => [operationType, name])
       );
 
-      await result.wait();
+      // Find the transaction in operation history
+      const tx = contractInfo.operationHistory.find((tx: TxRecord) => tx.txId === BigInt(txId));
+      if (!tx) {
+        throw new Error('Transaction not found');
+      }
 
+      // Get operation name and determine type
+      const operationName = typeMap.get(tx.params.operationType);
+      let operationType: 'ownership' | 'broadcaster';
+      
+      if (operationName?.includes('OWNERSHIP')) {
+        operationType = 'ownership';
+      } else if (operationName?.includes('BROADCASTER')) {
+        operationType = 'broadcaster';
+      } else {
+        throw new Error('Unsupported operation type');
+      }
+
+      await approveOperation(contractAddress as `0x${string}`, txId, operationType);
+      
       toast({
-        title: "Cancellation submitted",
-        description: "Broadcaster update cancellation has been submitted.",
+        title: "Success",
+        description: "Operation approved successfully",
       });
+
       await loadContractInfo();
     } catch (error) {
-      console.error('Error in broadcaster update cancellation:', error);
+      console.error('Error approving operation:', error);
       toast({
         title: "Error",
-        description: "Failed to cancel broadcaster update.",
+        description: error instanceof Error ? error.message : "Failed to approve operation",
         variant: "destructive"
       });
     }
@@ -602,6 +608,7 @@ export function SecurityDetails() {
         (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
           ...metadata, 
           type: 'TIMELOCK_UPDATE', 
+          purpose: 'timelock_period',
           action: 'approve',
           broadcasted: false 
         })
@@ -736,12 +743,10 @@ export function SecurityDetails() {
   };
 
   // Update handleBroadcast function to handle both types
-  const handleBroadcast = async (type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'RECOVERY_ADDRESS_UPDATE' | 'TIMELOCK_UPDATE') => {
+  const handleBroadcast = async (type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'RECOVERY_ADDRESS_UPDATE' | 'TIMELOCK_UPDATE' | 'WITHDRAWAL_APPROVAL') => {
     try {
-      // Find the matching unsigned transaction
-      const pendingTx = signedTransactions.find(tx => 
-        tx.metadata?.type === type && !tx.metadata?.broadcasted
-      );
+      // Use the activeBroadcastTx that was set in prepareBroadcastDialog
+      const pendingTx = activeBroadcastTx;
 
       if (!pendingTx) {
         throw new Error('No pending transaction found');
@@ -750,14 +755,24 @@ export function SecurityDetails() {
       if (!walletClient || !connectedAddress) {
         throw new Error('Wallet not connected');
       }
-      console.log('pendingTx', pendingTx);
-      console.log('pendingTx signedData', pendingTx.signedData);
+      console.log('Broadcasting transaction:', pendingTx);
+      console.log('Transaction type:', type);
+      console.log('pendingTx metadata:', pendingTx.metadata);
       
       // Extract the action type from metadata
       const action = pendingTx.metadata?.action as 'approve' | 'cancel';
       
       if (!action) {
         throw new Error('Action type not found in transaction metadata');
+      }
+
+      // Special handling for WITHDRAWAL_APPROVAL
+      if (type === 'WITHDRAWAL_APPROVAL') {
+        // For withdrawal approvals, just redirect to blox page
+        if (contractAddress) {
+          navigate(`/blox/${contractAddress}`);
+          return;
+        }
       }
       
       // Parse the signed transaction data
@@ -784,8 +799,29 @@ export function SecurityDetails() {
         storeTransaction
       );
 
-      // Map RECOVERY_ADDRESS_UPDATE to RECOVERY_UPDATE for contract interaction
-      const contractType = type === 'RECOVERY_ADDRESS_UPDATE' ? 'RECOVERY_UPDATE' : type;
+      // Determine the correct type to use for the contract interaction
+      // Handle special cases like RECOVERY_UPDATE with purpose=ownership_transfer
+      let contractType: 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE' | 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' = 
+        type === 'RECOVERY_ADDRESS_UPDATE' ? 'RECOVERY_UPDATE' : 
+        (type as 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE' | 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE');
+      
+      if (pendingTx.metadata?.type === 'RECOVERY_UPDATE' && pendingTx.metadata?.purpose === 'ownership_transfer') {
+        contractType = 'OWNERSHIP_TRANSFER';
+      } else if (pendingTx.metadata?.type) {
+        // Use the type from metadata if available, as it's what was used to sign the transaction
+        // Only use it if it's one of the valid contract types
+        const metadataType = pendingTx.metadata.type;
+        if (
+          metadataType === 'RECOVERY_UPDATE' || 
+          metadataType === 'TIMELOCK_UPDATE' || 
+          metadataType === 'OWNERSHIP_TRANSFER' || 
+          metadataType === 'BROADCASTER_UPDATE'
+        ) {
+          contractType = metadataType;
+        }
+      }
+      
+      console.log('Using contract type for execution:', contractType);
       
       // Prepare and sign the update transaction
       const txHash = await manager.executeMetaTransaction(
@@ -796,21 +832,35 @@ export function SecurityDetails() {
       );
       console.log('txHash', txHash);
       toast({
-        title: "Success",
-        description: "Transaction signed and stored",
+        title: "Transaction Submitted",
+        description: "Transaction has been submitted to the network",
       });
+      
       // Wait for transaction confirmation
       await publicClient?.waitForTransactionReceipt({ hash: txHash });
 
-      // Update the transaction metadata to mark as broadcasted
-      storeTransaction(pendingTx.txId, pendingTx.signedData, {
-        ...pendingTx.metadata,
-        broadcasted: true
+      // Remove the broadcasted transaction from local storage
+      removeTransaction(pendingTx.txId);
+      
+      // Update local state to remove the broadcasted transaction
+      setSignedTransactions(prev => prev.filter(tx => tx.txId !== pendingTx.txId));
+
+      // Clear the active transaction
+      setActiveBroadcastTx(null);
+
+      // Close all broadcast dialogs
+      setShowBroadcastTimelockDialog(false);
+      setShowBroadcastRecoveryDialog(false);
+      setShowBroadcastOwnershipDialog(false);
+      setShowBroadcastBroadcasterDialog(false);
+
+      toast({
+        title: "Transaction Confirmed",
+        description: "Transaction has been confirmed and removed from pending transactions",
       });
 
       // Reload contract info after broadcast
       await loadContractInfo();
-
     } catch (error) {
       console.error('Broadcast error:', error);
       toast({
@@ -818,6 +868,167 @@ export function SecurityDetails() {
         description: error instanceof Error ? error.message : "Failed to broadcast transaction",
         variant: "destructive"
       });
+    }
+  };
+
+  const handleUpdateBroadcasterCancellation = async (txId: number) => {
+    try {
+      if (!contractInfo || !connectedAddress || !contractAddress || !publicClient || !walletClient) {
+        toast({
+          title: "Error",
+          description: "Missing required information",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const chain = config.chains.find((c) => c.id === contractInfo.chainId);
+      if (!chain) {
+        throw new Error('Chain not found');
+      }
+
+      // Create contract instance
+      const contract = new SecureOwnable(
+        publicClient,
+        walletClient,
+        contractAddress as `0x${string}`,
+        chain
+      );
+
+      // Execute the direct cancellation since we're the owner
+      const result = await contract.updateBroadcasterCancellation(
+        BigInt(txId),
+        { from: connectedAddress as `0x${string}` }
+      );
+
+      await result.wait();
+
+      toast({
+        title: "Cancellation submitted",
+        description: "Broadcaster update cancellation has been submitted.",
+      });
+      await loadContractInfo();
+    } catch (error) {
+      console.error('Error in broadcaster update cancellation:', error);
+      toast({
+        title: "Error",
+        description: "Failed to cancel broadcaster update.",
+        variant: "destructive"
+      });
+    }
+  }
+
+  // Prepare the broadcast dialog for a specific transaction type
+  const prepareBroadcastDialog = (
+    type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'RECOVERY_ADDRESS_UPDATE' | 'TIMELOCK_UPDATE' | 'WITHDRAWAL_APPROVAL',
+    specificTx?: ExtendedSignedTransaction
+  ) => {
+    console.log('Preparing broadcast dialog for type:', type);
+    console.log('Specific transaction:', specificTx);
+    
+    // If a specific transaction is provided, use it directly
+    if (specificTx) {
+      console.log('Using specific transaction:', specificTx);
+      setActiveBroadcastTx(specificTx);
+    } else {
+      // Find the matching unsigned transaction
+      // Each transaction type is now treated independently to avoid overriding
+      let pendingTx: ExtendedSignedTransaction | undefined;
+      
+      if (type === 'OWNERSHIP_TRANSFER') {
+        // For ownership transfer, look for either OWNERSHIP_TRANSFER or RECOVERY_UPDATE with purpose=ownership_transfer
+        pendingTx = signedTransactions.find(tx => 
+          (!tx.metadata?.broadcasted) && (
+            (tx.metadata?.type === 'OWNERSHIP_TRANSFER') || 
+            (tx.metadata?.type === 'RECOVERY_UPDATE' && tx.metadata?.purpose === 'ownership_transfer')
+          )
+        );
+      } else if (type === 'RECOVERY_UPDATE') {
+        // For recovery threshold updates
+        pendingTx = signedTransactions.find(tx => 
+          tx.metadata?.type === 'RECOVERY_UPDATE' && 
+          !tx.metadata?.broadcasted && 
+          (tx.metadata?.purpose !== 'address_update' && tx.metadata?.purpose !== 'ownership_transfer')
+        );
+      } else if (type === 'RECOVERY_ADDRESS_UPDATE') {
+        // For recovery address updates, look for RECOVERY_UPDATE with purpose=address_update
+        pendingTx = signedTransactions.find(tx => 
+          tx.metadata?.type === 'RECOVERY_UPDATE' && 
+          !tx.metadata?.broadcasted && 
+          tx.metadata?.purpose === 'address_update'
+        );
+      } else if (type === 'TIMELOCK_UPDATE') {
+        // For timelock updates, look for exact TIMELOCK_UPDATE type 
+        pendingTx = signedTransactions.find(tx => 
+          tx.metadata?.type === 'TIMELOCK_UPDATE' && 
+          !tx.metadata?.broadcasted
+        );
+      } else if (type === 'WITHDRAWAL_APPROVAL') {
+        // For withdrawal approvals, look for WITHDRAWAL_APPROVAL type
+        pendingTx = signedTransactions.find(tx => 
+          tx.metadata?.type === 'WITHDRAWAL_APPROVAL' && 
+          !tx.metadata?.broadcasted
+        );
+      } else {
+        // For other types, look for exact match
+        pendingTx = signedTransactions.find(tx => 
+          tx.metadata?.type === type && !tx.metadata?.broadcasted
+        );
+      }
+
+      if (pendingTx) {
+        console.log('Found pending transaction:', pendingTx);
+        setActiveBroadcastTx(pendingTx);
+      } else {
+        console.log('No pending transaction found for type:', type);
+        return; // Don't open dialog if no transaction found
+      }
+    }
+    
+    // Open the appropriate dialog based on type
+    switch (type) {
+      case 'TIMELOCK_UPDATE':
+        setShowBroadcastTimelockDialog(true);
+        break;
+      case 'RECOVERY_UPDATE':
+      case 'RECOVERY_ADDRESS_UPDATE':
+        setShowBroadcastRecoveryDialog(true);
+        break;
+      case 'OWNERSHIP_TRANSFER':  
+        setShowBroadcastOwnershipDialog(true);
+        break;
+      case 'BROADCASTER_UPDATE':
+        setShowBroadcastBroadcasterDialog(true);
+        break;
+      case 'WITHDRAWAL_APPROVAL':
+        // For withdrawal approvals, navigate to blox page
+        if (contractAddress) {
+          navigate(`/blox/${contractAddress}`);
+        }
+        break;
+    }
+  };
+
+  // Add after loadContractInfo function
+  const refreshSignedTransactions = () => {
+    try {
+      // Get the latest transactions from TransactionManager
+      if (contractAddress) {
+        const txManager = new TransactionManager();
+        const latestTxs = txManager.getSignedTransactionsByContract(contractAddress);
+        
+        // Convert to array format
+        const txArray = Object.entries(latestTxs).map(([txId, tx]) => ({
+          txId,
+          signedData: tx.signedData,
+          timestamp: tx.timestamp,
+          metadata: tx.metadata as ExtendedSignedTransaction['metadata']
+        }));
+        
+        setSignedTransactions(txArray);
+      }
+    } catch (error) {
+      console.error('Error refreshing signed transactions:', error);
     }
   };
 
@@ -934,50 +1145,64 @@ export function SecurityDetails() {
               onConnect={handleConnect}
               navigationIcon={<AppWindow className="h-4 w-4" />}
               navigationTooltip="View Blox Data"
-              navigateTo={`/blox/${contractInfo.type}/${contractAddress}`}
-            />
+              navigateTo={contractInfo?.type ? `/blox/${contractInfo.type}/${contractAddress}` : `/blox/simple-vault/${contractAddress}`}            />
 
             {/* Management Tiles */}
-            <div className="grid lg:grid-cols-2 gap-6">
-              {/* Configuration Management Section - Right Side */}
-              <div className="space-y-4">
-                <h2 className="text-lg font-semibold tracking-tight">Configuration Management</h2>
+            <div className="grid lg:grid-cols-2 gap-8">
+          
+
+              {/* Configuration Management Section */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                    <Settings className="h-5 w-5 text-blue-500" />
+                  </div>
+                  <h2 className="text-lg font-semibold tracking-tight">Configuration Management</h2>
+                </div>
+                
                 <div className="grid gap-4">
                   {/* TimeLock Management */}
                   <Collapsible open={timelockExpanded} onOpenChange={setTimelockExpanded}>
-                    <Card className="relative overflow-hidden">
-                      <CollapsibleTrigger className="w-full">
-                        <CardHeader>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <CardTitle>TimeLock Configuration</CardTitle>
-                              {signedTransactions.some(tx => 
-                                tx.metadata?.type === 'TIMELOCK_UPDATE' && 
-                                !tx.metadata?.broadcasted
-                              ) && (
-                                <Badge variant="default" className="bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20">
-                                  <AlertCircle className="h-3 w-3 mr-1" />
-                                  Action Required
-                                </Badge>
-                              )}
+                    <Card className="relative overflow-hidden border-l-4 border-l-blue-500 dark:border-l-blue-600">
+                      <CollapsibleTrigger asChild>
+                        <div className="w-full p-6 flex items-center justify-between cursor-pointer hover:bg-accent/50 hover:text-accent-foreground transition-colors">
+                          <div className="flex items-center gap-4">
+                            <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                              <Clock3 className="h-5 w-5 text-blue-500" />
                             </div>
-                            <div className="flex items-center gap-2">
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <Badge variant="secondary" className="flex items-center gap-1">
-                                      <Network className="h-3 w-3" />
-                                      <span>Meta Tx</span>
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Single-phase meta tx security</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
+                            <div className="space-y-1">
+                              <CardTitle className="text-base">TimeLock Configuration</CardTitle>
+                              <p className="text-sm text-muted-foreground">
+                                Manage security delay periods
+                              </p>
                             </div>
+                            {signedTransactions.some(tx => 
+                              tx.metadata?.type === 'TIMELOCK_UPDATE' && 
+                              !tx.metadata?.broadcasted
+                            ) && (
+                              <Badge variant="default" className="ml-4 bg-blue-500/10 text-blue-500 hover:bg-blue-500/20">
+                                <AlertCircle className="h-3 w-3 mr-1" />
+                                Action Required
+                              </Badge>
+                            )}
                           </div>
-                        </CardHeader>
+                          <div className="flex items-center gap-3">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="secondary" className="flex items-center gap-1">
+                                    <Network className="h-3 w-3" />
+                                    <span>Meta Tx</span>
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Single-phase meta transaction security</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [data-state=open]:-rotate-180" />
+                          </div>
+                        </div>
                       </CollapsibleTrigger>
                       <CollapsibleContent>
                         <CardContent className="p-6">
@@ -1035,7 +1260,7 @@ export function SecurityDetails() {
                                 </div>
 
                                 <Button 
-                                  onClick={() => handleBroadcast('TIMELOCK_UPDATE')}
+                                  onClick={() => prepareBroadcastDialog('TIMELOCK_UPDATE')}
                                   className={`w-full ${signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
                                   size="sm"
                                   variant={signedTransactions.some(tx => tx.metadata?.type === 'TIMELOCK_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
@@ -1140,39 +1365,46 @@ export function SecurityDetails() {
 
                   {/* Broadcaster Management */}
                   <Collapsible open={broadcasterExpanded} onOpenChange={setBroadcasterExpanded}>
-                    <Card className="relative overflow-hidden">
-                      <CollapsibleTrigger className="w-full">
-                        <CardHeader>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <CardTitle>Broadcaster Configuration</CardTitle>
-                              {(pendingBroadcasterTx || signedTransactions.some(tx => 
-                                tx.metadata?.type === 'BROADCASTER_UPDATE' && 
-                                !tx.metadata?.broadcasted
-                              )) && (
-                                <Badge variant="default" className="bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20">
-                                  <AlertCircle className="h-3 w-3 mr-1" />
-                                  Action Required
-                                </Badge>
-                              )}
+                    <Card className="relative overflow-hidden border-l-4 border-l-purple-500 dark:border-l-purple-600">
+                      <CollapsibleTrigger asChild>
+                        <div className="w-full p-6 flex items-center justify-between cursor-pointer hover:bg-accent/50 hover:text-accent-foreground transition-colors">
+                          <div className="flex items-center gap-4">
+                            <div className="h-10 w-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                              <Radio className="h-5 w-5 text-purple-500" />
                             </div>
-                            <div className="flex items-center gap-2">
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <Badge variant="secondary" className="flex items-center gap-1">
-                                      <Timer className="h-3 w-3" />
-                                      <span>Temporal</span>
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Two-phase temporal security</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
+                            <div className="space-y-1">
+                              <CardTitle className="text-base">Broadcaster Configuration</CardTitle>
+                              <p className="text-sm text-muted-foreground">
+                                Manage transaction broadcasters
+                              </p>
                             </div>
+                            {(pendingBroadcasterTx || signedTransactions.some(tx => 
+                              tx.metadata?.type === 'BROADCASTER_UPDATE' && 
+                              !tx.metadata?.broadcasted
+                            )) && (
+                              <Badge variant="default" className="ml-4 bg-purple-500/10 text-purple-500 hover:bg-purple-500/20">
+                                <AlertCircle className="h-3 w-3 mr-1" />
+                                Action Required
+                              </Badge>
+                            )}
                           </div>
-                        </CardHeader>
+                          <div className="flex items-center gap-3">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="secondary" className="flex items-center gap-1">
+                                    <Timer className="h-3 w-3" />
+                                    <span>Temporal</span>
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Two-phase temporal security</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [data-state=open]:-rotate-180" />
+                          </div>
+                        </div>
                       </CollapsibleTrigger>
                       <CollapsibleContent>
                         <CardContent className="p-6">
@@ -1270,7 +1502,7 @@ export function SecurityDetails() {
                                     </div>
 
                                     <Button 
-                                      onClick={() => handleBroadcast('BROADCASTER_UPDATE')}
+                                      onClick={() => prepareBroadcastDialog('BROADCASTER_UPDATE')}
                                       className={`w-full ${signedTransactions.some(tx => tx.metadata?.type === 'BROADCASTER_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
                                       size="sm"
                                       variant={signedTransactions.some(tx => tx.metadata?.type === 'BROADCASTER_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
@@ -1359,8 +1591,10 @@ export function SecurityDetails() {
                                 newValueLabel="New Broadcaster Address"
                                 newValuePlaceholder="Enter new broadcaster address"
                                 onSubmit={handleUpdateBroadcasterRequest}
-                                onApprove={handleUpdateBroadcasterApproval}
+                                onApprove={handleApproveOperation}
                                 onCancel={handleUpdateBroadcasterCancellation}
+                                refreshData={loadContractInfo}
+                                refreshSignedTransactions={refreshSignedTransactions}
                               />
                             </>
                           )}
@@ -1368,53 +1602,61 @@ export function SecurityDetails() {
                       </CollapsibleContent>
                     </Card>
                   </Collapsible>
-
-                
                 </div>
               </div>
-              {/* Emergency Management Section - Left Side */}
-              <div className="space-y-4 lg:border-r lg:pr-6">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-semibold tracking-tight">Emergency Management</h2>
-                  
+
+                  {/* Emergency Management Section */}
+                  <div className="space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-red-500/10 flex items-center justify-center">
+                    <AlertTriangle className="h-5 w-5 text-red-500" />
+                  </div>
+                  <h2 className="text-lg font-semibold tracking-tight">Recovery Management</h2>
                 </div>
+                
                 <div className="grid gap-4">
-                    {/* Recovery Configuration */}
-                    <Collapsible open={recoveryExpanded} onOpenChange={setRecoveryExpanded}>
-                    <Card className="relative overflow-hidden">
-                      <CollapsibleTrigger className="w-full">
-                        <CardHeader>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <CardTitle>Recovery Configuration</CardTitle>
-                              {signedTransactions.some(tx => 
-                                tx.metadata?.type === 'RECOVERY_UPDATE' && 
-                                tx.metadata?.purpose === 'address_update' && 
-                                !tx.metadata?.broadcasted
-                              ) && (
-                                <Badge variant="default" className="bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20">
-                                  <AlertCircle className="h-3 w-3 mr-1" />
-                                  Action Required
-                                </Badge>
-                              )}
+                  {/* Recovery Configuration */}
+                  <Collapsible open={recoveryExpanded} onOpenChange={setRecoveryExpanded}>
+                    <Card className="relative overflow-hidden border-l-4 border-l-amber-500 dark:border-l-amber-600">
+                      <CollapsibleTrigger asChild>
+                        <div className="w-full p-6 flex items-center justify-between cursor-pointer hover:bg-accent/50 hover:text-accent-foreground transition-colors">
+                          <div className="flex items-center gap-4">
+                            <div className="h-10 w-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                              <Key className="h-5 w-5 text-amber-500" />
                             </div>
-                            <div className="flex items-center gap-2">
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <Badge variant="secondary" className="flex items-center gap-1">
-                                      <Network className="h-3 w-3" />
-                                      <span>Meta Tx</span>
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Single-phase meta tx security</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
+                            <div className="space-y-1">
+                              <CardTitle className="text-base">Recovery Configuration</CardTitle>
+                              <p className="text-sm text-muted-foreground">
+                                Update recovery address and permissions
+                              </p>
                             </div>
+                            {signedTransactions.some(tx => 
+                              tx.metadata?.type === 'RECOVERY_UPDATE' && 
+                              !tx.metadata?.broadcasted
+                            ) && (
+                              <Badge variant="default" className="ml-4 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20">
+                                <AlertCircle className="h-3 w-3 mr-1" />
+                                Action Required
+                              </Badge>
+                            )}
                           </div>
-                        </CardHeader>
+                          <div className="flex items-center gap-3">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="secondary" className="flex items-center gap-1">
+                                    <Network className="h-3 w-3" />
+                                    <span>Meta Tx</span>
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Single-phase meta transaction security</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [data-state=open]:-rotate-180" />
+                          </div>
+                        </div>
                       </CollapsibleTrigger>
                       <CollapsibleContent>
                         <CardContent className="p-6">
@@ -1430,9 +1672,9 @@ export function SecurityDetails() {
                               
                               <div className="pl-12">
                                 <div className="mb-3 flex items-center gap-2">
-                                  <Badge variant="default" className="bg-blue-500/10 text-blue-500 hover:bg-blue-500/20">
-                                    <Shield className="h-3 w-3 mr-1" />
-                                    Owner
+                                  <Badge variant="default" className="bg-red-500/10 text-red-500 hover:bg-red-500/20">
+                                    <Key className="h-3 w-3 mr-1" />
+                                    Recovery
                                   </Badge>
                                   <span className="text-sm text-muted-foreground">signs meta-transaction</span>
                                 </div>
@@ -1472,7 +1714,7 @@ export function SecurityDetails() {
                                 </div>
 
                                 <Button 
-                                  onClick={() => handleBroadcast('RECOVERY_UPDATE')}
+                                  onClick={() => prepareBroadcastDialog('RECOVERY_UPDATE')}
                                   className={`w-full ${signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? 'border-2 border-yellow-500 dark:border-yellow-600' : ''}`}
                                   size="sm"
                                   variant={signedTransactions.some(tx => tx.metadata?.type === 'RECOVERY_UPDATE' && !tx.metadata?.broadcasted) ? "default" : "outline"}
@@ -1543,40 +1785,46 @@ export function SecurityDetails() {
                   </Collapsible>
                   {/* Ownership Management */}
                   <Collapsible open={ownershipExpanded} onOpenChange={setOwnershipExpanded}>
-                    <Card className="relative overflow-hidden">
-                      <CollapsibleTrigger className="w-full">
-                        <CardHeader>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <CardTitle>Recovery (Transfer Ownership)</CardTitle>
-                              {(pendingOwnershipTx || signedTransactions.some(tx => 
-                                tx.metadata?.type === 'RECOVERY_UPDATE' && 
-                                tx.metadata?.purpose === 'ownership_transfer' && 
-                                !tx.metadata?.broadcasted
-                              )) && (
-                                <Badge variant="default" className="bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20">
-                                  <AlertCircle className="h-3 w-3 mr-1" />
-                                  Action Required
-                                </Badge>
-                              )}
+                    <Card className="relative overflow-hidden border-l-4 border-l-red-500 dark:border-l-red-600">
+                      <CollapsibleTrigger asChild>
+                        <div className="w-full p-6 flex items-center justify-between cursor-pointer hover:bg-accent/50 hover:text-accent-foreground transition-colors">
+                          <div className="flex items-center gap-4">
+                            <div className="h-10 w-10 rounded-lg bg-red-500/10 flex items-center justify-center">
+                              <ShieldAlert className="h-5 w-5 text-red-500" />
                             </div>
-                            <div className="flex items-center gap-2">
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <Badge variant="secondary" className="flex items-center gap-1">
-                                      <Timer className="h-3 w-3" />
-                                      <span>Temporal</span>
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Two-phase temporal security</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
+                            <div className="space-y-1">
+                              <CardTitle className="text-base">Recovery (Transfer Ownership)</CardTitle>
+                              <p className="text-sm text-muted-foreground">
+                                Emergency ownership transfer process
+                              </p>
                             </div>
+                            {(pendingOwnershipTx || signedTransactions.some(tx => 
+                              tx.metadata?.type === 'OWNERSHIP_TRANSFER' && 
+                              !tx.metadata?.broadcasted
+                            )) && (
+                              <Badge variant="default" className="ml-4 bg-red-500/10 text-red-500 hover:bg-red-500/20">
+                                <AlertCircle className="h-3 w-3 mr-1" />
+                                Action Required
+                              </Badge>
+                            )}
                           </div>
-                        </CardHeader>
+                          <div className="flex items-center gap-3">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="secondary" className="flex items-center gap-1">
+                                    <Timer className="h-3 w-3" />
+                                    <span>Temporal</span>
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Two-phase temporal security</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [data-state=open]:-rotate-180" />
+                          </div>
+                        </div>
                       </CollapsibleTrigger>
                       <CollapsibleContent>
                         <CardContent className="p-6">
@@ -1598,7 +1846,7 @@ export function SecurityDetails() {
                                   
                                   <div className="pl-12">
                                     <div className="mb-3 flex items-center gap-2">
-                                      <Badge variant="default" className="bg-green-500/10 text-green-500 hover:bg-green-500/20">
+                                      <Badge variant="default" className="bg-red-500/10 text-red-500 hover:bg-red-500/20">
                                         <Key className="h-3 w-3 mr-1" />
                                         Recovery
                                       </Badge>
@@ -1637,7 +1885,7 @@ export function SecurityDetails() {
                                         Owner
                                       </Badge>
                                       <span className="text-sm text-muted-foreground">or</span>
-                                      <Badge variant="default" className="bg-green-500/10 text-green-500 hover:bg-green-500/20">
+                                      <Badge variant="default" className="bg-red-500/10 text-red-500 hover:bg-red-500/20">
                                         <Key className="h-3 w-3 mr-1" />
                                         Recovery
                                       </Badge>
@@ -1679,7 +1927,7 @@ export function SecurityDetails() {
                                     </div>
 
                                     <Button 
-                                      onClick={() => handleBroadcast('OWNERSHIP_TRANSFER')}
+                                      onClick={() => prepareBroadcastDialog('OWNERSHIP_TRANSFER')}
                                       className={`w-full ${signedTransactions.some(tx => 
                                         tx.metadata?.type === 'OWNERSHIP_TRANSFER' && 
                                         !tx.metadata?.broadcasted
@@ -1718,11 +1966,11 @@ export function SecurityDetails() {
                                           </div>
                                         ) : (
                                           <div className="flex items-center gap-2">
-                                            <Badge variant="default" className="bg-green-500/10 text-green-500">
+                                            <Badge variant="default" className="bg-red-500/10 text-red-500">
                                               <Key className="h-3 w-3 mr-1" />
                                               Recovery
                                             </Badge>
-                                            <span className="text-sm">approval required</span>
+                                              <span className="text-sm">approval required</span>
                                           </div>
                                         )}
                                       </div>
@@ -1734,7 +1982,7 @@ export function SecurityDetails() {
                                         </Badge>
                                         <span className="text-sm">connection required</span>
                                         <span className="text-sm text-muted-foreground">or</span>
-                                        <Badge variant="default" className="bg-green-500/10 text-green-500">
+                                        <Badge variant="default" className="bg-red-500/10 text-red-500">
                                           <Key className="h-3 w-3 mr-1" />
                                           Recovery
                                         </Badge>
@@ -1766,6 +2014,8 @@ export function SecurityDetails() {
                                 onCancel={handleTransferOwnershipCancellation}
                                 showMetaTxOption={!!(pendingOwnershipTx && isRoleConnected(contractInfo.owner))}
                                 metaTxDescription="Sign a meta transaction to approve the ownership transfer. This will be broadcasted by the broadcaster."
+                                refreshData={loadContractInfo}
+                                refreshSignedTransactions={refreshSignedTransactions}
                               />
                             </>
                           )}
@@ -1775,9 +2025,79 @@ export function SecurityDetails() {
                   </Collapsible>
                 </div>
               </div>
-
-              
             </div>
+          </motion.div>
+
+          {/* Signed Meta Transactions Table */}
+          <motion.div variants={item} className="mt-6">
+            <SignedMetaTxTable
+              transactions={signedTransactions}
+              onClearAll={() => {
+                try {
+                  clearTransactions()
+                  setSignedTransactions([])
+                  toast({
+                    title: "Success",
+                    description: "All pending transactions cleared",
+                  })
+                } catch (error) {
+                  console.error('Error clearing transactions:', error)
+                  toast({
+                    title: "Error",
+                    description: "Failed to clear transactions",
+                    variant: "destructive"
+                  })
+                }
+              }}
+              onRemoveTransaction={(txId) => {
+                try {
+                  if (!contractAddress) return
+                  removeTransaction(txId)
+                  setSignedTransactions(prev => prev.filter(tx => tx.txId !== txId))
+                  toast({
+                    title: "Success",
+                    description: "Transaction removed",
+                  })
+                } catch (error) {
+                  console.error('Error removing transaction:', error)
+                  toast({
+                    title: "Error",
+                    description: "Failed to remove transaction",
+                    variant: "destructive"
+                  })
+                }
+              }}
+              contractAddress={contractAddress as `0x${string}`}
+              onTxClick={(tx: ExtendedSignedTransaction) => {
+                console.log('Transaction clicked:', tx);
+                if (!tx.metadata?.type) {
+                  console.log('No transaction type found');
+                  return;
+                }
+                
+                if (tx.metadata.type === 'RECOVERY_UPDATE') {
+                  if (tx.metadata.purpose === 'ownership_transfer') {
+                    console.log('Opening ownership transfer dialog');
+                    prepareBroadcastDialog('OWNERSHIP_TRANSFER', tx);
+                  } else if (tx.metadata.purpose === 'address_update') {
+                    console.log('Opening recovery address update dialog');
+                    prepareBroadcastDialog('RECOVERY_ADDRESS_UPDATE', tx);
+                  } else {
+                    console.log('Opening general recovery update dialog');
+                    prepareBroadcastDialog('RECOVERY_UPDATE', tx);
+                  }
+                } else if (tx.metadata.type === 'WITHDRAWAL_APPROVAL') {
+                  console.log('Handling withdrawal approval transaction');
+                  // For withdrawal approvals, navigate directly to blox page
+                  if (contractAddress) {
+                    navigate(`/blox/${contractAddress}`);
+                  }
+                } else {
+                  console.log('Opening dialog for type:', tx.metadata.type);
+                  prepareBroadcastDialog(tx.metadata.type, tx);
+                }
+              }}
+            />
           </motion.div>
 
           {/* Operation History Section */}
@@ -1787,10 +2107,92 @@ export function SecurityDetails() {
               operations={contractInfo?.operationHistory || []}
               isLoading={loading}
               contractInfo={contractInfo}
+              signedTransactions={signedTransactions}
+              onApprove={handleApproveOperation}
+              onCancel={handleUpdateBroadcasterCancellation}
+              refreshData={loadContractInfo}
+              refreshSignedTransactions={refreshSignedTransactions}
             />
           </motion.div>
         </motion.div>
       </div>
+
+      {/* Broadcast Dialogs */}
+      <BroadcastDialog
+        isOpen={showBroadcastTimelockDialog}
+        onOpenChange={setShowBroadcastTimelockDialog}
+        title="Broadcast TimeLock Update"
+        description="Broadcast the signed TimeLock period update transaction to the blockchain."
+        contractInfo={{
+          chainId: contractInfo?.chainId || 0,
+          chainName: contractInfo?.chainName || '',
+          broadcaster: contractInfo?.broadcaster || '',
+          owner: contractInfo?.owner || '',
+          contractAddress: contractAddress
+        }}
+        txType="TIMELOCK_UPDATE"
+        pendingTx={activeBroadcastTx && activeBroadcastTx?.metadata?.type !== 'WITHDRAWAL_APPROVAL' ? activeBroadcastTx : undefined}
+        onBroadcast={handleBroadcast}
+        connectedAddress={connectedAddress}
+        operationName="Time Lock Update"
+      />
+
+      <BroadcastDialog
+        isOpen={showBroadcastRecoveryDialog}
+        onOpenChange={setShowBroadcastRecoveryDialog}
+        title="Broadcast Recovery Update"
+        description="Broadcast the signed recovery address update transaction to the blockchain."
+        contractInfo={{
+          chainId: contractInfo?.chainId || 0,
+          chainName: contractInfo?.chainName || '',
+          broadcaster: contractInfo?.broadcaster || '',
+          owner: contractInfo?.owner || '',
+          contractAddress: contractAddress
+        }}
+        txType="RECOVERY_UPDATE"
+        pendingTx={activeBroadcastTx && activeBroadcastTx?.metadata?.type !== 'WITHDRAWAL_APPROVAL' ? activeBroadcastTx : undefined}
+        onBroadcast={handleBroadcast}
+        connectedAddress={connectedAddress}
+        operationName="Recovery Update"
+      />
+
+      <BroadcastDialog
+        isOpen={showBroadcastOwnershipDialog}
+        onOpenChange={setShowBroadcastOwnershipDialog}
+        title="Broadcast Ownership Transfer"
+        description="Broadcast the signed ownership transfer transaction to the blockchain."
+        contractInfo={{
+          chainId: contractInfo?.chainId || 0,
+          chainName: contractInfo?.chainName || '',
+          broadcaster: contractInfo?.broadcaster || '',
+          owner: contractInfo?.owner || '',
+          contractAddress: contractAddress
+        }}
+        txType="OWNERSHIP_TRANSFER"
+        pendingTx={activeBroadcastTx && activeBroadcastTx?.metadata?.type !== 'WITHDRAWAL_APPROVAL' ? activeBroadcastTx : undefined}
+        onBroadcast={handleBroadcast}
+        connectedAddress={connectedAddress}
+        operationName="Ownership Transfer"
+      />
+
+      <BroadcastDialog
+        isOpen={showBroadcastBroadcasterDialog}
+        onOpenChange={setShowBroadcastBroadcasterDialog}
+        title="Broadcast Broadcaster Update"
+        description="Broadcast the signed broadcaster update transaction to the blockchain."
+        contractInfo={{
+          chainId: contractInfo?.chainId || 0,
+          chainName: contractInfo?.chainName || '',
+          broadcaster: contractInfo?.broadcaster || '',
+          owner: contractInfo?.owner || '',
+          contractAddress: contractAddress
+        }}
+        txType="BROADCASTER_UPDATE"
+        pendingTx={activeBroadcastTx && activeBroadcastTx?.metadata?.type !== 'WITHDRAWAL_APPROVAL' ? activeBroadcastTx : undefined}
+        onBroadcast={handleBroadcast}
+        connectedAddress={connectedAddress}
+        operationName="Broadcaster Update"
+      />
     </TransactionManagerProvider>
   )
 }
