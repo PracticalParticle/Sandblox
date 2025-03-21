@@ -208,10 +208,35 @@ export function TemporalActionDialog({
 
     // Check if the connected wallet is recovery address for ownership actions
     const isRecoveryWallet = connectedAddress?.toLowerCase() === contractInfo?.recoveryAddress?.toLowerCase()
+    const isOwnerWallet = connectedAddress?.toLowerCase() === contractInfo?.owner?.toLowerCase()
     const isOwnershipAction = actionType === 'ownership'
     
     // Control meta transaction tab visibility with showMetaTxOption prop if provided
     const showMetaTxTab = showMetaTxOption !== undefined ? showMetaTxOption : !(isOwnershipAction && isRecoveryWallet)
+
+    // Determine the required role message based on action type and timelock status
+    const getRequiredRoleMessage = () => {
+      if (isOwnershipAction && isTimeLockComplete) {
+        return "Please connect the owner or recovery wallet to proceed";
+      } else if (isOwnershipAction) {
+        return "Please connect the owner wallet to proceed";
+      } else if (requiredRole === 'broadcaster') {
+        return "Please connect the broadcaster wallet to proceed";
+      } else if (requiredRole === 'recovery') {
+        return "Please connect the recovery wallet to proceed";
+      } else {
+        return `Please connect the ${requiredRole} wallet to proceed`;
+      }
+    };
+
+    // Check if the wallet is valid for the current action phase
+    const isWalletValidForAction = () => {
+      if (isOwnershipAction && isTimeLockComplete) {
+        // When timelock is 100% for ownership transfer, either owner or recovery is valid
+        return isOwnerWallet || isRecoveryWallet;
+      }
+      return isConnectedWalletValid;
+    };
 
     return (
       <div className="space-y-4">
@@ -219,6 +244,14 @@ export function TemporalActionDialog({
           <Clock className="h-4 w-4" />
           Transaction #{pendingTx.txId.toString()}
         </div>
+
+        {!isWalletValidForAction() && (
+          <Alert variant="destructive">
+            <AlertDescription>
+              {getRequiredRoleMessage()}
+            </AlertDescription>
+          </Alert>
+        )}
 
         <Tabs defaultValue="timelock" className={`w-full ${showMetaTxTab ? 'grid-cols-2' : 'grid-cols-1'} bg-background p-1 rounded-lg`}>
           <TabsList className="grid w-full grid-cols-2 bg-background p-1 rounded-lg">
@@ -262,7 +295,7 @@ export function TemporalActionDialog({
                           <div className="flex-1">
                             <Button
                               onClick={() => handleApprove(Number(pendingTx.txId))}
-                              disabled={isLoading || isApproving || !isConnectedWalletValid || (!isTimeLockComplete && isRecoveryWallet)}
+                              disabled={isLoading || isApproving || !isWalletValidForAction() || (!isTimeLockComplete && isRecoveryWallet)}
                               className={`w-full transition-all duration-200 flex items-center justify-center
                                 ${isTimeLockComplete 
                                   ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800'
@@ -300,7 +333,7 @@ export function TemporalActionDialog({
                           <div className="flex-1">
                             <Button
                               onClick={() => handleCancel(Number(pendingTx.txId))}
-                              disabled={isLoading || isCancelling || !isConnectedWalletValid}
+                              disabled={isLoading || isCancelling || !isWalletValidForAction()}
                               className="w-full bg-rose-50 text-rose-700 hover:bg-rose-100 
                                 dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
                                 border border-rose-200 dark:border-rose-800"
@@ -352,7 +385,7 @@ export function TemporalActionDialog({
                             <div className="flex-1">
                               <Button
                                 onClick={() => handleMetaTxSign('approve', actionType === 'broadcaster' ? 'broadcaster' : 'ownership')}
-                                disabled={isLoading || isSigning || !isConnectedWalletValid}
+                                disabled={isLoading || isSigning || !isWalletValidForAction()}
                                 className={`w-full transition-all duration-200 flex items-center justify-center
                                   bg-emerald-50 text-emerald-700 hover:bg-emerald-100 
                                   dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 
@@ -389,7 +422,7 @@ export function TemporalActionDialog({
                             <div className="flex-1">
                               <Button
                                 onClick={() => handleMetaTxSign('cancel', actionType === 'broadcaster' ? 'broadcaster' : 'ownership')}
-                                disabled={isLoading || isCancelling || !isConnectedWalletValid}
+                                disabled={isLoading || isCancelling || !isWalletValidForAction()}
                                 className={`w-full transition-all duration-200 flex items-center justify-center
                                   bg-rose-50 text-rose-700 hover:bg-rose-100 
                                   dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
