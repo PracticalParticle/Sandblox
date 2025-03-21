@@ -4,14 +4,13 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Card, CardContent } from "@/components/ui/card"
-import { Loader2, Radio, Network, X } from "lucide-react"
+import { Loader2, Radio, Network } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
 import { formatAddress } from "@/lib/utils"
 import { useSinglePhaseMetaTxAction } from "@/hooks/useSinglePhaseMetaTxAction"
 import { TxInfoCard } from "./TxInfoCard"
 import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index'
-import * as DialogPrimitive from "@radix-ui/react-dialog"
 
 interface MetaTxActionDialogProps {
   isOpen: boolean
