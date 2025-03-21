@@ -5,12 +5,16 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
+  DialogClose
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { 
   Shield, 
   Key,
-  AlertCircle
+  AlertCircle,
+  X,
+  FileText
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { TxInfoCard } from './TxInfoCard'
@@ -35,9 +39,25 @@ export function TxDetailsDialog({ record, isOpen, onOpenChange, operationName }:
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
-        <DialogHeader>
-          <DialogTitle>Transaction Details</DialogTitle>
+      <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
+        <DialogHeader className="sticky top-0 bg-background z-10 pb-4 border-b mb-4">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <DialogTitle>Transaction Details</DialogTitle>
+              <div className="flex items-center gap-2">
+                <Badge 
+                  variant="secondary" 
+                  className="flex items-center gap-1"
+                >
+                  <FileText className="h-3 w-3" />
+                  <span>Tx #{record.txId.toString()}</span>
+                </Badge>
+              </div>
+            </div>
+            <DialogDescription>
+              Details for {operationName} transaction
+            </DialogDescription>
+          </div>
         </DialogHeader>
         
         <div className="space-y-4 pt-4">
