@@ -10,19 +10,20 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table"
-import { Trash2, AlertCircle } from 'lucide-react'
+import { Trash2, AlertCircle, ExternalLink } from 'lucide-react'
 import { formatTimestamp } from '@/lib/utils'
 import * as AlertDialog from '@radix-ui/react-alert-dialog'
 import { useOperationTypes } from '@/hooks/useOperationTypes'
 import { Address } from 'viem'
 import { cn } from '@/lib/utils'
+import { useNavigate } from 'react-router-dom'
 
 export interface ExtendedSignedTransaction {
   txId: string
   signedData: string
   timestamp: number
   metadata?: {
-    type: 'TIMELOCK_UPDATE' | 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE'
+    type: 'TIMELOCK_UPDATE' | 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'WITHDRAWAL_APPROVAL'
     purpose?: 'address_update' | 'ownership_transfer'
     action?: 'approve' | 'cancel'
     broadcasted: boolean
@@ -51,6 +52,7 @@ const container = {
 
 export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransaction, contractAddress, onTxClick }: SignedMetaTxTableProps) {
   const { getOperationName } = useOperationTypes(contractAddress)
+  const navigate = useNavigate()
 
   // Filter out any transactions that have been broadcasted
   const pendingTransactions = transactions
@@ -79,6 +81,8 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
           return 'OWNERSHIP_TRANSFER'
         case 'BROADCASTER_UPDATE':
           return 'BROADCASTER_UPDATE'
+        case 'WITHDRAWAL_APPROVAL':
+          return 'WITHDRAWAL_APPROVAL'
         default:
           // If it's not a known static type, it might be a dynamic type name
           return tx.metadata.type
@@ -86,6 +90,39 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
     }
 
     return 'Unknown Operation'
+  }
+
+  // Function to determine if an operation is a withdrawal
+  const isWithdrawalOperation = (tx: ExtendedSignedTransaction): boolean => {
+    // Check explicit WITHDRAWAL_APPROVAL type first
+    if (tx.metadata?.type === 'WITHDRAWAL_APPROVAL') {
+      return true;
+    }
+    
+    // Then check using operation type if available
+    if (tx.metadata?.operationType) {
+      const operationName = getOperationName(tx.metadata.operationType)
+      return operationName === 'WITHDRAW_ETH' || 
+             operationName === 'WITHDRAW_TOKEN' || 
+             operationName === 'WITHDRAWAL_APPROVAL'
+    }
+    
+    return false;
+  }
+
+  const handleRowClick = (tx: ExtendedSignedTransaction) => {
+    const isWithdrawal = isWithdrawalOperation(tx);
+    
+    // For withdrawal operations, navigate to the blox page
+    if (isWithdrawal) {
+      navigate(`/blox/simple-vault/${contractAddress}`);
+      return;
+    }
+
+    // For other transactions, use the provided onClick handler
+    if (!tx.metadata?.broadcasted && onTxClick) {
+      onTxClick(tx);
+    }
   }
 
   return (
@@ -138,22 +175,17 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
                 <TableHead>Action</TableHead>
                 <TableHead>Signed At</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead>Details</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {pendingTransactions.map((tx) => (
+              {pendingTransactions.map((tx) => {
+                const isWithdrawal = isWithdrawalOperation(tx);
+                return (
                 <TableRow 
                   key={tx.txId}
-                  className={cn(
-                    "cursor-pointer hover:bg-muted/50",
-                    !tx.metadata?.broadcasted && "cursor-pointer hover:bg-muted/50"
-                  )}
-                  onClick={() => {
-                    if (!tx.metadata?.broadcasted && onTxClick) {
-                      onTxClick(tx)
-                    }
-                  }}
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => handleRowClick(tx)}
                 >
                   <TableCell className="font-mono">{tx.txId}</TableCell>
                   <TableCell>
@@ -173,6 +205,18 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
                     ) : (
                       <Badge variant="secondary">Pending</Badge>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="secondary" className="flex items-center gap-1">
+                      {isWithdrawal ? (
+                        <>
+                          <ExternalLink className="h-3 w-3" />
+                          <span>View in Blox</span>
+                        </>
+                      ) : (
+                        <span>View Details</span>
+                      )}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <AlertDialog.Root>
@@ -210,7 +254,7 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
                     </AlertDialog.Root>
                   </TableCell>
                 </TableRow>
-              ))}
+              )})}
             </TableBody>
           </Table>
         </CardContent>

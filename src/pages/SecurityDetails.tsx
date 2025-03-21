@@ -736,7 +736,7 @@ export function SecurityDetails() {
   };
 
   // Update handleBroadcast function to handle both types
-  const handleBroadcast = async (type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'RECOVERY_ADDRESS_UPDATE' | 'TIMELOCK_UPDATE') => {
+  const handleBroadcast = async (type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'RECOVERY_ADDRESS_UPDATE' | 'TIMELOCK_UPDATE' | 'WITHDRAWAL_APPROVAL') => {
     try {
       // Use the activeBroadcastTx that was set in prepareBroadcastDialog
       const pendingTx = activeBroadcastTx;
@@ -757,6 +757,15 @@ export function SecurityDetails() {
       
       if (!action) {
         throw new Error('Action type not found in transaction metadata');
+      }
+
+      // Special handling for WITHDRAWAL_APPROVAL
+      if (type === 'WITHDRAWAL_APPROVAL') {
+        // For withdrawal approvals, just redirect to blox page
+        if (contractAddress) {
+          navigate(`/blox/${contractAddress}`);
+          return;
+        }
       }
       
       // Parse the signed transaction data
@@ -904,7 +913,7 @@ export function SecurityDetails() {
 
   // Prepare the broadcast dialog for a specific transaction type
   const prepareBroadcastDialog = (
-    type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'RECOVERY_ADDRESS_UPDATE' | 'TIMELOCK_UPDATE',
+    type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'RECOVERY_ADDRESS_UPDATE' | 'TIMELOCK_UPDATE' | 'WITHDRAWAL_APPROVAL',
     specificTx?: ExtendedSignedTransaction
   ) => {
     console.log('Preparing broadcast dialog for type:', type);
@@ -947,6 +956,12 @@ export function SecurityDetails() {
           tx.metadata?.type === 'TIMELOCK_UPDATE' && 
           !tx.metadata?.broadcasted
         );
+      } else if (type === 'WITHDRAWAL_APPROVAL') {
+        // For withdrawal approvals, look for WITHDRAWAL_APPROVAL type
+        pendingTx = signedTransactions.find(tx => 
+          tx.metadata?.type === 'WITHDRAWAL_APPROVAL' && 
+          !tx.metadata?.broadcasted
+        );
       } else {
         // For other types, look for exact match
         pendingTx = signedTransactions.find(tx => 
@@ -977,6 +992,12 @@ export function SecurityDetails() {
         break;
       case 'BROADCASTER_UPDATE':
         setShowBroadcastBroadcasterDialog(true);
+        break;
+      case 'WITHDRAWAL_APPROVAL':
+        // For withdrawal approvals, navigate to blox page
+        if (contractAddress) {
+          navigate(`/blox/${contractAddress}`);
+        }
         break;
     }
   };
@@ -1997,6 +2018,12 @@ export function SecurityDetails() {
                     console.log('Opening general recovery update dialog');
                     prepareBroadcastDialog('RECOVERY_UPDATE', tx);
                   }
+                } else if (tx.metadata.type === 'WITHDRAWAL_APPROVAL') {
+                  console.log('Handling withdrawal approval transaction');
+                  // For withdrawal approvals, navigate directly to blox page
+                  if (contractAddress) {
+                    navigate(`/blox/${contractAddress}`);
+                  }
                 } else {
                   console.log('Opening dialog for type:', tx.metadata.type);
                   prepareBroadcastDialog(tx.metadata.type, tx);
@@ -2034,7 +2061,7 @@ export function SecurityDetails() {
           contractAddress: contractAddress
         }}
         txType="TIMELOCK_UPDATE"
-        pendingTx={activeBroadcastTx || undefined}
+        pendingTx={activeBroadcastTx && activeBroadcastTx?.metadata?.type !== 'WITHDRAWAL_APPROVAL' ? activeBroadcastTx : undefined}
         onBroadcast={handleBroadcast}
         connectedAddress={connectedAddress}
         operationName="Time Lock Update"
@@ -2053,7 +2080,7 @@ export function SecurityDetails() {
           contractAddress: contractAddress
         }}
         txType="RECOVERY_UPDATE"
-        pendingTx={activeBroadcastTx || undefined}
+        pendingTx={activeBroadcastTx && activeBroadcastTx?.metadata?.type !== 'WITHDRAWAL_APPROVAL' ? activeBroadcastTx : undefined}
         onBroadcast={handleBroadcast}
         connectedAddress={connectedAddress}
         operationName="Recovery Update"
@@ -2072,7 +2099,7 @@ export function SecurityDetails() {
           contractAddress: contractAddress
         }}
         txType="OWNERSHIP_TRANSFER"
-        pendingTx={activeBroadcastTx || undefined}
+        pendingTx={activeBroadcastTx && activeBroadcastTx?.metadata?.type !== 'WITHDRAWAL_APPROVAL' ? activeBroadcastTx : undefined}
         onBroadcast={handleBroadcast}
         connectedAddress={connectedAddress}
         operationName="Ownership Transfer"
@@ -2091,7 +2118,7 @@ export function SecurityDetails() {
           contractAddress: contractAddress
         }}
         txType="BROADCASTER_UPDATE"
-        pendingTx={activeBroadcastTx || undefined}
+        pendingTx={activeBroadcastTx && activeBroadcastTx?.metadata?.type !== 'WITHDRAWAL_APPROVAL' ? activeBroadcastTx : undefined}
         onBroadcast={handleBroadcast}
         connectedAddress={connectedAddress}
         operationName="Broadcaster Update"

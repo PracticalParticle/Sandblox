@@ -25,14 +25,14 @@ interface BroadcastDialogProps {
     contractAddress?: string
     [key: string]: any
   }
-  txType: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'RECOVERY_ADDRESS_UPDATE' | 'TIMELOCK_UPDATE'
-  onBroadcast: (type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'RECOVERY_ADDRESS_UPDATE' | 'TIMELOCK_UPDATE') => Promise<void>
+  txType: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'RECOVERY_ADDRESS_UPDATE' | 'TIMELOCK_UPDATE' | 'WITHDRAWAL_APPROVAL'
+  onBroadcast: (type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'RECOVERY_ADDRESS_UPDATE' | 'TIMELOCK_UPDATE' | 'WITHDRAWAL_APPROVAL') => Promise<void>
   pendingTx?: {
     txId: string
     signedData: string
     timestamp: number
     metadata?: {
-      type: 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE' | 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE'
+      type: 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE' | 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'WITHDRAWAL_APPROVAL'
       purpose?: 'address_update' | 'ownership_transfer'
       action?: 'approve' | 'cancel'
       broadcasted: boolean
@@ -84,7 +84,7 @@ export function BroadcastDialog({
       }
       
       // Call the onBroadcast function with the determined transaction type
-      await onBroadcast(broadcastType as 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'RECOVERY_ADDRESS_UPDATE' | 'TIMELOCK_UPDATE')
+      await onBroadcast(broadcastType as 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'RECOVERY_ADDRESS_UPDATE' | 'TIMELOCK_UPDATE' | 'WITHDRAWAL_APPROVAL')
       
       // The dialog will be closed by the parent component after successful broadcast
     } catch (error) {
@@ -103,6 +103,7 @@ export function BroadcastDialog({
       case 'RECOVERY_UPDATE': return 'Recovery Update'
       case 'RECOVERY_ADDRESS_UPDATE': return 'Recovery Address Update'
       case 'TIMELOCK_UPDATE': return 'Time Lock Update'
+      case 'WITHDRAWAL_APPROVAL': return 'Withdrawal Approval'
       default: return txType
     }
   }
