@@ -14,9 +14,10 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table"
-import { Loader2, Clock, CheckCircle2, XCircle, AlertTriangle, Filter } from 'lucide-react'
+import { Loader2, Clock, CheckCircle2, XCircle, AlertTriangle, Filter, ExternalLink } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useAccount } from 'wagmi'
+import { useNavigate } from 'react-router-dom'
 
 import {
   Select,
@@ -25,10 +26,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { TxDetailsDialog } from './TxDetailsDialog'
 import { useOperationHistory, statusToHuman } from '@/hooks/useOperationHistory'
 import { SecureContractInfo } from '@/lib/types'
 import { useOperationTypes } from '@/hooks/useOperationTypes'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { TemporalActionDialog } from './TemporalActionDialog'
+import { TxDetailsDialog } from './TxDetailsDialog'
+import { Button } from './ui/button'
 
 // Status badge variants mapping
 const statusVariants: { [key: number]: { variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode } } = {
@@ -75,6 +84,16 @@ interface OpHistoryProps {
   operations: TxRecord[]
   isLoading: boolean
   contractInfo: SecureContractInfo
+  signedTransactions?: {
+    txId: string
+    timestamp: number
+    metadata?: {
+      type: string
+      action?: 'approve' | 'cancel'
+      broadcasted: boolean
+      status?: 'COMPLETED' | 'PENDING'
+    }
+  }[]
   onApprove?: (txId: number) => Promise<void>
   onCancel?: (txId: number) => Promise<void>
   onSubmit?: (newValue: string) => Promise<void>
@@ -82,6 +101,9 @@ interface OpHistoryProps {
   newValue?: string
   validateNewValue?: (value: string) => { isValid: boolean; message: string }
   isSigning?: boolean
+  showMetaTxOption?: boolean
+  refreshData?: () => void
+  refreshSignedTransactions?: () => void
 }
 
 const container = {
@@ -99,15 +121,15 @@ export function OpHistory({
   operations,
   isLoading,
   contractInfo,
+  signedTransactions = [],
   onApprove,
   onCancel,
-  onSubmit,
-  onNewValueChange,
-  newValue,
-  validateNewValue,
-  isSigning
+  showMetaTxOption,
+  refreshData,
+  refreshSignedTransactions
 }: OpHistoryProps) {
   const { address: connectedAddress } = useAccount()
+  const navigate = useNavigate()
   
   const {
     filteredOperations,
@@ -127,7 +149,39 @@ export function OpHistory({
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const { getOperationName: operationTypesGetOperationName } = useOperationTypes(contractAddress)
 
+  // Function to determine the action type and required role based on operation type
+  const getActionTypeAndRole = (operationType: Hex): { actionType: string; requiredRole: string } => {
+    const operationName = operationTypesGetOperationName(operationType)
+    switch (operationName) {
+      case 'OWNERSHIP_TRANSFER':
+        return { actionType: 'ownership', requiredRole: 'owner_or_recovery' }
+      case 'BROADCASTER_UPDATE':
+        return { actionType: 'broadcaster', requiredRole: 'owner' }
+      case 'RECOVERY_UPDATE':
+        return { actionType: 'recovery', requiredRole: 'owner' }
+      case 'TIMELOCK_UPDATE':
+        return { actionType: 'timelock', requiredRole: 'owner' }
+      default:
+        return { actionType: 'unknown', requiredRole: 'owner' }
+    }
+  }
+
+  // Function to determine if an operation is a withdrawal
+  const isWithdrawalOperation = (operationType: Hex): boolean => {
+    const operationName = operationTypesGetOperationName(operationType)
+    return operationName === 'WITHDRAW_ETH' || operationName === 'WITHDRAW_TOKEN'
+  }
+
   const handleRowClick = (record: TxRecord) => {
+    const isWithdrawal = isWithdrawalOperation(record.params.operationType as Hex)
+    
+    // For pending withdrawals, navigate to the blox page
+    if (isWithdrawal && record.status === TxStatus.PENDING) {
+      navigate(`/blox/simple-vault/${contractAddress}`)
+      return
+    }
+
+    // For other transactions, show the details dialog
     setSelectedTx(record)
     setIsDetailsOpen(true)
   }
@@ -197,11 +251,36 @@ export function OpHistory({
                 <TableHead>Operation</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Release Time</TableHead>
-                <TableHead>Details</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredOperations.map((record) => (
+              {filteredOperations.map((record) => {
+                // Check if there's a signed transaction for this record
+                const hasPendingSignature = signedTransactions?.some(
+                  tx => tx.txId === record.txId.toString() && 
+                       tx.metadata?.status === 'PENDING' && 
+                       !tx.metadata?.broadcasted
+                );
+                
+                // Find the matching signed transaction for tooltip details
+                const matchingSignedTx = hasPendingSignature ? signedTransactions?.find(
+                  tx => tx.txId === record.txId.toString() && 
+                       tx.metadata?.status === 'PENDING' && 
+                       !tx.metadata?.broadcasted
+                ) : null;
+                
+                const action = matchingSignedTx?.metadata?.action;
+                const isApprove = action === 'approve';
+                
+                // Check if the transaction is completed based on both record status and signed transaction metadata
+                const isCompleted = record.status === TxStatus.COMPLETED || 
+                                  (matchingSignedTx?.metadata?.status === 'COMPLETED' && matchingSignedTx?.metadata?.broadcasted);
+                
+                const isWithdrawal = isWithdrawalOperation(record.params.operationType as Hex)
+                const isPending = record.status === TxStatus.PENDING
+                
+                return (
                 <TableRow 
                   key={record.txId.toString()}
                   className="cursor-pointer hover:bg-muted/50 transition-colors"
@@ -216,12 +295,51 @@ export function OpHistory({
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {record.status === TxStatus.PENDING ? (
-                      <PendingBadge record={record} contractInfo={contractInfo} />
+                    {record.status === TxStatus.PENDING && !isCompleted ? (
+                      <div className="flex flex-col gap-2">
+                        <PendingBadge record={record} contractInfo={contractInfo} />
+                        
+                        {hasPendingSignature && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge 
+                                  variant="secondary" 
+                                  className={`${isApprove ? 'bg-blue-500/10 text-blue-500 hover:bg-blue-500/20' : 'bg-orange-500/10 text-orange-500 hover:bg-orange-500/20'} flex items-center gap-1 w-fit`}
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+                                    <path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                    <path d="M14.5 9.5 16 8" />
+                                    <path d="m9.5 14.5-1.5 1.5" />
+                                    <path d="M9.5 9.5 8 8" />
+                                    <path d="m14.5 14.5 1.5 1.5" />
+                                    <path d="M20 12h1" />
+                                    <path d="M3 12h1" />
+                                    <path d="M12 20v1" />
+                                    <path d="M12 3v1" />
+                                  </svg>
+                                  Signed {action === 'approve' ? 'Approval' : 'Cancellation'}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent side="right" className="max-w-xs">
+                                <div className="space-y-1">
+                                  <p className="font-medium">Signature Details</p>
+                                  <p className="text-xs">
+                                    Type: {matchingSignedTx?.metadata?.type || 'Unknown'} <br />
+                                    Action: {action || 'Unknown'} <br />
+                                    Status: Pending broadcast <br />
+                                    Signed at: {matchingSignedTx?.timestamp ? formatTimestamp(matchingSignedTx.timestamp / 1000) : 'Unknown'}
+                                  </p>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </div>
                     ) : (
                       <Badge 
                         variant={statusVariants[record.status]?.variant || "outline"}
-                        className="flex items-center gap-1"
+                        className="flex w-24 items-center justify-center gap-1.5 py-1"
                       >
                         {statusVariants[record.status]?.icon}
                         <span>{statusToHuman[record.status]}</span>
@@ -231,13 +349,25 @@ export function OpHistory({
                   <TableCell>
                     {formatTimestamp(Number(record.releaseTime))}
                   </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">
-                      View Details
-                    </Badge>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1.5"
+                      onClick={() => handleRowClick(record)}
+                    >
+                      {isWithdrawal && isPending ? (
+                        <>
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          <span>View in Blox</span>
+                        </>
+                      ) : (
+                        <span>View Details</span>
+                      )}
+                    </Button>
                   </TableCell>
                 </TableRow>
-              ))}
+              )})}
               {filteredOperations.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground">
@@ -248,21 +378,41 @@ export function OpHistory({
             </TableBody>
           </Table>
 
-          <TxDetailsDialog
-            isOpen={isDetailsOpen}
-            onOpenChange={setIsDetailsOpen}
-            record={selectedTx}
-            operationName={selectedTx ? operationTypesGetOperationName(selectedTx.params.operationType as Hex) : ''}
-            contractInfo={contractInfo}
-            connectedAddress={connectedAddress}
-            onApprove={onApprove}
-            onCancel={onCancel}
-            onSubmit={onSubmit}
-            onNewValueChange={onNewValueChange}
-            newValue={newValue}
-            validateNewValue={validateNewValue}
-            isSigning={isSigning}
-          />
+          {/* Dialogs */}
+          {selectedTx && selectedTx.status === TxStatus.PENDING && !isWithdrawalOperation(selectedTx.params.operationType as Hex) && (
+            <TemporalActionDialog
+              isOpen={isDetailsOpen}
+              onOpenChange={setIsDetailsOpen}
+              title={`${operationTypesGetOperationName(selectedTx.params.operationType as Hex)} Details`}
+              contractInfo={{
+                ...contractInfo,
+                contractAddress: contractAddress
+              }}
+              {...getActionTypeAndRole(selectedTx.params.operationType as Hex)}
+              currentValue={selectedTx.params.target}
+              currentValueLabel="Target Address"
+              actionLabel="Approve Operation"
+              requiredRole={getActionTypeAndRole(selectedTx.params.operationType as Hex).requiredRole}
+              connectedAddress={connectedAddress}
+              pendingTx={selectedTx}
+              showNewValueInput={false}
+              onApprove={onApprove}
+              onCancel={onCancel}
+              showMetaTxOption={showMetaTxOption}
+              operationName={operationTypesGetOperationName(selectedTx.params.operationType as Hex)}
+              refreshData={refreshData}
+              refreshSignedTransactions={refreshSignedTransactions}
+            />
+          )}
+          
+          {selectedTx && selectedTx.status !== TxStatus.PENDING && !isWithdrawalOperation(selectedTx.params.operationType as Hex) && (
+            <TxDetailsDialog
+              isOpen={isDetailsOpen}
+              onOpenChange={setIsDetailsOpen}
+              record={selectedTx}
+              operationName={operationTypesGetOperationName(selectedTx.params.operationType as Hex)}
+            />
+          )}
         </CardContent>
       </Card>
     </motion.div>

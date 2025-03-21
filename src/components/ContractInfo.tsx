@@ -182,7 +182,7 @@ export function ContractInfo({
             <div className="flex -space-x-1">
               <div className="h-2 w-2 rounded-full bg-blue-500" />
               <div className="h-2 w-2 rounded-full bg-purple-500" />
-              <div className="h-2 w-2 rounded-full bg-green-500" />
+              <div className="h-2 w-2 rounded-full bg-red-500" />
             </div>
             <span className="text-sm text-muted-foreground">3 Total</span>
           </div>
@@ -323,7 +323,7 @@ export function ContractInfo({
             {/* Recovery Address */}
             <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 group hover:bg-muted/70 transition-colors">
               <div className="flex items-center gap-2 shrink-0">
-                <div className="h-2 w-2 rounded-full bg-green-500" />
+                <div className="h-2 w-2 rounded-full bg-red-500" />
                 <p className="text-sm font-medium text-muted-foreground whitespace-nowrap">Recovery</p>
               </div>
               <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
@@ -350,7 +350,7 @@ export function ContractInfo({
                   </TooltipProvider>
                 </div>
                 {isRoleConnected(contractInfo?.recoveryAddress) ? (
-                  <Badge variant="default" className="bg-green-500/10 text-green-500 shrink-0 shadow-sm whitespace-nowrap">Connected</Badge>
+                  <Badge variant="default" className="bg-red-500/10 text-red-500 shrink-0 shadow-sm whitespace-nowrap">Connected</Badge>
                 ) : (
                   <TooltipProvider>
                     <Tooltip>
@@ -358,7 +358,7 @@ export function ContractInfo({
                         <Button 
                           variant="outline"
                           size="sm"
-                          className="h-7 shadow-sm hover:bg-green-500/5 shrink-0"
+                          className="h-7 shadow-sm hover:bg-red-500/5 shrink-0"
                           onClick={() => handleConnect('recovery')}
                         >
                           <SwitchCamera className="h-3 w-3 mr-1" />

@@ -6,7 +6,37 @@ const TooltipProvider = TooltipPrimitive.Provider
 
 const Tooltip = TooltipPrimitive.Root
 
-const TooltipTrigger = TooltipPrimitive.Trigger
+// Simplified version - always use asChild
+const TooltipTrigger = React.forwardRef<
+  React.ElementRef<typeof TooltipPrimitive.Trigger>,
+  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Trigger>
+>(({ className, children, asChild = false, ...props }, ref) => {
+  // If asChild is true, use the children as is
+  if (asChild) {
+    return (
+      <TooltipPrimitive.Trigger 
+        ref={ref} 
+        className={className}
+        asChild={true} 
+        {...props}
+      >
+        {children}
+      </TooltipPrimitive.Trigger>
+    );
+  }
+  
+  // If asChild is false, use the default behavior
+  return (
+    <TooltipPrimitive.Trigger 
+      ref={ref} 
+      className={cn("inline-flex items-center justify-center", className)}
+      {...props}
+    >
+      {children}
+    </TooltipPrimitive.Trigger>
+  );
+});
+TooltipTrigger.displayName = TooltipPrimitive.Trigger.displayName
 
 const TooltipContent = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Content>,
