@@ -11,10 +11,14 @@ import {
   AlertTriangle, 
   Network, 
   Timer,
-  Wallet
+  Wallet,
+  User,
+  Target,
+  Activity
 } from 'lucide-react'
 import { ReactNode } from 'react'
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 
 // Status badge variants mapping with enhanced styling
 const statusVariants: { 
@@ -118,108 +122,115 @@ export function TxInfoCard({
   const statusVariant = statusVariants[record.status]
 
   return (
-    <div className={`space-y-4 ${className}`}>
+    <div className={cn("space-y-4", className)}>
       {/* Header with Status and Operation Type */}
-      {(showStatus || operationName) && (
-        <div className="flex items-center gap-2 justify-between">
-          <div className="flex items-center gap-2">
-            {operationName && (
-              <>
-                <TooltipProvider delayDuration={300}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Badge variant="secondary" className="flex items-center gap-1">
-                        Operation Type
-                      </Badge>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Type of operation being performed</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                <span className="text-muted-foreground">{operationName}</span>
-              </>
-            )}
-            {txId && (
-              <span className="text-muted-foreground">(ID: {record.txId.toString()})</span>
-            )}
-          </div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {operationName && (
+            <div className="flex items-center gap-2">
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="secondary" className="flex items-center gap-1">
+                      <Activity className="h-3 w-3" />
+                      <span className="truncate max-w-[100px] sm:max-w-none">
+                        {operationName}
+                      </span>
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs">
+                    <p>Operation Type</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          )}
+          {txId && (
+            <span className="text-xs text-muted-foreground">ID: {record.txId.toString()}</span>
+          )}
+        </div>
+        
+        <div className="flex items-center gap-2">
+          {showExecutionType && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Badge variant="outline" className="flex items-center gap-1">
+                    {executionTypeToHuman[record.params.executionType].icon}
+                    <span>{executionTypeToHuman[record.params.executionType].text}</span>
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  <p>{executionTypeToHuman[record.params.executionType].description}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
           
           {showStatus && (
             <Badge 
               variant={statusVariant.variant}
-              className={`flex items-center gap-1 ${statusVariant.bgColor} ${statusVariant.textColor}`}
+              className={cn("flex items-center gap-1", statusVariant.bgColor, statusVariant.textColor)}
             >
               {statusVariant.icon}
               <span>{statusToHuman[record.status]}</span>
             </Badge>
           )}
         </div>
-      )}
-
-      {/* Execution Type Badge */}
-      {showExecutionType && (
-        <div className="flex items-center gap-2">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger>
-                <Badge variant="secondary" className="flex items-center gap-1">
-                  {executionTypeToHuman[record.params.executionType].icon}
-                  <span>{executionTypeToHuman[record.params.executionType].text}</span>
-                </Badge>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{executionTypeToHuman[record.params.executionType].description}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-      )}
+      </div>
 
       {/* Main Card Content */}
-      <Card>
-        <CardContent className="p-6 space-y-6">
+      <Card className="overflow-hidden">
+        <CardContent className="p-0">
           {/* Roles Section */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
+          <div className="space-y-0 divide-y divide-border">
+            <div className="p-4 bg-muted/50">
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="font-mono shrink-0">
-                  Requester
-                </Badge>
-                <span className="font-mono text-sm">{formatAddress(record.params.requester)}</span>
+                <User className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Requester</span>
+                <span className="font-mono text-xs text-muted-foreground ml-auto">
+                  {formatAddress(record.params.requester)}
+                </span>
               </div>
             </div>
-            <div className="flex items-center justify-between">
+            
+            <div className="p-4">
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="font-mono shrink-0">
-                  Target
-                </Badge>
-                <span className="font-mono text-sm">{formatAddress(record.params.target)}</span>
+                <Target className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Target</span>
+                <span className="font-mono text-xs text-muted-foreground ml-auto">
+                  {formatAddress(record.params.target)}
+                </span>
               </div>
             </div>
           </div>
-
+          
           <Separator />
 
           {/* Transaction Details */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 bg-background">
             <div>
-              <h4 className="text-sm font-medium mb-1">Release Time</h4>
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Release Time</h4>
               <div className="flex items-center gap-2">
                 <Clock className="h-3 w-3 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">{formatTimestamp(Number(record.releaseTime))}</p>
+                <p className="text-sm">{formatTimestamp(Number(record.releaseTime))}</p>
               </div>
             </div>
+            
             <div>
-              <h4 className="text-sm font-medium mb-1">Value</h4>
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Value</h4>
               <div className="flex items-center gap-2">
                 <Wallet className="h-3 w-3 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">{record.params.value.toString()}</p>
+                <p className="text-sm font-mono">{record.params.value.toString()}</p>
               </div>
             </div>
+            
             <div>
-              <h4 className="text-sm font-medium mb-1">Gas Limit</h4>
-              <p className="text-sm text-muted-foreground">{record.params.gasLimit.toString()}</p>
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Gas Limit</h4>
+              <div className="flex items-center gap-2">
+                <Activity className="h-3 w-3 text-muted-foreground" />
+                <p className="text-sm font-mono">{record.params.gasLimit.toString()}</p>
+              </div>
             </div>
           </div>
 
@@ -227,31 +238,32 @@ export function TxInfoCard({
           {record.payment && (
             <>
               <Separator />
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold">Payment Details</h3>
-                <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 space-y-4 bg-muted/30">
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Payment Details</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <h4 className="text-sm font-medium mb-1">Recipient</h4>
+                    <h4 className="text-xs font-medium text-muted-foreground mb-1">Recipient</h4>
                     <div className="flex items-center gap-2">
-                      <Badge variant="default" className="bg-green-500/10 text-green-500">
-                        <Wallet className="h-3 w-3 mr-1" />
-                        <span className="font-mono text-xs">{formatAddress(record.payment.recipient)}</span>
+                      <Badge variant="outline" className="font-mono text-xs">
+                        {formatAddress(record.payment.recipient)}
                       </Badge>
                     </div>
                   </div>
+                  
                   <div>
-                    <h4 className="text-sm font-medium mb-1">Native Token Amount</h4>
-                    <p className="text-sm text-muted-foreground">{record.payment.nativeTokenAmount.toString()}</p>
+                    <h4 className="text-xs font-medium text-muted-foreground mb-1">Native Token Amount</h4>
+                    <p className="text-sm font-mono">{record.payment.nativeTokenAmount.toString()}</p>
                   </div>
+                  
                   {record.payment.erc20TokenAmount > 0n && (
                     <>
                       <div>
-                        <h4 className="text-sm font-medium mb-1">ERC20 Token</h4>
-                        <p className="text-sm font-mono text-muted-foreground">{formatAddress(record.payment.erc20TokenAddress)}</p>
+                        <h4 className="text-xs font-medium text-muted-foreground mb-1">ERC20 Token</h4>
+                        <p className="text-sm font-mono">{formatAddress(record.payment.erc20TokenAddress)}</p>
                       </div>
                       <div>
-                        <h4 className="text-sm font-medium mb-1">ERC20 Amount</h4>
-                        <p className="text-sm text-muted-foreground">{record.payment.erc20TokenAmount.toString()}</p>
+                        <h4 className="text-xs font-medium text-muted-foreground mb-1">ERC20 Amount</h4>
+                        <p className="text-sm font-mono">{record.payment.erc20TokenAmount.toString()}</p>
                       </div>
                     </>
                   )}

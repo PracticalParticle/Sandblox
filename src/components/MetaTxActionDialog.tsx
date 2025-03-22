@@ -83,27 +83,36 @@ export function MetaTxActionDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <div className="flex items-center justify-between">
-            <DialogTitle>{title}</DialogTitle>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger>
-                  <Badge variant="secondary" className="flex items-center gap-1">
-                    <Network className="h-3 w-3" />
-                    <span>Meta Tx</span>
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Single-phase meta tx security</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+      <DialogContent className="sm:max-w-md max-w-full max-h-[85vh] overflow-y-auto p-4 overflow-x-hidden">
+        <DialogHeader className="sticky top-0 bg-background z-10 pb-4 border-b mb-4">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <DialogTitle>{title}</DialogTitle>
+              <TooltipProvider>
+                <Tooltip delayDuration={300}>
+                  <TooltipTrigger asChild>
+                    <Badge 
+                      variant="secondary" 
+                      className="flex items-center gap-1 cursor-help hover:bg-secondary/80"
+                    >
+                      <Network className="h-3 w-3" />
+                      <span>Meta Tx</span>
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent 
+                    side="top" 
+                    align="end"
+                    className="max-w-[200px] text-xs bg-popover/95 backdrop-blur-sm"
+                  >
+                    Single-phase meta tx security
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <DialogDescription>
+              {description || `Update the ${actionType}. This will be executed via meta-transaction.`}
+            </DialogDescription>
           </div>
-          <DialogDescription>
-            {description || `Update the ${actionType}. This will be executed via meta-transaction.`}
-          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -137,7 +146,7 @@ export function MetaTxActionDialog({
                         onChange={(e) => onNewValueChange(e.target.value)}
                         placeholder={newValuePlaceholder}
                         disabled={isLoading || isSigning}
-                        className={!validationResult.isValid && newValue ? "border-destructive" : ""}
+                        className={`w-full ${!validationResult.isValid && newValue ? "border-destructive" : ""}`}
                       />
                     )}
                     {!validationResult.isValid && newValue && (
@@ -160,7 +169,7 @@ export function MetaTxActionDialog({
                     </Alert>
                   )}
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="w-full">
                     <Button 
                       type="submit"
                       disabled={!newValue || !validationResult.isValid || !isConnectedWalletValid || isLoading || isSigning}
@@ -178,15 +187,6 @@ export function MetaTxActionDialog({
                         </>
                       )}
                     </Button>
-              {/*       <Button 
-                      type="button"
-                      variant="outline"
-                      disabled={!isConnectedWalletValid || isLoading}
-                      className="w-full"
-                    >
-                      <Radio className="mr-2 h-4 w-4" />
-                      Broadcast
-                    </Button> */}
                   </div>
                 </div>
               </form>
