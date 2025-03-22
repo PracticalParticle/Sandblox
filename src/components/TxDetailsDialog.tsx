@@ -5,15 +5,12 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
-  DialogClose
-} from '@/components/ui/dialog'
+  DialogDescription} from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { 
   Shield, 
   Key,
   AlertCircle,
-  X,
   FileText
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'

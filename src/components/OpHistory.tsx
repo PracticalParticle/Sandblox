@@ -181,7 +181,7 @@ export function OpHistory({
       return
     }
 
-    // For other transactions, show the details dialog
+    // Set the selected transaction and open the appropriate dialog
     setSelectedTx(record)
     setIsDetailsOpen(true)
   }
@@ -379,39 +379,48 @@ export function OpHistory({
           </Table>
 
           {/* Dialogs */}
-          {selectedTx && selectedTx.status === TxStatus.PENDING && !isWithdrawalOperation(selectedTx.params.operationType as Hex) && (
-            <TemporalActionDialog
-              isOpen={isDetailsOpen}
-              onOpenChange={setIsDetailsOpen}
-              title={`${operationTypesGetOperationName(selectedTx.params.operationType as Hex)} Details`}
-              contractInfo={{
-                ...contractInfo,
-                contractAddress: contractAddress
-              }}
-              {...getActionTypeAndRole(selectedTx.params.operationType as Hex)}
-              currentValue={selectedTx.params.target}
-              currentValueLabel="Target Address"
-              actionLabel="Approve Operation"
-              requiredRole={getActionTypeAndRole(selectedTx.params.operationType as Hex).requiredRole}
-              connectedAddress={connectedAddress}
-              pendingTx={selectedTx}
-              showNewValueInput={false}
-              onApprove={onApprove}
-              onCancel={onCancel}
-              showMetaTxOption={showMetaTxOption}
-              operationName={operationTypesGetOperationName(selectedTx.params.operationType as Hex)}
-              refreshData={refreshData}
-              refreshSignedTransactions={refreshSignedTransactions}
-            />
-          )}
-          
-          {selectedTx && selectedTx.status !== TxStatus.PENDING && !isWithdrawalOperation(selectedTx.params.operationType as Hex) && (
-            <TxDetailsDialog
-              isOpen={isDetailsOpen}
-              onOpenChange={setIsDetailsOpen}
-              record={selectedTx}
-              operationName={operationTypesGetOperationName(selectedTx.params.operationType as Hex)}
-            />
+          {selectedTx && (
+            <>
+              {/* Show TxDetailsDialog only for completed, cancelled, failed or rejected transactions */}
+              {(selectedTx.status === TxStatus.COMPLETED || 
+                selectedTx.status === TxStatus.CANCELLED || 
+                selectedTx.status === TxStatus.FAILED ||
+                selectedTx.status === TxStatus.REJECTED) && (
+                <TxDetailsDialog
+                  isOpen={isDetailsOpen}
+                  onOpenChange={setIsDetailsOpen}
+                  record={selectedTx}
+                  operationName={operationTypesGetOperationName(selectedTx.params.operationType as Hex)}
+                />
+              )}
+              
+              {/* Show TemporalActionDialog for pending transactions that aren't withdrawals */}
+              {selectedTx.status === TxStatus.PENDING && !isWithdrawalOperation(selectedTx.params.operationType as Hex) && (
+                <TemporalActionDialog
+                  isOpen={isDetailsOpen}
+                  onOpenChange={setIsDetailsOpen}
+                  title={`${operationTypesGetOperationName(selectedTx.params.operationType as Hex)} Details`}
+                  contractInfo={{
+                    ...contractInfo,
+                    contractAddress: contractAddress
+                  }}
+                  {...getActionTypeAndRole(selectedTx.params.operationType as Hex)}
+                  currentValue={selectedTx.params.target}
+                  currentValueLabel="Target Address"
+                  actionLabel="Approve Operation"
+                  requiredRole={getActionTypeAndRole(selectedTx.params.operationType as Hex).requiredRole}
+                  connectedAddress={connectedAddress}
+                  pendingTx={selectedTx}
+                  showNewValueInput={false}
+                  onApprove={onApprove}
+                  onCancel={onCancel}
+                  showMetaTxOption={showMetaTxOption}
+                  operationName={operationTypesGetOperationName(selectedTx.params.operationType as Hex)}
+                  refreshData={refreshData}
+                  refreshSignedTransactions={refreshSignedTransactions}
+                />
+              )}
+            </>
           )}
         </CardContent>
       </Card>

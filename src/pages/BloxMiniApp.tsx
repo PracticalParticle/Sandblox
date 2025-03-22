@@ -15,6 +15,12 @@ import { motion } from 'framer-motion';
 import { useToast } from '@/components/ui/use-toast';
 import { ContractInfo } from '@/components/ContractInfo';
 import { WalletStatusBadge } from '@/components/WalletStatusBadge';
+import { SignedMetaTxTable, ExtendedSignedTransaction } from '@/components/SignedMetaTxTable';
+import { OpHistory } from '@/components/OpHistory';
+import { useTransactionManager } from '@/hooks/useTransactionManager';
+import { useOperationTypes } from '@/hooks/useOperationTypes';
+import { Hex } from 'viem';
+import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index';
 
 // Animation variants
 const container = {
@@ -45,23 +51,30 @@ const BloxMiniApp: React.FC = () => {
   const { type, address } = useParams<{ type: string; address: string }>();
   const { address: connectedAddress } = useAccount();
   const { disconnect } = useDisconnect();
-  const [, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [contractInfo, setContractInfo] = useState<SecureContractInfo | undefined>(undefined);
   const [bloxContract, setBloxContract] = useState<BloxContract>();
   const [uiInitialized, setUiInitialized] = useState(false);
-  const { validateAndLoadContract } = useSecureContract();
+  const { validateAndLoadContract, approveOperation, cancelOperation } = useSecureContract();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const config = useConfig()
   const chainId = useChainId()
   const { connectAsync, connectors } = useConnect()
   const navigate = useNavigate()
   const { toast } = useToast()
-
+  const { transactions = {}, clearTransactions, removeTransaction } = useTransactionManager(address || '');
+  const [signedTransactions, setSignedTransactions] = useState<ExtendedSignedTransaction[]>([]);
+  const { getOperationName } = useOperationTypes(address as `0x${string}`);
+  
   // Add new state for mobile view
   const [isMobileView, setIsMobileView] = useState(false);
+  const [bloxUiLoading, setBloxUiLoading] = useState(true);
+
+  // Add a new state for tracking transaction changes
+  const [transactionCounter, setTransactionCounter] = useState(0);
 
   // Add useEffect to handle screen size changes
   useEffect(() => {
@@ -176,41 +189,147 @@ const BloxMiniApp: React.FC = () => {
     loadContractInfo();
   }, [address, type, uiInitialized, chainId, validateAndLoadContract]);
 
-  // Function to add messages that can be called from child components
-  const addMessage = React.useCallback((message: Omit<Message, 'timestamp'>) => {
-    setMessages(prev => {
-      // Check if this exact message already exists in the last 5 seconds
-      const now = new Date();
-      const recentDuplicate = prev.find(m => 
-        m.type === message.type &&
-        m.title === message.title &&
-        m.description === message.description &&
-        (now.getTime() - m.timestamp.getTime()) < 5000
-      );
-      
-      if (recentDuplicate) return prev;
-      return [{
-        ...message,
-        timestamp: now
-      }, ...prev];
-    });
-  }, []);
+  // Transform raw transactions to ExtendedSignedTransaction format
+  useEffect(() => {
+    if (!transactions) return;
+    
+    const txArray: ExtendedSignedTransaction[] = Object.entries(transactions).map(([txId, txData]) => ({
+      txId,
+      signedData: txData.signedData,
+      timestamp: txData.timestamp,
+      metadata: txData.metadata as ExtendedSignedTransaction['metadata']
+    }));
+    
+    setSignedTransactions(txArray);
+  }, [transactions]);
 
-  const handleDisconnect = async () => {
+  // Refresh signed transactions
+  const refreshSignedTransactions = () => {
+    // No-op - the useEffect above will handle the refresh based on transactions changes
+  };
+
+  // Create a comprehensive refresh function
+  const refreshAllData = async () => {
+    if (!address) return;
+    
     try {
-      await disconnect();
-      toast({
-        title: "Disconnected",
-        description: "Wallet disconnected successfully",
-      });
+      // Refresh contract info
+      const updatedContractInfo = await validateAndLoadContract(address as `0x${string}`);
+      if (updatedContractInfo) {
+        setContractInfo(updatedContractInfo);
+      }
+      
+      // Force a refresh of the transactions state
+      setTransactionCounter(prev => prev + 1);
+      
+      // Signal completed refresh
+      console.log('Data refreshed at:', new Date().toISOString());
     } catch (error) {
-      console.error('Error disconnecting wallet:', error);
+      console.error('Failed to refresh data:', error);
+    }
+  };
+
+  // Update the handleApproveOperation function
+  const handleApproveOperation = async (txId: number) => {
+    try {
+      if (!contractInfo || !connectedAddress || !address) {
+        toast({
+          title: "Error",
+          description: "Missing required information",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      await approveOperation(address as `0x${string}`, txId, 'ownership');
+      
+      toast({
+        title: "Success",
+        description: "Operation approved successfully",
+      });
+
+      // Refresh all data after operation completes
+      await refreshAllData();
+    } catch (error) {
+      console.error('Failed to approve operation:', error);
       toast({
         title: "Error",
-        description: "Failed to disconnect wallet",
+        description: error instanceof Error ? error.message : 'Failed to approve operation',
         variant: "destructive"
       });
     }
+  };
+
+  // Update the handleCancelOperation function
+  const handleCancelOperation = async (txId: number) => {
+    try {
+      if (!contractInfo || !connectedAddress || !address) {
+        toast({
+          title: "Error",
+          description: "Missing required information",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      await cancelOperation(address as `0x${string}`, txId, 'ownership');
+      
+      toast({
+        title: "Success",
+        description: "Operation cancelled successfully",
+      });
+
+      // Refresh all data after operation completes
+      await refreshAllData();
+    } catch (error) {
+      console.error('Failed to cancel operation:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : 'Failed to cancel operation',
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Add periodic refresh effect
+  useEffect(() => {
+    // Only set up refresh if we have an address and contract info
+    if (!address || !contractInfo) return;
+    
+    // Initial refresh when component mounts with contract info
+    refreshAllData();
+    
+    // Set up interval for periodic refreshes (every 15 seconds)
+    const intervalId = setInterval(() => {
+      refreshAllData();
+    }, 15000); // 15 seconds
+    
+    // Clean up interval on unmount
+    return () => clearInterval(intervalId);
+  }, [address, contractInfo?.contractAddress, transactionCounter]);
+
+  // Filter transactions and operations for withdrawals only
+  const withdrawalTransactions = signedTransactions.filter(tx => {
+    // Check explicit WITHDRAWAL_APPROVAL type
+    if (tx.metadata?.type === 'WITHDRAWAL_APPROVAL') {
+      return true;
+    }
+    
+    // Check using operation type if available
+    if (tx.metadata?.operationType) {
+      const operationName = getOperationName(tx.metadata.operationType);
+      return operationName === 'WITHDRAW_ETH' || 
+             operationName === 'WITHDRAW_TOKEN' || 
+             operationName === 'WITHDRAWAL_APPROVAL';
+    }
+    
+    return false;
+  });
+
+  // Function to check if an operation is a withdrawal
+  const isWithdrawalOperation = (operationType: Hex): boolean => {
+    const operationName = getOperationName(operationType);
+    return operationName === 'WITHDRAW_ETH' || operationName === 'WITHDRAW_TOKEN';
   };
 
   // Render the appropriate Blox UI based on type
@@ -264,6 +383,15 @@ const BloxMiniApp: React.FC = () => {
     );
   };
 
+  // Optimize loading by separating UI component loading from data loading
+  useEffect(() => {
+    // Set loading to false once we have contract info, even if BloxUI is still loading
+    if (contractInfo && loading) {
+      // Use a short timeout to ensure tables render quickly
+      setTimeout(() => setLoading(false), 100);
+    }
+  }, [contractInfo, loading]);
+
   // Modify the chain ID warning effect to prevent repeated warnings
   useEffect(() => {
     if (!contractInfo || !chainId) return;
@@ -278,6 +406,26 @@ const BloxMiniApp: React.FC = () => {
       });
     }
   }, [chainId, contractInfo?.chainId]);
+
+  // Function to add messages that can be called from child components
+  const addMessage = React.useCallback((message: Omit<Message, 'timestamp'>) => {
+    setMessages(prev => {
+      // Check if this exact message already exists in the last 5 seconds
+      const now = new Date();
+      const recentDuplicate = prev.find(m => 
+        m.type === message.type &&
+        m.title === message.title &&
+        m.description === message.description &&
+        (now.getTime() - m.timestamp.getTime()) < 5000
+      );
+      
+      if (recentDuplicate) return prev;
+      return [{
+        ...message,
+        timestamp: now
+      }, ...prev];
+    });
+  }, []);
 
   return (
     <div className="container py-8">
@@ -310,7 +458,7 @@ const BloxMiniApp: React.FC = () => {
               <WalletStatusBadge
                 connectedAddress={connectedAddress}
                 contractInfo={contractInfo as SecureContractInfo}
-                onDisconnect={handleDisconnect}
+                onDisconnect={disconnect}
               />
             )}
           </div>
@@ -431,7 +579,51 @@ const BloxMiniApp: React.FC = () => {
             )}
             
             <div className="grid grid-cols-1 gap-4">
-              {renderBloxUI()}
+              {/* Render BloxUI separately with its own loading state */}
+              <div className="relative">
+                {renderBloxUI()}
+              </div>
+              
+              {/* Pending Meta Transactions for Withdrawals - render immediately when data is available */}
+              {contractInfo && withdrawalTransactions.length > 0 && (
+                <motion.div variants={item} className="mt-6">
+                  <SignedMetaTxTable
+                    transactions={withdrawalTransactions}
+                    onClearAll={() => {
+                      clearTransactions();
+                      refreshAllData(); // Refresh after clearing
+                    }}
+                    onRemoveTransaction={(txId) => {
+                      removeTransaction(txId);
+                      refreshAllData(); // Refresh after removing
+                    }}
+                    contractAddress={address as `0x${string}`}
+                    onTxClick={(tx) => {
+                      // Navigate to the blox page for withdrawal actions
+                      navigate(`/blox/simple-vault/${address}`);
+                    }}
+                  />
+                </motion.div>
+              )}
+
+              {/* Withdrawal Operations History - render immediately when data is available */}
+              {contractInfo && (
+                <motion.div variants={item} className="mt-6">
+                  <OpHistory
+                    contractAddress={address as `0x${string}`}
+                    operations={contractInfo.operationHistory.filter((op: TxRecord) => 
+                      isWithdrawalOperation(op.params.operationType as Hex)
+                    )}
+                    isLoading={false} // Set to false since we're controlling visibility with the conditional rendering
+                    contractInfo={contractInfo}
+                    signedTransactions={withdrawalTransactions}
+                    onApprove={handleApproveOperation}
+                    onCancel={handleCancelOperation}
+                    refreshData={refreshAllData} // Use the comprehensive refresh function
+                    refreshSignedTransactions={refreshAllData} // Use the same function for consistency
+                  />
+                </motion.div>
+              )}
             </div>
           </div>
         </div>
