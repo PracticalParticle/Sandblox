@@ -8,12 +8,10 @@ import {
   DialogTitle 
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Clock } from "lucide-react";
+import { Clock, Info } from "lucide-react";
 import { TxInfoCard } from "./TxInfoCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
-
-// Import the existing PendingTransactions component
 import { 
   PendingTransactions, 
   VaultTxRecord 
@@ -21,6 +19,8 @@ import {
 import { NotificationMessage } from "../blox/SimpleVault/lib/types";
 import { useMetaTxActions } from '../blox/SimpleVault/hooks/useMetaTxActions';
 import { useTimeLockActions } from '../blox/SimpleVault/hooks/useTimeLockActions';
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { formatAddress } from "@/lib/utils";
 
 interface PendingTransactionDialogProps {
   isOpen: boolean;
@@ -48,7 +48,10 @@ interface PendingTransactionDialogProps {
   showMetaTxOption?: boolean;
   refreshData?: () => void;
   mode?: 'timelock' | 'metatx';
+  hasSignedApproval?: boolean;
 }
+
+
 
 export function PendingTransactionDialog({
   isOpen,
@@ -61,7 +64,9 @@ export function PendingTransactionDialog({
   connectedAddress,
   showMetaTxOption = true,
   refreshData,
-  mode = 'timelock'
+  mode = 'timelock',
+  signedMetaTxStates = {},
+  hasSignedApproval: propHasSignedApproval,
 }: PendingTransactionDialogProps): JSX.Element {
   // State to track the active tab
   const [activeTab, setActiveTab] = React.useState<'timelock' | 'metatx'>(mode);
@@ -76,7 +81,7 @@ export function PendingTransactionDialog({
   const {
     handleMetaTxSign,
     handleBroadcastMetaTx,
-    signedMetaTxStates,
+    signedMetaTxStates: hookSignedMetaTxStates,
     isLoading: isMetaTxLoading
   } = useMetaTxActions(
     contractInfo.contractAddress,
@@ -96,6 +101,22 @@ export function PendingTransactionDialog({
     handleRefresh
   );
 
+  // Add style once on mount
+  React.useEffect(() => {
+    // Only add the style tag if it doesn't exist yet
+    if (!document.getElementById('dialog-styles')) {
+      const style = document.createElement('style');
+      style.id = 'dialog-styles';
+  
+      document.head.appendChild(style);
+    }
+    
+    return () => {
+      // We could remove the style on unmount, but it's okay to leave it
+      // since it's scoped to the dialog and won't affect other components
+    };
+  }, []);
+
   if (!transaction) {
     return (
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -111,12 +132,66 @@ export function PendingTransactionDialog({
     );
   }
 
+  // Check if the transaction is already signed - either from hook state or from props
+  const hasSignedApprovalFromHook = hookSignedMetaTxStates?.[`${transaction.txId}-approve`]?.type === 'approve' 
+                                || signedMetaTxStates?.[`${transaction.txId}-approve`]?.type === 'approve';
+  
+  // Combine all sources to determine if the transaction has a signature
+  const hasSignedApproval = hasSignedApprovalFromHook || propHasSignedApproval;
+
+  // Determine if the time delay has expired
+  const now = Math.floor(Date.now() / 1000);
+  const releaseTime = Number(transaction.releaseTime);
+  const isTimeDelayExpired = now >= releaseTime;
+  
+  // Check user roles
+  const isOwner = connectedAddress?.toLowerCase() === contractInfo.owner?.toLowerCase();
+  const isBroadcaster = connectedAddress?.toLowerCase() === contractInfo.broadcaster?.toLowerCase();
+
+  // Get formatted broadcaster address
+  const formattedBroadcasterAddress = contractInfo.broadcaster ? formatAddress(contractInfo.broadcaster) : 'Unknown';
+
+  // Determine alert message and guidance based on roles and time delay
+  const renderAlert = () => {
+    if (!hasSignedApproval) return null;
+    
+    // Determine the appropriate guidance message
+    let alertMessage = "";
+    
+    if (isTimeDelayExpired) {
+      if (isOwner) {
+        alertMessage = `This transaction has been signed and the time delay has expired. You can now approve this transaction directly, or the broadcaster (${formattedBroadcasterAddress}) can broadcast it.`;
+      } else if (isBroadcaster) {
+        alertMessage = `This transaction has been signed and the time delay has expired. As the broadcaster, you can now broadcast this transaction.`;
+      } else {
+        alertMessage = `This transaction has been signed and the time delay has expired. The owner can approve it directly, or the broadcaster (${formattedBroadcasterAddress}) can broadcast it.`;
+      }
+    } else {
+      if (isBroadcaster) {
+        alertMessage = `This transaction has been signed. As the broadcaster, you can broadcast it now, or wait until the time delay expires.`;
+      } else if (isOwner) {
+        alertMessage = `This transaction has been signed. Please wait until the time delay expires to approve it directly, or connect with the broadcaster wallet (${formattedBroadcasterAddress}) to broadcast it sooner.`;
+      } else {
+        alertMessage = `This transaction has been signed. Please connect with the broadcaster wallet (${formattedBroadcasterAddress}) to broadcast it, or wait until the time delay expires for direct approval.`;
+      }
+    }
+    
+    return (
+      <Alert className="bg-purple-50 border-purple-200 text-purple-900 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300 mb-2">
+        <Info className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+        <AlertDescription className="text-sm ml-2">
+          {alertMessage}
+        </AlertDescription>
+      </Alert>
+    );
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
         <DialogHeader className="sticky top-0 bg-background z-10 pb-4 border-b mb-4">
           <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between">
               <DialogTitle>{title}</DialogTitle>
               <div className="flex items-center gap-2">
                 <Badge 
@@ -141,6 +216,9 @@ export function PendingTransactionDialog({
             showExecutionType={true}
             showStatus={true}
           />
+
+          {/* Enhanced alert with contextual guidance */}
+          {renderAlert()}
 
           <Card>
             <Tabs defaultValue="timelock" className="w-full" value={activeTab} onValueChange={(value) => setActiveTab(value as 'timelock' | 'metatx')}>
@@ -169,14 +247,14 @@ export function PendingTransactionDialog({
                 />
               </TabsContent>
 
-              <TabsContent value="metatx" className="mt-4">
+              <TabsContent value="metatx" className="mt-4 ">
                 <PendingTransactions
                   transactions={[transaction]}
                   isLoadingTx={false}
                   onRefresh={handleRefresh}
                   onMetaTxSign={handleMetaTxSign}
                   onBroadcastMetaTx={handleBroadcastMetaTx}
-                  signedMetaTxStates={signedMetaTxStates}
+                  signedMetaTxStates={{...signedMetaTxStates, ...hookSignedMetaTxStates}}
                   isLoading={isMetaTxLoading}
                   contractAddress={contractInfo.contractAddress}
                   mode="metatx"

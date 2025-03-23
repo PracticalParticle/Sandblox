@@ -49,6 +49,13 @@ export function useTransactionManager(contractAddress: string): UseTransactionMa
           }
         }));
         setError(null);
+
+        // Dispatch a storage event to notify listeners
+        const event = new StorageEvent('storage', {
+          key: `transactions-${contractAddress}`,
+          newValue: JSON.stringify({}) // The value isn't important, just the key
+        });
+        window.dispatchEvent(event);
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to store transaction'));
       }
@@ -66,6 +73,13 @@ export function useTransactionManager(contractAddress: string): UseTransactionMa
           return newTransactions;
         });
         setError(null);
+
+        // Dispatch a storage event to notify listeners
+        const event = new StorageEvent('storage', {
+          key: `transactions-${contractAddress}`,
+          newValue: JSON.stringify({}) // The value isn't important, just the key
+        });
+        window.dispatchEvent(event);
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to remove transaction'));
       }

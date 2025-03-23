@@ -27,6 +27,7 @@ import { useMetaTxActions } from '@/blox/SimpleVault/hooks/useMetaTxActions';
 import { PendingTransactionDialog } from '@/components/PendingTransactionDialog';
 import { NotificationMessage } from '@/blox/SimpleVault/lib/types';
 import { VaultTxRecord } from '@/blox/SimpleVault/components/PendingTransaction';
+import { TransactionManager } from '@/services/TransactionManager';
 
 // Animation variants
 const container = {
@@ -51,6 +52,13 @@ interface Message {
   title: string;
   description: string;
   timestamp: Date;
+}
+
+// Add this interface near your other interfaces (before the component)
+interface StoredTransaction {
+  signedData: string;
+  timestamp: number;
+  metadata?: Record<string, unknown>;
 }
 
 const BloxMiniApp: React.FC = () => {
@@ -122,83 +130,109 @@ const BloxMiniApp: React.FC = () => {
   }, []);
 
   // Load contract info and blox details
-  useEffect(() => {
-    if (!address || !type || !uiInitialized) return;
+  const loadContractInfo = async () => {
+    if (!address || !uiInitialized) return;
 
-    const loadContractInfo = async () => {
-      // Skip if we already have the contract info for this address
-      if (contractInfo?.contractAddress === address) return;
+    // Skip if we already have the contract info for this address
+    if (contractInfo?.contractAddress === address) {
+      setBloxUiLoading(false); // Make sure to set loading to false if we already have the contract
+      return;
+    }
 
-      setLoading(true);
-      setError(null);
+    setLoading(true);
+    setBloxUiLoading(true);
+    setError(null);
 
-      try {
-        // Load secure contract info
-        const info = await validateAndLoadContract(address as `0x${string}`);
-        if (!info) {
-          throw new Error('Contract info not found');
-        }
+    try {
+      // Load secure contract info
+      const info = await validateAndLoadContract(address as `0x${string}`);
+      if (!info) {
+        throw new Error('Contract info not found');
+      }
+      
+      // Ensure all required fields are present
+      if (!info.owner || !info.broadcaster || !info.recoveryAddress) {
+        throw new Error('Invalid contract info - missing required fields');
+      }
+
+      setContractInfo(info);
+
+      // Get chain name for error messages
+      const targetChain = config.chains.find(c => c.id === info.chainId);
+      const targetChainName = targetChain?.name || 'Unknown Network';
+
+      // Only show network warning if chain is wrong
+      if (chainId !== info.chainId) {
+        addMessage({
+          type: 'warning',
+          title: 'Wrong Network',
+          description: `This contract is deployed on ${targetChainName}. Please switch networks.`
+        });
         
-        // Ensure all required fields are present
-        if (!info.owner || !info.broadcaster || !info.recoveryAddress) {
-          throw new Error('Invalid contract info - missing required fields');
-        }
-
-        setContractInfo(info);
-
-        // Get chain name for error messages
-        const targetChain = config.chains.find(c => c.id === info.chainId);
-        const targetChainName = targetChain?.name || 'Unknown Network';
-
-        // Only show network warning if chain is wrong
-        if (chainId !== info.chainId) {
-          addMessage({
-            type: 'warning',
-            title: 'Wrong Network',
-            description: `This contract is deployed on ${targetChainName}. Please switch networks.`
-          });
-          
-          // Find a connector that supports network switching
-          const connector = connectors.find(c => c.id === 'injected')
-          if (connector) {
-            try {
-              await connectAsync({ 
-                connector,
-                chainId: info.chainId 
-              });
-            } catch (error) {
-              console.error('Failed to switch network:', error);
-            }
+        // Find a connector that supports network switching
+        const connector = connectors.find(c => c.id === 'injected')
+        if (connector) {
+          try {
+            await connectAsync({ 
+              connector,
+              chainId: info.chainId 
+            });
+          } catch (error) {
+            console.error('Failed to switch network:', error);
           }
         }
-
-        // Load blox contract details from catalog
-        // If type is not provided in URL, try to get it from contract info
-        const contractType = type || info.type;
-        if (!contractType) {
-          throw new Error('Contract type not found');
-        }
-
-        const bloxDetails = await getContractDetails(contractType);
-        if (!bloxDetails) {
-          throw new Error(`Unknown Blox type: ${contractType}`);
-        }
-        setBloxContract(bloxDetails);
-      } catch (error) {
-        console.error('Error loading contract:', error);
-        setError(error instanceof Error ? error.message : 'Failed to load contract details');
-        addMessage({
-          type: 'error',
-          title: 'Loading Failed',
-          description: error instanceof Error ? error.message : 'Failed to load contract details'
-        });
-      } finally {
-        setLoading(false);
       }
-    };
 
+      // Load blox contract details from catalog
+      const contractType = type || info.type;
+      if (!contractType) {
+        throw new Error('Contract type not found');
+      }
+
+      const bloxDetails = await getContractDetails(contractType);
+      if (!bloxDetails) {
+        throw new Error(`Unknown Blox type: ${contractType}`);
+      }
+      setBloxContract(bloxDetails);
+    } catch (error) {
+      console.error('Error loading contract:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load contract details');
+      addMessage({
+        type: 'error',
+        title: 'Loading Failed',
+        description: error instanceof Error ? error.message : 'Failed to load contract details'
+      });
+    } finally {
+      setLoading(false);
+      setBloxUiLoading(false);
+    }
+  };
+
+  // Update the useEffect to call the standalone function
+  useEffect(() => {
+    if (!address || !uiInitialized) return;
+    
+    // Load contract info when component mounts or when address/uiInitialized changes
     loadContractInfo();
-  }, [address, type, uiInitialized, chainId, validateAndLoadContract]);
+    
+    // Add a fallback timeout to ensure loading state is reset even if something goes wrong
+    const timeoutId = setTimeout(() => {
+      if (bloxUiLoading) {
+        console.warn('Forced reset of loading state after timeout');
+        setBloxUiLoading(false);
+      }
+    }, 10000); // 10 second fallback
+    
+    return () => clearTimeout(timeoutId);
+  }, [address, uiInitialized]);
+
+  // Add a separate effect for type changes
+  useEffect(() => {
+    if (!address || !type || !uiInitialized) return;
+    if (bloxContract?.id !== type) {
+      loadContractInfo();
+    }
+  }, [type]);
 
   // Transform raw transactions to ExtendedSignedTransaction format
   useEffect(() => {
@@ -213,11 +247,6 @@ const BloxMiniApp: React.FC = () => {
     
     setSignedTransactions(txArray);
   }, [transactions]);
-
-  // Refresh signed transactions
-  const refreshSignedTransactions = () => {
-    // No-op - the useEffect above will handle the refresh based on transactions changes
-  };
 
   // Create a comprehensive refresh function
   const refreshAllData = async () => {
@@ -399,12 +428,57 @@ const BloxMiniApp: React.FC = () => {
     return operationName === 'WITHDRAW_ETH' || operationName === 'WITHDRAW_TOKEN';
   };
 
+  // Function to add messages that can be called from child components
+  const addMessage = React.useCallback((message: Omit<Message, 'timestamp'>) => {
+    setMessages(prev => {
+      const now = new Date();
+      const recentDuplicate = prev.find(m => 
+        m.type === message.type &&
+        m.title === message.title &&
+        m.description === message.description &&
+        (now.getTime() - m.timestamp.getTime()) < 5000
+      );
+
+      if (recentDuplicate) return prev; // Return previous state if duplicate found
+      return [{
+        ...message,
+        timestamp: now
+      }, ...prev]; // Return new state array
+    });
+  }, []);
+
+  // Update the handleDisconnect function
+  const handleDisconnect = async () => {
+    try {
+      await disconnect();
+      toast({
+        title: "Disconnected",
+        description: "Wallet disconnected successfully",
+      });
+    } catch (error) {
+      console.error('Error disconnecting wallet:', error);
+      toast({
+        title: "Error",
+        description: "Failed to disconnect wallet",
+        variant: "destructive"
+      });
+    }
+  };
+
   // Render the appropriate Blox UI based on type
   const renderBloxUI = () => {
+    if (bloxUiLoading) {
+      return (
+        <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
+          <p className="text-gray-500">Loading BloxUI component...</p>
+        </div>
+      );
+    }
+    
     if (!bloxContract || !contractInfo || !address) {
       return (
         <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
-          <p className="text-gray-500">Loading contract information...</p>
+          <p className="text-gray-500">Contract information not available. Please check the address and try again.</p>
         </div>
       );
     }
@@ -423,7 +497,7 @@ const BloxMiniApp: React.FC = () => {
     return (
       <Suspense fallback={
         <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
-          <p className="text-gray-500">Loading UI component...</p>
+          <p className="text-gray-500">Loading UI component content...</p>
         </div>
       }>
         <BloxUI 
@@ -439,6 +513,7 @@ const BloxMiniApp: React.FC = () => {
             chainName: (contractInfo as SecureContractInfo).chainName
           }}
           onError={(error: Error) => {
+            setBloxUiLoading(false); // Make sure loading is set to false on error
             toast({
               title: "Operation Failed",
               description: error.message || 'Failed to perform operation',
@@ -474,15 +549,6 @@ const BloxMiniApp: React.FC = () => {
     }
   }, [chainId, contractInfo?.chainId]);
 
-  // Function to add messages that can be called from child components
-  const addMessage = React.useCallback((message: NotificationMessage) => {
-    toast({
-      title: message.title,
-      description: message.description,
-      variant: message.type === 'error' ? 'destructive' : undefined
-    });
-  }, [toast]);
-
   // Add meta transaction handlers using the useMetaTxActions hook
   const {
     handleMetaTxSign: handleMetaTxSignBase,
@@ -499,6 +565,9 @@ const BloxMiniApp: React.FC = () => {
   // Wrap the base function to include any additional logic if needed
   const handleMetaTxSign = async (tx: VaultTxRecord, type: 'approve' | 'cancel') => {
     await handleMetaTxSignBase(tx, type);
+    
+    // After signing, immediately refresh the local transactions
+    refreshLocalTransactions();
   };
 
   // Transform contractInfo to match expected type
@@ -518,6 +587,66 @@ const BloxMiniApp: React.FC = () => {
   // Update the PendingTransactionDialog usage
   const [selectedTransaction, setSelectedTransaction] = useState<ExtendedSignedTransaction | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  // Add a manual refresh function
+  const handleRefreshUI = () => {
+    setBloxUiLoading(true);
+    loadContractInfo();
+  };
+
+  // Add a useEffect to listen for local storage changes
+  useEffect(() => {
+    // Define a handler for storage events
+    const handleStorageChange = (event: StorageEvent) => {
+      // Check if the change is related to our transactions
+      if (event.key && event.key.includes('transactions')) {
+        console.log('Storage changed for transactions, refreshing transaction data');
+        
+        if (address) {
+          // Only update the specific transactions for this contract
+          const txManager = new TransactionManager();
+          const latestTxs = txManager.getSignedTransactionsByContract(address);
+          
+          // Convert to array format with proper typing
+          const txArray = Object.entries(latestTxs).map(([txId, txData]) => ({
+            txId,
+            signedData: (txData as StoredTransaction).signedData,
+            timestamp: (txData as StoredTransaction).timestamp,
+            metadata: (txData as StoredTransaction).metadata as ExtendedSignedTransaction['metadata']
+          }));
+          
+          // Update the state with the latest transactions
+          setSignedTransactions(txArray);
+        }
+      }
+    };
+
+    // Add event listener for storage events
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Clean up the event listener when the component unmounts
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [address]);
+
+  // Add a function to force refresh transaction data from local storage
+  const refreshLocalTransactions = () => {
+    if (!address) return;
+    
+    const txManager = new TransactionManager();
+    const latestTxs = txManager.getSignedTransactionsByContract(address);
+    
+    // Convert to array format with proper typing
+    const txArray = Object.entries(latestTxs).map(([txId, txData]) => ({
+      txId,
+      signedData: (txData as StoredTransaction).signedData,
+      timestamp: (txData as StoredTransaction).timestamp,
+      metadata: (txData as StoredTransaction).metadata as ExtendedSignedTransaction['metadata']
+    }));
+    
+    setSignedTransactions(txArray);
+  };
 
   return (
     <div className="container py-8">
@@ -550,7 +679,7 @@ const BloxMiniApp: React.FC = () => {
               <WalletStatusBadge
                 connectedAddress={connectedAddress}
                 contractInfo={contractInfo as SecureContractInfo}
-                onDisconnect={disconnect}
+                onDisconnect={handleDisconnect}
               />
             )}
           </div>
@@ -683,16 +812,16 @@ const BloxMiniApp: React.FC = () => {
                     transactions={withdrawalTransactions}
                     onClearAll={() => {
                       clearTransactions();
-                      refreshAllData(); // Refresh after clearing
+                      refreshAllData();
                     }}
                     onRemoveTransaction={(txId) => {
                       removeTransaction(txId);
-                      refreshAllData(); // Refresh after removing
+                      refreshAllData();
                     }}
                     contractAddress={address as `0x${string}`}
                     onTxClick={(tx) => {
-                      // Navigate to the blox page for withdrawal actions
-                      navigate(`/blox/simple-vault/${address}`);
+                      setSelectedTransaction(tx);
+                      setIsDialogOpen(true);
                     }}
                   />
                 </motion.div>
@@ -739,6 +868,8 @@ const BloxMiniApp: React.FC = () => {
                   mode="timelock"
                 />
               )}
+
+              
             </div>
           </div>
         </div>
