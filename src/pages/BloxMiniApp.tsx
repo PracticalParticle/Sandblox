@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { getContractDetails } from '@/lib/catalog';
 import type { BloxContract } from '@/lib/catalog/types';
 import { initializeUIComponents, getUIComponent } from '@/lib/catalog/bloxUIComponents';
-import { useConfig, useChainId, useConnect, useAccount, useDisconnect } from 'wagmi'
+import { useConfig, useChainId, useConnect, useAccount, useDisconnect, usePublicClient, useWalletClient } from 'wagmi'
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useToast } from '@/components/ui/use-toast';
@@ -21,6 +21,12 @@ import { useTransactionManager } from '@/hooks/useTransactionManager';
 import { useOperationTypes } from '@/hooks/useOperationTypes';
 import { Hex } from 'viem';
 import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index';
+import { useChain } from '@/hooks/useChain';
+import SimpleVault from '@/blox/SimpleVault/SimpleVault';
+import { useMetaTxActions } from '@/blox/SimpleVault/hooks/useMetaTxActions';
+import { PendingTransactionDialog } from '@/components/PendingTransactionDialog';
+import { NotificationMessage } from '@/blox/SimpleVault/lib/types';
+import { VaultTxRecord } from '@/blox/SimpleVault/components/PendingTransaction';
 
 // Animation variants
 const container = {
@@ -75,6 +81,11 @@ const BloxMiniApp: React.FC = () => {
 
   // Add a new state for tracking transaction changes
   const [transactionCounter, setTransactionCounter] = useState(0);
+
+  // Add the required hooks for SimpleVault operations
+  const publicClient = usePublicClient();
+  const { data: walletClient } = useWalletClient();
+  const chain = useChain();
 
   // Add useEffect to handle screen size changes
   useEffect(() => {
@@ -241,7 +252,35 @@ const BloxMiniApp: React.FC = () => {
         return;
       }
 
-      await approveOperation(address as `0x${string}`, txId, 'ownership');
+      // Find the transaction to determine the operation type
+      const transaction = contractInfo.operationHistory.find((op: TxRecord) => Number(op.txId) === txId);
+      if (!transaction) {
+        throw new Error("Transaction not found");
+      }
+
+      const operationName = getOperationName(transaction.params.operationType as Hex);
+      
+      // Check if this is a withdrawal operation
+      const isWithdrawal = 
+        operationName === 'WITHDRAW_ETH' || operationName === 'WITHDRAW_TOKEN';
+      
+      if (isWithdrawal) {
+        // For withdrawals, use SimpleVault contract directly
+        if (!publicClient || !walletClient || !chain) {
+          throw new Error("Wallet not connected or chain not found");
+        }
+        
+        // Initialize SimpleVault contract
+        const vault = new SimpleVault(publicClient, walletClient, address as `0x${string}`, chain);
+        
+        // Call the approveWithdrawalAfterDelay method
+        const tx = await vault.approveWithdrawalAfterDelay(Number(txId), { from: connectedAddress });
+        await tx.wait();
+      } else {
+        // For other operations, use the standard approveOperation
+        const operationType = 'ownership'; // Default to ownership for non-withdrawal operations
+        await approveOperation(address as `0x${string}`, txId, operationType);
+      }
       
       toast({
         title: "Success",
@@ -272,7 +311,35 @@ const BloxMiniApp: React.FC = () => {
         return;
       }
 
-      await cancelOperation(address as `0x${string}`, txId, 'ownership');
+      // Find the transaction to determine the operation type
+      const transaction = contractInfo.operationHistory.find((op: TxRecord) => Number(op.txId) === txId);
+      if (!transaction) {
+        throw new Error("Transaction not found");
+      }
+
+      const operationName = getOperationName(transaction.params.operationType as Hex);
+      
+      // Check if this is a withdrawal operation
+      const isWithdrawal = 
+        operationName === 'WITHDRAW_ETH' || operationName === 'WITHDRAW_TOKEN';
+      
+      if (isWithdrawal) {
+        // For withdrawals, use SimpleVault contract directly
+        if (!publicClient || !walletClient || !chain) {
+          throw new Error("Wallet not connected or chain not found");
+        }
+        
+        // Initialize SimpleVault contract
+        const vault = new SimpleVault(publicClient, walletClient, address as `0x${string}`, chain);
+        
+        // Call the cancelWithdrawal method
+        const tx = await vault.cancelWithdrawal(Number(txId), { from: connectedAddress });
+        await tx.wait();
+      } else {
+        // For other operations, use the standard cancelOperation
+        const operationType = 'ownership'; // Default to ownership for non-withdrawal operations
+        await cancelOperation(address as `0x${string}`, txId, operationType);
+      }
       
       toast({
         title: "Success",
@@ -408,24 +475,49 @@ const BloxMiniApp: React.FC = () => {
   }, [chainId, contractInfo?.chainId]);
 
   // Function to add messages that can be called from child components
-  const addMessage = React.useCallback((message: Omit<Message, 'timestamp'>) => {
-    setMessages(prev => {
-      // Check if this exact message already exists in the last 5 seconds
-      const now = new Date();
-      const recentDuplicate = prev.find(m => 
-        m.type === message.type &&
-        m.title === message.title &&
-        m.description === message.description &&
-        (now.getTime() - m.timestamp.getTime()) < 5000
-      );
-      
-      if (recentDuplicate) return prev;
-      return [{
-        ...message,
-        timestamp: now
-      }, ...prev];
+  const addMessage = React.useCallback((message: NotificationMessage) => {
+    toast({
+      title: message.title,
+      description: message.description,
+      variant: message.type === 'error' ? 'destructive' : undefined
     });
-  }, []);
+  }, [toast]);
+
+  // Add meta transaction handlers using the useMetaTxActions hook
+  const {
+    handleMetaTxSign: handleMetaTxSignBase,
+    handleBroadcastMetaTx,
+    signedMetaTxStates: metaTxStates,
+    isLoading: isMetaTxLoading
+  } = useMetaTxActions(
+    address as `0x${string}`,
+    addMessage,  // onSuccess
+    addMessage,  // onError
+    refreshAllData // onRefresh
+  );
+
+  // Wrap the base function to include any additional logic if needed
+  const handleMetaTxSign = async (tx: VaultTxRecord, type: 'approve' | 'cancel') => {
+    await handleMetaTxSignBase(tx, type);
+  };
+
+  // Transform contractInfo to match expected type
+  const dialogContractInfo = React.useMemo(() => {
+    if (!contractInfo) return null;
+    return {
+      contractAddress: contractInfo.contractAddress as `0x${string}`,
+      timeLockPeriodInMinutes: contractInfo.timeLockPeriodInMinutes,
+      chainId: contractInfo.chainId,
+      chainName: contractInfo.chainName,
+      broadcaster: contractInfo.broadcaster as `0x${string}`,
+      owner: contractInfo.owner as `0x${string}`,
+      recoveryAddress: contractInfo.recoveryAddress as `0x${string}`
+    };
+  }, [contractInfo]);
+
+  // Update the PendingTransactionDialog usage
+  const [selectedTransaction, setSelectedTransaction] = useState<ExtendedSignedTransaction | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   return (
     <div className="container py-8">
@@ -623,6 +715,29 @@ const BloxMiniApp: React.FC = () => {
                     refreshSignedTransactions={refreshAllData} // Use the same function for consistency
                   />
                 </motion.div>
+              )}
+
+              {/* Update the PendingTransactionDialog usage */}
+              {selectedTransaction && dialogContractInfo && (
+                <PendingTransactionDialog
+                  isOpen={isDialogOpen}
+                  onOpenChange={setIsDialogOpen}
+                  title={`Pending Transaction #${selectedTransaction.txId}`}
+                  description="Review and manage this withdrawal transaction"
+                  contractInfo={dialogContractInfo}
+                  transaction={selectedTransaction as unknown as VaultTxRecord} // Convert to unknown first for type safety
+                  onApprove={handleApproveOperation}
+                  onCancel={handleCancelOperation}
+                  onMetaTxSign={handleMetaTxSign}
+                  onBroadcastMetaTx={handleBroadcastMetaTx}
+                  onNotification={addMessage}
+                  isLoading={isMetaTxLoading}
+                  connectedAddress={connectedAddress}
+                  signedMetaTxStates={metaTxStates}
+                  showMetaTxOption={true}
+                  refreshData={refreshAllData}
+                  mode="timelock"
+                />
               )}
             </div>
           </div>

@@ -169,7 +169,7 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Transaction ID</TableHead>
+                <TableHead>ID</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Action</TableHead>
                 <TableHead>Signed At</TableHead>
