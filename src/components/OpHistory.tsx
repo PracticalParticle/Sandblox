@@ -17,7 +17,6 @@ import {
 import { Loader2, Clock, CheckCircle2, XCircle, AlertTriangle, Filter } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useAccount } from 'wagmi'
-import { useNavigate } from 'react-router-dom'
 
 import {
   Select,

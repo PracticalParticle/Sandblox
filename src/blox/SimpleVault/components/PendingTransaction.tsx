@@ -13,7 +13,6 @@ import { useOperationTypes } from "@/hooks/useOperationTypes";
 import { NotificationMessage } from "../lib/types";
 import { useActionPermissions } from "@/hooks/useActionPermissions";
 import { usePublicClient } from "wagmi"
-import { TransactionManager } from '@/services/TransactionManager';
 
 // Helper function to recursively convert BigInt values to strings
 const convertBigIntsToStrings = (obj: any): any => {
@@ -152,25 +151,11 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
   const handleApproveAction = async (txId: number) => {
     try {
       if (onApprove) {
-        // Show pending notification
-        onNotification?.({
-          type: 'info',
-          title: 'Submitting Transaction',
-          description: 'Please wait while the transaction is being submitted...'
-        });
-
         await onApprove(txId);
-
-        // Success notification will be handled by the dialog component
-        // Refresh data will be handled by the dialog component
       }
     } catch (error) {
       console.error('Failed to approve transaction:', error);
-      onNotification?.({
-        type: 'error',
-        title: 'Approval Failed',
-        description: error instanceof Error ? error.message : 'Failed to approve transaction'
-      });
+      throw error; // Re-throw to let the dialog handle the error notification
     }
   };
 
@@ -195,25 +180,11 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
       }
 
       if (onCancel) {
-        // Show pending notification
-        onNotification?.({
-          type: 'info',
-          title: 'Submitting Transaction',
-          description: 'Please wait while the cancellation is being submitted...'
-        });
-
         await onCancel(txId);
-
-        // Success notification will be handled by the dialog component
-        // Refresh data will be handled by the dialog component
       }
     } catch (error) {
       console.error('Failed to cancel transaction:', error);
-      onNotification?.({
-        type: 'error',
-        title: 'Cancellation Failed',
-        description: error instanceof Error ? error.message : 'Failed to cancel transaction'
-      });
+      throw error; // Re-throw to let the dialog handle the error notification
     }
   };
 

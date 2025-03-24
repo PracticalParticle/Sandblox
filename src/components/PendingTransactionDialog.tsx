@@ -61,7 +61,6 @@ export function PendingTransactionDialog({
   transaction,
   onNotification,
   connectedAddress,
-  showMetaTxOption = true,
   refreshData,
   mode = 'timelock',
   signedMetaTxStates = {},
@@ -95,54 +94,106 @@ export function PendingTransactionDialog({
   // Get timelock actions using the same hooks as SimpleVault.ui.tsx
   const {
     handleApproveWithdrawal,
-    handleCancelWithdrawal,
-    loadingStates: timeLockLoadingStates
-  } = useTimeLockActions(
+    handleCancelWithdrawal  } = useTimeLockActions(
     contractInfo.contractAddress,
     onNotification,  // onSuccess
     onNotification,  // onError
     handleRefresh    // onRefresh
   );
 
-  // Create wrapper for approve action to handle dialog closing
   const handleApproveWrapper = async (txId: number) => {
     try {
+      onNotification?.({
+        type: 'info',
+        title: 'Submitting Transaction',
+        description: 'Please wait while the transaction is being approved...'
+      });
+
       await handleApproveWithdrawal(txId);
-      // Remove from local storage
+
+      // Remove from local storage after successful approval
       removeTransaction(txId.toString());
-      // Close dialog after successful approval
+
+      onNotification?.({
+        type: 'success',
+        title: 'Transaction Approved',
+        description: 'The transaction has been successfully approved.'
+      });
+
+      // Close dialog and refresh data
       onOpenChange(false);
+      handleRefresh();
     } catch (error) {
       console.error('Failed to approve transaction:', error);
-      throw error; // Re-throw to let the PendingTransactions component handle the error
+      onNotification?.({
+        type: 'error',
+        title: 'Approval Failed',
+        description: error instanceof Error ? error.message : 'Failed to approve transaction'
+      });
     }
   };
 
-  // Create wrapper for cancel action to handle dialog closing
   const handleCancelWrapper = async (txId: number) => {
     try {
+      onNotification?.({
+        type: 'info',
+        title: 'Submitting Transaction',
+        description: 'Please wait while the transaction is being cancelled...'
+      });
+
       await handleCancelWithdrawal(txId);
-      // Remove from local storage
+
+      // Remove from local storage after successful cancellation
       removeTransaction(txId.toString());
-      // Close dialog after successful cancellation
+
+      onNotification?.({
+        type: 'success',
+        title: 'Transaction Cancelled',
+        description: 'The transaction has been successfully cancelled.'
+      });
+
+      // Close dialog and refresh data
       onOpenChange(false);
+      handleRefresh();
     } catch (error) {
       console.error('Failed to cancel transaction:', error);
-      throw error; // Re-throw to let the PendingTransactions component handle the error
+      onNotification?.({
+        type: 'error',
+        title: 'Cancellation Failed',
+        description: error instanceof Error ? error.message : 'Failed to cancel transaction'
+      });
     }
   };
 
-  // Update broadcast wrapper to handle local storage
   const handleBroadcastWrapper = async (tx: VaultTxRecord, type: 'approve' | 'cancel') => {
     try {
+      onNotification?.({
+        type: 'info',
+        title: 'Submitting Transaction',
+        description: 'Please wait while the transaction is being broadcast...'
+      });
+
       await handleBroadcastMetaTx(tx, type);
-      // Remove from local storage
+
+      // Remove from local storage after successful broadcast
       removeTransaction(tx.txId.toString());
-      // Close dialog after successful broadcast
+
+      onNotification?.({
+        type: 'success',
+        title: 'Transaction Broadcast',
+        description: 'The transaction has been successfully broadcast.'
+      });
+
+      // Close dialog and refresh data
       onOpenChange(false);
+      handleRefresh();
     } catch (error) {
       console.error('Failed to broadcast transaction:', error);
-      throw error; // Re-throw to let the PendingTransactions component handle the error
+      onNotification?.({
+        type: 'error',
+        title: 'Broadcast Failed',
+        description: error instanceof Error ? error.message : 'Failed to broadcast transaction'
+      });
     }
   };
 
@@ -297,8 +348,6 @@ export function PendingTransactionDialog({
                   transactions={[transaction]}
                   isLoadingTx={false}
                   onRefresh={handleRefresh}
-                  onApprove={handleApproveWrapper}
-                  onCancel={handleCancelWrapper}
                   onMetaTxSign={handleMetaTxSign}
                   onBroadcastMetaTx={handleBroadcastWrapper}
                   signedMetaTxStates={{...signedMetaTxStates, ...hookSignedMetaTxStates}}

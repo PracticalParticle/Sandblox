@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table"
-import { Trash2, AlertCircle, ExternalLink, CheckCircle2, Clock } from 'lucide-react'
+import { Trash2, AlertCircle, CheckCircle2, Clock } from 'lucide-react'
 import { formatTimestamp } from '@/lib/utils'
 import * as AlertDialog from '@radix-ui/react-alert-dialog'
 import { useOperationTypes } from '@/hooks/useOperationTypes'
@@ -183,8 +183,8 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
                 return (
                 <TableRow 
                   key={tx.txId}
-                  className="cursor-pointer hover:bg-muted/50 transition-colors"
-                  onClick={() => handleRowClick(tx)}
+                  className={`${!isWithdrawal ? "cursor-pointer hover:bg-muted/50" : "cursor-default"} transition-colors`}
+                  onClick={() => !isWithdrawal && handleRowClick(tx)}
                 >
                   <TableCell className="font-mono">{tx.txId}</TableCell>
                   <TableCell>
@@ -212,21 +212,16 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
                     )}
                   </TableCell>
                   <TableCell className="flex items-center justify-end gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 gap-1.5"
-                      onClick={() => handleRowClick(tx)}
-                    >
-                      {isWithdrawal ? (
-                        <>
-                          <ExternalLink className="h-3.5 w-3.5" />
-                          <span>View in Blox</span>
-                        </>
-                      ) : (
+                    {!isWithdrawal && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-1.5"
+                        onClick={() => handleRowClick(tx)}
+                      >
                         <span>View Details</span>
-                      )}
-                    </Button>
+                      </Button>
+                    )}
                     <AlertDialog.Root>
                       <AlertDialog.Trigger asChild>
                         <Button
@@ -234,21 +229,16 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
                           size="icon"
                           className="h-8 w-8"
                           onClick={(e) => {
-                            e.stopPropagation();
+                            e.stopPropagation()
+                            onRemoveTransaction(tx.txId)
                           }}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </AlertDialog.Trigger>
                       <AlertDialog.Portal>
-                        <AlertDialog.Overlay 
-                          className="fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" 
-                          onClick={(e) => e.stopPropagation()} 
-                        />
-                        <AlertDialog.Content 
-                          className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg"
-                          onClick={(e) => e.stopPropagation()}
-                        >
+                        <AlertDialog.Overlay className="fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+                        <AlertDialog.Content className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg">
                           <div className="flex flex-col space-y-2 text-center sm:text-left">
                             <AlertDialog.Title className="text-lg font-semibold">Remove Transaction?</AlertDialog.Title>
                             <AlertDialog.Description className="text-sm text-muted-foreground">
@@ -257,24 +247,10 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
                           </div>
                           <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
                             <AlertDialog.Cancel asChild>
-                              <Button 
-                                variant="outline" 
-                                className="mt-2 sm:mt-0"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                Cancel
-                              </Button>
+                              <Button variant="outline" className="mt-2 sm:mt-0">Cancel</Button>
                             </AlertDialog.Cancel>
                             <AlertDialog.Action asChild>
-                              <Button 
-                                variant="destructive" 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onRemoveTransaction(tx.txId);
-                                }}
-                              >
-                                Remove
-                              </Button>
+                              <Button variant="destructive" onClick={() => onRemoveTransaction(tx.txId)}>Remove</Button>
                             </AlertDialog.Action>
                           </div>
                         </AlertDialog.Content>
