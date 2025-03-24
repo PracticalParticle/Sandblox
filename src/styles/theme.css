@@ -359,15 +359,17 @@
   --rk-shadows-selectedOption: none;
   --rk-shadows-selectedWallet: none;
   --rk-shadows-walletLogo: none;
+
+  --rk-mobile-modal-margin: 12px;
+  --rk-modal-border-radius: 16px;
 }
 
-/* Ensure RainbowKit components inherit theme */
+[data-rk] .rk-modal-container {
+  @apply max-w-full sm:max-w-[360px];
+}
+
 [data-rk] .rk-modal-body {
-  @apply bg-background;
-}
-
-[data-rk] .rk-connect-button {
-  @apply font-sans;
+  @apply overflow-hidden;
 }
 
 /* Prevent RainbowKit network icon animation during remounts */
