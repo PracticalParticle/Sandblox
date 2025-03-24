@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table"
-import { Trash2, AlertCircle, ExternalLink, CheckCircle2, Clock } from 'lucide-react'
+import { Trash2, AlertCircle, CheckCircle2, Clock } from 'lucide-react'
 import { formatTimestamp } from '@/lib/utils'
 import * as AlertDialog from '@radix-ui/react-alert-dialog'
 import { useOperationTypes } from '@/hooks/useOperationTypes'
@@ -169,7 +169,7 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Transaction ID</TableHead>
+                <TableHead>ID</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Action</TableHead>
                 <TableHead>Signed At</TableHead>
@@ -183,8 +183,8 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
                 return (
                 <TableRow 
                   key={tx.txId}
-                  className="cursor-pointer hover:bg-muted/50 transition-colors"
-                  onClick={() => handleRowClick(tx)}
+                  className={`${!isWithdrawal ? "cursor-pointer hover:bg-muted/50" : "cursor-default"} transition-colors`}
+                  onClick={() => !isWithdrawal && handleRowClick(tx)}
                 >
                   <TableCell className="font-mono">{tx.txId}</TableCell>
                   <TableCell>
@@ -212,21 +212,16 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
                     )}
                   </TableCell>
                   <TableCell className="flex items-center justify-end gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 gap-1.5"
-                      onClick={() => handleRowClick(tx)}
-                    >
-                      {isWithdrawal ? (
-                        <>
-                          <ExternalLink className="h-3.5 w-3.5" />
-                          <span>View in Blox</span>
-                        </>
-                      ) : (
+                    {!isWithdrawal && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-1.5"
+                        onClick={() => handleRowClick(tx)}
+                      >
                         <span>View Details</span>
-                      )}
-                    </Button>
+                      </Button>
+                    )}
                     <AlertDialog.Root>
                       <AlertDialog.Trigger asChild>
                         <Button

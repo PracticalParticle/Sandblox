@@ -867,6 +867,17 @@ function SimpleVaultUIContent({
   // Wrap the base function to include metaTxSettings
   const handleMetaTxSign = async (tx: VaultTxRecord, type: 'approve' | 'cancel') => {
     await handleMetaTxSignBase(tx, type);
+    
+    // Dispatch a global event to notify other components
+    const event = new CustomEvent("simpleVault:transactionUpdate", {
+      detail: {
+        contractAddress,
+        eventType: 'sign',
+        txId: tx.txId.toString(),
+        timestamp: Date.now()
+      }
+    });
+    window.dispatchEvent(event);
   };
 
   // Filter transactions for withdrawals
@@ -1382,10 +1393,10 @@ function SimpleVaultUIContent({
             <div className="space-y-6">
               {!dashboardMode ? (
                 <Tabs defaultValue="deposit" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3 bg-background p-1 rounded-lg">
+                  <TabsList className="grid w-full grid-cols-2 bg-background p-1 rounded-lg">
                     <TabsTrigger value="deposit" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">Deposit</TabsTrigger>
                     <TabsTrigger value="withdraw" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">Withdraw</TabsTrigger>
-                    <TabsTrigger value="pending" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">Pending</TabsTrigger>
+                    {/* <TabsTrigger value="pending" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">Pending</TabsTrigger> */}
                   </TabsList>
                   
                   <TabsContent value="deposit">
@@ -1431,7 +1442,7 @@ function SimpleVaultUIContent({
                     </Card>
                   </TabsContent>
 
-                  <TabsContent value="pending">
+                  {/* <TabsContent value="pending">
                     <Card>
                       <CardHeader>
                         <CardTitle>Pending Withdrawals</CardTitle>
@@ -1486,7 +1497,7 @@ function SimpleVaultUIContent({
                         </Tabs>
                       </CardContent>
                     </Card>
-                  </TabsContent>
+                  </TabsContent> */}
                 </Tabs>
               ) : (
                 /* Dashboard mode: Show simplified view */

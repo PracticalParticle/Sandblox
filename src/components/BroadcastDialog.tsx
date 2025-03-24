@@ -109,27 +109,38 @@ export function BroadcastDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <div className="flex items-center justify-between">
-            <DialogTitle>{title}</DialogTitle>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger>
-                  <Badge variant="secondary" className="flex items-center gap-1">
-                    <Network className="h-3 w-3" />
-                    <span>Broadcast</span>
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Submit signed transaction to the blockchain</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+      <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
+        <DialogHeader className="sticky top-0 bg-background z-10 pb-4 border-b mb-4">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <DialogTitle>{title}</DialogTitle>
+              <div className="flex items-center gap-2">
+                <TooltipProvider>
+                  <Tooltip delayDuration={300}>
+                    <TooltipTrigger asChild>
+                      <Badge 
+                        variant="secondary" 
+                        className="flex items-center gap-1 cursor-help hover:bg-secondary/80"
+                      >
+                        <Network className="h-3 w-3" />
+                        <span>Broadcast</span>
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent 
+                      side="top" 
+                      align="end"
+                      className="max-w-[200px] text-xs bg-popover/95 backdrop-blur-sm"
+                    >
+                      Submit signed transaction to the blockchain
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            </div>
+            <DialogDescription>
+              {description || `Broadcast the pending ${getOperationLabel()} transaction to the blockchain.`}
+            </DialogDescription>
           </div>
-          <DialogDescription>
-            {description || `Broadcast the pending ${getOperationLabel()} transaction to the blockchain.`}
-          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -144,7 +155,7 @@ export function BroadcastDialog({
                   releaseTime: BigInt(pendingTx.timestamp),
                   status: pendingTx.metadata?.status === 'COMPLETED' ? TxStatus.COMPLETED : TxStatus.PENDING,
                   params: {
-                    requester: '0x0' as `0x${string}`,
+                    requester: contractInfo.owner as `0x${string}`,
                     target: (contractInfo.contractAddress || '0x0') as `0x${string}`,
                     value: 0n,
                     gasLimit: 0n,
