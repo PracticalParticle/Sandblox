@@ -18,7 +18,7 @@ import { AlertCircle, Loader2, Wallet, Coins, X, Shield, Info, Settings2 } from 
 import { useNavigate } from "react-router-dom";
 import { ContractInfo as BaseContractInfo } from "@/lib/verification/index";
 import { AddTokenDialog } from "./components";
-import { PendingTransaction, PendingTransactions } from "./components/PendingTransaction";
+import { PendingTransaction } from "./components/PendingTransaction";
 import type { TokenState, TokenBalanceState } from "./components";
 import type { VaultTxRecord } from "./components/PendingTransaction";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -798,7 +798,6 @@ function SimpleVaultUIContent({
   const [vault, setVault] = useAtom(vaultInstanceAtom);
   const [error, setError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'timelock' | 'metatx'>('timelock');
 
   // Keep metaTxSettings since it's used in createVaultMetaTxParams
   const [metaTxSettings] = useAtom(metaTxSettingsAtom);
@@ -852,33 +851,14 @@ function SimpleVaultUIContent({
   }, [vault, setEthBalance, setPendingTxs, onError, _mock]);
 
   // Get meta transaction actions
-  const {
-    handleMetaTxSign: handleMetaTxSignBase,
-    handleBroadcastMetaTx,
-    signedMetaTxStates,
-    isLoading: isMetaTxLoading
-  } = useMetaTxActions(
+  useMetaTxActions(
     contractAddress as Address,
-    addMessage,  // onSuccess
-    addMessage,  // onError
+    addMessage, // onSuccess
+    addMessage, // onError
     handleRefresh // onRefresh
   );
 
   // Wrap the base function to include metaTxSettings
-  const handleMetaTxSign = async (tx: VaultTxRecord, type: 'approve' | 'cancel') => {
-    await handleMetaTxSignBase(tx, type);
-    
-    // Dispatch a global event to notify other components
-    const event = new CustomEvent("simpleVault:transactionUpdate", {
-      detail: {
-        contractAddress,
-        eventType: 'sign',
-        txId: tx.txId.toString(),
-        timestamp: Date.now()
-      }
-    });
-    window.dispatchEvent(event);
-  };
 
   // Filter transactions for withdrawals
   const filteredPendingTxs = React.useMemo(() => {
