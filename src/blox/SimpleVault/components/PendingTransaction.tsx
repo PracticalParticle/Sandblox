@@ -101,9 +101,13 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
 
   // Handle meta transaction signing and broadcasting
   const handleMetaTxSign = (tx: VaultTxRecord, type: 'approve' | 'cancel') => {
+    console.log('PendingTransactions: handleMetaTxSign called with txId:', tx.txId.toString(), 'type:', type);
+    
     if (onMetaTxSign) {
+      // Ensure we're calling the function with the correct parameters
       onMetaTxSign(tx, type)
         .then(() => {
+          console.log('PendingTransactions: onMetaTxSign completed successfully');
           onNotification?.({
             type: 'success',
             title: 'Meta Transaction Signed',
@@ -111,12 +115,15 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
           });
         })
         .catch((error) => {
+          console.error('PendingTransactions: onMetaTxSign error:', error);
           onNotification?.({
             type: 'error',
             title: 'Signing Failed',
             description: error instanceof Error ? error.message : 'Failed to sign meta transaction'
           });
         });
+    } else {
+      console.warn('PendingTransactions: onMetaTxSign handler is not defined');
     }
   };
 
@@ -145,20 +152,10 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
     try {
       if (onApprove) {
         await onApprove(txId);
-        onNotification?.({
-          type: 'success',
-          title: 'Transaction Approved',
-          description: `Successfully approved transaction #${txId}`
-        });
-        onRefresh?.();
       }
     } catch (error) {
       console.error('Failed to approve transaction:', error);
-      onNotification?.({
-        type: 'error',
-        title: 'Approval Failed',
-        description: error instanceof Error ? error.message : 'Failed to approve transaction'
-      });
+      throw error; // Re-throw to let the dialog handle the error notification
     }
   };
 
@@ -184,20 +181,10 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
 
       if (onCancel) {
         await onCancel(txId);
-        onNotification?.({
-          type: 'success',
-          title: 'Transaction Cancelled',
-          description: `Successfully cancelled transaction #${txId}`
-        });
-        onRefresh?.();
       }
     } catch (error) {
       console.error('Failed to cancel transaction:', error);
-      onNotification?.({
-        type: 'error',
-        title: 'Cancellation Failed',
-        description: error instanceof Error ? error.message : 'Failed to cancel transaction'
-      });
+      throw error; // Re-throw to let the dialog handle the error notification
     }
   };
 
@@ -245,7 +232,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+     {/*  <div className="flex justify-between items-center">
         <h3 className="text-lg font-medium">
           Pending Transactions ({transactions.length})
         </h3>
@@ -258,7 +245,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
           {isRefreshing || isLoadingTx ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
           Refresh
         </Button>
-      </div>
+      </div> */}
       
       {isLoadingTx && transactions.length === 0 ? (
         <Card>
@@ -272,13 +259,15 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
             // Calculate time-based values
             const now = Math.floor(Date.now() / 1000);
             const isReady = now >= Number(tx.releaseTime);
-            const progress = Math.min(((now - (Number(tx.releaseTime) - 24 * 3600)) / (24 * 3600)) * 100, 100);
-            const isTimeLockComplete = progress >= 100;
             
-            // Calculate if within first hour
+            // Update progress calculation
             const timeLockPeriodInSeconds = timeLockPeriodInMinutes * 60;
             const startTime = Number(tx.releaseTime) - timeLockPeriodInSeconds;
             const elapsedTime = now - startTime;
+            const progress = Math.min((elapsedTime / timeLockPeriodInSeconds) * 100, 100);
+            const isTimeLockComplete = progress >= 100;
+            
+            // Calculate if within first hour
             const isWithinFirstHour = elapsedTime < 3600;
 
             // Key for meta transaction state
@@ -520,7 +509,7 @@ interface SinglePendingTransactionProps {
   isLoading: boolean;
   contractAddress: Address;
   mode?: 'timelock' | 'metatx';
-  onNotification: (message: NotificationMessage) => void;
+  onNotification: (notification: NotificationMessage) => void;
   onRefresh?: () => void;
   timeLockPeriodInMinutes: number;
 }

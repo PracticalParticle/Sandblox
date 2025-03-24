@@ -126,4 +126,18 @@
     @apply px-4 py-2 text-sm;
     height: 40px;
   }
+}
+
+
+/* Custom alert styles for transaction dialogs */
+.pending-tx-alert {
+  @apply bg-purple-50 border-purple-200 text-purple-900 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300 mb-2;
+}
+
+.pending-tx-alert .alert-icon {
+  @apply h-4 w-4 text-purple-600 dark:text-purple-400;
+}
+
+.pending-tx-alert .alert-description {
+  @apply text-sm ml-2;
 } 

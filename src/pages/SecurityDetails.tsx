@@ -53,6 +53,8 @@ import { SignedMetaTxTable } from '@/components/SignedMetaTxTable'
 import { BroadcastDialog } from '@/components/BroadcastDialog'
 import { ExtendedSignedTransaction } from '@/components/SignedMetaTxTable'
 import { TransactionManager } from '@/services/TransactionManager'
+import { Hex } from 'viem'
+import { useOperationTypes } from '@/hooks/useOperationTypes'
 
 const container = {
   hidden: { opacity: 0 },
@@ -104,6 +106,7 @@ const convertToMinutes = (value: string, unit: 'days' | 'hours' | 'minutes'): nu
 
 export function SecurityDetails() {
   const { address: contractAddress } = useParams<{ address: string }>()
+  const { getOperationName } = useOperationTypes(contractAddress as `0x${string}`)
   const { address: connectedAddress, isConnected } = useAccount()
   const { disconnect } = useDisconnect()
   const navigate = useNavigate()
@@ -1031,6 +1034,32 @@ export function SecurityDetails() {
       console.error('Error refreshing signed transactions:', error);
     }
   };
+
+  // Function to determine if an operation is a withdrawal
+  const isWithdrawalOperation = (operationType: Hex): boolean => {
+    const operationName = getOperationName(operationType)
+    return operationName === 'WITHDRAW_ETH' || 
+           operationName === 'WITHDRAW_TOKEN' || 
+           operationName === 'WITHDRAWAL_APPROVAL'
+  }
+
+  // Filter out withdrawal transactions from signed transactions
+  const filteredSignedTransactions = signedTransactions.filter(tx => {
+    // Check explicit WITHDRAWAL_APPROVAL type
+    if (tx.metadata?.type === 'WITHDRAWAL_APPROVAL') {
+      return false
+    }
+    
+    // Check using operation type if available
+    if (tx.metadata?.operationType) {
+      const operationName = getOperationName(tx.metadata.operationType)
+      return !(operationName === 'WITHDRAW_ETH' || 
+              operationName === 'WITHDRAW_TOKEN' || 
+              operationName === 'WITHDRAWAL_APPROVAL')
+    }
+    
+    return true
+  })
 
   if (!contractAddress || error) {
     return (
@@ -2031,7 +2060,7 @@ export function SecurityDetails() {
           {/* Signed Meta Transactions Table */}
           <motion.div variants={item} className="mt-6">
             <SignedMetaTxTable
-              transactions={signedTransactions}
+              transactions={filteredSignedTransactions}
               onClearAll={() => {
                 try {
                   clearTransactions()
@@ -2086,12 +2115,6 @@ export function SecurityDetails() {
                     console.log('Opening general recovery update dialog');
                     prepareBroadcastDialog('RECOVERY_UPDATE', tx);
                   }
-                } else if (tx.metadata.type === 'WITHDRAWAL_APPROVAL') {
-                  console.log('Handling withdrawal approval transaction');
-                  // For withdrawal approvals, navigate directly to blox page
-                  if (contractAddress) {
-                    navigate(`/blox/${contractAddress}`);
-                  }
                 } else {
                   console.log('Opening dialog for type:', tx.metadata.type);
                   prepareBroadcastDialog(tx.metadata.type, tx);
@@ -2104,10 +2127,12 @@ export function SecurityDetails() {
           <motion.div variants={item} className="mt-6">
             <OpHistory
               contractAddress={contractAddress as `0x${string}`}
-              operations={contractInfo?.operationHistory || []}
+              operations={contractInfo?.operationHistory?.filter((op: TxRecord) => 
+                !isWithdrawalOperation(op.params.operationType as Hex)
+              ) || []}
               isLoading={loading}
               contractInfo={contractInfo}
-              signedTransactions={signedTransactions}
+              signedTransactions={filteredSignedTransactions}
               onApprove={handleApproveOperation}
               onCancel={handleUpdateBroadcasterCancellation}
               refreshData={loadContractInfo}

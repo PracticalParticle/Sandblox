@@ -146,6 +146,13 @@ export function useMetaTxActions(
           [`${txId}-${type}`]: { type }
         }));
 
+        // Force refresh by dispatching a storage event that our listener will pick up
+        const event = new StorageEvent('storage', {
+          key: `transactions-${contractAddress}`,
+          newValue: JSON.stringify({}) // The actual value isn't important, just the key
+        });
+        window.dispatchEvent(event);
+
         onSuccess?.({
           type: 'success',
           title: 'Meta Transaction Signed',

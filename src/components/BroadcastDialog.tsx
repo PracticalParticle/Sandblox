@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Card, CardContent } from "@/components/ui/card"
-import { Loader2, Radio, Network, ArrowUpRight, InfoIcon, X } from "lucide-react"
+import { Loader2, Radio, Network, ArrowUpRight, InfoIcon } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
 import { TxInfoCard } from "./TxInfoCard"
@@ -10,7 +10,6 @@ import { useState } from "react"
 import { formatAddress } from "@/lib/utils"
 import { TxStatus } from "../particle-core/sdk/typescript/types/lib.index"
 import { Address } from "viem"
-import * as DialogPrimitive from "@radix-ui/react-dialog"
 
 interface BroadcastDialogProps {
   isOpen: boolean

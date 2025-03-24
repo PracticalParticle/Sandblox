@@ -15,7 +15,6 @@ import { useState, useEffect } from "react"
 import { TxInfoCard } from "./TxInfoCard"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
-import * as DialogPrimitive from "@radix-ui/react-dialog"
 
 interface TemporalActionDialogProps {
   isOpen: boolean
