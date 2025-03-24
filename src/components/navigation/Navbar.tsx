@@ -1,7 +1,7 @@
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { useAccount } from 'wagmi'
 import { Menu, X, Github, ChevronDown } from 'lucide-react'
-import { useState, useCallback, useEffect } from 'react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ThemeToggle } from '../ThemeToggle'
 import { Link } from 'react-router-dom'
@@ -15,18 +15,6 @@ import {
 export function Navbar() {
   const { isConnected } = useAccount()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-
-  // Add handler to close mobile menu after successful connection
-  const handleMobileMenuClose = useCallback(() => {
-    setIsMobileMenuOpen(false)
-  }, [])
-
-  // Use effect to close mobile menu after connection
-  useEffect(() => {
-    if (isConnected) {
-      handleMobileMenuClose()
-    }
-  }, [isConnected, handleMobileMenuClose])
 
   return (
     <header className="w-full border-b glass transition-colors duration-300">
@@ -81,18 +69,17 @@ export function Navbar() {
         </div>
 
         {/* Right side items - reorganized */}
-        <div className="flex items-center gap-4">
-          <ThemeToggle />
-          {/* Wrap ConnectButton with a div and add touch-action-manipulation for better mobile handling */}
-          <div className="touch-action-manipulation">
-            <ConnectButton 
-              chainStatus="icon"
-              showBalance={false}
-              accountStatus={{
-                smallScreen: 'avatar',
-                largeScreen: 'full',
-              }}
-            />
+        <div className="flex items-center gap-2">
+          <ConnectButton
+            showBalance={false}
+            chainStatus="icon"
+            accountStatus={{
+              smallScreen: 'avatar',
+              largeScreen: 'full',
+            }}
+          />
+          <div className="hidden md:block">
+            <ThemeToggle />
           </div>
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}

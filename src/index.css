@@ -56,18 +56,4 @@ body {
 
 .rainbow-button:hover {
   /* Add any custom hover styles */
-}
-
-/* Add these styles to improve mobile touch handling */
-@media (max-width: 768px) {
-  .touch-action-manipulation {
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
-  }
-  
-  /* Improve button touch targets on mobile */
-  button {
-    min-height: 44px;
-    min-width: 44px;
-  }
 } 
