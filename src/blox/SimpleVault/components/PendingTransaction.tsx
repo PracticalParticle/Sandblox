@@ -13,6 +13,7 @@ import { useOperationTypes } from "@/hooks/useOperationTypes";
 import { NotificationMessage } from "../lib/types";
 import { useActionPermissions } from "@/hooks/useActionPermissions";
 import { usePublicClient } from "wagmi"
+import { TransactionManager } from '@/services/TransactionManager';
 
 // Helper function to recursively convert BigInt values to strings
 const convertBigIntsToStrings = (obj: any): any => {
@@ -151,13 +152,17 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
   const handleApproveAction = async (txId: number) => {
     try {
       if (onApprove) {
-        await onApprove(txId);
+        // Show pending notification
         onNotification?.({
-          type: 'success',
-          title: 'Transaction Approved',
-          description: `Successfully approved transaction #${txId}`
+          type: 'info',
+          title: 'Submitting Transaction',
+          description: 'Please wait while the transaction is being submitted...'
         });
-        onRefresh?.();
+
+        await onApprove(txId);
+
+        // Success notification will be handled by the dialog component
+        // Refresh data will be handled by the dialog component
       }
     } catch (error) {
       console.error('Failed to approve transaction:', error);
@@ -190,13 +195,17 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
       }
 
       if (onCancel) {
-        await onCancel(txId);
+        // Show pending notification
         onNotification?.({
-          type: 'success',
-          title: 'Transaction Cancelled',
-          description: `Successfully cancelled transaction #${txId}`
+          type: 'info',
+          title: 'Submitting Transaction',
+          description: 'Please wait while the cancellation is being submitted...'
         });
-        onRefresh?.();
+
+        await onCancel(txId);
+
+        // Success notification will be handled by the dialog component
+        // Refresh data will be handled by the dialog component
       }
     } catch (error) {
       console.error('Failed to cancel transaction:', error);

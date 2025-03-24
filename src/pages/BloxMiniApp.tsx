@@ -117,6 +117,11 @@ const BloxMiniApp: React.FC = () => {
       try {
         await initializeUIComponents();
         setUiInitialized(true);
+        
+        // If we have an address, load the contract info immediately after initialization
+        if (address) {
+          await loadContractInfo();
+        }
       } catch (error) {
         console.error('Failed to initialize UI components:', error);
         setError('Failed to initialize UI components');
@@ -136,7 +141,8 @@ const BloxMiniApp: React.FC = () => {
 
     // Skip if we already have the contract info for this address
     if (contractInfo?.contractAddress === address) {
-      setBloxUiLoading(false); // Make sure to set loading to false if we already have the contract
+      setBloxUiLoading(false);
+      setLoading(false);
       return;
     }
 
@@ -145,6 +151,9 @@ const BloxMiniApp: React.FC = () => {
     setError(null);
 
     try {
+      // Add a small delay to ensure loading state is visible
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       // Load secure contract info
       const info = await validateAndLoadContract(address as `0x${string}`);
       if (!info) {
@@ -303,22 +312,46 @@ const BloxMiniApp: React.FC = () => {
         // Initialize SimpleVault contract
         const vault = new SimpleVault(publicClient, walletClient, address as `0x${string}`, chain);
         
-        // Call the approveWithdrawalAfterDelay method
+        // Show pending toast
+        toast({
+          title: "Submitting Transaction",
+          description: "Please wait while the transaction is being submitted...",
+        });
+        
+        // Call the approveWithdrawal method
         const tx = await vault.approveWithdrawalAfterDelay(Number(txId), { from: connectedAddress });
+        
+        // Show submitted toast
+        toast({
+          title: "Transaction Submitted",
+          description: "Transaction has been submitted to the network",
+        });
+        
+        // Wait for transaction confirmation
         await tx.wait();
+        
+        // Close dialog
+        setIsDialogOpen(false);
+        
+        // Remove from local storage
+        removeTransaction(txId.toString());
+        
+        // Show success toast
+        toast({
+          title: "Transaction Confirmed",
+          description: "Transaction has been confirmed and removed from pending transactions",
+        });
       } else {
         // For other operations, use the standard approveOperation
         const operationType = 'ownership'; // Default to ownership for non-withdrawal operations
         await approveOperation(address as `0x${string}`, txId, operationType);
       }
-      
-      toast({
-        title: "Success",
-        description: "Operation approved successfully",
-      });
 
       // Refresh all data after operation completes
       await refreshAllData();
+      
+      // Force refresh local transactions
+      refreshLocalTransactions();
     } catch (error) {
       console.error('Failed to approve operation:', error);
       toast({
@@ -468,7 +501,8 @@ const BloxMiniApp: React.FC = () => {
 
   // Render the appropriate Blox UI based on type
   const renderBloxUI = () => {
-    if (bloxUiLoading) {
+    // First check if we're still loading
+    if (loading || bloxUiLoading) {
       return (
         <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
           <p className="text-gray-500">Loading BloxUI component...</p>
@@ -476,11 +510,38 @@ const BloxMiniApp: React.FC = () => {
       );
     }
 
-    const secureContractInfo = contractInfo as SecureContractInfo;
-    if (!secureContractInfo || !bloxContract || !address) {
+    // Check for error state
+    if (error) {
       return (
         <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
-          <p className="text-gray-500">No contract information available</p>
+          <p className="text-red-500">{error}</p>
+        </div>
+      );
+    }
+
+    const secureContractInfo = contractInfo as SecureContractInfo;
+    
+    // More specific error messages for missing data
+    if (!secureContractInfo) {
+      return (
+        <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
+          <p className="text-gray-500">Contract information not yet loaded</p>
+        </div>
+      );
+    }
+
+    if (!bloxContract) {
+      return (
+        <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
+          <p className="text-gray-500">Blox contract details not yet loaded</p>
+        </div>
+      );
+    }
+
+    if (!address) {
+      return (
+        <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
+          <p className="text-gray-500">No contract address provided</p>
         </div>
       );
     }
@@ -490,7 +551,7 @@ const BloxMiniApp: React.FC = () => {
     if (!BloxUIComponent) {
       return (
         <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
-          <p className="text-gray-500">No UI component found for this contract type</p>
+          <p className="text-gray-500">No UI component found for contract type: {bloxContract.id}</p>
         </div>
       );
     }

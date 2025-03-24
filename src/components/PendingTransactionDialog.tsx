@@ -21,6 +21,7 @@ import { useMetaTxActions } from '../blox/SimpleVault/hooks/useMetaTxActions';
 import { useTimeLockActions } from '../blox/SimpleVault/hooks/useTimeLockActions';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatAddress } from "@/lib/utils";
+import { useTransactionManager } from "@/hooks/useTransactionManager";
 
 interface PendingTransactionDialogProps {
   isOpen: boolean;
@@ -51,8 +52,6 @@ interface PendingTransactionDialogProps {
   hasSignedApproval?: boolean;
 }
 
-
-
 export function PendingTransactionDialog({
   isOpen,
   onOpenChange,
@@ -71,6 +70,9 @@ export function PendingTransactionDialog({
   // State to track the active tab
   const [activeTab, setActiveTab] = React.useState<'timelock' | 'metatx'>(mode);
   
+  // Add transaction manager
+  const { removeTransaction } = useTransactionManager(contractInfo.contractAddress);
+
   // Handle refresh to make sure it calls refreshData
   const handleRefresh = React.useCallback(() => {
     console.log("Refresh called in dialog");
@@ -97,9 +99,52 @@ export function PendingTransactionDialog({
     loadingStates: timeLockLoadingStates
   } = useTimeLockActions(
     contractInfo.contractAddress,
-    onNotification,
-    handleRefresh
+    onNotification,  // onSuccess
+    onNotification,  // onError
+    handleRefresh    // onRefresh
   );
+
+  // Create wrapper for approve action to handle dialog closing
+  const handleApproveWrapper = async (txId: number) => {
+    try {
+      await handleApproveWithdrawal(txId);
+      // Remove from local storage
+      removeTransaction(txId.toString());
+      // Close dialog after successful approval
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Failed to approve transaction:', error);
+      throw error; // Re-throw to let the PendingTransactions component handle the error
+    }
+  };
+
+  // Create wrapper for cancel action to handle dialog closing
+  const handleCancelWrapper = async (txId: number) => {
+    try {
+      await handleCancelWithdrawal(txId);
+      // Remove from local storage
+      removeTransaction(txId.toString());
+      // Close dialog after successful cancellation
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Failed to cancel transaction:', error);
+      throw error; // Re-throw to let the PendingTransactions component handle the error
+    }
+  };
+
+  // Update broadcast wrapper to handle local storage
+  const handleBroadcastWrapper = async (tx: VaultTxRecord, type: 'approve' | 'cancel') => {
+    try {
+      await handleBroadcastMetaTx(tx, type);
+      // Remove from local storage
+      removeTransaction(tx.txId.toString());
+      // Close dialog after successful broadcast
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Failed to broadcast transaction:', error);
+      throw error; // Re-throw to let the PendingTransactions component handle the error
+    }
+  };
 
   // Add style once on mount
   React.useEffect(() => {
@@ -236,8 +281,8 @@ export function PendingTransactionDialog({
                   transactions={[transaction]}
                   isLoadingTx={false}
                   onRefresh={handleRefresh}
-                  onApprove={handleApproveWithdrawal}
-                  onCancel={handleCancelWithdrawal}
+                  onApprove={handleApproveWrapper}
+                  onCancel={handleCancelWrapper}
                   isLoading={false}
                   contractAddress={contractInfo.contractAddress}
                   mode="timelock"
@@ -252,8 +297,10 @@ export function PendingTransactionDialog({
                   transactions={[transaction]}
                   isLoadingTx={false}
                   onRefresh={handleRefresh}
+                  onApprove={handleApproveWrapper}
+                  onCancel={handleCancelWrapper}
                   onMetaTxSign={handleMetaTxSign}
-                  onBroadcastMetaTx={handleBroadcastMetaTx}
+                  onBroadcastMetaTx={handleBroadcastWrapper}
                   signedMetaTxStates={{...signedMetaTxStates, ...hookSignedMetaTxStates}}
                   isLoading={isMetaTxLoading}
                   contractAddress={contractInfo.contractAddress}

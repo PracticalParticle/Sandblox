@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table"
-import { Loader2, Clock, CheckCircle2, XCircle, AlertTriangle, Filter, ExternalLink } from 'lucide-react'
+import { Loader2, Clock, CheckCircle2, XCircle, AlertTriangle, Filter } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useAccount } from 'wagmi'
 import { useNavigate } from 'react-router-dom'
@@ -133,7 +133,6 @@ export function OpHistory({
   onNotification
 }: OpHistoryProps) {
   const { address: connectedAddress } = useAccount()
-  const navigate = useNavigate()
   
   const {
     filteredOperations,
