@@ -8,7 +8,8 @@ import type { SecureContractInfo } from '@/lib/types';
 import { Button } from "@/components/ui/button";
 import { getContractDetails } from '@/lib/catalog';
 import type { BloxContract } from '@/lib/catalog/types';
-import { initializeUIComponents, getUIComponent } from '@/lib/catalog/bloxUIComponents';
+import { getUIComponent, initializeUIComponents } from '@/lib/catalog/bloxUIComponents';
+import type { BloxUIProps } from '@/lib/catalog/bloxUIComponents';
 import { useConfig, useChainId, useConnect, useAccount, useDisconnect, usePublicClient, useWalletClient } from 'wagmi'
 import React from 'react';
 import { motion } from 'framer-motion';
@@ -474,54 +475,50 @@ const BloxMiniApp: React.FC = () => {
         </div>
       );
     }
-    
-    if (!bloxContract || !contractInfo || !address) {
+
+    const secureContractInfo = contractInfo as SecureContractInfo;
+    if (!secureContractInfo || !bloxContract || !address) {
       return (
         <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
-          <p className="text-gray-500">Contract information not available. Please check the address and try again.</p>
+          <p className="text-gray-500">No contract information available</p>
         </div>
       );
     }
 
-    // Get the dynamic UI component
-    const BloxUI = getUIComponent(bloxContract.id);
-    if (!BloxUI) {
+    // Get the UI component based on the contract type
+    const BloxUIComponent = getUIComponent(bloxContract.id);
+    if (!BloxUIComponent) {
       return (
         <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
-          <p className="text-gray-500">UI component not found for type: {bloxContract.id}</p>
+          <p className="text-gray-500">No UI component found for this contract type</p>
         </div>
       );
     }
 
-    // Render the dynamic component
+    // We've already checked that contractInfo is not null above
+    const contractUIInfo = {
+      address: address as `0x${string}`,
+      type: bloxContract.id,
+      name: bloxContract.name,
+      category: bloxContract.category,
+      description: bloxContract.description,
+      bloxId: bloxContract.id,
+      chainId: secureContractInfo.chainId,
+      chainName: secureContractInfo.chainName
+    } satisfies BloxUIProps['contractInfo'];
+
     return (
-      <Suspense fallback={
-        <div className="min-h-[400px] border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
-          <p className="text-gray-500">Loading UI component content...</p>
-        </div>
-      }>
-        <BloxUI 
-          contractAddress={address as `0x${string}`}
-          contractInfo={{
-            address: address as `0x${string}`,
-            type: bloxContract.id,
-            name: bloxContract.name,
-            category: bloxContract.category,
-            description: bloxContract.description,
-            bloxId: bloxContract.id,
-            chainId: (contractInfo as SecureContractInfo).chainId,
-            chainName: (contractInfo as SecureContractInfo).chainName
-          }}
-          onError={(error: Error) => {
-            setBloxUiLoading(false); // Make sure loading is set to false on error
-            toast({
-              title: "Operation Failed",
-              description: error.message || 'Failed to perform operation',
-              variant: "destructive"
-            });
-          }}
-        />
-      </Suspense>
+      <BloxUIComponent
+        contractAddress={address as `0x${string}`}
+        contractInfo={contractUIInfo}
+        onError={(error: Error) => {
+          addMessage({
+            type: 'error',
+            title: 'Error',
+            description: error.message
+          });
+        }}
+      />
     );
   };
 
@@ -854,7 +851,7 @@ const BloxMiniApp: React.FC = () => {
                   title={`Pending Transaction #${selectedTransaction.txId}`}
                   description="Review and manage this withdrawal transaction"
                   contractInfo={dialogContractInfo}
-                  transaction={selectedTransaction as unknown as VaultTxRecord} // Convert to unknown first for type safety
+                  transaction={selectedTransaction as unknown as VaultTxRecord}
                   onApprove={handleApproveOperation}
                   onCancel={handleCancelOperation}
                   onMetaTxSign={handleMetaTxSign}
