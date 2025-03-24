@@ -41,19 +41,15 @@ export function CustomWagmiProvider({ children }: CustomWagmiProviderProps) {
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
           modalSize="compact"
+         // showRecentTransactions={true}
           appInfo={{
             appName: import.meta.env.VITE_APP_NAME || 'SandBlox',
             learnMoreUrl: 'https://sandblox.app/',
           }}
           theme={{
-            lightMode: lightTheme({
-              overlayBlur: 'small',
-            }),
-            darkMode: darkTheme({
-              overlayBlur: 'small',
-            }),
+            lightMode: lightTheme(),
+            darkMode: darkTheme(),
           }}
-          coolMode
         >
           {children}
         </RainbowKitProvider>
