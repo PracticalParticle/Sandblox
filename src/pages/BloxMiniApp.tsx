@@ -65,7 +65,7 @@ const BloxMiniApp: React.FC = () => {
   const { type, address } = useParams<{ type: string; address: string }>();
   const { address: connectedAddress } = useAccount();
   const { disconnect } = useDisconnect();
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [, setMessages] = useState<Message[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
