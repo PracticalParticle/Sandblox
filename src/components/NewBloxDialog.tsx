@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense, lazy } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Plus, Info } from "lucide-react"
+import { Info } from "lucide-react"
 import { getAllContracts } from '@/lib/catalog'
 import type { BloxContract } from '@/lib/catalog/types'
 import { useChainId } from 'wagmi'
@@ -19,6 +19,8 @@ export function NewBloxDialog({ open, onOpenChange }: NewBloxDialogProps) {
   const chainId = useChainId()
   const [bloxes, setBloxes] = useState<BloxContract[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedBlox, setSelectedBlox] = useState<BloxContract | null>(null)
+  const [FactoryDialog, setFactoryDialog] = useState<any>(null)
 
   useEffect(() => {
     const loadBloxes = async () => {
@@ -37,9 +39,26 @@ export function NewBloxDialog({ open, onOpenChange }: NewBloxDialogProps) {
     }
   }, [open])
 
-  const handleFactoryDeploy = (bloxId: string) => {
-    navigate(`/factory-deploy/${bloxId}`)
-    onOpenChange(false)
+  const handleCreateClick = async (blox: BloxContract) => {
+    if (!blox.files.factoryDialog) {
+      navigate(`/contracts/${blox.id}`)
+      onOpenChange(false)
+      return
+    }
+
+    try {
+      const module = await import(/* @vite-ignore */ blox.files.factoryDialog)
+      setFactoryDialog(() => module.default)
+      setSelectedBlox(blox)
+    } catch (error) {
+      console.error('Failed to load factory dialog:', error)
+      navigate(`/contracts/${blox.id}`)
+      onOpenChange(false)
+    }
+  }
+
+  if (selectedBlox && FactoryDialog) {
+    return <FactoryDialog open={open} onOpenChange={onOpenChange} />
   }
 
   return (
@@ -83,10 +102,7 @@ export function NewBloxDialog({ open, onOpenChange }: NewBloxDialogProps) {
                         variant="default"
                         size="sm"
                         disabled={!hasFactory}
-                        onClick={() => {
-                          navigate(`/factory-deploy/${blox.id}`)
-                          onOpenChange(false)
-                        }}
+                        onClick={() => handleCreateClick(blox)}
                       >
                         Create
                       </Button>

@@ -31,6 +31,7 @@ export interface BloxContract extends BloxMetadata {
     component: string
     bytecode: string
     docs: string
+    factoryDialog?: string
   }
 }
 
