@@ -1701,9 +1701,9 @@ export function SecurityDetails() {
                               
                               <div className="pl-12">
                                 <div className="mb-3 flex items-center gap-2">
-                                  <Badge variant="default" className="bg-red-500/10 text-red-500 hover:bg-red-500/20">
+                                  <Badge variant="default" className="bg-blue-500/10 text-blue-500 hover:bg-blue-500/20">
                                     <Key className="h-3 w-3 mr-1" />
-                                    Recovery
+                                    Owner
                                   </Badge>
                                   <span className="text-sm text-muted-foreground">signs meta-transaction</span>
                                 </div>
