@@ -33,6 +33,7 @@ import type { SecureContractInfo } from '@/lib/types'
 import { useDeployedContract } from '@/contexts/DeployedContractContext'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { NewBloxDialog } from '@/components/NewBloxDialog'
 
 const container = {
   hidden: { opacity: 0 },
@@ -279,6 +280,7 @@ export function Dashboard(): JSX.Element {
   })
   const publicClient = usePublicClient()
   const { lastDeployedContract } = useDeployedContract()
+  const [showNewBloxDialog, setShowNewBloxDialog] = useState(false)
   
   // Use a ref to track the last processed contract address
   const lastProcessedContractRef = useRef<string | null>(null)
@@ -450,14 +452,28 @@ export function Dashboard(): JSX.Element {
             </p>
           </div>
           <div className="ml-auto">
-            <ImportContract
-              buttonVariant="outline"
-              onImportSuccess={handleImportSuccess}
-              buttonText="Import Contract"
-              buttonIcon="download"
-            />
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowNewBloxDialog(true)}
+              >
+                New Blox
+              </Button>
+              <ImportContract
+                buttonVariant="outline"
+                onImportSuccess={handleImportSuccess}
+                buttonText="Import Contract"
+                buttonIcon="download"
+              />
+            </div>
           </div>
         </motion.div>
+
+        {/* New Blox Dialog */}
+        <NewBloxDialog
+          open={showNewBloxDialog}
+          onOpenChange={setShowNewBloxDialog}
+        />
 
         {/* Stats Grid */}
         <motion.div variants={item} className="grid gap-4 md:grid-cols-2 lg:grid-cols-4" role="region" aria-label="Dashboard Statistics">
