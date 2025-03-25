@@ -84,7 +84,7 @@ When creating a blox with Particle's Account Abstraction:
 1. Ensure proper use of the role-based security model
 2. Implement time-delayed operations for critical functions
 3. Provide clear feedback to users about operation status
-4. Support meta-transactions for gasless operations
+4. Support meta-transactions for delegated operations
 5. Consider recovery mechanisms for user accounts
 
 ## Testing

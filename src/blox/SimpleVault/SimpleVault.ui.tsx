@@ -18,7 +18,7 @@ import { AlertCircle, Loader2, Wallet, Coins, X, Shield, Info, Settings2 } from 
 import { useNavigate } from "react-router-dom";
 import { ContractInfo as BaseContractInfo } from "@/lib/verification/index";
 import { AddTokenDialog } from "./components";
-import { PendingTransaction, PendingTransactions } from "./components/PendingTransaction";
+import { PendingTransaction } from "./components/PendingTransaction";
 import type { TokenState, TokenBalanceState } from "./components";
 import type { VaultTxRecord } from "./components/PendingTransaction";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -798,7 +798,6 @@ function SimpleVaultUIContent({
   const [vault, setVault] = useAtom(vaultInstanceAtom);
   const [error, setError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'timelock' | 'metatx'>('timelock');
 
   // Keep metaTxSettings since it's used in createVaultMetaTxParams
   const [metaTxSettings] = useAtom(metaTxSettingsAtom);
@@ -852,22 +851,14 @@ function SimpleVaultUIContent({
   }, [vault, setEthBalance, setPendingTxs, onError, _mock]);
 
   // Get meta transaction actions
-  const {
-    handleMetaTxSign: handleMetaTxSignBase,
-    handleBroadcastMetaTx,
-    signedMetaTxStates,
-    isLoading: isMetaTxLoading
-  } = useMetaTxActions(
+  useMetaTxActions(
     contractAddress as Address,
-    addMessage,  // onSuccess
-    addMessage,  // onError
+    addMessage, // onSuccess
+    addMessage, // onError
     handleRefresh // onRefresh
   );
 
   // Wrap the base function to include metaTxSettings
-  const handleMetaTxSign = async (tx: VaultTxRecord, type: 'approve' | 'cancel') => {
-    await handleMetaTxSignBase(tx, type);
-  };
 
   // Filter transactions for withdrawals
   const filteredPendingTxs = React.useMemo(() => {
@@ -1382,10 +1373,10 @@ function SimpleVaultUIContent({
             <div className="space-y-6">
               {!dashboardMode ? (
                 <Tabs defaultValue="deposit" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3 bg-background p-1 rounded-lg">
+                  <TabsList className="grid w-full grid-cols-2 bg-background p-1 rounded-lg">
                     <TabsTrigger value="deposit" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">Deposit</TabsTrigger>
                     <TabsTrigger value="withdraw" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">Withdraw</TabsTrigger>
-                    <TabsTrigger value="pending" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">Pending</TabsTrigger>
+                    {/* <TabsTrigger value="pending" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">Pending</TabsTrigger> */}
                   </TabsList>
                   
                   <TabsContent value="deposit">
@@ -1431,7 +1422,7 @@ function SimpleVaultUIContent({
                     </Card>
                   </TabsContent>
 
-                  <TabsContent value="pending">
+                  {/* <TabsContent value="pending">
                     <Card>
                       <CardHeader>
                         <CardTitle>Pending Withdrawals</CardTitle>
@@ -1486,7 +1477,7 @@ function SimpleVaultUIContent({
                         </Tabs>
                       </CardContent>
                     </Card>
-                  </TabsContent>
+                  </TabsContent> */}
                 </Tabs>
               ) : (
                 /* Dashboard mode: Show simplified view */

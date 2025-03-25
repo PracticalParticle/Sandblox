@@ -1,8 +1,11 @@
+﻿> ⚠️ **WARNING: EXPERIMENTAL SOFTWARE** ⚠️
+> 
+> This repository contains experimental, untested smart contract code. It is not ready for production use and may contain security vulnerabilities. Use at your own risk. Do not use with real assets or in production environments.
+
 # SandBlox
 
 A fast prototyping platform for creating blockchain contracts and applications built on Particle's account abstraction technology.
 
-![SandBlox](public/sandblox-logo.png)
 
 ## What is SandBlox?
 
@@ -18,7 +21,7 @@ SandBlox leverages Particle's revolutionary account abstraction technology, whic
 
 - **Role-Based Security Model**: Distinct owner, broadcaster, and recovery roles with specific permissions
 - **Time-Delayed Operations**: Mandatory waiting periods for critical actions, enabling intervention
-- **Meta-Transaction Support**: Gasless transactions while maintaining security guarantees
+- **Meta-Transaction Support**: delegated transactions while maintaining security guarantees
 - **Decentralized Control**: Preserves self-custody while enhancing security measures
 
 Unlike traditional accounts where a single compromised key means complete asset loss, Particle's implementation distributes authority across specialized roles and introduces time-based security gates for critical operations.
@@ -84,45 +87,6 @@ The documentation is organized into categories:
 - Development Guides (Blox Development, Best Practices, Security Guidelines)
 - Support (FAQ, Troubleshooting, Reporting Issues)
 
-### Deployment Configuration
-
-The project is configured for deployment on Cloudflare Pages. The following files in the `public/` directory are used for Cloudflare Pages configuration:
-
-- `_headers`: HTTP headers for security and caching
-- `_redirects`: URL redirects for SPA routing
-- `_routes.json`: Route configuration for Cloudflare Pages
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 16+
-- npm or yarn
-- Ethereum wallet (MetaMask, Rainbow, etc.)
-
-### Environment Setup
-
-Create a `.env` file based on `.env.example`:
-
-```bash
-cp .env.example .env
-```
-
-Required environment variables:
-
-```env
-VITE_WALLET_CONNECT_PROJECT_ID=your-wallet-connect-project-id
-```
-
-### Installation
-
-```bash
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-```
 
 ## Development Workflow
 
@@ -135,56 +99,6 @@ npm run dev
    - `CustomVault.ui.tsx` - UI components
    - `CustomVault.blox.json` - Metadata
 
-### Blox Configuration
-
-Each blox requires a configuration file (`*.blox.json`) that defines:
-
-```json
-{
-  "id": "custom-vault",
-  "name": "Custom Vault",
-  "description": "A description of your blox",
-  "category": "Category",
-  "securityLevel": "Basic|Advanced|Enterprise",
-  "features": [
-    "Feature 1",
-    "Feature 2"
-  ],
-  "requirements": [
-    "Requirement 1"
-  ],
-  "deployments": 0,
-  "lastUpdated": "YYYY-MM-DD",
-  "libraries": {
-    "LibraryName": {
-      "name": "LibraryName",
-      "description": "Description of the library"
-    }
-  }
-}
-```
-
-## Available Scripts
-
-```bash
-# Development
-npm run dev
-
-# Build
-npm run build
-
-# Preview production build
-npm run preview
-
-# Type checking
-npm run typecheck
-
-# Linting
-npm run lint
-
-# Testing
-npm run test
-```
 
 ## Features
 

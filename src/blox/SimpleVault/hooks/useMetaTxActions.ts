@@ -18,6 +18,15 @@ interface UseMetaTxActionsReturn {
   error: Error | null;
 }
 
+// Type for the transactions record to match TransactionManager
+interface TransactionRecord {
+  [key: string]: {
+    signedData: string;
+    timestamp: number;
+    metadata?: Record<string, unknown>;
+  };
+}
+
 export function useMetaTxActions(
   contractAddress: Address,
   onSuccess?: (message: NotificationMessage) => void,
@@ -43,7 +52,7 @@ export function useMetaTxActions(
     }
   }, [txManagerError, onError]);
 
-  const signWithdrawalApproval = useCallback(async (txId: number): Promise<MetaTransaction> => {
+  const signWithdrawalApproval = useCallback(async (txId: string): Promise<MetaTransaction> => {
     if (!walletClient || !publicClient) {
       throw new Error('Wallet not connected');
     }
@@ -105,23 +114,26 @@ export function useMetaTxActions(
       if (type === 'approve') {
         console.log('Starting meta transaction signing for txId:', tx.txId);
         
-        const signedTx = await signWithdrawalApproval(Number(tx.txId));
+        const signedTx = await signWithdrawalApproval(tx.txId.toString());
         console.log('Received signed transaction:', signedTx);
         
         // Convert all BigInt values to strings recursively
         const serializedTx = convertBigIntsToStrings(signedTx);
         console.log('Serialized transaction:', serializedTx);
 
-        // Create the correct transaction key
-        const txKey = `metatx-${type}-${tx.txId}`;
-        console.log('Storing with key:', txKey);
+        // Store using string transaction ID
+        const txId = tx.txId.toString();
+        console.log('Storing with ID:', txId);
 
         storeTransaction(
-          txKey,
+          txId,
           JSON.stringify(serializedTx),
           {
             type: 'WITHDRAWAL_APPROVAL',
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            action: type,
+            broadcasted: false,
+            status: 'PENDING'
           }
         );
 
@@ -131,13 +143,20 @@ export function useMetaTxActions(
         // Update signed state
         setSignedMetaTxStates(prev => ({
           ...prev,
-          [`${tx.txId}-${type}`]: { type }
+          [`${txId}-${type}`]: { type }
         }));
+
+        // Force refresh by dispatching a storage event that our listener will pick up
+        const event = new StorageEvent('storage', {
+          key: `transactions-${contractAddress}`,
+          newValue: JSON.stringify({}) // The actual value isn't important, just the key
+        });
+        window.dispatchEvent(event);
 
         onSuccess?.({
           type: 'success',
           title: 'Meta Transaction Signed',
-          description: `Successfully signed approval for transaction #${tx.txId}`
+          description: `Successfully signed approval for transaction #${txId}`
         });
       }
     } catch (error) {
@@ -159,11 +178,11 @@ export function useMetaTxActions(
     setIsLoading(true);
 
     try {
-      const txKey = `metatx-${type}-${tx.txId}`;
-      console.log('Looking for transaction with key:', txKey);
+      const txId = tx.txId.toString();
+      console.log('Looking for transaction with ID:', txId);
       console.log('Available transactions:', transactions);
       
-      const storedTx = transactions[txKey];
+      const storedTx = (transactions as TransactionRecord)[txId];
       console.log('Found stored transaction:', storedTx);
       
       if (!storedTx) {
@@ -209,13 +228,13 @@ export function useMetaTxActions(
       onSuccess?.({
         type: 'success',
         title: 'Transaction Broadcast',
-        description: `Successfully broadcasted ${type} transaction for withdrawal #${tx.txId}`
+        description: `Successfully broadcasted ${type} transaction for withdrawal #${txId}`
       });
 
       // Clear the signed state and refresh transactions
       setSignedMetaTxStates(prev => {
         const newState = { ...prev };
-        delete newState[`${tx.txId}-${type}`];
+        delete newState[`${txId}-${type}`];
         return newState;
       });
       

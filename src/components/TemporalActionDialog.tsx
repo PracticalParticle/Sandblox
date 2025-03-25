@@ -12,6 +12,9 @@ import { formatAddress } from "@/lib/utils"
 import { Progress } from "@/components/ui/progress"
 import { useMultiPhaseTemporalAction } from "@/hooks/useMultiPhaseTemporalAction"
 import { useState, useEffect } from "react"
+import { TxInfoCard } from "./TxInfoCard"
+import { cn } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge"
 
 interface TemporalActionDialogProps {
   isOpen: boolean
@@ -43,6 +46,9 @@ interface TemporalActionDialogProps {
   newValuePlaceholder?: string
   showMetaTxOption?: boolean
   metaTxDescription?: string
+  operationName?: string
+  refreshData?: () => void
+  refreshSignedTransactions?: () => void
 }
 
 export function TemporalActionDialog({
@@ -65,8 +71,11 @@ export function TemporalActionDialog({
   newValueLabel,
   newValuePlaceholder,
   showMetaTxOption,
-  metaTxDescription
-}: TemporalActionDialogProps) {
+  metaTxDescription,
+  operationName,
+  refreshData,
+  refreshSignedTransactions
+}: TemporalActionDialogProps): JSX.Element {
   const {
     newValue,
     isApproving,
@@ -88,7 +97,9 @@ export function TemporalActionDialog({
       contractAddress: contractInfo.contractAddress as `0x${string}`,
       timeLockPeriodInMinutes: contractInfo.timeLockPeriodInMinutes 
     } : undefined,
-    showNewValueInput
+    showNewValueInput,
+    onMetaTxSignSuccess: refreshData,
+    refreshSignedTransactions
   })
 
   const getRoleAddress = (role: string) => {
@@ -199,10 +210,35 @@ export function TemporalActionDialog({
 
     // Check if the connected wallet is recovery address for ownership actions
     const isRecoveryWallet = connectedAddress?.toLowerCase() === contractInfo?.recoveryAddress?.toLowerCase()
+    const isOwnerWallet = connectedAddress?.toLowerCase() === contractInfo?.owner?.toLowerCase()
     const isOwnershipAction = actionType === 'ownership'
     
     // Control meta transaction tab visibility with showMetaTxOption prop if provided
     const showMetaTxTab = showMetaTxOption !== undefined ? showMetaTxOption : !(isOwnershipAction && isRecoveryWallet)
+
+    // Determine the required role message based on action type and timelock status
+    const getRequiredRoleMessage = () => {
+      if (isOwnershipAction && isTimeLockComplete) {
+        return "Please connect the owner or recovery wallet to proceed";
+      } else if (isOwnershipAction) {
+        return "Please connect the owner wallet to proceed";
+      } else if (requiredRole === 'broadcaster') {
+        return "Please connect the broadcaster wallet to proceed";
+      } else if (requiredRole === 'recovery') {
+        return "Please connect the recovery wallet to proceed";
+      } else {
+        return `Please connect the ${requiredRole} wallet to proceed`;
+      }
+    };
+
+    // Check if the wallet is valid for the current action phase
+    const isWalletValidForAction = () => {
+      if (isOwnershipAction && isTimeLockComplete) {
+        // When timelock is 100% for ownership transfer, either owner or recovery is valid
+        return isOwnerWallet || isRecoveryWallet;
+      }
+      return isConnectedWalletValid;
+    };
 
     return (
       <div className="space-y-4">
@@ -210,6 +246,14 @@ export function TemporalActionDialog({
           <Clock className="h-4 w-4" />
           Transaction #{pendingTx.txId.toString()}
         </div>
+
+        {!isWalletValidForAction() && (
+          <Alert variant="destructive">
+            <AlertDescription>
+              {getRequiredRoleMessage()}
+            </AlertDescription>
+          </Alert>
+        )}
 
         <Tabs defaultValue="timelock" className={`w-full ${showMetaTxTab ? 'grid-cols-2' : 'grid-cols-1'} bg-background p-1 rounded-lg`}>
           <TabsList className="grid w-full grid-cols-2 bg-background p-1 rounded-lg">
@@ -248,19 +292,19 @@ export function TemporalActionDialog({
 
                   <div className="flex space-x-2">
                     <TooltipProvider>
-                      <Tooltip>
+                      <Tooltip delayDuration={300}>
                         <TooltipTrigger asChild>
-                          <div className="flex-1">
+                          <div className="w-full">
                             <Button
                               onClick={() => handleApprove(Number(pendingTx.txId))}
-                              disabled={isLoading || isApproving || !isConnectedWalletValid || (!isTimeLockComplete && isRecoveryWallet)}
-                              className={`w-full transition-all duration-200 flex items-center justify-center
-                                ${isTimeLockComplete 
-                                  ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800'
-                                  : 'bg-slate-50 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
-                                }
-                                disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 disabled:dark:bg-slate-900 disabled:dark:text-slate-500
-                              `}
+                              disabled={isLoading || isApproving || !isWalletValidForAction() || (!isTimeLockComplete && isRecoveryWallet)}
+                              className={cn(
+                                "w-full transition-all duration-200 flex items-center justify-center",
+                                isTimeLockComplete 
+                                  ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800"
+                                  : "bg-slate-50 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700",
+                                "hover:opacity-90"
+                              )}
                               variant="outline"
                             >
                               {isApproving ? (
@@ -277,24 +321,35 @@ export function TemporalActionDialog({
                             </Button>
                           </div>
                         </TooltipTrigger>
-                        <TooltipContent side="bottom">
-                          {!isTimeLockComplete 
-                            ? "Time lock period not complete" 
-                            : "Approve this request using the timelock mechanism"}
+                        <TooltipContent 
+                          side="bottom" 
+                          align="center"
+                          sideOffset={4}
+                          className="max-w-[200px] text-xs bg-popover/95 backdrop-blur-sm"
+                        >
+                          {!isWalletValidForAction()
+                            ? getRequiredRoleMessage()
+                            : !isTimeLockComplete
+                              ? "Time lock period not complete"
+                              : "Approve this request using the timelock mechanism"}
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
 
                     <TooltipProvider>
-                      <Tooltip>
+                      <Tooltip delayDuration={300}>
                         <TooltipTrigger asChild>
-                          <div className="flex-1">
+                          <div className="w-full">
                             <Button
                               onClick={() => handleCancel(Number(pendingTx.txId))}
-                              disabled={isLoading || isCancelling || !isConnectedWalletValid}
-                              className="w-full bg-rose-50 text-rose-700 hover:bg-rose-100 
-                                dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
-                                border border-rose-200 dark:border-rose-800"
+                              disabled={isLoading || isCancelling || !isWalletValidForAction()}
+                              className={cn(
+                                "w-full transition-all duration-200 flex items-center justify-center",
+                                "bg-rose-50 text-rose-700 hover:bg-rose-100",
+                                "dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50",
+                                "border border-rose-200 dark:border-rose-800",
+                                "hover:opacity-90"
+                              )}
                               variant="outline"
                             >
                               {isCancelling ? (
@@ -311,8 +366,15 @@ export function TemporalActionDialog({
                             </Button>
                           </div>
                         </TooltipTrigger>
-                        <TooltipContent side="bottom">
-                          Cancel this request
+                        <TooltipContent 
+                          side="bottom" 
+                          align="center"
+                          sideOffset={4}
+                          className="max-w-[200px] text-xs bg-popover/95 backdrop-blur-sm"
+                        >
+                          {!isWalletValidForAction()
+                            ? getRequiredRoleMessage()
+                            : "Cancel this request"}
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -338,20 +400,18 @@ export function TemporalActionDialog({
 
                     <div className="flex space-x-2">
                       <TooltipProvider>
-                        <Tooltip>
+                        <Tooltip delayDuration={300}>
                           <TooltipTrigger asChild>
                             <div className="flex-1">
                               <Button
                                 onClick={() => handleMetaTxSign('approve', actionType === 'broadcaster' ? 'broadcaster' : 'ownership')}
-                                disabled={isLoading || isSigning || !isConnectedWalletValid}
-                                className={`w-full transition-all duration-200 flex items-center justify-center
-                                  bg-emerald-50 text-emerald-700 hover:bg-emerald-100 
-                                  dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 
-                                  border border-emerald-200 dark:border-emerald-800
-                                  disabled:opacity-50 disabled:cursor-not-allowed 
-                                  disabled:bg-slate-50 disabled:text-slate-400 
-                                  disabled:dark:bg-slate-900 disabled:dark:text-slate-500
-                                `}
+                                disabled={isLoading || isSigning || !isWalletValidForAction()}
+                                className={cn(
+                                  "w-full transition-all duration-200 flex items-center justify-center",
+                                  "bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
+                                  "dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50",
+                                  "border border-emerald-200 dark:border-emerald-800"
+                                )}
                                 variant="outline"
                               >
                                 {isSigning ? (
@@ -368,27 +428,29 @@ export function TemporalActionDialog({
                               </Button>
                             </div>
                           </TooltipTrigger>
-                          <TooltipContent side="bottom">
-                            Approve this request using meta-transactions (gasless)
+                          <TooltipContent 
+                            side="bottom" 
+                            align="center"
+                            className="max-w-[200px]"
+                          >
+                            Approve this request using meta-transactions (delegated)
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
 
                       <TooltipProvider>
-                        <Tooltip>
+                        <Tooltip delayDuration={300}>
                           <TooltipTrigger asChild>
                             <div className="flex-1">
                               <Button
                                 onClick={() => handleMetaTxSign('cancel', actionType === 'broadcaster' ? 'broadcaster' : 'ownership')}
-                                disabled={isLoading || isCancelling || !isConnectedWalletValid}
-                                className={`w-full transition-all duration-200 flex items-center justify-center
-                                  bg-rose-50 text-rose-700 hover:bg-rose-100 
-                                  dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
-                                  border border-rose-200 dark:border-rose-800
-                                  disabled:opacity-50 disabled:cursor-not-allowed 
-                                  disabled:bg-slate-50 disabled:text-slate-400 
-                                  disabled:dark:bg-slate-900 disabled:dark:text-slate-500
-                                `}
+                                disabled={isLoading || isCancelling || !isWalletValidForAction()}
+                                className={cn(
+                                  "w-full transition-all duration-200 flex items-center justify-center",
+                                  "bg-rose-50 text-rose-700 hover:bg-rose-100",
+                                  "dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50",
+                                  "border border-rose-200 dark:border-rose-800"
+                                )}
                                 variant="outline"
                               >
                                 {isSigning ? (
@@ -405,7 +467,11 @@ export function TemporalActionDialog({
                               </Button>
                             </div>
                           </TooltipTrigger>
-                          <TooltipContent side="bottom">
+                          <TooltipContent 
+                            side="bottom" 
+                            align="center"
+                            className="max-w-[200px]"
+                          >
                             Cancel this request
                           </TooltipContent>
                         </Tooltip>
@@ -423,19 +489,42 @@ export function TemporalActionDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            {pendingTx ? (
-              <>Review and approve the pending {actionType} change request.</>
-            ) : (
-              <>Submit a new {actionType} change request. This will require approval after the timelock period.</>
-            )}
-          </DialogDescription>
+      <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
+        <DialogHeader className="sticky top-0 bg-background z-10 pb-4 border-b mb-4">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <DialogTitle>{title}</DialogTitle>
+              <div className="flex items-center gap-2">
+                <Badge 
+                  variant="secondary" 
+                  className="flex items-center gap-1"
+                >
+                  <Clock className="h-3 w-3" />
+                  <span>Time Lock</span>
+                </Badge>
+              </div>
+            </div>
+            <DialogDescription>
+              {pendingTx ? (
+                <>Review and approve the pending {actionType} change request.</>
+              ) : (
+                <>Submit a new {actionType} change request. This will require approval after the timelock period.</>
+              )}
+            </DialogDescription>
+          </div>
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Display TxInfoCard when a pending transaction exists */}
+          {pendingTx && (
+            <TxInfoCard 
+              record={pendingTx}
+              operationName={operationName || actionType}
+              showExecutionType={true}
+              showStatus={true}
+            />
+          )}
+          
           {pendingTx ? renderApprovalPhase() : renderRequestPhase()}
         </div>
       </DialogContent>
