@@ -14,7 +14,17 @@
     "Ethereum wallet",
     "ETH for gas fees"
   ],
-  "deployments": 1234,
+  "deployments": {
+    "11155111": {
+      "name": "Sepolia",
+      "factory": ""
+    },
+    "1337": {
+      "name": "Particle-DevNet",
+      "factory": "0x3efa60226C3c71684a92aD25A386aE13cde03d06"
+    }
+  },
+  "deploymentCount": 1,
   "lastUpdated": "2024-02-15",
   "libraries": {
     "MultiPhaseSecureOperation": {
