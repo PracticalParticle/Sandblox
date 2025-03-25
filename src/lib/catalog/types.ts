@@ -6,13 +6,19 @@ export interface BloxMetadata {
   securityLevel: 'Basic' | 'Advanced' | 'Enterprise'
   features: string[]
   requirements: string[]
-  deployments: number
+  deployments: {
+    [chainId: string]: {
+      name: string
+      factory: string
+    }
+  }
+  deploymentCount: number
   lastUpdated: string
   libraries?: {
     [key: string]: {
       name: string
       description: string
-      address: string
+      address?: string
     }
   }
 }
