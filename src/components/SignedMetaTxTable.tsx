@@ -183,8 +183,8 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
                 return (
                 <TableRow 
                   key={tx.txId}
-                  className={`${!isWithdrawal ? "cursor-pointer hover:bg-muted/50" : "cursor-default"} transition-colors`}
-                  onClick={() => !isWithdrawal && handleRowClick(tx)}
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => handleRowClick(tx)}
                 >
                   <TableCell className="font-mono">{tx.txId}</TableCell>
                   <TableCell>
@@ -212,16 +212,28 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
                     )}
                   </TableCell>
                   <TableCell className="flex items-center justify-end gap-2">
-                    {!isWithdrawal && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1.5"
+                      onClick={() => handleRowClick(tx)}
+                    >
+                       {!isWithdrawal && (
                       <Button
                         variant="outline"
                         size="sm"
                         className="h-8 gap-1.5"
                         onClick={() => handleRowClick(tx)}
                       >
+
+
+
+
+
                         <span>View Details</span>
                       </Button>
                     )}
+                    </Button>
                     <AlertDialog.Root>
                       <AlertDialog.Trigger asChild>
                         <Button
