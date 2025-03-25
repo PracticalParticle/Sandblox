@@ -5,12 +5,12 @@
   "category": "Storage",
   "securityLevel": "Basic",
   "features": [
-    "Secure asset storage",
-    "Owner-only withdrawals",
-    "Emergency pause functionality",
-    "Event logging"
+    "Secure ETH and ERC20 token storage",
+    "Two-phase withdrawal security (request → approval)",
+    "Time-locked withdrawals with configurable delay (1-90 days)",
+    "Recovery address backup"
   ],
- "requirements": [
+  "requirements": [
     "Ethereum wallet",
     "ETH for gas fees"
   ],
