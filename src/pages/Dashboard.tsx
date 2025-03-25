@@ -454,7 +454,7 @@ export function Dashboard(): JSX.Element {
           <div className="ml-auto">
             <div className="flex gap-2">
               <Button
-                variant="outline"
+                variant="default"
                 onClick={() => setShowNewBloxDialog(true)}
               >
                 New Blox
