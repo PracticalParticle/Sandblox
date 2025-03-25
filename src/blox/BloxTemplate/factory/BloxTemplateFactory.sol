@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 pragma solidity ^0.8.0;
 
-import "./BloxTemplate.sol"; // Import the Blox contract
+import "../BloxTemplate.sol"; // Import the Blox contract
 
 contract BloxTemplateFactory {
     // Counter to track the total number of created Blox instances
