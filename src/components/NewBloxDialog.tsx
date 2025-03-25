@@ -79,18 +79,17 @@ export function NewBloxDialog({ open, onOpenChange }: NewBloxDialogProps) {
                       >
                         <Info className="h-4 w-4" />
                       </Button>
-                      {hasFactory && (
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleFactoryDeploy(blox.id)
-                          }}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      )}
+                      <Button
+                        variant="default"
+                        size="sm"
+                        disabled={!hasFactory}
+                        onClick={() => {
+                          navigate(`/factory-deploy/${blox.id}`)
+                          onOpenChange(false)
+                        }}
+                      >
+                        Create
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
