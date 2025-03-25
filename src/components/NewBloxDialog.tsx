@@ -47,7 +47,14 @@ export function NewBloxDialog({ open, onOpenChange }: NewBloxDialogProps) {
     }
 
     try {
-      const module = await import(/* @vite-ignore */ blox.files.factoryDialog)
+      const bloxName = blox.files.factoryDialog.split('/')[3]
+      
+      const module = await import(`../../blox/${bloxName}/factory/${bloxName}Factory.dialog.tsx`)
+      
+      if (!module.default) {
+        throw new Error(`Factory dialog component not found for ${bloxName}`)
+      }
+
       setFactoryDialog(() => module.default)
       setSelectedBlox(blox)
     } catch (error) {
