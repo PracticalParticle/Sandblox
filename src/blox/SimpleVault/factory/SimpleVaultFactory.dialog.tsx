@@ -1,10 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { DeploymentForm } from '../components/DeploymentForm'
-import { useChainId, useWriteContract } from 'wagmi'
+import { useWriteContract } from 'wagmi'
 import { Address } from 'viem'
-import { getAllContracts } from '@/lib/catalog'
-import type { BloxContract } from '@/lib/catalog/types'
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 const factoryABI = [
@@ -25,26 +23,12 @@ const factoryABI = [
 interface SimpleVaultFactoryDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  factoryAddress: Address
 }
 
-function SimpleVaultFactoryDialog({ open, onOpenChange }: SimpleVaultFactoryDialogProps) {
-  const chainId = useChainId()
+function SimpleVaultFactoryDialog({ open, onOpenChange, factoryAddress }: SimpleVaultFactoryDialogProps) {
   const [error, setError] = useState<string | null>(null)
-  const [factoryAddress, setFactoryAddress] = useState<Address | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-
-  useEffect(() => {
-    const loadFactory = async () => {
-      const contracts = await getAllContracts()
-      const simpleVault = contracts.find((c: BloxContract) => c.id === 'SimpleVault')
-      const factory = simpleVault?.deployments?.[chainId.toString()]?.factory
-      if (factory) {
-        setFactoryAddress(factory as Address)
-      }
-    }
-    loadFactory()
-  }, [chainId])
-
   const { writeContract } = useWriteContract()
 
   const handleDeploy = async (params: {
@@ -53,10 +37,6 @@ function SimpleVaultFactoryDialog({ open, onOpenChange }: SimpleVaultFactoryDial
     recovery: Address,
     timeLockPeriodInDays: number
   }) => {
-    if (!factoryAddress) {
-      throw new Error('Factory not initialized')
-    }
-
     try {
       setError(null)
       setIsLoading(true)

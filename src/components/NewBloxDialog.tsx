@@ -9,10 +9,15 @@ import type { BloxContract } from '@/lib/catalog/types'
 import { useChainId } from 'wagmi'
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Address } from 'viem'
 
 interface NewBloxDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+}
+
+interface SelectedBlox extends BloxContract {
+  factoryAddress: Address
 }
 
 export function NewBloxDialog({ open, onOpenChange }: NewBloxDialogProps) {
@@ -20,7 +25,7 @@ export function NewBloxDialog({ open, onOpenChange }: NewBloxDialogProps) {
   const chainId = useChainId()
   const [bloxes, setBloxes] = useState<BloxContract[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedBlox, setSelectedBlox] = useState<BloxContract | null>(null)
+  const [selectedBlox, setSelectedBlox] = useState<SelectedBlox | null>(null)
   const [FactoryDialog, setFactoryDialog] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -53,6 +58,12 @@ export function NewBloxDialog({ open, onOpenChange }: NewBloxDialogProps) {
       setError(null)
       console.log('Loading factory dialog from:', blox.files.factoryDialog)
       
+      // Get the factory address for the current chain
+      const factoryAddress = blox.deployments?.[chainId.toString()]?.factory
+      if (!factoryAddress) {
+        throw new Error(`No factory deployment found for chain ${chainId}`)
+      }
+      
       // Dynamic import of the factory dialog using the path from blox.files.factoryDialog
       const module = await import(/* @vite-ignore */ blox.files.factoryDialog)
       
@@ -62,7 +73,7 @@ export function NewBloxDialog({ open, onOpenChange }: NewBloxDialogProps) {
       }
 
       setFactoryDialog(() => module.default)
-      setSelectedBlox(blox)
+      setSelectedBlox({ ...blox, factoryAddress: factoryAddress as Address })
     } catch (error) {
       console.error('Failed to load factory dialog:', error)
       setError('Failed to load factory dialog. Please try again.')
@@ -71,7 +82,11 @@ export function NewBloxDialog({ open, onOpenChange }: NewBloxDialogProps) {
   }
 
   if (selectedBlox && FactoryDialog) {
-    return <FactoryDialog open={open} onOpenChange={onOpenChange} />
+    return <FactoryDialog 
+      open={open} 
+      onOpenChange={onOpenChange} 
+      factoryAddress={selectedBlox.factoryAddress} 
+    />
   }
 
   return (
