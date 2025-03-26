@@ -29,6 +29,15 @@ export function NewBloxDialog({ open, onOpenChange }: NewBloxDialogProps) {
   const [FactoryDialog, setFactoryDialog] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // Reset states when dialog closes
+  useEffect(() => {
+    if (!open) {
+      setSelectedBlox(null)
+      setFactoryDialog(null)
+      setError(null)
+    }
+  }, [open])
+
   useEffect(() => {
     const loadBloxes = async () => {
       try {
