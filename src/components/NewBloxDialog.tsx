@@ -8,6 +8,7 @@ import { getAllContracts } from '@/lib/catalog'
 import type { BloxContract } from '@/lib/catalog/types'
 import { useChainId } from 'wagmi'
 import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface NewBloxDialogProps {
   open: boolean
@@ -21,6 +22,7 @@ export function NewBloxDialog({ open, onOpenChange }: NewBloxDialogProps) {
   const [loading, setLoading] = useState(true)
   const [selectedBlox, setSelectedBlox] = useState<BloxContract | null>(null)
   const [FactoryDialog, setFactoryDialog] = useState<any>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const loadBloxes = async () => {
@@ -29,6 +31,7 @@ export function NewBloxDialog({ open, onOpenChange }: NewBloxDialogProps) {
         setBloxes(contracts)
       } catch (error) {
         console.error('Failed to load bloxes:', error)
+        setError('Failed to load available Blox types')
       } finally {
         setLoading(false)
       }
@@ -47,20 +50,23 @@ export function NewBloxDialog({ open, onOpenChange }: NewBloxDialogProps) {
     }
 
     try {
-      const bloxName = blox.files.factoryDialog.split('/')[3]
+      setError(null)
+      console.log('Loading factory dialog from:', blox.files.factoryDialog)
       
-      const module = await import(`../../blox/${bloxName}/factory/${bloxName}Factory.dialog.tsx`)
+      // Dynamic import of the factory dialog using the path from blox.files.factoryDialog
+      const module = await import(/* @vite-ignore */ blox.files.factoryDialog)
       
+      // The factory dialog should be the default export
       if (!module.default) {
-        throw new Error(`Factory dialog component not found for ${bloxName}`)
+        throw new Error(`Factory dialog component not found for ${blox.id}`)
       }
 
       setFactoryDialog(() => module.default)
       setSelectedBlox(blox)
     } catch (error) {
       console.error('Failed to load factory dialog:', error)
-      navigate(`/contracts/${blox.id}`)
-      onOpenChange(false)
+      setError('Failed to load factory dialog. Please try again.')
+      // Don't navigate away on error, let the user try again
     }
   }
 
@@ -77,6 +83,11 @@ export function NewBloxDialog({ open, onOpenChange }: NewBloxDialogProps) {
             Choose a Blox type to deploy a new secure contract.
           </DialogDescription>
         </DialogHeader>
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
         <div className="grid gap-2 py-4">
           {loading ? (
             <div className="text-center py-8">Loading available Blox...</div>

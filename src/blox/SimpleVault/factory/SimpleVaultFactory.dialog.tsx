@@ -27,7 +27,7 @@ interface SimpleVaultFactoryDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
-export function SimpleVaultFactoryDialog({ open, onOpenChange }: SimpleVaultFactoryDialogProps) {
+function SimpleVaultFactoryDialog({ open, onOpenChange }: SimpleVaultFactoryDialogProps) {
   const chainId = useChainId()
   const [error, setError] = useState<string | null>(null)
   const [factoryAddress, setFactoryAddress] = useState<Address | null>(null)
@@ -96,3 +96,5 @@ export function SimpleVaultFactoryDialog({ open, onOpenChange }: SimpleVaultFact
     </Dialog>
   )
 }
+
+export default SimpleVaultFactoryDialog
