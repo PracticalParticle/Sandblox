@@ -83,7 +83,7 @@ We welcome contributions to the SandBlox ecosystem! You can contribute by:
 - Fixing bugs and adding features to the core platform
 - Providing feedback and suggestions
 
-See our [Contributing Guide](https://github.com/particle-security/sandblox/blob/main/CONTRIBUTING.md) for more information.
+See our [Contributing Guide](https://github.com/PracticalParticle/sand-blox/blob/main/CONTRIBUTING.md) for more information.
 
 ### Are there templates available for common applications?
 
@@ -127,7 +127,7 @@ SandBlox provides numerous security features, including:
 Support is available through several channels:
 - [Documentation](https://docs.sandblox.dev)
 - [Discord Community](https://discord.gg/sandblox)
-- [GitHub Issues](https://github.com/particle-security/sandblox/issues)
+- [GitHub Issues](https://github.com/PracticalParticle/sand-blox/issues)
 - [Stack Overflow](https://stackoverflow.com/questions/tagged/sandblox)
 
 ### Is there a community around SandBlox?
@@ -136,7 +136,7 @@ Yes, SandBlox has an active community of developers, contributors, and users. Yo
 
 ### How do I report a bug or request a feature?
 
-Bugs and feature requests can be submitted through our [GitHub Issues](https://github.com/particle-security/sandblox/issues) page. Please use the provided templates to ensure your submission contains all necessary information.
+Bugs and feature requests can be submitted through our [GitHub Issues](https://github.com/PracticalParticle/sand-blox/issues) page. Please use the provided templates to ensure your submission contains all necessary information.
 
 ### Is commercial support available?
 
