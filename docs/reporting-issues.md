@@ -18,14 +18,14 @@ This guide explains how to effectively report issues and request new features fo
 Before submitting a new issue, please take the following steps:
 
 1. **Check the Documentation**: Ensure you're following the recommended practices in our [documentation](/docs).
-2. **Search Existing Issues**: Check if the issue has already been reported in our [GitHub Issues](https://github.com/particle-security/sandblox/issues).
+2. **Search Existing Issues**: Check if the issue has already been reported in our [GitHub Issues](https://github.com/PracticalParticle/sand-blox/issues).
 3. **Check the Troubleshooting Guide**: Review our [Troubleshooting Guide](/docs/troubleshooting) for common solutions.
 4. **Verify Your Environment**: Ensure you're using compatible versions of Node.js, npm/yarn, and other dependencies.
 5. **Reproduce the Issue**: Try to reproduce the issue in a minimal environment to isolate the problem.
 
 ### How to Report an Issue
 
-When you're ready to report an issue, please use our [GitHub Issues](https://github.com/particle-security/sandblox/issues) page and follow these guidelines:
+When you're ready to report an issue, please use our [GitHub Issues](https://github.com/PracticalParticle/sand-blox/issues) page and follow these guidelines:
 
 1. **Use the Issue Template**: Select the appropriate issue template for your report.
 2. **Provide a Clear Title**: Write a concise title that summarizes the issue.
@@ -101,14 +101,14 @@ Once you've submitted an issue, here's what happens next:
 
 Before submitting a new feature request, please take the following steps:
 
-1. **Check the Roadmap**: Review our [public roadmap](https://github.com/particle-security/sandblox/projects/1) to see if the feature is already planned.
-2. **Search Existing Requests**: Check if the feature has already been requested in our [GitHub Issues](https://github.com/particle-security/sandblox/issues).
+1. **Check the Roadmap**: Review our [public roadmap](https://github.com/PracticalParticle/sand-blox/projects/1) to see if the feature is already planned.
+2. **Search Existing Requests**: Check if the feature has already been requested in our [GitHub Issues](https://github.com/PracticalParticle/sand-blox/issues).
 3. **Consider Alternatives**: Explore if there are existing features or workarounds that could meet your needs.
 4. **Gauge Community Interest**: Discuss your idea in our [Discord community](https://discord.gg/sandblox) to gather feedback.
 
 ### How to Request a Feature
 
-When you're ready to request a feature, please use our [GitHub Issues](https://github.com/particle-security/sandblox/issues) page and follow these guidelines:
+When you're ready to request a feature, please use our [GitHub Issues](https://github.com/PracticalParticle/sand-blox/issues) page and follow these guidelines:
 
 1. **Use the Feature Request Template**: Select the feature request template.
 2. **Provide a Clear Title**: Write a concise title that summarizes the feature.
@@ -171,7 +171,7 @@ Once you've submitted a feature request, here's what happens next:
 
 ## Contributing to SandBlox
 
-If you're interested in contributing to SandBlox by fixing issues or implementing features yourself, please refer to our [Contributing Guide](https://github.com/particle-security/sandblox/blob/main/CONTRIBUTING.md).
+If you're interested in contributing to SandBlox by fixing issues or implementing features yourself, please refer to our [Contributing Guide](https://github.com/PracticalParticle/sand-blox/blob/main/CONTRIBUTING.md).
 
 We welcome contributions from the community, including:
 

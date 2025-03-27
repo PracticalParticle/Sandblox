@@ -58,13 +58,17 @@ This guide provides solutions for common issues you might encounter when develop
 **Issue**: SandBlox project template fails to initialize.
 
 **Solution**:
-1. Ensure you have the latest version of the SandBlox CLI:
+1. Fork and clone the repository instead:
    ```bash
-   npm install -g @sand-blox/cli
+   git clone https://github.com/PracticalParticle/sand-blox.git my-project
+   cd my-project
+   npm install
    ```
-2. Try initializing with a specific template version:
+2. Try starting with a fresh clone:
    ```bash
-   sandblox init --template basic@latest my-project
+   git clone https://github.com/PracticalParticle/sand-blox.git my-new-project
+   cd my-new-project
+   npm install
    ```
 3. Check your network connection and proxy settings.
 
@@ -213,7 +217,7 @@ This guide provides solutions for common issues you might encounter when develop
 **Issue**: Guardian AA account fails to initialize.
 
 **Solution**:
-1. Verify that you're using the correct Guardian AA SDK version.
+1. Verify that you're using the latest version from the GitHub repository: https://github.com/PracticalParticle/sand-blox.
 2. Check if the account factory contract is deployed on your target network.
 3. Ensure you have sufficient funds for account creation.
 4. Check browser console for specific error messages.
@@ -335,7 +339,7 @@ This guide provides solutions for common issues you might encounter when develop
 If you're still experiencing issues after trying these solutions, you can get additional help through:
 
 1. **Discord Community**: Join our [Discord server](https://discord.gg/sandblox) to connect with other developers.
-2. **GitHub Issues**: Submit a detailed issue on our [GitHub repository](https://github.com/particle-security/sandblox/issues).
+2. **GitHub Issues**: Submit a detailed issue on our [GitHub repository](https://github.com/PracticalParticle/sand-blox/issues).
 3. **Stack Overflow**: Ask a question with the `sandblox` tag on Stack Overflow.
 4. **Email Support**: Contact our support team at support@particle.security for critical issues.
 
