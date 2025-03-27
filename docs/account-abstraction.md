@@ -188,7 +188,7 @@ For consumer-facing applications, Guardian AA offers:
 When deploying a contract with Guardian AA:
 
 ```typescript
-import { deployBlox } from '@sand-blox/core';
+import { deployBlox } from '../utils/deployBlox';
 
 const deployedContract = await deployBlox({
   bloxId: 'my-secure-app',
@@ -256,6 +256,6 @@ The combination of role-based access control, time-locked operations, and meta-t
 
 ---
 
-For more information on implementing Guardian Account Abstraction in your applications, see the [Blox Development Guide](./blox-development.md) and explore the [Secure Operation Patterns](./secure-operations.md) documentation.
+For more information on implementing Guardian Account Abstraction in your applications, see the [Blox Development Guide](/docs/blox-development) and explore the [Secure Operation Patterns](/docs/secure-operations) documentation.
 
 *Developed by Particle Crypto Security* 

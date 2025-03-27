@@ -1,4 +1,4 @@
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useCallback } from 'react';
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useParams, useNavigate } from 'react-router-dom';
@@ -249,7 +249,7 @@ const BloxMiniApp: React.FC = () => {
   }, [transactions]);
 
   // Create a comprehensive refresh function
-  const refreshAllData = async () => {
+  const refreshAllData = useCallback(async () => {
     if (!address) return;
     
     try {
@@ -259,15 +259,36 @@ const BloxMiniApp: React.FC = () => {
         setContractInfo(updatedContractInfo);
       }
       
-      // Force a refresh of the transactions state
-      setTransactionCounter(prev => prev + 1);
-      
       // Signal completed refresh
       console.log('Data refreshed at:', new Date().toISOString());
     } catch (error) {
       console.error('Failed to refresh data:', error);
     }
-  };
+  }, [address]);
+
+  // Add periodic refresh effect
+  useEffect(() => {
+    // Only set up refresh if we have an address and contract info
+    if (!address || !contractInfo) return;
+    
+    // Initial refresh when component mounts with contract info
+    refreshAllData();
+    
+    // Set up interval for periodic refreshes (every 15 seconds)
+    const intervalId = setInterval(refreshAllData, 15000); // 15 seconds
+    
+    // Clean up interval on unmount
+    return () => clearInterval(intervalId);
+  }, [address, contractInfo?.contractAddress]); // Remove transactionCounter dependency
+
+  // Add effect for transaction counter changes
+  useEffect(() => {
+    if (transactionCounter > 0) {
+      // Add a small delay to prevent immediate refresh
+      const timeoutId = setTimeout(refreshAllData, 2000);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [transactionCounter, refreshAllData]);
 
   // Update the handleApproveOperation function
   const handleApproveOperation = async (txId: number) => {
@@ -386,23 +407,6 @@ const BloxMiniApp: React.FC = () => {
       });
     }
   };
-
-  // Add periodic refresh effect
-  useEffect(() => {
-    // Only set up refresh if we have an address and contract info
-    if (!address || !contractInfo) return;
-    
-    // Initial refresh when component mounts with contract info
-    refreshAllData();
-    
-    // Set up interval for periodic refreshes (every 15 seconds)
-    const intervalId = setInterval(() => {
-      refreshAllData();
-    }, 15000); // 15 seconds
-    
-    // Clean up interval on unmount
-    return () => clearInterval(intervalId);
-  }, [address, contractInfo?.contractAddress, transactionCounter]);
 
   // Filter transactions and operations for withdrawals only
   const withdrawalTransactions = signedTransactions.filter(tx => {
