@@ -1,22 +1,34 @@
-import { useState } from 'react'
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { useState, useEffect, useRef } from 'react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { DeploymentForm } from '../components/DeploymentForm'
-import { useWriteContract } from 'wagmi'
-import { Address } from 'viem'
+import { useWriteContract, useWaitForTransactionReceipt, useConfig, useChainId, type TransactionReceipt as WagmiTransactionReceipt } from 'wagmi'
+import { Address, keccak256, toHex, decodeEventLog } from 'viem'
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useDeployedContract } from '@/contexts/DeployedContractContext'
+import type { SecureContractInfo } from '@/lib/types'
+import { Button } from "@/components/ui/button"
+import { CheckCircle2, XCircle } from 'lucide-react'
 
 const factoryABI = [
   {
-    name: 'createVault',
+    name: 'createBlox',
     type: 'function',
     stateMutability: 'nonpayable',
     inputs: [
-      { name: 'initialOwner', type: 'address' },
-      { name: 'broadcaster', type: 'address' },
-      { name: 'recovery', type: 'address' },
-      { name: 'timeLockPeriodInDays', type: 'uint256' }
+      { name: '_owner', type: 'address' },
+      { name: '_broadcaster', type: 'address' },
+      { name: '_recovery', type: 'address' },
+      { name: '_timeLockPeriodInMinutes', type: 'uint256' }
     ],
-    outputs: [{ name: 'vault', type: 'address' }]
+    outputs: []
+  },
+  {
+    name: 'BloxCreated',
+    type: 'event',
+    inputs: [
+      { name: 'bloxAddress', type: 'address', indexed: true },
+      { name: 'owner', type: 'address', indexed: true }
+    ]
   }
 ] as const
 
@@ -29,7 +41,138 @@ interface SimpleVaultFactoryDialogProps {
 function SimpleVaultFactoryDialog({ open, onOpenChange, factoryAddress }: SimpleVaultFactoryDialogProps) {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const { writeContract } = useWriteContract()
+  const [hash, setHash] = useState<`0x${string}` | undefined>(undefined)
+  const [deployedAddress, setDeployedAddress] = useState<Address | null>(null)
+  const [contractAdded, setContractAdded] = useState(false)
+  const { writeContractAsync } = useWriteContract()
+  const { addDeployedContract } = useDeployedContract()
+  const chainId = useChainId()
+  const config = useConfig()
+
+  // Wait for transaction receipt and extract deployed contract address from events
+  const { isLoading: isWaiting, isSuccess, data: receipt } = useWaitForTransactionReceipt({
+    hash
+  })
+
+  // Process the receipt when it arrives
+  useEffect(() => {
+    if (receipt && isSuccess) {
+      console.log('Transaction receipt received:', receipt)
+      console.log('Factory address:', factoryAddress)
+      
+      try {
+        // Find logs from our factory contract
+        const factoryLogs = receipt.logs.filter(log => 
+          log.address.toLowerCase() === factoryAddress.toLowerCase()
+        )
+        
+        console.log('Found factory logs:', factoryLogs)
+        
+        // Try to find and decode the BloxCreated event
+        for (const log of factoryLogs) {
+          try {
+            console.log('Attempting to decode log:', {
+              address: log.address,
+              topics: log.topics,
+              data: log.data
+            })
+
+            // Try to decode the log as our BloxCreated event
+            const decodedLog = decodeEventLog({
+              abi: factoryABI,
+              data: log.data,
+              topics: log.topics
+            })
+            
+            console.log('Successfully decoded log:', decodedLog)
+            
+            // Check if this is our BloxCreated event
+            if (decodedLog.eventName === 'BloxCreated') {
+              const bloxAddress = decodedLog.args.bloxAddress as Address
+              console.log('Found deployed SimpleVault address:', bloxAddress)
+              setDeployedAddress(bloxAddress)
+              return // Exit once we find the event
+            }
+          } catch (decodeErr) {
+            console.log('Failed to decode log:', decodeErr)
+            continue
+          }
+        }
+        
+        // If we get here, we didn't find the event
+        console.warn('No BloxCreated event found. All transaction logs:', receipt.logs)
+      } catch (err) {
+        console.error('Error processing transaction receipt:', err)
+        setError('Failed to process deployment result: ' + (err as Error).message)
+      }
+    }
+  }, [receipt, isSuccess, factoryAddress])
+
+  // Add the deployed contract to the list when deployment is successful
+  useEffect(() => {
+    console.log('Contract addition effect triggered:', {
+      isSuccess,
+      deployedAddress,
+      contractAdded,
+      lastUsedParams: lastUsedParams.current
+    })
+
+    if (isSuccess && deployedAddress && !contractAdded && lastUsedParams.current) {
+      try {
+        const contractInfo: SecureContractInfo = {
+          contractAddress: deployedAddress,
+          timeLockPeriodInMinutes: lastUsedParams.current.timeLockPeriodInMinutes,
+          chainId,
+          chainName: getChainName(),
+          broadcaster: lastUsedParams.current.broadcaster,
+          owner: lastUsedParams.current.initialOwner,
+          recoveryAddress: lastUsedParams.current.recovery,
+          contractType: 'simple-vault',
+          contractName: 'SimpleVault'
+        }
+        
+        console.log('Adding contract to list:', contractInfo)
+        addDeployedContract(contractInfo)
+        setContractAdded(true)
+        
+        // Close the dialog after successful addition
+        onOpenChange(false)
+      } catch (err) {
+        console.error('Error adding contract to list:', err)
+        setError('Failed to add contract to list: ' + (err as Error).message)
+      }
+    }
+  }, [isSuccess, deployedAddress, chainId, addDeployedContract, contractAdded, onOpenChange])
+
+  // Reset states when dialog closes
+  useEffect(() => {
+    if (!open) {
+      setContractAdded(false)
+      setHash(undefined)
+      setDeployedAddress(null)
+      setError(null)
+    }
+  }, [open])
+
+  // Store last used params for adding to deployed contracts list
+  const lastUsedParams = useRef<{
+    initialOwner: Address,
+    broadcaster: Address,
+    recovery: Address,
+    timeLockPeriodInMinutes: number
+  } | null>(null)
+
+  const getChainName = () => {
+    const chain = config.chains.find(c => c.id === chainId)
+    return chain?.name || 'the current network'
+  }
+
+  const getExplorerLink = () => {
+    if (!hash) return '#'
+    const chain = config.chains.find(c => c.id === chainId)
+    if (!chain?.blockExplorers?.default?.url) return '#'
+    return `${chain.blockExplorers.default.url}/tx/${hash}`
+  }
 
   const handleDeploy = async (params: {
     initialOwner: Address,
@@ -40,19 +183,45 @@ function SimpleVaultFactoryDialog({ open, onOpenChange, factoryAddress }: Simple
     try {
       setError(null)
       setIsLoading(true)
-      await writeContract({
+
+      // Convert days to minutes for the contract
+      const timeLockPeriodInMinutes = params.timeLockPeriodInDays * 24 * 60
+
+      // Store params for later use
+      lastUsedParams.current = {
+        ...params,
+        timeLockPeriodInMinutes
+      }
+
+      // Log the factory address and parameters
+      console.log('Deploying SimpleVault via factory:')
+      console.log('Factory Address:', factoryAddress)
+      console.log('Transaction Parameters:', {
+        initialOwner: params.initialOwner,
+        broadcaster: params.broadcaster,
+        recovery: params.recovery,
+        timeLockPeriodInDays: params.timeLockPeriodInDays,
+        timeLockPeriodInMinutes
+      })
+
+      // Send the transaction
+      const txHash = await writeContractAsync({
         abi: factoryABI,
         address: factoryAddress,
-        functionName: 'createVault',
+        functionName: 'createBlox',
         args: [
           params.initialOwner,
           params.broadcaster,
           params.recovery,
-          BigInt(params.timeLockPeriodInDays)
+          BigInt(timeLockPeriodInMinutes)
         ]
       })
-      onOpenChange(false)
+      
+      console.log('Transaction hash:', txHash)
+      setHash(txHash)
+      console.log('Transaction submitted successfully:', txHash)
     } catch (err) {
+      console.error('Factory deployment error:', err)
       setError((err as Error).message)
       throw err
     } finally {
@@ -61,17 +230,85 @@ function SimpleVaultFactoryDialog({ open, onOpenChange, factoryAddress }: Simple
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      // Only allow closing if we're not in a loading state
+      if (!isLoading && !isWaiting) {
+        onOpenChange(isOpen)
+      }
+    }}>
       <DialogContent className="sm:max-w-[800px]">
-        {error && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
+        <DialogHeader>
+          <DialogTitle>Deploy SimpleVault via Factory</DialogTitle>
+          <DialogDescription>
+            Deploy a new SimpleVault contract using the factory contract.
+          </DialogDescription>
+        </DialogHeader>
+
+        {!hash ? (
+          <>
+            {error && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            <DeploymentForm
+              onDeploy={handleDeploy}
+              isLoading={isLoading}
+            />
+          </>
+        ) : (
+          <div className="space-y-4 py-4">
+            {(isLoading || isWaiting) && (
+              <div className="flex flex-col items-center justify-center space-y-4 py-8">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                <p className="text-sm text-muted-foreground">
+                  {isWaiting ? "Waiting for transaction confirmation..." : "Deploying contract..."}
+                </p>
+              </div>
+            )}
+
+            {isSuccess && deployedAddress && (
+              <div className="flex flex-col items-center justify-center space-y-4 py-8">
+                <CheckCircle2 className="h-8 w-8 text-primary" />
+                <div className="text-center">
+                  <p className="font-semibold">Deployment Successful</p>
+                  <p className="text-sm text-muted-foreground">
+                    Your SimpleVault has been deployed successfully.
+                  </p>
+                  <p className="mt-2 font-mono text-sm break-all">
+                    Contract Address: {deployedAddress}
+                  </p>
+                  <a
+                    href={getExplorerLink()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 text-sm text-primary hover:underline"
+                  >
+                    View on Explorer
+                  </a>
+                </div>
+                <Button variant="outline" onClick={() => onOpenChange(false)}>
+                  Close
+                </Button>
+              </div>
+            )}
+
+            {error && (
+              <div className="flex flex-col items-center justify-center space-y-4 py-8">
+                <XCircle className="h-8 w-8 text-destructive" />
+                <div className="text-center">
+                  <p className="font-semibold">Deployment Failed</p>
+                  <p className="text-sm text-muted-foreground">
+                    {error}
+                  </p>
+                </div>
+                <Button variant="outline" onClick={() => onOpenChange(false)}>
+                  Close
+                </Button>
+              </div>
+            )}
+          </div>
         )}
-        <DeploymentForm
-          onDeploy={handleDeploy}
-          isLoading={isLoading}
-        />
       </DialogContent>
     </Dialog>
   )
