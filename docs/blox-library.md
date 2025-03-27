@@ -31,12 +31,20 @@ A secure vault for storing and managing ETH and ERC20 tokens.
 
 **Installation:**
 ```bash
-npm install @sand-blox/simple-vault
+# Fork the repository
+git clone https://github.com/PracticalParticle/sand-blox.git
+cd sand-blox
+
+# Install dependencies
+npm install
+
+# Navigate to the SimpleVault blox
+cd src/blox/SimpleVault
 ```
 
 **Usage:**
 ```tsx
-import { SimpleVault } from '@sand-blox/simple-vault';
+import { SimpleVault } from '../../blox/SimpleVault/SimpleVault';
 
 function App() {
   return <SimpleVault contractAddress="0x..." />;
@@ -61,7 +69,15 @@ A secure multi-signature wallet requiring multiple approvals for transactions.
 
 **Installation:**
 ```bash
-npm install @sand-blox/multi-sig-wallet
+# Fork the repository
+git clone https://github.com/PracticalParticle/sand-blox.git
+cd sand-blox
+
+# Install dependencies
+npm install
+
+# Navigate to the MultiSigWallet blox
+cd src/blox/MultiSigWallet
 ```
 
 ### TokenVesting
@@ -82,7 +98,15 @@ A secure token vesting contract with time-based release schedules.
 
 **Installation:**
 ```bash
-npm install @sand-blox/token-vesting
+# Fork the repository
+git clone https://github.com/PracticalParticle/sand-blox.git
+cd sand-blox
+
+# Install dependencies
+npm install
+
+# Navigate to the TokenVesting blox
+cd src/blox/TokenVesting
 ```
 
 ## DeFi Blox
@@ -105,7 +129,15 @@ A secure liquidity pool for token swapping and fee generation.
 
 **Installation:**
 ```bash
-npm install @sand-blox/liquidity-pool
+# Fork the repository
+git clone https://github.com/PracticalParticle/sand-blox.git
+cd sand-blox
+
+# Install dependencies
+npm install
+
+# Navigate to the LiquidityPool blox
+cd src/blox/LiquidityPool
 ```
 
 ### StakingRewards
@@ -126,7 +158,15 @@ A secure staking contract with reward distribution.
 
 **Installation:**
 ```bash
-npm install @sand-blox/staking-rewards
+# Fork the repository
+git clone https://github.com/PracticalParticle/sand-blox.git
+cd sand-blox
+
+# Install dependencies
+npm install
+
+# Navigate to the StakingRewards blox
+cd src/blox/StakingRewards
 ```
 
 ## NFT Blox
@@ -149,7 +189,15 @@ A secure NFT marketplace for buying, selling, and auctioning NFTs.
 
 **Installation:**
 ```bash
-npm install @sand-blox/nft-marketplace
+# Fork the repository
+git clone https://github.com/PracticalParticle/sand-blox.git
+cd sand-blox
+
+# Install dependencies
+npm install
+
+# Navigate to the NFTMarketplace blox
+cd src/blox/NFTMarketplace
 ```
 
 ## Creating Custom Blox

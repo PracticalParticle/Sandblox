@@ -188,7 +188,7 @@ For consumer-facing applications, Guardian AA offers:
 When deploying a contract with Guardian AA:
 
 ```typescript
-import { deployBlox } from '@sand-blox/core';
+import { deployBlox } from '../utils/deployBlox';
 
 const deployedContract = await deployBlox({
   bloxId: 'my-secure-app',

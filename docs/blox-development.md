@@ -34,7 +34,7 @@ Start by creating your smart contract that extends the `SecureOwnable` base cont
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@sand-blox/core/contracts/SecureOwnable.sol";
+import "../contracts/SecureOwnable.sol";
 
 contract MyBlox is SecureOwnable {
     // Define operation types as constants
@@ -160,7 +160,7 @@ Create a TypeScript class that extends `BloxBase` to interact with your smart co
 
 ```typescript
 // MyBlox.ts
-import { BloxBase, Address, Hex, MetaTxParams, TxParams, MetaTransaction } from '@sand-blox/core';
+import { BloxBase, Address, Hex, MetaTxParams, TxParams, MetaTransaction } from '../utils/bloxBase';
 import MyBloxABI from './MyBlox.abi.json';
 
 export class MyBlox extends BloxBase {
@@ -227,7 +227,7 @@ import React, { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { MyBlox as MyBloxContract } from './MyBlox';
 import { MyBloxUI } from './MyBlox.ui';
-import { useSandBlox } from '@sand-blox/core';
+import { useSandBlox } from '../hooks/useSandBlox';
 
 export interface MyBloxProps {
   contractAddress?: string;
@@ -366,7 +366,6 @@ Create a metadata file for your blox:
 Create comprehensive documentation for your blox:
 
 ```markdown
-// MyBlox.md
 # My Custom Blox
 
 A demonstration blox that showcases secure operation patterns in SandBlox using Guardian Account Abstraction.
@@ -382,13 +381,21 @@ A demonstration blox that showcases secure operation patterns in SandBlox using 
 ### Installation
 
 ```bash
-npm install @sand-blox/my-custom-blox
+# Fork the repository
+git clone https://github.com/PracticalParticle/sand-blox.git
+cd sand-blox
+
+# Install dependencies
+npm install
+
+# Navigate to your custom blox
+cd src/blox/my-custom-blox
 ```
 
 ### Integration
 
 ```tsx
-import { MyBlox } from '@sand-blox/my-custom-blox';
+import { MyBlox } from '../../blox/my-custom-blox/MyCustomBlox';
 
 function App() {
   return (

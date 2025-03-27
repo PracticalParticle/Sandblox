@@ -21,40 +21,20 @@ Before you begin, ensure you have the following installed:
 
 ## Installation
 
-1. Create a new SandBlox project using our starter template:
+1. Fork and clone the SandBlox repository:
 
 ```bash
-# Using npm
-npx create-sand-blox my-blox-app
+# Clone the repository
+git clone https://github.com/PracticalParticle/sand-blox.git my-blox-app
 
-# Using yarn
-yarn create sand-blox my-blox-app
-```
-
-2. Navigate to your project directory:
-
-```bash
+# Navigate to your project directory
 cd my-blox-app
-```
 
-3. Install dependencies:
-
-```bash
-# Using npm
+# Install dependencies
 npm install
 
-# Using yarn
-yarn install
-```
-
-4. Start the development server:
-
-```bash
-# Using npm
+# Start the development server
 npm run dev
-
-# Using yarn
-yarn dev
 ```
 
 Your application should now be running at `http://localhost:5173`.
@@ -86,21 +66,11 @@ my-blox-app/
 
 ## Adding Your First Blox
 
-1. Import a blox from the SandBlox library:
-
-```bash
-# Using npm
-npm install @sand-blox/simple-vault
-
-# Using yarn
-yarn add @sand-blox/simple-vault
-```
-
-2. Add the blox to your application:
+1. SandBlox comes with several pre-built blox components in the `src/blox` directory. To use the SimpleVault blox:
 
 ```tsx
 // src/pages/Home.tsx
-import { SimpleVault } from '@sand-blox/simple-vault';
+import { SimpleVault } from '../blox/SimpleVault/SimpleVault';
 
 export default function Home() {
   return (
@@ -112,11 +82,11 @@ export default function Home() {
 }
 ```
 
-3. Configure the blox in your application:
+2. Configure the blox in your application:
 
 ```tsx
 // src/App.tsx
-import { SandBloxProvider } from '@sand-blox/core';
+import { SandBloxProvider } from './contexts/SandBloxContext';
 import { RainbowKitProvider, getDefaultWallets } from '@rainbow-me/rainbowkit';
 import { configureChains, createConfig, WagmiConfig } from 'wagmi';
 import { mainnet, sepolia } from 'wagmi/chains';
@@ -202,4 +172,4 @@ Now that you have your first SandBlox application running, you can:
 
 ---
 
-Need help? Join our [Discord community](https://discord.gg/sandblox) or check out our [GitHub repository](https://github.com/particle-cs/sand-blox). 
+Need help? Join our [Discord community](https://discord.gg/sandblox) or check out our [GitHub repository](https://github.com/PracticalParticle/sand-blox). 
