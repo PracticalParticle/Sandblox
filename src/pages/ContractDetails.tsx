@@ -40,12 +40,26 @@ export function ContractDetails() {
       Promise.all([
         getContractDetails(contractId),
         getContractCode(contractId),
-        fetch(`/blox/${contractId}/README.md`).then(res => res.text())
       ])
-        .then(([details, code, markdown]) => {
+        .then(async ([details, code]) => {
           setContract(details)
           setContractCode(code)
-          setMarkdownContent(markdown)
+          
+          // Fetch the markdown content from the docs path
+          try {
+            if (details && details.files && details.files.docs) {
+              const response = await fetch(details.files.docs)
+              if (response.ok) {
+                const markdown = await response.text()
+                setMarkdownContent(markdown)
+              } else {
+                console.error('Failed to load markdown content:', response.statusText)
+              }
+            }
+          } catch (err) {
+            console.error('Error loading markdown content:', err)
+          }
+          
           // Highlight the code after it's loaded
           setTimeout(() => {
             Prism.highlightAll()
@@ -175,7 +189,7 @@ export function ContractDetails() {
               <div className="p-4 space-y-4">
                 <div className="rounded-lg border bg-card overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/50">
-                    <span className="text-sm font-medium">README.md</span>
+                    <span className="text-sm font-medium">{contract.files.docs.split('/').pop()}</span>
                     <Button
                       variant="ghost"
                       size="sm"

@@ -89,7 +89,7 @@ async function loadContractFiles(contractId: string): Promise<BloxContract['file
       abi: `/src/blox/${folderName}/${folderName}.abi.json`,
       component: `/src/blox/${folderName}/${folderName}.tsx`,
       bytecode: `/src/blox/${folderName}/${bytecodeFile}`,
-      docs: `/src/blox/${folderName}/README.md`,
+      docs: `/src/blox/${folderName}/${folderName}.md`,
       ...(hasFactoryDialog && { factoryDialog: factoryDialogPath })
     }
   }
@@ -101,7 +101,7 @@ async function loadContractFiles(contractId: string): Promise<BloxContract['file
     abi: `/blox/${folderName}/${folderName}.abi.json`,
     component: `/src/blox/${folderName}/${folderName}.tsx`, // Component still from src
     bytecode: `/blox/${folderName}/${bytecodeFile}`,
-    docs: `/blox/${folderName}/README.md`,
+    docs: `/blox/${folderName}/${folderName}.md`,
     ...(hasFactoryDialog && { factoryDialog: factoryDialogPath })
   }
 }
