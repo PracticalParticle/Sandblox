@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom'
-import { useAccount } from 'wagmi'
+import { useAccount, useChainId } from 'wagmi'
 import { useState, useEffect } from 'react'
-import { Loader2, ChevronDown, ChevronUp } from 'lucide-react'
+import { Loader2, ChevronDown, ChevronUp, Plus } from 'lucide-react'
 import { getContractDetails, getContractCode } from '../lib/catalog'
 import type { BloxContract } from '../lib/catalog/types'
 import Prism from 'prismjs'
@@ -9,6 +9,8 @@ import 'prismjs/components/prism-solidity'
 import 'prismjs/themes/prism-tomorrow.css'
 import { DeploymentDialog } from '../components/DeploymentDialog'
 import { Button } from '../components/ui/button'
+import ReactMarkdown from 'react-markdown'
+import { Address } from 'viem'
 
 // Custom styles for the code block
 const codeBlockStyle = {
@@ -22,12 +24,21 @@ const codeBlockStyle = {
 export function ContractDetails() {
   const { contractId } = useParams<{ contractId: string }>()
   const { isConnected } = useAccount()
+  const chainId = useChainId()
   const [contract, setContract] = useState<BloxContract | null>(null)
   const [contractCode, setContractCode] = useState<string>('')
+  const [markdownContent, setMarkdownContent] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showDeployDialog, setShowDeployDialog] = useState(false)
   const [isCodeExpanded, setIsCodeExpanded] = useState(false)
+  const [isInfoExpanded, setIsInfoExpanded] = useState(true)
+  const [showFactoryDialog, setShowFactoryDialog] = useState(false)
+  const [FactoryDialog, setFactoryDialog] = useState<any>(null)
+  const [factoryAddress, setFactoryAddress] = useState<Address | undefined>(undefined)
+  
+  // Check if a factory is available for the current chain
+  const hasFactory = !!contract?.deployments?.[chainId.toString()]?.factory
 
   useEffect(() => {
     if (contractId) {
@@ -36,11 +47,27 @@ export function ContractDetails() {
 
       Promise.all([
         getContractDetails(contractId),
-        getContractCode(contractId)
+        getContractCode(contractId),
       ])
-        .then(([details, code]) => {
+        .then(async ([details, code]) => {
           setContract(details)
           setContractCode(code)
+          
+          // Fetch the markdown content from the docs path
+          try {
+            if (details && details.files && details.files.docs) {
+              const response = await fetch(details.files.docs)
+              if (response.ok) {
+                const markdown = await response.text()
+                setMarkdownContent(markdown)
+              } else {
+                console.error('Failed to load markdown content:', response.statusText)
+              }
+            }
+          } catch (err) {
+            console.error('Error loading markdown content:', err)
+          }
+          
           // Highlight the code after it's loaded
           setTimeout(() => {
             Prism.highlightAll()
@@ -54,11 +81,48 @@ export function ContractDetails() {
     }
   }, [contractId])
 
+  // Add new useEffect for code highlighting when expanded
+  useEffect(() => {
+    if (isCodeExpanded) {
+      setTimeout(() => {
+        Prism.highlightAll()
+      }, 0)
+    }
+  }, [isCodeExpanded])
+
   // Handle dialog close - we don't need to do anything special here
   // as the DeploymentDialog component will handle adding the contract to the context
   const handleCloseDeployDialog = () => {
     setShowDeployDialog(false)
   }
+
+  const handleCreateClick = async () => {
+    if (!contract || !hasFactory) return;
+    
+    try {
+      console.log('Loading factory dialog from:', contract.files.factoryDialog);
+      
+      // Set the factory address for the current chain
+      const address = contract.deployments?.[chainId.toString()]?.factory as Address;
+      setFactoryAddress(address);
+      
+      // Dynamic import of the factory dialog
+      if (contract.files.factoryDialog) {
+        const folderName = contract.files.factoryDialog.split('/').slice(-3)[0];
+        const module = await import(`@/blox/${folderName}/factory/${folderName}Factory.dialog.tsx`);
+        
+        if (!module.default) {
+          throw new Error(`Factory dialog component not found for ${contract.id}`);
+        }
+        
+        setFactoryDialog(() => module.default);
+        setShowFactoryDialog(true);
+      }
+    } catch (error) {
+      console.error('Failed to load factory dialog:', error);
+      // Handle error - could add an error state and show message
+    }
+  };
 
   if (loading) {
     return (
@@ -106,6 +170,13 @@ export function ContractDetails() {
           </Link>
           <div className="flex justify-between items-center">
             <h1 className="text-3xl font-bold tracking-tight">{contract.name}</h1>
+            <Button
+              onClick={handleCreateClick}
+              disabled={!hasFactory || !isConnected}
+              className="flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" /> Create New {contract.name}
+            </Button>
           </div>
           <div className="space-x-2">
             <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
@@ -145,58 +216,91 @@ export function ContractDetails() {
         </div>
 
         <div className="space-y-4">
-          <h2 className="text-xl font-bold">Contract Code</h2>
-          <div className="rounded-lg border bg-card overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/50">
-              <span className="text-sm font-medium">{contract.files.sol.split('/').pop()}</span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    navigator.clipboard.writeText(contractCode)
-                  }}
-                >
-                  Copy Code
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsCodeExpanded(!isCodeExpanded)}
-                >
-                  {isCodeExpanded ? (
-                    <ChevronUp className="h-4 w-4 mr-1" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4 mr-1" />
-                  )}
-                  {isCodeExpanded ? 'Collapse' : 'Expand'}
-                </Button>
-              </div>
-            </div>
-            <div 
-              className={`p-4 overflow-x-auto transition-all duration-200 ease-in-out ${
-                isCodeExpanded ? '' : 'max-h-[360px]'
-              }`}
+          <div className="rounded-lg border">
+            <button
+              className="w-full flex items-center justify-between px-4 py-2 bg-muted/50 hover:bg-muted/70 transition-colors"
+              onClick={() => setIsInfoExpanded(!isInfoExpanded)}
             >
-              <pre style={codeBlockStyle}>
-                <code className="language-solidity">
-                  {contractCode}
-                </code>
-              </pre>
-            </div>
-            {!isCodeExpanded && (
-              <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-card to-transparent pointer-events-none" />
+              <h2 className="text-xl font-bold">Information</h2>
+              {isInfoExpanded ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </button>
+            {isInfoExpanded && (
+              <div className="p-4 space-y-4">
+                <div className="rounded-lg border bg-card overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/50">
+                    <span className="text-sm font-medium">{contract.files.docs.split('/').pop()}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(markdownContent)
+                      }}
+                    >
+                      Copy Content
+                    </Button>
+                  </div>
+                  <div className="p-4 overflow-x-auto prose prose-sm max-w-none dark:prose-invert bg-card">
+                    <ReactMarkdown>{markdownContent}</ReactMarkdown>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </div>
 
-        <div className="flex justify-center">
-          <Button
-            disabled={!isConnected}
-            onClick={() => setShowDeployDialog(true)}
-          >
-            {isConnected ? 'Deploy Contract' : 'Connect Wallet to Deploy'}
-          </Button>
+        <div className="space-y-4">
+          <div className="rounded-lg border">
+            <button
+              className="w-full flex items-center justify-between px-4 py-2 bg-muted/50 hover:bg-muted/70 transition-colors"
+              onClick={() => setIsCodeExpanded(!isCodeExpanded)}
+            >
+              <h2 className="text-xl font-bold">Advanced</h2>
+              {isCodeExpanded ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </button>
+            {isCodeExpanded && (
+              <div className="p-4 space-y-4">
+                <h3 className="text-lg font-semibold">Contract Code</h3>
+                <div className="rounded-lg border bg-card overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/50">
+                    <span className="text-sm font-medium">{contract.files.sol.split('/').pop()}</span>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText(contractCode)
+                        }}
+                      >
+                        Copy Code
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={!isConnected}
+                        onClick={() => setShowDeployDialog(true)}
+                      >
+                        {isConnected ? 'Deploy Contract' : 'Connect Wallet'}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="p-4 overflow-x-auto">
+                    <pre style={codeBlockStyle}>
+                      <code className="language-solidity">
+                        {contractCode}
+                      </code>
+                    </pre>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {contract && (
@@ -205,6 +309,15 @@ export function ContractDetails() {
             onClose={handleCloseDeployDialog}
             contractId={contract.id}
             contractName={contract.name}
+          />
+        )}
+        
+        {/* Render the factory dialog when loaded */}
+        {FactoryDialog && factoryAddress && (
+          <FactoryDialog
+            open={showFactoryDialog}
+            onOpenChange={setShowFactoryDialog}
+            factoryAddress={factoryAddress}
           />
         )}
       </div>
