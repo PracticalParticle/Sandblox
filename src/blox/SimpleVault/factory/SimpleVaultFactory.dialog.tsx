@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { DeploymentForm } from '../components/DeploymentForm'
-import { useWriteContract, useWaitForTransactionReceipt, useConfig, useChainId, type TransactionReceipt as WagmiTransactionReceipt } from 'wagmi'
-import { Address, keccak256, toHex, decodeEventLog } from 'viem'
+import { useWriteContract, useWaitForTransactionReceipt, useConfig, useChainId } from 'wagmi'
+import { Address, decodeEventLog } from 'viem'
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useDeployedContract } from '@/contexts/DeployedContractContext'
 import type { SecureContractInfo } from '@/lib/types'
