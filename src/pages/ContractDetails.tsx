@@ -9,6 +9,7 @@ import 'prismjs/components/prism-solidity'
 import 'prismjs/themes/prism-tomorrow.css'
 import { DeploymentDialog } from '../components/DeploymentDialog'
 import { Button } from '../components/ui/button'
+import ReactMarkdown from 'react-markdown'
 
 // Custom styles for the code block
 const codeBlockStyle = {
@@ -24,10 +25,12 @@ export function ContractDetails() {
   const { isConnected } = useAccount()
   const [contract, setContract] = useState<BloxContract | null>(null)
   const [contractCode, setContractCode] = useState<string>('')
+  const [markdownContent, setMarkdownContent] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showDeployDialog, setShowDeployDialog] = useState(false)
   const [isCodeExpanded, setIsCodeExpanded] = useState(false)
+  const [isInfoExpanded, setIsInfoExpanded] = useState(true)
 
   useEffect(() => {
     if (contractId) {
@@ -36,11 +39,13 @@ export function ContractDetails() {
 
       Promise.all([
         getContractDetails(contractId),
-        getContractCode(contractId)
+        getContractCode(contractId),
+        fetch(`/blox/${contractId}/README.md`).then(res => res.text())
       ])
-        .then(([details, code]) => {
+        .then(([details, code, markdown]) => {
           setContract(details)
           setContractCode(code)
+          setMarkdownContent(markdown)
           // Highlight the code after it's loaded
           setTimeout(() => {
             Prism.highlightAll()
@@ -150,6 +155,43 @@ export function ContractDetails() {
                 </p>
               ))}
             </div>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-lg border">
+            <button
+              className="w-full flex items-center justify-between px-4 py-2 bg-muted/50 hover:bg-muted/70 transition-colors"
+              onClick={() => setIsInfoExpanded(!isInfoExpanded)}
+            >
+              <h2 className="text-xl font-bold">Information</h2>
+              {isInfoExpanded ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </button>
+            {isInfoExpanded && (
+              <div className="p-4 space-y-4">
+                <div className="rounded-lg border bg-card overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/50">
+                    <span className="text-sm font-medium">README.md</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(markdownContent)
+                      }}
+                    >
+                      Copy Content
+                    </Button>
+                  </div>
+                  <div className="p-4 overflow-x-auto prose prose-sm max-w-none dark:prose-invert bg-card">
+                    <ReactMarkdown>{markdownContent}</ReactMarkdown>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
