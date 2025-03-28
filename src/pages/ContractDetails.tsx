@@ -54,6 +54,15 @@ export function ContractDetails() {
     }
   }, [contractId])
 
+  // Add new useEffect for code highlighting when expanded
+  useEffect(() => {
+    if (isCodeExpanded) {
+      setTimeout(() => {
+        Prism.highlightAll()
+      }, 0)
+    }
+  }, [isCodeExpanded])
+
   // Handle dialog close - we don't need to do anything special here
   // as the DeploymentDialog component will handle adding the contract to the context
   const handleCloseDeployDialog = () => {
@@ -145,58 +154,54 @@ export function ContractDetails() {
         </div>
 
         <div className="space-y-4">
-          <h2 className="text-xl font-bold">Contract Code</h2>
-          <div className="rounded-lg border bg-card overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/50">
-              <span className="text-sm font-medium">{contract.files.sol.split('/').pop()}</span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    navigator.clipboard.writeText(contractCode)
-                  }}
-                >
-                  Copy Code
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsCodeExpanded(!isCodeExpanded)}
-                >
-                  {isCodeExpanded ? (
-                    <ChevronUp className="h-4 w-4 mr-1" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4 mr-1" />
-                  )}
-                  {isCodeExpanded ? 'Collapse' : 'Expand'}
-                </Button>
-              </div>
-            </div>
-            <div 
-              className={`p-4 overflow-x-auto transition-all duration-200 ease-in-out ${
-                isCodeExpanded ? '' : 'max-h-[360px]'
-              }`}
+          <div className="rounded-lg border">
+            <button
+              className="w-full flex items-center justify-between px-4 py-2 bg-muted/50 hover:bg-muted/70 transition-colors"
+              onClick={() => setIsCodeExpanded(!isCodeExpanded)}
             >
-              <pre style={codeBlockStyle}>
-                <code className="language-solidity">
-                  {contractCode}
-                </code>
-              </pre>
-            </div>
-            {!isCodeExpanded && (
-              <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-card to-transparent pointer-events-none" />
+              <h2 className="text-xl font-bold">Advanced</h2>
+              {isCodeExpanded ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </button>
+            {isCodeExpanded && (
+              <div className="p-4 space-y-4">
+                <h3 className="text-lg font-semibold">Contract Code</h3>
+                <div className="rounded-lg border bg-card overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/50">
+                    <span className="text-sm font-medium">{contract.files.sol.split('/').pop()}</span>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText(contractCode)
+                        }}
+                      >
+                        Copy Code
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={!isConnected}
+                        onClick={() => setShowDeployDialog(true)}
+                      >
+                        {isConnected ? 'Deploy Contract' : 'Connect Wallet'}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="p-4 overflow-x-auto">
+                    <pre style={codeBlockStyle}>
+                      <code className="language-solidity">
+                        {contractCode}
+                      </code>
+                    </pre>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
-        </div>
-
-        <div className="flex justify-center">
-          <Button
-            disabled={!isConnected}
-            onClick={() => setShowDeployDialog(true)}
-          >
-            {isConnected ? 'Deploy Contract' : 'Connect Wallet to Deploy'}
-          </Button>
         </div>
 
         {contract && (
