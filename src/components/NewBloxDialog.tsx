@@ -74,7 +74,8 @@ export function NewBloxDialog({ open, onOpenChange }: NewBloxDialogProps) {
       }
       
       // Dynamic import of the factory dialog using the path from blox.files.factoryDialog
-      const module = await import(/* @vite-ignore */ blox.files.factoryDialog)
+      const folderName = blox.files.factoryDialog.split('/').slice(-3)[0];
+      const module = await import(`@/blox/${folderName}/factory/${folderName}Factory.dialog.tsx`);
       
       // The factory dialog should be the default export
       if (!module.default) {
