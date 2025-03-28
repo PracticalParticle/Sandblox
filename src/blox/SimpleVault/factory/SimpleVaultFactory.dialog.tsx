@@ -236,7 +236,7 @@ function SimpleVaultFactoryDialog({ open, onOpenChange, factoryAddress }: Simple
         onOpenChange(isOpen)
       }
     }}>
-      <DialogContent className="sm:max-w-[800px]">
+      <DialogContent  className="sm:max-w-[425px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Deploy SimpleVault via Factory</DialogTitle>
           <DialogDescription>
