@@ -337,6 +337,9 @@ const BloxMiniApp: React.FC = () => {
         description: "Operation approved successfully",
       });
 
+      // Increment transaction counter to trigger refresh
+      setTransactionCounter(prev => prev + 1);
+      
       // Refresh all data after operation completes
       await refreshAllData();
     } catch (error) {
@@ -395,6 +398,9 @@ const BloxMiniApp: React.FC = () => {
         title: "Success",
         description: "Operation cancelled successfully",
       });
+
+      // Increment transaction counter to trigger refresh
+      setTransactionCounter(prev => prev + 1);
 
       // Refresh all data after operation completes
       await refreshAllData();
@@ -565,6 +571,9 @@ const BloxMiniApp: React.FC = () => {
   // Wrap the base function to include any additional logic if needed
   const handleMetaTxSign = async (tx: VaultTxRecord, type: 'approve' | 'cancel') => {
     await handleMetaTxSignBase(tx, type);
+    
+    // Increment transaction counter to trigger refresh
+    setTransactionCounter(prev => prev + 1);
     
     // After signing, immediately refresh the local transactions
     refreshLocalTransactions();

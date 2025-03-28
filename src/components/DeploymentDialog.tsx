@@ -16,7 +16,6 @@ interface DeploymentDialogProps {
   onClose: () => void
   contractId: string
   contractName: string
-  bloxConfig?: any
 }
 
 interface FormData {
@@ -31,8 +30,7 @@ export function DeploymentDialog({
   isOpen, 
   onClose, 
   contractId, 
-  contractName,
-  bloxConfig 
+  contractName
 }: DeploymentDialogProps) {
   const chainId = useChainId()
   const config = useConfig()
