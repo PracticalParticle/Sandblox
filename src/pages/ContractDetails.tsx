@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom'
-import { useAccount } from 'wagmi'
+import { useAccount, useChainId } from 'wagmi'
 import { useState, useEffect } from 'react'
-import { Loader2, ChevronDown, ChevronUp } from 'lucide-react'
+import { Loader2, ChevronDown, ChevronUp, Plus } from 'lucide-react'
 import { getContractDetails, getContractCode } from '../lib/catalog'
 import type { BloxContract } from '../lib/catalog/types'
 import Prism from 'prismjs'
@@ -10,6 +10,7 @@ import 'prismjs/themes/prism-tomorrow.css'
 import { DeploymentDialog } from '../components/DeploymentDialog'
 import { Button } from '../components/ui/button'
 import ReactMarkdown from 'react-markdown'
+import { Address } from 'viem'
 
 // Custom styles for the code block
 const codeBlockStyle = {
@@ -23,6 +24,7 @@ const codeBlockStyle = {
 export function ContractDetails() {
   const { contractId } = useParams<{ contractId: string }>()
   const { isConnected } = useAccount()
+  const chainId = useChainId()
   const [contract, setContract] = useState<BloxContract | null>(null)
   const [contractCode, setContractCode] = useState<string>('')
   const [markdownContent, setMarkdownContent] = useState<string>('')
@@ -31,6 +33,12 @@ export function ContractDetails() {
   const [showDeployDialog, setShowDeployDialog] = useState(false)
   const [isCodeExpanded, setIsCodeExpanded] = useState(false)
   const [isInfoExpanded, setIsInfoExpanded] = useState(true)
+  const [showFactoryDialog, setShowFactoryDialog] = useState(false)
+  const [FactoryDialog, setFactoryDialog] = useState<any>(null)
+  const [factoryAddress, setFactoryAddress] = useState<Address | undefined>(undefined)
+  
+  // Check if a factory is available for the current chain
+  const hasFactory = !!contract?.deployments?.[chainId.toString()]?.factory
 
   useEffect(() => {
     if (contractId) {
@@ -88,6 +96,34 @@ export function ContractDetails() {
     setShowDeployDialog(false)
   }
 
+  const handleCreateClick = async () => {
+    if (!contract || !hasFactory) return;
+    
+    try {
+      console.log('Loading factory dialog from:', contract.files.factoryDialog);
+      
+      // Set the factory address for the current chain
+      const address = contract.deployments?.[chainId.toString()]?.factory as Address;
+      setFactoryAddress(address);
+      
+      // Dynamic import of the factory dialog
+      if (contract.files.factoryDialog) {
+        const folderName = contract.files.factoryDialog.split('/').slice(-3)[0];
+        const module = await import(`@/blox/${folderName}/factory/${folderName}Factory.dialog.tsx`);
+        
+        if (!module.default) {
+          throw new Error(`Factory dialog component not found for ${contract.id}`);
+        }
+        
+        setFactoryDialog(() => module.default);
+        setShowFactoryDialog(true);
+      }
+    } catch (error) {
+      console.error('Failed to load factory dialog:', error);
+      // Handle error - could add an error state and show message
+    }
+  };
+
   if (loading) {
     return (
       <div className="container py-8">
@@ -134,6 +170,13 @@ export function ContractDetails() {
           </Link>
           <div className="flex justify-between items-center">
             <h1 className="text-3xl font-bold tracking-tight">{contract.name}</h1>
+            <Button
+              onClick={handleCreateClick}
+              disabled={!hasFactory || !isConnected}
+              className="flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" /> Create New {contract.name}
+            </Button>
           </div>
           <div className="space-x-2">
             <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
@@ -266,6 +309,15 @@ export function ContractDetails() {
             onClose={handleCloseDeployDialog}
             contractId={contract.id}
             contractName={contract.name}
+          />
+        )}
+        
+        {/* Render the factory dialog when loaded */}
+        {FactoryDialog && factoryAddress && (
+          <FactoryDialog
+            open={showFactoryDialog}
+            onOpenChange={setShowFactoryDialog}
+            factoryAddress={factoryAddress}
           />
         )}
       </div>
