@@ -1,10 +1,64 @@
-# SimpleVault Technical Documentation
+# SimpleVault
 
-## Overview
+SimpleVault is a secure digital asset vault for safely storing and managing your ETH and ERC20 tokens. Unlike traditional wallets that rely on a single private key, SimpleVault provides multiple layers of protection for your digital assets.
 
-SimpleVault is a secure digital asset vault built on Particle's Account Abstraction framework. It provides enhanced security for storing ETH and ERC20 tokens through a multi-phase security model featuring time-delayed operations, role-based access control, and meta-transaction support.
+## What is SimpleVault?
 
-## Architecture
+SimpleVault is your personal crypto bank vault. It's designed to keep your digital assets secure by adding a time-delay to critical operations like withdrawals, giving you time to detect and stop unauthorized transactions.
+
+### Key Benefits
+
+- **Enhanced Security**: Time-delayed withdrawals create a security window to identify and stop suspicious activities
+- **Self-Custody**: Maintain full control of your assets while adding extra security layers
+- **Role-Based Protection**: Separate access roles limit damage if any single key is compromised
+- **Multiple Asset Support**: Store both ETH and any ERC20 tokens in a single vault
+- **2FA Approvals Support**: Owner role approve tx and broadcaster role broadcast approved tx.
+- **User-Friendly Interface**: Simple React UI for easy asset management
+
+## How SimpleVault Protects Your Assets
+
+Traditional wallets are vulnerable because a single compromised key means immediate loss of all assets. SimpleVault solves this by:
+
+1. **Time-Delayed Security**: All withdrawals require a mandatory waiting period before funds can be moved
+2. **Role Separation**: Different keys for different functions limit the damage of any single compromise
+3. **Recovery Options**: Dedicated recovery address for emergency access to your vault
+
+## How to Use SimpleVault
+
+### Setting Up Your Vault
+
+1. Deploy your SimpleVault:
+   - Set your owner address (main controller)
+   - Set a broadcaster address (for meta operations)
+   - Set a recovery address (for emergency access)
+   - Choose your timelock period (minimum 24 hours)
+
+2. Deposit assets by simply sending ETH to your vault address or using the deposit function for tokens
+
+### Managing Your Assets
+
+1. **Viewing Balances**: See all your ETH and token balances in one place
+
+2. **Withdrawing Funds**: The secure two-step process:
+   - Request a withdrawal (specifying recipient and amount)
+   - Approve the withdrawal after the timelock period has passed
+
+3. **Meta Operations**: Use meta-transactions to approve withdrawals without paying gas fees
+
+### Security Best Practices
+
+1. **Use Separate Devices** for owner, broadcaster, and recovery keys
+2. **Monitor Pending Transactions** regularly to detect unauthorized requests
+3. **Set Appropriate Timelock** periods based on your security needs
+4. **Regularly Verify** owner and recovery addresses
+5. **Test Recovery** procedures periodically
+6. **Start with Small Amounts** when first using the vault
+
+---
+
+## For Developers: Technical Documentation
+
+### Architecture
 
 SimpleVault extends the `SecureOwnable` contract to implement a secure vault for ETH and ERC20 tokens with the following key features:
 
@@ -12,8 +66,6 @@ SimpleVault extends the `SecureOwnable` contract to implement a secure vault for
 - **Role-Based Security**: Separation of owner, broadcaster, and recovery roles with distinct permissions
 - **Meta-Transaction Support**: delegated transaction capabilities while maintaining security guarantees
 - **Multi-Phase Security**: Two-phase operations (request → delayed approval) for withdrawals
-
-## Core Components
 
 ### Smart Contract Architecture
 
@@ -64,19 +116,9 @@ export default class SimpleVault extends SecureOwnable {
 }
 ```
 
-### UI Components
+### Security Model Implementation
 
-The vault includes a React-based UI for easy interaction, supporting:
-- Asset balance display
-- Withdrawal requests and approvals
-- Deposit functionality
-- Transaction history
-- Meta-transaction signing
-- Token management
-
-## Security Model
-
-### Multi-Phase Secured Operations
+#### Multi-Phase Secured Operations
 
 SimpleVault implements a two-phase security model for withdrawals:
 
@@ -92,7 +134,7 @@ SimpleVault implements a two-phase security model for withdrawals:
 
 This creates a security window between request and execution, allowing for monitoring and intervention if needed.
 
-### Role-Based Security
+#### Role-Based Security
 
 The security model includes three distinct roles:
 
@@ -100,7 +142,7 @@ The security model includes three distinct roles:
 2. **Broadcaster**: Can submit meta-transactions on behalf of the owner
 3. **Recovery**: Backup access mechanism with limited permissions
 
-### Time-Lock Security
+#### Time-Lock Security
 
 All withdrawals are subject to a mandatory waiting period:
 - Minimum timelock: 24 hours (1440 minutes)
@@ -108,7 +150,7 @@ All withdrawals are subject to a mandatory waiting period:
 
 This time delay provides a critical security window during which suspicious operations can be detected and cancelled.
 
-## Operation Types
+### Operation Types
 
 SimpleVault supports the following operation types:
 
@@ -126,7 +168,7 @@ SimpleVault supports the following operation types:
    - Recovery updates
    - Timelock period updates
 
-## Meta-Transaction Support
+### Meta-Transaction Support
 
 SimpleVault fully supports meta-transactions for delegated operations:
 
@@ -139,9 +181,9 @@ async generateUnsignedWithdrawalMetaTxApproval(
 
 This allows vault owners to approve withdrawals without paying gas fees, while maintaining the security guarantees of the system.
 
-## Integration
+### Integration Examples
 
-### Contract Deployment
+#### Contract Deployment
 
 SimpleVault requires initialization with critical security parameters:
 
@@ -154,7 +196,7 @@ constructor(
 ) SecureOwnable(initialOwner, broadcaster, recovery, timeLockPeriodInMinutes)
 ```
 
-### TypeScript Integration
+#### TypeScript Integration
 
 To integrate SimpleVault in a TypeScript application:
 
@@ -189,7 +231,7 @@ await vault.withdrawEthRequest(
 );
 ```
 
-### React UI Integration
+#### React UI Integration
 
 The SimpleVault UI can be integrated into any React application:
 
@@ -206,7 +248,7 @@ function App() {
 }
 ```
 
-## Best Practices
+### Developer Best Practices
 
 1. **Security Parameters**: Set appropriate timelock periods based on security requirements
 2. **Role Separation**: Use different addresses for owner, broadcaster, and recovery roles
