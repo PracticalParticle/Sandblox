@@ -307,8 +307,17 @@ function SimpleVaultFactoryDialog({ open, onOpenChange, factoryAddress }: Simple
                 </Button>
               </div>
             )}
+            
           </div>
         )}
+        <div className="mt-4 text-sm text-muted-foreground">
+            <p>
+              By deploying this contract, you agree to our 
+              <br />
+              <a href="/privacy-policy" className="text-blue-500 underline"> Privacy Policy</a> and 
+              <a href="/terms-and-conditions" className="text-blue-500 underline"> Terms and Conditions</a>.
+            </p>
+          </div>
       </DialogContent>
     </Dialog>
   )
