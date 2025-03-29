@@ -314,8 +314,8 @@ function SimpleVaultFactoryDialog({ open, onOpenChange, factoryAddress }: Simple
             <p>
               By deploying this contract, you agree to our 
               <br />
-              <a href="/privacy-policy" className="text-blue-500 underline"> Privacy Policy</a> and 
-              <a href="/terms-and-conditions" className="text-blue-500 underline"> Terms and Conditions</a>.
+              <a href="/privacy" target="_blank" className="text-blue-500 underline"> Privacy Policy</a> and 
+              <a href="/terms" target="_blank" className="text-blue-500 underline"> Terms and Conditions</a>.
             </p>
           </div>
       </DialogContent>

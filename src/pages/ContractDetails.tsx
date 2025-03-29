@@ -59,7 +59,7 @@ export function ContractDetails() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showDeployDialog, setShowDeployDialog] = useState(false)
-  const [showInfoDialog, setShowInfoDialog] = useState(false)
+
   const [showCodeDialog, setShowCodeDialog] = useState(false)
   const [showFactoryDialog, setShowFactoryDialog] = useState(false)
   const [FactoryDialog, setFactoryDialog] = useState<any>(null)

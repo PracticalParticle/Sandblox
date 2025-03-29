@@ -10,7 +10,6 @@ import {
   ChevronDown,
   Loader2,
   AlertCircle,
-  Sparkles,
   Blocks,
 } from 'lucide-react'
 import { getAllContracts } from '../lib/catalog'
