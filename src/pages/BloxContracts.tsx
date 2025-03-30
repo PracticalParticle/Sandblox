@@ -5,8 +5,6 @@ import {
   Search,
   ArrowRight,
   Shield,
-  Clock,
-  Wallet,
   ChevronDown,
   Loader2,
   AlertCircle,
