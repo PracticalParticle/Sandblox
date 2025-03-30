@@ -127,8 +127,8 @@ export function BloxContracts() {
               </div>
               <h1 className="text-4xl font-bold tracking-tight">Blox Contracts</h1>
               <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                Browse our collection of pre-audited smart contracts. Each contract is
-                thoroughly tested and secured with built-in safety features.
+                Explore our library of blox smart contract templates. Each blox 
+                comes with built-in security features and is designed for rapid prototyping.
               </p>
             </motion.div>
 
@@ -237,14 +237,14 @@ export function BloxContracts() {
                         {contract.description}
                       </p>
                       <div className="flex items-center justify-between text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
+                        {/* <div className="flex items-center gap-1">
                           <Wallet className="h-4 w-4" />
                           {contract.deployments.toLocaleString()} deployments
                         </div>
                         <div className="flex items-center gap-1">
                           <Clock className="h-4 w-4" />
                           Updated {new Date(contract.lastUpdated).toLocaleDateString()}
-                        </div>
+                        </div> */}
                       </div>
                     </div>
                     <Button
