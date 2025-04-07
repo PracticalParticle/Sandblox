@@ -26,7 +26,6 @@ import { useMetaTxActions } from './hooks/useMetaTxActions';
 import { useActionPermissions } from '@/hooks/useActionPermissions';
 import { useRoleValidation } from "@/hooks/useRoleValidation";
 import { MintForm, BurnForm } from './components';
-import { SignedMetaTxTable } from '@/components/SignedMetaTxTable';
 import { useSimpleRWA20Operations } from './hooks/useSimpleRWA20Operations';
 import { TxRecord } from "../../particle-core/sdk/typescript/interfaces/lib.index";
 
@@ -214,7 +213,6 @@ function SimpleRWA20UIContent({
   const [token, setToken] = useAtom(tokenInstanceAtom);
   const [error, setError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [operations, setOperations] = useState<TxRecord[]>([]);
 
   // Role validation
   const { isOwner } = useRoleValidation(contractAddress as Address, address, chain);
@@ -225,24 +223,24 @@ function SimpleRWA20UIContent({
   // Get operation types
   const { getOperationName } = useOperationTypes(contractAddress as Address);
 
-  // Fetch operations
-  const fetchOperations = useCallback(async () => {
-    if (!token) return;
-    try {
-      const ops = await token.getOperationHistory();
-      setOperations(ops);
-    } catch (error) {
-      console.error("Failed to fetch operations:", error);
-    }
-  }, [token]);
+  // Create a ref to store the refresh function
+  const refreshRef = useRef<() => Promise<void>>();
 
-  // Fetch operations on mount and when token changes
-  useEffect(() => {
-    fetchOperations();
-  }, [fetchOperations]);
+  // Get meta transaction actions with memoized refresh callback
+  const {
+    handleMetaTxSign,
+    handleBroadcastMetaTx,
+    signedMetaTxStates,
+    isLoading: isMetaTxLoading
+  } = useMetaTxActions(
+    contractAddress as Address,
+    addMessage,
+    addMessage,
+    refreshRef.current
+  );
 
-  // Refresh function
-  const handleRefresh = useCallback(async () => {
+  // Define handleRefresh and store it in ref
+  refreshRef.current = useCallback(async () => {
     if (!token || _mock) {
       console.log("Cannot fetch: token not initialized or using mock data");
       return;
@@ -265,9 +263,6 @@ function SimpleRWA20UIContent({
         decimals
       });
       
-      // Fetch operations as well
-      await fetchOperations();
-      
       setError(null);
     } catch (err: any) {
       console.error("Failed to fetch token data:", err);
@@ -276,7 +271,7 @@ function SimpleRWA20UIContent({
     } finally {
       setLoadingState(prev => ({ ...prev, tokenInfo: false }));
     }
-  }, [token, setTokenInfo, onError, _mock, fetchOperations]);
+  }, [token, setTokenInfo, onError, _mock, setLoadingState]);
 
   // Initialize token instance and load data
   useEffect(() => {
@@ -327,26 +322,7 @@ function SimpleRWA20UIContent({
     };
 
     initialize();
-  }, [publicClient, walletClient, contractAddress, chain, contractInfo]);
-
-  // Get meta transaction actions
-  const {
-    handleMetaTxSign,
-    handleBroadcastMetaTx,
-    signedMetaTxStates,
-    isLoading: isMetaTxLoading
-  } = useMetaTxActions(
-    contractAddress as Address,
-    addMessage,
-    addMessage,
-    handleRefresh
-  );
-
-  const { operations: filteredOperations } = useSimpleRWA20Operations({
-    contractAddress: contractAddress as Address,
-    operations,
-    isLoading: loadingState.initialization
-  });
+  }, [publicClient, walletClient, contractAddress, chain, contractInfo, setLoadingState]);
 
   // Add these functions inside SimpleRWA20UIContent before the return statement
   const handleMint = async (to: Address, amount: bigint) => {
@@ -537,7 +513,7 @@ function SimpleRWA20UIContent({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleRefresh}
+                onClick={refreshRef.current}
                 disabled={loadingState.tokenInfo || !token}
               >
                 {loadingState.tokenInfo ? (
@@ -688,31 +664,6 @@ function SimpleRWA20UIContent({
                   </div>
                 </div>
               )}
-
-              <SignedMetaTxTable
-                transactions={Object.entries(signedMetaTxStates).map(([txId, state]) => ({
-                  txId,
-                  signedData: '',
-                  timestamp: Date.now(),
-                  metadata: {
-                    type: 'OWNERSHIP_TRANSFER',
-                    broadcasted: false,
-                    status: 'PENDING',
-                    operationType: `0x${state.type === 'mint' ? '01' : '02'}`
-                  }
-                }))}
-                onClearAll={() => {
-                  // Implement clear all functionality
-                }}
-                onRemoveTransaction={(txId) => {
-                  // Implement remove transaction functionality
-                }}
-                contractAddress={contractAddress as Address}
-                onTxClick={(tx) => {
-                  const isMint = tx.metadata?.operationType === '0x01';
-                  handleBroadcastMetaTx(tx.txId, isMint ? 'mint' : 'burn');
-                }}
-              />
             </div>
           </CardContent>
         </Card>
