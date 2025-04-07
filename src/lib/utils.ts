@@ -203,8 +203,12 @@ export function formatTimestamp(timestamp: number): string {
 /**
  * Recursively converts all BigInt values in an object to strings
  * This is useful when we need to serialize data that contains BigInt values
+ * Also handles special cases for hex string fields that might contain all zeros
+ * @param obj Any object that might contain BigInt values
+ * @param options Optional configuration for hex string handling
+ * @returns The object with all BigInt values converted to strings
  */
-export function convertBigIntsToStrings(obj: any): any {
+export function convertBigIntsToStrings(obj: any, options: { handleHexStrings?: boolean } = {}): any {
   if (obj === null || obj === undefined) {
     return obj;
   }
@@ -214,13 +218,25 @@ export function convertBigIntsToStrings(obj: any): any {
   }
 
   if (Array.isArray(obj)) {
-    return obj.map(convertBigIntsToStrings);
+    return obj.map(item => convertBigIntsToStrings(item, options));
   }
 
-  if (typeof obj === 'object') {
+  if (obj !== null && typeof obj === 'object') {
     const result: { [key: string]: any } = {};
     for (const key in obj) {
-      result[key] = convertBigIntsToStrings(obj[key]);
+      if (options.handleHexStrings && 
+          (key === 'message' || key === 'result') && 
+          typeof obj[key] === 'string' && 
+          obj[key].startsWith('0x')) {
+        // If it's all zeros (any length), convert to '0x'
+        if (obj[key].slice(2).match(/^0+$/)) {
+          result[key] = '0x';
+        } else {
+          result[key] = obj[key];
+        }
+      } else {
+        result[key] = convertBigIntsToStrings(obj[key], options);
+      }
     }
     return result;
   }
