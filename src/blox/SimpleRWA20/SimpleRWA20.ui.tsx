@@ -26,6 +26,9 @@ import { useMetaTxActions } from './hooks/useMetaTxActions';
 import { useActionPermissions } from '@/hooks/useActionPermissions';
 import { useRoleValidation } from "@/hooks/useRoleValidation";
 import { MintForm, BurnForm } from './components';
+import { SignedMetaTxTable } from '@/components/SignedMetaTxTable';
+import { useSimpleRWA20Operations } from './hooks/useSimpleRWA20Operations';
+import { TxRecord } from "../../particle-core/sdk/typescript/interfaces/lib.index";
 
 // Extend the base ContractInfo interface
 interface ContractInfo extends BaseContractInfo {
@@ -211,6 +214,7 @@ function SimpleRWA20UIContent({
   const [token, setToken] = useAtom(tokenInstanceAtom);
   const [error, setError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [operations, setOperations] = useState<TxRecord[]>([]);
 
   // Role validation
   const { isOwner } = useRoleValidation(contractAddress as Address, address, chain);
@@ -220,6 +224,22 @@ function SimpleRWA20UIContent({
 
   // Get operation types
   const { getOperationName } = useOperationTypes(contractAddress as Address);
+
+  // Fetch operations
+  const fetchOperations = useCallback(async () => {
+    if (!token) return;
+    try {
+      const ops = await token.getOperationHistory();
+      setOperations(ops);
+    } catch (error) {
+      console.error("Failed to fetch operations:", error);
+    }
+  }, [token]);
+
+  // Fetch operations on mount and when token changes
+  useEffect(() => {
+    fetchOperations();
+  }, [fetchOperations]);
 
   // Refresh function
   const handleRefresh = useCallback(async () => {
@@ -245,6 +265,9 @@ function SimpleRWA20UIContent({
         decimals
       });
       
+      // Fetch operations as well
+      await fetchOperations();
+      
       setError(null);
     } catch (err: any) {
       console.error("Failed to fetch token data:", err);
@@ -253,7 +276,7 @@ function SimpleRWA20UIContent({
     } finally {
       setLoadingState(prev => ({ ...prev, tokenInfo: false }));
     }
-  }, [token, setTokenInfo, onError, _mock]);
+  }, [token, setTokenInfo, onError, _mock, fetchOperations]);
 
   // Initialize token instance and load data
   useEffect(() => {
@@ -307,12 +330,23 @@ function SimpleRWA20UIContent({
   }, [publicClient, walletClient, contractAddress, chain, contractInfo]);
 
   // Get meta transaction actions
-  useMetaTxActions(
+  const {
+    handleMetaTxSign,
+    handleBroadcastMetaTx,
+    signedMetaTxStates,
+    isLoading: isMetaTxLoading
+  } = useMetaTxActions(
     contractAddress as Address,
     addMessage,
     addMessage,
     handleRefresh
   );
+
+  const { operations: filteredOperations } = useSimpleRWA20Operations({
+    contractAddress: contractAddress as Address,
+    operations,
+    isLoading: loadingState.initialization
+  });
 
   // Add these functions inside SimpleRWA20UIContent before the return statement
   const handleMint = async (to: Address, amount: bigint) => {
@@ -322,26 +356,19 @@ function SimpleRWA20UIContent({
 
     setLoadingState(prev => ({ ...prev, mint: true }));
     try {
-      const metaTx = await token.generateUnsignedMintMetaTx(to, amount, {
-        deadline: BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour from now
-        maxGasPrice: BigInt(50000000000) // 50 gwei
-      });
-      const tx = await token.mintWithMetaTx(metaTx, { from: address });
-      await tx.wait();
-
+      await handleMetaTxSign(to, amount, 'mint');
+      
       addMessage?.({
         type: 'success',
-        title: 'Tokens Minted',
-        description: 'Successfully minted tokens'
+        title: 'Transaction Signed',
+        description: 'Successfully signed mint transaction. Please wait for broadcaster to execute.'
       });
-
-      await handleRefresh();
     } catch (error: any) {
       console.error('Mint error:', error);
       addMessage?.({
         type: 'error',
-        title: 'Mint Failed',
-        description: error.message || 'Failed to mint tokens'
+        title: 'Signing Failed',
+        description: error.message || 'Failed to sign mint transaction'
       });
     } finally {
       setLoadingState(prev => ({ ...prev, mint: false }));
@@ -355,26 +382,19 @@ function SimpleRWA20UIContent({
 
     setLoadingState(prev => ({ ...prev, burn: true }));
     try {
-      const metaTx = await token.generateUnsignedBurnMetaTx(address, amount, {
-        deadline: BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour from now
-        maxGasPrice: BigInt(50000000000) // 50 gwei
-      });
-      const tx = await token.burnWithMetaTx(metaTx, { from: address });
-      await tx.wait();
-
+      await handleMetaTxSign(address, amount, 'burn');
+      
       addMessage?.({
         type: 'success',
-        title: 'Tokens Burned',
-        description: 'Successfully burned tokens'
+        title: 'Transaction Signed',
+        description: 'Successfully signed burn transaction. Please wait for broadcaster to execute.'
       });
-
-      await handleRefresh();
     } catch (error: any) {
       console.error('Burn error:', error);
       addMessage?.({
         type: 'error',
         title: 'Burn Failed',
-        description: error.message || 'Failed to burn tokens'
+        description: error.message || 'Failed to sign burn transaction'
       });
     } finally {
       setLoadingState(prev => ({ ...prev, burn: false }));
@@ -668,6 +688,31 @@ function SimpleRWA20UIContent({
                   </div>
                 </div>
               )}
+
+              <SignedMetaTxTable
+                transactions={Object.entries(signedMetaTxStates).map(([txId, state]) => ({
+                  txId,
+                  signedData: '',
+                  timestamp: Date.now(),
+                  metadata: {
+                    type: 'OWNERSHIP_TRANSFER',
+                    broadcasted: false,
+                    status: 'PENDING',
+                    operationType: `0x${state.type === 'mint' ? '01' : '02'}`
+                  }
+                }))}
+                onClearAll={() => {
+                  // Implement clear all functionality
+                }}
+                onRemoveTransaction={(txId) => {
+                  // Implement remove transaction functionality
+                }}
+                contractAddress={contractAddress as Address}
+                onTxClick={(tx) => {
+                  const isMint = tx.metadata?.operationType === '0x01';
+                  handleBroadcastMetaTx(tx.txId, isMint ? 'mint' : 'burn');
+                }}
+              />
             </div>
           </CardContent>
         </Card>
