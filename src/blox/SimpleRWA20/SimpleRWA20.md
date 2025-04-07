@@ -1,3 +1,7 @@
+> 🚧 **UNDER CONSTRUCTION** 🚧
+> 
+> This blox is currently under active development and construction. The smart contract code is not yet complete or ready for use. Please check back later for updates.
+
 # SimpleRWA20
 
 SimpleRWA20 is a secure ERC20 token designed for real-world assets (RWA) with enhanced security features. It provides protection beyond standard ERC20 tokens by implementing multi-phase secure operations and guardian account abstraction for critical functions.
