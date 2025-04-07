@@ -14,27 +14,6 @@ import { NotificationMessage } from "../lib/types";
 import { useActionPermissions } from "@/hooks/useActionPermissions";
 import { usePublicClient } from "wagmi"
 
-// Helper function to recursively convert BigInt values to strings
-const convertBigIntsToStrings = (obj: any): any => {
-  if (typeof obj === 'bigint') {
-    return obj.toString();
-  }
-  
-  if (Array.isArray(obj)) {
-    return obj.map(convertBigIntsToStrings);
-  }
-  
-  if (obj !== null && typeof obj === 'object') {
-    const converted: any = {};
-    for (const key in obj) {
-      converted[key] = convertBigIntsToStrings(obj[key]);
-    }
-    return converted;
-  }
-  
-  return obj;
-};
-
 export interface VaultTxRecord extends Omit<TxRecord, 'status'> {
   status: TxStatus;
   amount: bigint;
