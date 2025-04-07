@@ -6,9 +6,9 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 // Particle imports
-import "../../particle-core/contracts/core/access/SecureOwnable.sol";
+import "../../particle-core/contracts/GuardianAccountAbstraction.sol";
 
-contract SimpleVault is SecureOwnable {
+contract SimpleVault is GuardianAccountAbstraction {
     using SafeERC20 for IERC20;
 
     // Constants for operation types
@@ -46,7 +46,7 @@ contract SimpleVault is SecureOwnable {
         address broadcaster,
         address recovery,
         uint256 timeLockPeriodInMinutes     
-    ) SecureOwnable(initialOwner, broadcaster, recovery, timeLockPeriodInMinutes) {
+    ) GuardianAccountAbstraction(initialOwner, broadcaster, recovery, timeLockPeriodInMinutes) {
         require(timeLockPeriodInMinutes >= MIN_TIMELOCK_PERIOD, "Time lock period must be at least 1 day (1440 minutes)");
         require(timeLockPeriodInMinutes <= MAX_TIMELOCK_PERIOD, "Time lock period must be less than 90 days (129600 minutes)");
         
@@ -236,7 +236,7 @@ contract SimpleVault is SecureOwnable {
      */
     function generateUnsignedWithdrawalMetaTxApproval(uint256 txId, VaultMetaTxParams memory metaTxParams) public view returns (MultiPhaseSecureOperation.MetaTransaction memory) {
         // Create meta-transaction parameters using the parent contract's function
-        MultiPhaseSecureOperation.MetaTxParams memory metaTxParams = createMetaTxParams(
+        MultiPhaseSecureOperation.MetaTxParams memory params = createMetaTxParams(
             getBroadcaster(), // Use broadcaster address as handler instead of contract address
             this.approveWithdrawalWithMetaTx.selector,
             metaTxParams.deadline,
@@ -245,7 +245,7 @@ contract SimpleVault is SecureOwnable {
         );
 
         // Generate the unsigned meta-transaction using the parent contract's function
-        return generateUnsignedMetaTransactionForExisting(txId, metaTxParams);
+        return generateUnsignedMetaTransactionForExisting(txId, params);
     }
 
     /**
