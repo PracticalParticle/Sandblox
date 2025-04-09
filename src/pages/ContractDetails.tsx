@@ -368,33 +368,6 @@ export function ContractDetails() {
                       </Button>
                     </div>
                   </div>
-                  
-                  <div className="flex gap-2 w-full">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="w-full">
-                            <Button
-                              variant="default"
-                              className="w-full"
-                              disabled={!isConnected}
-                              onClick={() => {
-                                setShowCodeDialog(false);
-                                setTimeout(() => setShowDeployDialog(true), 100);
-                              }}
-                            >
-                              Deploy Contract
-                            </Button>
-                          </span>
-                        </TooltipTrigger>
-                        {!isConnected && (
-                          <TooltipContent>
-                            Connect wallet to deploy contract
-                          </TooltipContent>
-                        )}
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
                 </div>
               </div>
             </DialogContent>
