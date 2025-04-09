@@ -18,7 +18,6 @@ interface UseMetaTxActionsReturn {
   handleBroadcastMetaTx: (txId: string, type: 'mint' | 'burn') => Promise<void>;
   signedMetaTxStates: Record<string, { type: 'mint' | 'burn' }>;
   isLoading: boolean;
-  error: Error | null;
 }
 
 interface TransactionRecord {
@@ -38,10 +37,9 @@ export function useMetaTxActions(
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const chain = useChain();
-  const { transactions, storeTransaction, error: txManagerError } = useTransactionManager(contractAddress);
+  const { transactions, storeTransaction } = useTransactionManager(contractAddress);
   const [signedMetaTxStates, setSignedMetaTxStates] = useState<Record<string, { type: 'mint' | 'burn' }>>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
   const { operationTypes } = useOperationTypes(contractAddress);
 
   const signMetaTransaction = useCallback(async (
@@ -54,7 +52,6 @@ export function useMetaTxActions(
     }
 
     setIsLoading(true);
-    setError(null);
 
     try {
       // Create token instance
@@ -118,7 +115,6 @@ export function useMetaTxActions(
       });
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to sign meta transaction');
-      setError(error);
       onError?.({
         type: 'error',
         title: 'Signing Failed',
@@ -213,7 +209,6 @@ export function useMetaTxActions(
     handleMetaTxSign,
     handleBroadcastMetaTx,
     signedMetaTxStates,
-    isLoading,
-    error
+    isLoading
   };
 } 

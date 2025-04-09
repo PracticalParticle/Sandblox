@@ -1,9 +1,8 @@
 "use client";
 
-import * as React from "react";
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
-import { Address, formatUnits, parseUnits } from "viem";
+import { Address, formatUnits } from "viem";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,19 +14,13 @@ import SimpleRWA20 from "./SimpleRWA20";
 import { useChain } from "@/hooks/useChain";
 import { atom, useAtom } from "jotai";
 import { AlertCircle, Loader2, Coins, Shield, Info, Settings2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import { ContractInfo as BaseContractInfo } from "@/lib/verification/index";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Hex } from "viem";
 import { TransactionManagerProvider } from "@/contexts/TransactionManager";
-import { useOperationTypes } from "@/hooks/useOperationTypes";
 import { useMetaTxActions } from './hooks/useMetaTxActions';
-import { useActionPermissions } from '@/hooks/useActionPermissions';
 import { useRoleValidation } from "@/hooks/useRoleValidation";
 import { MintForm, BurnForm } from './components';
-import { useSimpleRWA20Operations } from './hooks/useSimpleRWA20Operations';
-import { TxRecord } from "../../particle-core/sdk/typescript/interfaces/lib.index";
 
 // Extend the base ContractInfo interface
 interface ContractInfo extends BaseContractInfo {
@@ -205,7 +198,6 @@ function SimpleRWA20UIContent({
   const publicClient = usePublicClient();
   const { data: walletClient } = _mock?.walletClient || useWalletClient();
   const chain = _mock?.chain || useChain();
-  const navigate = useNavigate();
 
   // State
   const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null);
@@ -220,18 +212,12 @@ function SimpleRWA20UIContent({
   // Refs
   const initialLoadDoneRef = useRef(false);
 
-  // Get operation types
-  const { getOperationName } = useOperationTypes(contractAddress as Address);
-
   // Create a ref to store the refresh function
   const refreshRef = useRef<() => Promise<void>>();
 
   // Get meta transaction actions with memoized refresh callback
   const {
-    handleMetaTxSign,
-    handleBroadcastMetaTx,
-    signedMetaTxStates,
-    isLoading: isMetaTxLoading
+    handleMetaTxSign
   } = useMetaTxActions(
     contractAddress as Address,
     addMessage,
