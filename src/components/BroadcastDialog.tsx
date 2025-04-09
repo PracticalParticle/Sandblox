@@ -150,6 +150,7 @@ export function BroadcastDialog({
               <TxInfoCard 
                 record={{
                   txId: BigInt(pendingTx.txId),
+                  message: '0x' as `0x${string}`,
                   // These are placeholders. The actual TxRecord would have more fields
                   // but we're using what we have in the pendingTx
                   releaseTime: BigInt(pendingTx.timestamp),
