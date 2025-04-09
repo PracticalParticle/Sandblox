@@ -29,7 +29,7 @@ export interface BloxContract extends BloxMetadata {
     sol: string
     abi: string
     component: string
-    bytecode: string
+    bytecode?: string
     docs: string
     factoryDialog?: string
   }

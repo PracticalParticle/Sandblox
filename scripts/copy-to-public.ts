@@ -15,7 +15,6 @@ interface CopyStats {
 const ALLOWED_EXTENSIONS = [
   '.sol',
   '.abi.json',
-  '.bin',
   '.blox.json',
   '.md',
   '.mdx',
