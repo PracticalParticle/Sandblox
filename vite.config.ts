@@ -63,13 +63,19 @@ export default defineConfig(({ mode }) => {
       "'self'",
       `https://${GANACHE_ENDPOINT}`,
       `https://*.${GANACHE_DOMAIN}`,
-      'https://*.drpc.org'  // Add DRPC
+      'https://*.drpc.org',  // Add DRPC
+      'https://ethereum-sepolia-rpc.publicnode.com',
+      'https://sepolia.era.zksync.dev',
+      'https://sepolia-rollup.arbitrum.io/rpc'
     ],
     'connect-src': [
       "'self'",
       // Add DRPC endpoints
       'https://*.drpc.org',
       'ws://*.drpc.org:*',
+      'https://ethereum-sepolia-rpc.publicnode.com',
+      'https://sepolia.era.zksync.dev',
+      'https://sepolia-rollup.arbitrum.io/rpc',
       // Ganache specific endpoints with full coverage
       `https://${GANACHE_ENDPOINT}`,
       `wss://${GANACHE_ENDPOINT}`,
