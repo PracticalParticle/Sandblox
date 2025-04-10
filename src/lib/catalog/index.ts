@@ -64,18 +64,6 @@ async function loadContractFiles(contractId: string): Promise<BloxContract['file
     throw new Error(`No folder found for contract ${contractId}`)
   }
 
-  // Determine which bytecode file to use based on environment
-  // If local node is enabled, use dev bytecode, otherwise use remote
-  const bytecodeFile = env.VITE_ENABLE_LOCAL_NODE ? 
-    `${folderName}.dev.bin` : 
-    `${folderName}.remote.bin`
-
-  console.log('Environment config:', {
-    isLocalNode: env.VITE_ENABLE_LOCAL_NODE,
-    isRemoteNode: env.VITE_ENABLE_REMOTE_NODE,
-    selectedBytecode: bytecodeFile
-  })
-
   // Check if factory dialog exists
   const factoryDialogPath = `/src/blox/${folderName}/factory/${folderName}Factory.dialog.tsx`
   const hasFactoryDialog = Object.keys(import.meta.glob('/src/blox/**/factory/*.dialog.tsx', { eager: true }))
@@ -88,7 +76,6 @@ async function loadContractFiles(contractId: string): Promise<BloxContract['file
       sol: `/src/blox/${folderName}/${folderName}.sol`,
       abi: `/src/blox/${folderName}/${folderName}.abi.json`,
       component: `/src/blox/${folderName}/${folderName}.tsx`,
-      bytecode: `/src/blox/${folderName}/${bytecodeFile}`,
       docs: `/src/blox/${folderName}/${folderName}.md`,
       ...(hasFactoryDialog && { factoryDialog: factoryDialogPath })
     }
@@ -100,7 +87,6 @@ async function loadContractFiles(contractId: string): Promise<BloxContract['file
     sol: `/blox/${folderName}/${folderName}.sol`,
     abi: `/blox/${folderName}/${folderName}.abi.json`,
     component: `/src/blox/${folderName}/${folderName}.tsx`, // Component still from src
-    bytecode: `/blox/${folderName}/${bytecodeFile}`,
     docs: `/blox/${folderName}/${folderName}.md`,
     ...(hasFactoryDialog && { factoryDialog: factoryDialogPath })
   }
@@ -182,35 +168,4 @@ export async function getContractABI(contractId: string): Promise<any> {
   }
   
   return response.json()
-}
-
-export async function getContractBytecode(contractId: string): Promise<string> {
-  const contract = await getContractDetails(contractId)
-  if (!contract) {
-    throw new Error('Contract not found')
-  }
-  
-  console.log('Environment:', {
-    isRemote: env.VITE_ENABLE_REMOTE_NODE,
-    bytecodeFile: contract.files.bytecode
-  })
-  
-  const response = await fetch(contract.files.bytecode)
-  if (!response.ok) {
-    console.error('Bytecode loading error:', {
-      status: response.status,
-      statusText: response.statusText,
-      file: contract.files.bytecode
-    })
-    throw new Error(`Failed to load contract bytecode: ${response.statusText}`)
-  }
-  
-  const bytecode = await response.text()
-  console.log('Loaded bytecode:', {
-    length: bytecode.length,
-    hasPrefix: bytecode.startsWith('0x'),
-    start: bytecode.slice(0, 64)
-  })
-  
-  return bytecode.startsWith('0x') ? bytecode : `0x${bytecode}`
 }

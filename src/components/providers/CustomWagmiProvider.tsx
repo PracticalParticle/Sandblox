@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import { WagmiProvider, http } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RainbowKitProvider, getDefaultConfig, lightTheme, darkTheme } from '@rainbow-me/rainbowkit';
+import { metaMaskWallet, walletConnectWallet } from '@rainbow-me/rainbowkit/wallets';
 // import { sepolia, bscTestnet, zkSyncSepoliaTestnet, polygonAmoy, baseSepolia, arbitrumSepolia, optimismSepolia } from 'wagmi/chains';
 import { devnet, sepolia, arbitrumSepolia, zksyncSepoliaTestnet } from '@/config/chains';
 import { Transport } from 'wagmi';
@@ -25,11 +26,20 @@ const availableChains = [devnet, sepolia, arbitrumSepolia, zksyncSepoliaTestnet]
 const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID || '';
 
 const wagmiConfig = getDefaultConfig({
-  appName: import.meta.env.VITE_APP_NAME || 'SandBlox',
+  appName: 'SandBlox',
   projectId,
   chains: availableChains,
   transports,
   ssr: false, // Disable SSR
+  wallets: [
+    {
+      groupName: 'Recommended',
+      wallets: [
+        metaMaskWallet,
+        ...(projectId ? [walletConnectWallet] : []),
+      ]
+    }
+  ]
 });
 
 interface CustomWagmiProviderProps {
@@ -44,7 +54,7 @@ export function CustomWagmiProvider({ children }: CustomWagmiProviderProps) {
           modalSize="compact"
          // showRecentTransactions={true}
           appInfo={{
-            appName: import.meta.env.VITE_APP_NAME || 'SandBlox',
+            appName: 'SandBlox',
             learnMoreUrl: 'https://sandblox.app/',
           }}
           theme={{
