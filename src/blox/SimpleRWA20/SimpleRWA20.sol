@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.2;
 
 // OpenZeppelin imports
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -256,11 +256,11 @@ contract SimpleRWA20 is ERC20, ERC20Burnable, GuardianAccountAbstraction {
      * This includes minting and burning.
      * Overrides functionality from ERC20, ERC20Pausable, and ERC20Burnable.
      */
-    function _beforeTokenTransfer(
+    function _update(
         address from,
         address to,
         uint256 amount
-    ) internal virtual override(ERC20) {
-        super._beforeTokenTransfer(from, to, amount);
+    ) internal virtual override {
+        super._update(from, to, amount);
     }
 }
