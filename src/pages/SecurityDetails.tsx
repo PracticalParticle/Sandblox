@@ -23,7 +23,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle, CardContent } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useSecureContract } from '@/hooks/useSecureContract'
+import { useSecureOwnable } from '@/hooks/useSecureOwnable'
 import { useToast } from '../components/ui/use-toast'
 import { SecureContractInfo } from '@/lib/types'
 import { isValidEthereumAddress, generateNewSecureOwnableManager } from '@/lib/utils'
@@ -115,7 +115,7 @@ export function SecurityDetails() {
   const { transactions = {}, storeTransaction, clearTransactions, removeTransaction } = useTransactionManager(contractAddress || '')
   const [signedTransactions, setSignedTransactions] = useState<ExtendedSignedTransaction[]>([])
   const [contractInfo, setContractInfo] = useState<SecureContractInfo | null>(null)
-  const { validateAndLoadContract, updateBroadcaster, approveOperation } = useSecureContract()
+  const { validateAndLoadContract, updateBroadcaster, approveOperation } = useSecureOwnable()
   const { toast } = useToast()
   const { openConnectModal } = useConnectModal()
   const publicClient = usePublicClient()

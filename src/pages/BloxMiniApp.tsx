@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, ArrowLeft, Shield, ChevronUp, ChevronDown } from 'lucide-react';
-import { useSecureContract } from '@/hooks/useSecureContract';
+import { useSecureOwnable } from '@/hooks/useSecureOwnable';
 import type { SecureContractInfo } from '@/lib/types';
 import { Button } from "@/components/ui/button";
 import { getContractDetails } from '@/lib/catalog';
@@ -72,7 +72,7 @@ const BloxMiniApp: React.FC = () => {
   const [contractInfo, setContractInfo] = useState<SecureContractInfo | undefined>(undefined);
   const [bloxContract, setBloxContract] = useState<BloxContract>();
   const [uiInitialized, setUiInitialized] = useState(false);
-  const { validateAndLoadContract, approveOperation, cancelOperation } = useSecureContract();
+  const { validateAndLoadContract, approveOperation, cancelOperation } = useSecureOwnable();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const config = useConfig()
   const chainId = useChainId()

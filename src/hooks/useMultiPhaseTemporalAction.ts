@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react"
 import { useToast } from "@/components/ui/use-toast"
 import { useTransactionManager } from '@/hooks/useTransactionManager'
-import { useSecureContract } from "./useSecureContract"
+import { useSecureOwnable } from "./useSecureOwnable"
 // import { broadcastMetaTransaction } from "@/utils/metaTransaction"
 import { TxRecord } from "../particle-core/sdk/typescript/interfaces/lib.index"
 import { Address } from "viem"
@@ -49,7 +49,7 @@ export function useMultiPhaseTemporalAction({
   const [isApproving, setIsApproving] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [isSigning, setIsSigning] = useState(false)
-  const { signBroadcasterUpdateApproval, signTransferOwnershipApproval, signBroadcasterUpdateCancellation, signTransferOwnershipCancellation } = useSecureContract()
+  const { signBroadcasterUpdateApproval, signTransferOwnershipApproval, signBroadcasterUpdateCancellation, signTransferOwnershipCancellation } = useSecureOwnable()
   const { storeTransaction } = useTransactionManager(pendingTx?.contractAddress || '')
   const { toast } = useToast()
   const publicClient = usePublicClient()

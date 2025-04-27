@@ -3,7 +3,7 @@ import { Button } from './ui/button'
 import { Download, ArrowRight, Loader2 } from 'lucide-react'
 import { ImportContractDialog } from './ImportContractDialog'
 import { useToast } from './ui/use-toast'
-import { useSecureContract } from '@/hooks/useSecureContract'
+import { useSecureOwnable } from '@/hooks/useSecureOwnable'
 import { Address } from 'viem'
 import type { SecureContractInfo } from '@/lib/types'
 
@@ -25,7 +25,7 @@ export function ImportContract({
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [loadingContracts, setLoadingContracts] = useState(false)
   const { toast } = useToast()
-  const { validateAndLoadContract } = useSecureContract()
+  const { validateAndLoadContract } = useSecureOwnable()
 
   const handleImportContract = useCallback(async (address: string): Promise<void> => {
     setShowImportDialog(false)

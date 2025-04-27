@@ -4,7 +4,7 @@ import { SecureContractInfo } from '../lib/types'
 import { CONTRACT_ERRORS } from '@/constants/contract'
 import { generateNewSecureOwnableManager } from '@/lib/utils'
 
-export function useSecureContract() {
+export function useSecureOwnable() {
   const publicClient = usePublicClient()
   const { data: walletClient } = useWalletClient()
   const chainId = useChainId()
