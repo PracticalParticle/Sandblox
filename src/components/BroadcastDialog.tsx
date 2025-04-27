@@ -100,9 +100,7 @@ export function BroadcastDialog({
       case 'OWNERSHIP_TRANSFER': return 'Ownership Transfer'
       case 'BROADCASTER_UPDATE': return 'Broadcaster Update'
       case 'RECOVERY_UPDATE': return 'Recovery Update'
-      case 'RECOVERY_ADDRESS_UPDATE': return 'Recovery Address Update'
-      case 'TIMELOCK_UPDATE': return 'Time Lock Update'
-      case 'WITHDRAWAL_APPROVAL': return 'Withdrawal Approval'
+      case 'TIMELOCK_UPDATE': return 'TimeLock Update'
       default: return txType
     }
   }

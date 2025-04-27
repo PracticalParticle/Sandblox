@@ -117,7 +117,7 @@ export function SecurityDetails() {
   const { transactions = {}, storeTransaction, clearTransactions, removeTransaction } = useTransactionManager(contractAddress || '')
   const [signedTransactions, setSignedTransactions] = useState<ExtendedSignedTransaction[]>([])
   const [contractInfo, setContractInfo] = useState<SecureContractInfo | null>(null)
-  const { validateAndLoadContract, updateBroadcaster, approveOperation } = useSecureOwnable()
+  const { validateAndLoadContract } = useSecureOwnable()
   const { toast } = useToast()
   const { openConnectModal } = useConnectModal()
   const publicClient = usePublicClient()

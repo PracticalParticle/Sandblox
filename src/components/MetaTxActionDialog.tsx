@@ -8,9 +8,12 @@ import { Loader2, Radio, Network } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
 import { formatAddress } from "@/lib/utils"
-import { useSinglePhaseMetaTxAction } from "@/hooks/useSinglePhaseMetaTxAction"
 import { TxInfoCard } from "./TxInfoCard"
 import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index'
+import { useState, useEffect, FormEvent } from "react"
+import { useWorkflowManager } from "@/hooks/useWorkflowManager"
+import { CoreOperationType, OperationPhase } from "../types/OperationRegistry"
+import { Address } from "viem"
 
 interface MetaTxActionDialogProps {
   isOpen: boolean
@@ -22,6 +25,7 @@ interface MetaTxActionDialogProps {
     chainName: string
     broadcaster: string
     owner: string
+    contractAddress: string
     [key: string]: any
   }
   actionType: string
@@ -53,7 +57,7 @@ export function MetaTxActionDialog({
   currentValue,
   currentValueLabel,
   actionLabel,
-  isLoading = false,
+  isLoading: externalIsLoading = false,
   onSubmit,
   requiredRole,
   connectedAddress,
@@ -62,24 +66,111 @@ export function MetaTxActionDialog({
   newValueLabel,
   newValuePlaceholder,
   validateNewValue,
-  isSigning = false,
+  isSigning: externalIsSigning = false,
   customInput,
   transactionRecord,
   operationName
 }: MetaTxActionDialogProps) {
+  // Use the WorkflowManager hook with enhanced role validation
   const {
-    validationResult,
-    handleSubmit,
-    isConnectedWalletValid: checkWalletValidity
-  } = useSinglePhaseMetaTxAction({
-    isOpen,
-    onSubmit,
-    onNewValueChange,
-    newValue,
-    validateNewValue,
-  })
+    isLoading: workflowIsLoading,
+    signSinglePhaseOperation,
+    canExecutePhase,
+    isOwner,
+    isBroadcaster,
+    isRecovery
+  } = useWorkflowManager(contractInfo.contractAddress as `0x${string}`)
 
-  const isConnectedWalletValid = checkWalletValidity(connectedAddress, requiredRole, contractInfo)
+  // Local state
+  const [isSigning, setIsSigning] = useState(false)
+  
+  // Reset state when dialog opens/closes
+  useEffect(() => {
+    if (!isOpen) {
+      setIsSigning(false)
+    }
+  }, [isOpen])
+
+  // Map the actionType to a core operation type
+  const getOperationType = () => {
+    switch (actionType) {
+      case 'timelock':
+        return CoreOperationType.TIMELOCK_UPDATE
+      case 'recovery':
+        return CoreOperationType.RECOVERY_UPDATE
+      case 'ownership':
+        return CoreOperationType.OWNERSHIP_TRANSFER
+      case 'broadcaster':
+        return CoreOperationType.BROADCASTER_UPDATE
+      default:
+        return actionType // Custom operation type
+    }
+  }
+
+  // Check if wallet is valid based on required role directly using role validation results
+  const isWalletValidForRole = () => {
+    switch (requiredRole) {
+      case 'owner':
+        return isOwner
+      case 'broadcaster':
+        return isBroadcaster
+      case 'recovery':
+        return isRecovery
+      case 'owner_or_recovery':
+        return isOwner || isRecovery
+      default:
+        // If the requiredRole doesn't match our known roles, fall back to phase checking
+        return canExecutePhase(
+          getOperationType(), 
+          OperationPhase.REQUEST, 
+          connectedAddress as Address
+        )
+    }
+  }
+
+  // Combine direct role check with canExecutePhase check for maximum reliability
+  const isWalletValidForRequest = isWalletValidForRole()
+
+  // Validate the new value
+  const validationResult = validateNewValue ? validateNewValue(newValue) : { isValid: true }
+
+  // Handle form submission
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    
+    try {
+      setIsSigning(true)
+      const operationType = getOperationType()
+      
+      // Prepare parameters based on operation type
+      let params: any = {}
+      
+      if (operationType === CoreOperationType.RECOVERY_UPDATE) {
+        params = { newRecoveryAddress: newValue as Address }
+      } else if (operationType === CoreOperationType.TIMELOCK_UPDATE) {
+        params = { newTimeLockPeriodInMinutes: BigInt(newValue) }
+      } else {
+        // For custom operations
+        params = { newValue }
+      }
+      
+      // Call the workflow manager to sign the operation
+      await signSinglePhaseOperation(operationType, params)
+      
+      // Call the parent callback if provided
+      if (onSubmit) {
+        await onSubmit(newValue)
+      }
+    } catch (error) {
+      // Error handling is done in the hook
+      console.error("Submit error:", error)
+    } finally {
+      setIsSigning(false)
+    }
+  }
+
+  // Combined loading state
+  const isLoadingState = externalIsLoading || workflowIsLoading || isSigning || externalIsSigning
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -145,7 +236,7 @@ export function MetaTxActionDialog({
                         value={newValue}
                         onChange={(e) => onNewValueChange(e.target.value)}
                         placeholder={newValuePlaceholder}
-                        disabled={isLoading || isSigning}
+                        disabled={isLoadingState}
                         className={`w-full ${!validationResult.isValid && newValue ? "border-destructive" : ""}`}
                       />
                     )}
@@ -161,7 +252,7 @@ export function MetaTxActionDialog({
                     <span className="text-muted-foreground">{formatAddress(contractInfo.broadcaster)}</span>
                   </div>
 
-                  {!isConnectedWalletValid && (
+                  {!isWalletValidForRequest && (
                     <Alert variant="destructive">
                       <AlertDescription>
                         Please connect the {requiredRole} wallet to proceed
@@ -172,10 +263,10 @@ export function MetaTxActionDialog({
                   <div className="w-full">
                     <Button 
                       type="submit"
-                      disabled={!newValue || !validationResult.isValid || !isConnectedWalletValid || isLoading || isSigning}
+                      disabled={!newValue || !validationResult.isValid || !isWalletValidForRequest || isLoadingState}
                       className="w-full"
                     >
-                      {isSigning ? (
+                      {isLoadingState ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           Signing...
