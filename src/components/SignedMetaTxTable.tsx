@@ -24,7 +24,7 @@ export interface ExtendedSignedTransaction {
   metadata?: {
     type: 'TIMELOCK_UPDATE' | 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'WITHDRAWAL_APPROVAL'
     purpose?: 'address_update' | 'ownership_transfer'
-    action?: 'approve' | 'cancel'
+    action?: 'approve' | 'cancel' | 'requestAndApprove'
     broadcasted: boolean
     operationType?: `0x${string}`
     status?: 'COMPLETED' | 'PENDING'
@@ -73,15 +73,15 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
     if (tx.metadata?.type) {
       switch (tx.metadata.type) {
         case 'RECOVERY_UPDATE':
-          return tx.metadata.purpose === 'address_update' ? 'RECOVERY_UPDATE' : 'OWNERSHIP_TRANSFER'
+          return tx.metadata.purpose === 'address_update' ? 'Recovery Address Update' : 'Ownership Transfer'
         case 'TIMELOCK_UPDATE':
-          return 'TIMELOCK_UPDATE'
+          return 'TimeLock Update'
         case 'OWNERSHIP_TRANSFER':
-          return 'OWNERSHIP_TRANSFER'
+          return 'Ownership Transfer'
         case 'BROADCASTER_UPDATE':
-          return 'BROADCASTER_UPDATE'
+          return 'Broadcaster Update'
         case 'WITHDRAWAL_APPROVAL':
-          return 'WITHDRAWAL_APPROVAL'
+          return 'Withdrawal Approval'
         default:
           // If it's not a known static type, it might be a dynamic type name
           return tx.metadata.type
@@ -110,6 +110,7 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
   }
 
   const handleRowClick = (tx: ExtendedSignedTransaction) => {
+    // Special handling for different operation types
     const isWithdrawal = isWithdrawalOperation(tx);
     
     // For withdrawal operations, navigate to the blox page
@@ -118,6 +119,16 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
       return;
     }
 
+    // For single-phase operations, ensure action is recognized correctly
+    if (tx.metadata?.type === 'TIMELOCK_UPDATE' || 
+        (tx.metadata?.type === 'RECOVERY_UPDATE' && tx.metadata?.purpose === 'address_update')) {
+      // Make sure it has the correct action for broadcasting
+      if (tx.metadata.action !== 'requestAndApprove') {
+        console.warn('Single-phase operation has incorrect action type:', tx.metadata.action);
+        // Could potentially auto-correct the action here if needed
+      }
+    }
+    
     // For other transactions, use the provided onClick handler
     if (!tx.metadata?.broadcasted && onTxClick) {
       onTxClick(tx);
@@ -193,8 +204,15 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={tx.metadata?.action === 'approve' ? 'default' : 'destructive'} className="capitalize">
-                      {tx.metadata?.action || 'Unknown'}
+                    <Badge 
+                      variant={
+                        tx.metadata?.action === 'approve' ? 'default' : 
+                        tx.metadata?.action === 'requestAndApprove' ? 'secondary' :
+                        'destructive'
+                      } 
+                      className={`capitalize ${tx.metadata?.action === 'requestAndApprove' ? 'bg-green-500/10 text-green-500 hover:bg-green-500/20' : ''}`}
+                    >
+                      {tx.metadata?.action === 'requestAndApprove' ? 'Execute' : tx.metadata?.action || 'Unknown'}
                     </Badge>
                   </TableCell>
                   <TableCell>{formatTimestamp(tx.timestamp / 1000)}</TableCell>

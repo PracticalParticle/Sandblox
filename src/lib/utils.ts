@@ -4,6 +4,7 @@ import { Address, Chain as ViemChain , PublicClient, WalletClient } from 'viem'
 import { devnet } from '@/config/chains'
 import { mainnet, sepolia } from 'wagmi/chains'
 import { SecureOwnableManager } from "./SecureOwnableManager"
+import { WorkflowManager } from "./WorkflowManager"
 
 /// <reference types="node" />
 
@@ -183,6 +184,28 @@ export async function generateNewSecureOwnableManager(
   await manager.init();
   return manager;
 }
+
+/**
+ * Creates and initializes a new WorkflowManager instance
+ * @param publicClient The Viem PublicClient instance
+ * @param walletClient The Viem WalletClient instance
+ * @param address The contract address
+ * @param chain The chain object
+ * @param storeTransaction Optional function to store transactions
+ * @returns Initialized WorkflowManager instance
+ */
+export async function generateNewWorkflowManager(
+  publicClient: PublicClient,
+  walletClient: WalletClient | undefined,
+  address: Address,
+  chain: ViemChain,
+  storeTransaction?: (txId: string, signedData: string, metadata?: Record<string, unknown>) => void
+): Promise<WorkflowManager> {
+  const manager = new WorkflowManager(publicClient, walletClient, address, chain, storeTransaction);
+  await manager.initialize();
+  return manager;
+}
+
 /**
  * Format a Unix timestamp into a human-readable date string
  * @param timestamp Unix timestamp in seconds

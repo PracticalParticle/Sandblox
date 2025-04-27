@@ -26,7 +26,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useSecureOwnable } from '@/hooks/useSecureOwnable'
 import { useToast } from '../components/ui/use-toast'
 import { SecureContractInfo } from '@/lib/types'
-import { isValidEthereumAddress, generateNewSecureOwnableManager } from '@/lib/utils'
+import { isValidEthereumAddress, generateNewWorkflowManager, convertBigIntsToStrings } from '@/lib/utils'
 import {
   Tooltip,
   TooltipContent,
@@ -55,6 +55,8 @@ import { ExtendedSignedTransaction } from '@/components/SignedMetaTxTable'
 import { TransactionManager } from '@/services/TransactionManager'
 import { Hex } from 'viem'
 import { useOperationTypes } from '@/hooks/useOperationTypes'
+import { WorkflowManager } from '@/lib/WorkflowManager'
+import { CoreOperationType } from '@/types/OperationRegistry'
 
 const container = {
   hidden: { opacity: 0 },
@@ -274,10 +276,11 @@ export function SecurityDetails() {
         throw new Error('Chain not found');
       }
 
-      const manager = await generateNewSecureOwnableManager(
+      // Create and initialize the WorkflowManager
+      const workflowManager = await generateNewWorkflowManager(
         publicClient,
         walletClient,
-        contractInfo.address,
+        contractInfo.address as `0x${string}`,
         chain,
         // Add purpose field to distinguish from recovery address update
         (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
@@ -288,9 +291,13 @@ export function SecurityDetails() {
           broadcasted: false 
         })
       );
-      const tx = await manager.transferOwnership({
-        from: connectedAddress as `0x${string}`
-      });
+      
+      // Request the ownership transfer operation
+      const tx = await workflowManager.requestOperation(
+        CoreOperationType.OWNERSHIP_TRANSFER,
+        {}, // No additional parameters needed for ownership transfer
+        { from: connectedAddress as `0x${string}` }
+      );
 
       await publicClient.waitForTransactionReceipt({ hash: tx });
 
@@ -331,8 +338,8 @@ export function SecurityDetails() {
         throw new Error('Chain not found');
       }
 
-      // Create manager instance with transaction storage
-      const manager = await generateNewSecureOwnableManager(
+      // Create and initialize the WorkflowManager
+      const workflowManager = await generateNewWorkflowManager(
         publicClient,
         walletClient,
         contractAddress as `0x${string}`,
@@ -340,12 +347,19 @@ export function SecurityDetails() {
         storeTransaction
       );
 
-      const result = await manager.approveOwnershipTransfer(
+      // Approve the ownership transfer operation
+      const result = await workflowManager.approveOperation(
+        CoreOperationType.OWNERSHIP_TRANSFER,
         BigInt(txId),
         { from: connectedAddress as `0x${string}` }
       );
+      
       await publicClient.waitForTransactionReceipt({ hash: result });
 
+      toast({
+        title: "Success",
+        description: "Ownership transfer approved successfully",
+      });
 
       await loadContractInfo();
     } catch (error) {
@@ -374,53 +388,32 @@ export function SecurityDetails() {
         throw new Error('Chain not found');
       }
 
-      // Create contract instance
-      const contract = new SecureOwnable(
+      // Create and initialize the WorkflowManager
+      const workflowManager = await generateNewWorkflowManager(
         publicClient,
         walletClient,
         contractAddress as `0x${string}`,
-        chain
-      );
-      if(contractInfo.recoveryAddress.toLowerCase() === connectedAddress.toLowerCase()) {
-        const result = await contract.transferOwnershipCancellation(
-          BigInt(txId),
-          { from: connectedAddress as `0x${string}` }
-        );
-        await result.wait();
-        toast({
-        title: "Cancellation submitted",
-        description: "Transfer ownership cancellation has been submitted.",
-        });
-        await loadContractInfo();
-        return;
-      }
-      // Generate meta transaction parameters for cancellation
-      const metaTxParams = await contract.createMetaTxParams(
-        contractAddress as `0x${string}`,
-        FUNCTION_SELECTORS.TRANSFER_OWNERSHIP_CANCEL_META as `0x${string}`,
-        BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
-        BigInt(0), // No max gas price
-        connectedAddress as `0x${string}`
+        chain,
+        storeTransaction
       );
 
-      // Generate unsigned meta transaction for cancellation
-      const unsignedMetaTx = await contract.generateUnsignedMetaTransactionForExisting(
+      // Check if the connected wallet is the recovery address
+      const isRecovery = contractInfo.recoveryAddress.toLowerCase() === connectedAddress.toLowerCase();
+      
+      // Execute the appropriate cancellation based on role
+      const hash = await workflowManager.cancelOperation(
+        CoreOperationType.OWNERSHIP_TRANSFER,
         BigInt(txId),
-        metaTxParams
-      );
-
-      // Execute the cancellation
-      const result = await contract.transferOwnershipCancellationWithMetaTx(
-        unsignedMetaTx,
         { from: connectedAddress as `0x${string}` }
       );
-
-      await result.wait();
+      
+      await publicClient.waitForTransactionReceipt({ hash });
 
       toast({
-        title: "Cancellation submitted",
-        description: "Transfer ownership cancellation has been submitted.",
+        title: "Success",
+        description: "Ownership transfer cancelled successfully",
       });
+
       await loadContractInfo();
     } catch (error) {
       console.error('Error in ownership transfer cancellation:', error);
@@ -434,13 +427,43 @@ export function SecurityDetails() {
 
   const handleUpdateBroadcasterRequest = async (newBroadcaster: string) => {
     try {
-      await updateBroadcaster(contractAddress as `0x${string}`, newBroadcaster as `0x${string}`);
+      if (!contractInfo || !connectedAddress || !contractAddress || !publicClient || !walletClient) {
+        toast({
+          title: "Error",
+          description: "Missing required information",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const chain = config.chains.find((c) => c.id === contractInfo.chainId);
+      if (!chain) {
+        throw new Error('Chain not found');
+      }
+
+      // Create and initialize the WorkflowManager
+      const workflowManager = await generateNewWorkflowManager(
+        publicClient,
+        walletClient,
+        contractAddress as `0x${string}`,
+        chain,
+        storeTransaction
+      );
+
+      // Request the broadcaster update operation
+      const hash = await workflowManager.requestOperation(
+        CoreOperationType.BROADCASTER_UPDATE,
+        { newBroadcaster: newBroadcaster as `0x${string}` },
+        { from: connectedAddress as `0x${string}` }
+      );
       
+      await publicClient.waitForTransactionReceipt({ hash });
+
       toast({
         title: "Request submitted",
         description: "Broadcaster update request has been submitted.",
       });
-
+      
       // Add a small delay before reloading contract info to allow transaction to be mined
       setTimeout(async () => {
         await loadContractInfo();
@@ -472,18 +495,13 @@ export function SecurityDetails() {
         throw new Error('Chain not found');
       }
 
-      // Create contract instance to get operation types
-      const contract = new SecureOwnable(
+      // Create and initialize the WorkflowManager
+      const workflowManager = await generateNewWorkflowManager(
         publicClient,
         walletClient,
         contractAddress as `0x${string}`,
-        chain
-      );
-
-      // Get supported operation types
-      const supportedTypes = await contract.getSupportedOperationTypes();
-      const typeMap = new Map(
-        supportedTypes.map(({ operationType, name }) => [operationType, name])
+        chain,
+        storeTransaction
       );
 
       // Find the transaction in operation history
@@ -492,19 +510,30 @@ export function SecurityDetails() {
         throw new Error('Transaction not found');
       }
 
-      // Get operation name and determine type
-      const operationName = typeMap.get(tx.params.operationType);
-      let operationType: 'ownership' | 'broadcaster';
+      // Map the operation type hash to the correct CoreOperationType
+      let operationType: CoreOperationType;
+      const operationName = getOperationName(tx.params.operationType);
       
-      if (operationName?.includes('OWNERSHIP')) {
-        operationType = 'ownership';
-      } else if (operationName?.includes('BROADCASTER')) {
-        operationType = 'broadcaster';
+      if (operationName.includes('OWNERSHIP')) {
+        operationType = CoreOperationType.OWNERSHIP_TRANSFER;
+      } else if (operationName.includes('BROADCASTER')) {
+        operationType = CoreOperationType.BROADCASTER_UPDATE;
+      } else if (operationName.includes('RECOVERY')) {
+        operationType = CoreOperationType.RECOVERY_UPDATE;
+      } else if (operationName.includes('TIMELOCK')) {
+        operationType = CoreOperationType.TIMELOCK_UPDATE;
       } else {
-        throw new Error('Unsupported operation type');
+        throw new Error(`Unsupported operation type: ${operationName}`);
       }
 
-      await approveOperation(contractAddress as `0x${string}`, txId, operationType);
+      // Approve the operation
+      const hash = await workflowManager.approveOperation(
+        operationType,
+        BigInt(txId),
+        { from: connectedAddress as `0x${string}` }
+      );
+      
+      await publicClient.waitForTransactionReceipt({ hash });
       
       toast({
         title: "Success",
@@ -539,8 +568,9 @@ export function SecurityDetails() {
       }
 
       setIsSigningTx(true);
-      // Create manager instance with transaction storage
-      const manager = await generateNewSecureOwnableManager(
+      
+      // Create and initialize the WorkflowManager
+      const workflowManager = await generateNewWorkflowManager(
         publicClient,
         walletClient,
         contractAddress as `0x${string}`,
@@ -550,14 +580,16 @@ export function SecurityDetails() {
           ...metadata, 
           type: 'RECOVERY_UPDATE',
           purpose: 'address_update',
-          action: 'approve',
+          action: 'requestAndApprove', // Use the correct action for single-phase operations
           broadcasted: false 
         })
       );
 
       // Prepare and sign the recovery update transaction
-      await manager.prepareAndSignRecoveryUpdate(
-        newRecoveryAddress as `0x${string}`,
+      // Use the correct parameter name to match the operation's getExecutionOptions method
+      await workflowManager.prepareAndSignSinglePhaseOperation(
+        CoreOperationType.RECOVERY_UPDATE,
+        { newRecoveryAddress: newRecoveryAddress as `0x${string}` },
         { from: connectedAddress as `0x${string}` }
       );
 
@@ -602,8 +634,16 @@ export function SecurityDetails() {
 
       setIsSigningTx(true);
       
-      // Create manager instance with transaction storage
-      const manager = await generateNewSecureOwnableManager(
+      // Create parameter object with BigInt value
+      const params = { 
+        newTimeLockPeriodInMinutes: BigInt(periodInMinutes) 
+      };
+      
+      // Convert BigInt values to strings for metadata
+      const metadataParams = convertBigIntsToStrings(params);
+      
+      // Create and initialize the WorkflowManager
+      const workflowManager = await generateNewWorkflowManager(
         publicClient,
         walletClient,
         contractAddress as `0x${string}`,
@@ -612,14 +652,18 @@ export function SecurityDetails() {
           ...metadata, 
           type: 'TIMELOCK_UPDATE', 
           purpose: 'timelock_period',
-          action: 'approve',
-          broadcasted: false 
+          action: 'requestAndApprove', // Use the correct action for single-phase operations
+          broadcasted: false,
+          // Include converted params for serialization
+          newTimeLockPeriodInMinutes: metadataParams.newTimeLockPeriodInMinutes
         })
       );
 
-      // Prepare and sign the timelock update transaction with BigInt conversion
-      await manager.prepareAndSignTimeLockUpdate(
-        BigInt(periodInMinutes),
+      // Prepare and sign the timelock update transaction
+      // Pass the original params with BigInt to the operation
+      await workflowManager.prepareAndSignSinglePhaseOperation(
+        CoreOperationType.TIMELOCK_UPDATE,
+        params,
         { from: connectedAddress as `0x${string}` }
       );
 
@@ -746,7 +790,7 @@ export function SecurityDetails() {
   };
 
   // Update handleBroadcast function to handle both types
-  const handleBroadcast = async (type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'RECOVERY_ADDRESS_UPDATE' | 'TIMELOCK_UPDATE' | 'WITHDRAWAL_APPROVAL') => {
+  const handleBroadcast = async (type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE') => {
     try {
       // Use the activeBroadcastTx that was set in prepareBroadcastDialog
       const pendingTx = activeBroadcastTx;
@@ -755,28 +799,17 @@ export function SecurityDetails() {
         throw new Error('No pending transaction found');
       }
 
-      if (!walletClient || !connectedAddress) {
-        throw new Error('Wallet not connected');
+      if (!walletClient || !connectedAddress || !contractInfo || !contractAddress || !publicClient) {
+        throw new Error('Wallet not connected or missing required information');
       }
       console.log('Broadcasting transaction:', pendingTx);
       console.log('Transaction type:', type);
       console.log('pendingTx metadata:', pendingTx.metadata);
       
-      // Extract the action type from metadata
-      const action = pendingTx.metadata?.action as 'approve' | 'cancel';
+      // Extract the action type from metadata or determine based on operation type
+      let action: 'approve' | 'cancel' | 'requestAndApprove';
       
-      if (!action) {
-        throw new Error('Action type not found in transaction metadata');
-      }
 
-      // Special handling for WITHDRAWAL_APPROVAL
-      if (type === 'WITHDRAWAL_APPROVAL') {
-        // For withdrawal approvals, just redirect to blox page
-        if (contractAddress) {
-          navigate(`/blox/${contractAddress}`);
-          return;
-        }
-      }
       
       // Parse the signed transaction data
       const signedData = JSON.parse(pendingTx.signedData, (_key: string, value: any): any => {
@@ -784,17 +817,15 @@ export function SecurityDetails() {
           return BigInt(value.slice(0, -1));
         }
         return value;
-      }) as MetaTransaction;
+      });
 
-      if (!publicClient) {
-        throw new Error('Public client not found');
-      }
       const chain = config.chains.find((c) => c.id === contractInfo?.chainId);
       if (!chain) {
         throw new Error('Chain not found');
       }
-      // Create manager instance with transaction storage
-      const manager = await generateNewSecureOwnableManager(
+      
+      // Create and initialize the WorkflowManager
+      const workflowManager = await generateNewWorkflowManager(
         publicClient,
         walletClient,
         contractAddress as `0x${string}`,
@@ -802,37 +833,42 @@ export function SecurityDetails() {
         storeTransaction
       );
 
-      // Determine the correct type to use for the contract interaction
-      // Handle special cases like RECOVERY_UPDATE with purpose=ownership_transfer
-      let contractType: 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE' | 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' = 
-        type === 'RECOVERY_ADDRESS_UPDATE' ? 'RECOVERY_UPDATE' : 
-        (type as 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE' | 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE');
+      // Map the transaction type to CoreOperationType
+      let operationType: CoreOperationType;
       
-      if (pendingTx.metadata?.type === 'RECOVERY_UPDATE' && pendingTx.metadata?.purpose === 'ownership_transfer') {
-        contractType = 'OWNERSHIP_TRANSFER';
-      } else if (pendingTx.metadata?.type) {
-        // Use the type from metadata if available, as it's what was used to sign the transaction
-        // Only use it if it's one of the valid contract types
-        const metadataType = pendingTx.metadata.type;
-        if (
-          metadataType === 'RECOVERY_UPDATE' || 
-          metadataType === 'TIMELOCK_UPDATE' || 
-          metadataType === 'OWNERSHIP_TRANSFER' || 
-          metadataType === 'BROADCASTER_UPDATE'
-        ) {
-          contractType = metadataType;
-        }
+      // Determine the correct CoreOperationType based on the transaction type
+      if (type === 'OWNERSHIP_TRANSFER' || 
+          (pendingTx.metadata?.type === 'RECOVERY_UPDATE' && pendingTx.metadata?.purpose === 'ownership_transfer')) {
+        operationType = CoreOperationType.OWNERSHIP_TRANSFER;
+        // Multi-phase operation - use action from metadata or default to 'approve'
+        action = (pendingTx.metadata?.action as 'approve' | 'cancel') || 'approve';
+      } else if (type === 'BROADCASTER_UPDATE') {
+        operationType = CoreOperationType.BROADCASTER_UPDATE;
+        // Multi-phase operation - use action from metadata or default to 'approve'
+        action = (pendingTx.metadata?.action as 'approve' | 'cancel') || 'approve';
+      } else if (type === 'RECOVERY_UPDATE') {
+        operationType = CoreOperationType.RECOVERY_UPDATE;
+        // Single-phase operation - must use 'requestAndApprove'
+        action = 'requestAndApprove';
+      } else if (type === 'TIMELOCK_UPDATE') {
+        operationType = CoreOperationType.TIMELOCK_UPDATE;
+        // Single-phase operation - must use 'requestAndApprove'
+        action = 'requestAndApprove';
+      } else {
+        throw new Error(`Unsupported operation type: ${type}`);
       }
       
-      console.log('Using contract type for execution:', contractType);
+      console.log('Using operation type for execution:', operationType);
+      console.log('Using action type:', action);
       
-      // Prepare and sign the update transaction
-      const txHash = await manager.executeMetaTransaction(
-        signedData,
-        { from: connectedAddress as `0x${string}` },
-        contractType,
+      // Execute the meta-transaction
+      const txHash = await workflowManager.executeMetaTransaction(
+        pendingTx.signedData,
+        operationType,
         action,
+        { from: connectedAddress as `0x${string}` }
       );
+      
       console.log('txHash', txHash);
       toast({
         title: "Transaction Submitted",
@@ -840,7 +876,7 @@ export function SecurityDetails() {
       });
       
       // Wait for transaction confirmation
-      await publicClient?.waitForTransactionReceipt({ hash: txHash });
+      await publicClient.waitForTransactionReceipt({ hash: txHash });
 
       // Remove the broadcasted transaction from local storage
       removeTransaction(pendingTx.txId);
@@ -890,26 +926,29 @@ export function SecurityDetails() {
         throw new Error('Chain not found');
       }
 
-      // Create contract instance
-      const contract = new SecureOwnable(
+      // Create and initialize the WorkflowManager
+      const workflowManager = await generateNewWorkflowManager(
         publicClient,
         walletClient,
         contractAddress as `0x${string}`,
-        chain
+        chain,
+        storeTransaction
       );
 
-      // Execute the direct cancellation since we're the owner
-      const result = await contract.updateBroadcasterCancellation(
+      // Cancel the broadcaster update operation
+      const hash = await workflowManager.cancelOperation(
+        CoreOperationType.BROADCASTER_UPDATE,
         BigInt(txId),
         { from: connectedAddress as `0x${string}` }
       );
-
-      await result.wait();
+      
+      await publicClient.waitForTransactionReceipt({ hash });
 
       toast({
         title: "Cancellation submitted",
         description: "Broadcaster update cancellation has been submitted.",
       });
+      
       await loadContractInfo();
     } catch (error) {
       console.error('Error in broadcaster update cancellation:', error);
@@ -923,7 +962,7 @@ export function SecurityDetails() {
 
   // Prepare the broadcast dialog for a specific transaction type
   const prepareBroadcastDialog = (
-    type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'RECOVERY_ADDRESS_UPDATE' | 'TIMELOCK_UPDATE' | 'WITHDRAWAL_APPROVAL',
+    type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'RECOVERY_ADDRESS_UPDATE' | 'TIMELOCK_UPDATE',
     specificTx?: ExtendedSignedTransaction
   ) => {
     console.log('Preparing broadcast dialog for type:', type);
@@ -966,12 +1005,6 @@ export function SecurityDetails() {
           tx.metadata?.type === 'TIMELOCK_UPDATE' && 
           !tx.metadata?.broadcasted
         );
-      } else if (type === 'WITHDRAWAL_APPROVAL') {
-        // For withdrawal approvals, look for WITHDRAWAL_APPROVAL type
-        pendingTx = signedTransactions.find(tx => 
-          tx.metadata?.type === 'WITHDRAWAL_APPROVAL' && 
-          !tx.metadata?.broadcasted
-        );
       } else {
         // For other types, look for exact match
         pendingTx = signedTransactions.find(tx => 
@@ -1003,12 +1036,7 @@ export function SecurityDetails() {
       case 'BROADCASTER_UPDATE':
         setShowBroadcastBroadcasterDialog(true);
         break;
-      case 'WITHDRAWAL_APPROVAL':
-        // For withdrawal approvals, navigate to blox page
-        if (contractAddress) {
-          navigate(`/blox/${contractAddress}`);
-        }
-        break;
+
     }
   };
 
