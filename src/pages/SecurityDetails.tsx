@@ -676,10 +676,10 @@ export function SecurityDetails() {
         throw new Error('Chain not found');
       }
 
-      // Convert the period to minutes before sending
-      const periodInMinutes = parseInt(newPeriod);
+      // Convert the period to minutes based on the selected unit
+      const periodInMinutes = convertToMinutes(newPeriod, timeLockUnit);
       if (isNaN(periodInMinutes) || periodInMinutes < TIMELOCK_PERIODS.MIN || periodInMinutes > TIMELOCK_PERIODS.MAX) {
-        throw new Error(`Period must be between ${TIMELOCK_PERIODS.MIN} and ${TIMELOCK_PERIODS.MAX} minutes`);
+        throw new Error(`Period must be between ${formatTimeValue(TIMELOCK_PERIODS.MIN)} and ${formatTimeValue(TIMELOCK_PERIODS.MAX)}`);
       }
 
       // Set signing state before any wallet interaction
@@ -705,7 +705,10 @@ export function SecurityDetails() {
           purpose: 'timelock_period',
           action: 'requestAndApprove',
           broadcasted: false,
-          newTimeLockPeriodInMinutes: metadataParams.newTimeLockPeriodInMinutes
+          newTimeLockPeriodInMinutes: metadataParams.newTimeLockPeriodInMinutes,
+          originalValue: newPeriod,
+          originalUnit: timeLockUnit,
+          convertedMinutes: periodInMinutes
         })
       );
 
@@ -1569,6 +1572,7 @@ export function SecurityDetails() {
                               await loadContractInfo();
                               refreshSignedTransactions();
                             }}
+                            timeLockUnit={timeLockUnit}
                           />
                         </CardContent>
                       </CollapsibleContent>

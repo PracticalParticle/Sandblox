@@ -187,7 +187,9 @@ function registerTimeLockUpdateOperation(contract: SecureOwnable): void {
   const functions: SinglePhaseOperationFunctions = {
     // Get execution options for meta-transaction
     getExecutionOptions: async (params: { newTimeLockPeriodInMinutes: bigint }) => {
-      return contract.updateTimeLockExecutionOptions(params.newTimeLockPeriodInMinutes);
+      // Ensure the value is properly converted to minutes
+      const minutes = BigInt(params.newTimeLockPeriodInMinutes);
+      return contract.updateTimeLockExecutionOptions(minutes);
     },
     
     // Combined request and approval with meta-transaction

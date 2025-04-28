@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Loader2, Radio, Network } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
-import { formatAddress } from "@/lib/utils"
+import { formatAddress, convertToMinutes } from "@/lib/utils"
 import { TxInfoCard } from "./TxInfoCard"
 import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index'
 import { useState, useEffect, FormEvent } from "react"
@@ -47,6 +47,7 @@ interface MetaTxActionDialogProps {
   operationName?: string
   refreshData?: () => void
   refreshSignedTransactions?: () => void
+  timeLockUnit?: 'days' | 'hours' | 'minutes'
 }
 
 export function MetaTxActionDialog({
@@ -73,7 +74,8 @@ export function MetaTxActionDialog({
   transactionRecord,
   operationName,
   refreshData,
-  refreshSignedTransactions
+  refreshSignedTransactions,
+  timeLockUnit = 'minutes'
 }: MetaTxActionDialogProps) {
   // Use the WorkflowManager hook with enhanced role validation
   const {
@@ -152,7 +154,9 @@ export function MetaTxActionDialog({
       if (operationType === CoreOperationType.RECOVERY_UPDATE) {
         params = { newRecoveryAddress: newValue as Address }
       } else if (operationType === CoreOperationType.TIMELOCK_UPDATE) {
-        params = { newTimeLockPeriodInMinutes: BigInt(newValue) }
+        // For timelock updates, we need to convert the value to minutes first
+        const minutes = convertToMinutes(newValue, timeLockUnit)
+        params = { newTimeLockPeriodInMinutes: BigInt(minutes) }
       } else {
         // For custom operations
         params = { newValue }
