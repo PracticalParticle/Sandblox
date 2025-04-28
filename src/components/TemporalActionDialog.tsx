@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge"
 import { useWorkflowManager } from "@/hooks/useWorkflowManager"
 import { CoreOperationType, OperationPhase } from "../types/OperationRegistry"
 import { Address } from "viem"
+import { toast } from "@/components/ui/use-toast"
 
 interface TemporalActionDialogProps {
   isOpen: boolean
@@ -196,28 +197,40 @@ export function TemporalActionDialog({
 
   // Handle cancel
   const handleCancel = async (txId: number) => {
-    setIsCancelling(true)
+    if (isCancelling) return; // Prevent duplicate calls
+    
+    setIsCancelling(true);
     try {
-      const operationType = getOperationType()
-      await cancelOperation(operationType, txId)
+      const operationType = getOperationType();
       
-      // Call the parent callback if provided
+      // Call the parent callback first if provided
       if (onCancel) {
-        await onCancel(txId)
+        await onCancel(txId);
+      } else {
+        // Only call cancelOperation if no parent callback
+        await cancelOperation(operationType, txId);
       }
       
       // Refresh data
       if (refreshData) {
-        refreshData()
+        refreshData();
       }
       if (refreshSignedTransactions) {
-        refreshSignedTransactions()
+        refreshSignedTransactions();
       }
+      
+      // Close the dialog on success
+      onOpenChange(false);
     } catch (error) {
-      // Error handling is done in the hook
-      console.error("Cancel error:", error)
+      console.error("Cancel error:", error);
+      // Show error toast
+      toast({
+        title: 'Cancellation Failed',
+        description: error instanceof Error ? error.message : 'Failed to cancel operation',
+        variant: 'destructive',
+      });
     } finally {
-      setIsCancelling(false)
+      setIsCancelling(false);
     }
   }
 

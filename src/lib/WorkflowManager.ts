@@ -134,6 +134,11 @@ export class WorkflowManager {
       recovery: this.contractInfo.recoveryAddress as Address
     };
     
+    // Special case for ownership transfer cancellation
+    if (operationType === CoreOperationType.OWNERSHIP_TRANSFER && phase === OperationPhase.CANCEL) {
+      return contractInfoForAuth.recovery?.toLowerCase() === connectedAddress.toLowerCase();
+    }
+    
     return canExecuteOperationPhase(
       operationType,
       phase,

@@ -168,7 +168,7 @@ export function OpHistory({
     const operationName = operationTypesGetOperationName(operationType)
     switch (operationName) {
       case 'OWNERSHIP_TRANSFER':
-        return { actionType: 'ownership', requiredRole: 'owner_or_recovery' }
+        return { actionType: 'ownership', requiredRole: 'recovery' }
       case 'BROADCASTER_UPDATE':
         return { actionType: 'broadcaster', requiredRole: 'owner' }
       case 'RECOVERY_UPDATE':
@@ -365,6 +365,7 @@ export function OpHistory({
 
   const handleRowClick = (record: TxRecord) => {
     const isWithdrawal = isWithdrawalOperation(record.params.operationType as Hex);
+    const operationName = operationTypesGetOperationName(record.params.operationType as Hex);
     
     // For pending withdrawals, open the PendingTransactionDialog
     if (isWithdrawal && record.status === TxStatus.PENDING) {
@@ -378,7 +379,6 @@ export function OpHistory({
           setIsWithdrawalDialogOpen(true);
         } else {
           console.error('Failed to convert transaction record to vault record');
-          // Provide notification to the user
           onNotification?.({
             type: 'error',
             title: 'Transaction Error',
@@ -399,6 +399,32 @@ export function OpHistory({
     // Set the selected transaction and open the appropriate dialog
     setSelectedTx(record);
     setIsDetailsOpen(true);
+  }
+
+  // Function to handle cancellation
+  const handleCancel = async (txId: number) => {
+    try {
+      if (selectedTx) {
+        const operationName = operationTypesGetOperationName(selectedTx.params.operationType as Hex);
+        if (operationName === 'OWNERSHIP_TRANSFER') {
+          await onCancel?.(txId);
+          onNotification?.({
+            type: 'success',
+            title: 'Cancellation Successful',
+            description: 'Ownership transfer has been cancelled'
+          });
+        } else {
+          await onCancel?.(txId);
+        }
+      }
+    } catch (error) {
+      console.error('Error in cancellation:', error);
+      onNotification?.({
+        type: 'error',
+        title: 'Cancellation Failed',
+        description: error instanceof Error ? error.message : 'Failed to cancel operation'
+      });
+    }
   }
 
   if (isLoading || loadingTypes) {

@@ -57,6 +57,7 @@ import { useOperationTypes } from '@/hooks/useOperationTypes'
 import { CoreOperationType } from '@/types/OperationRegistry'
 import type { BroadcastActionType } from '@/components/BroadcastDialog'
 import { OPERATION_TYPES } from '@/particle-core/sdk/typescript/types/core.access.index'
+import { Address } from 'viem'
 
 const container = {
   hidden: { opacity: 0 },
@@ -423,7 +424,7 @@ export function SecurityDetails() {
     }
   }
 
-  const handleTransferOwnershipCancellation = async (txId: number) => {
+  const handleOwnershipTransferCancellation = async (txId: number) => {
     try {
       if (!contractInfo || !connectedAddress || !contractAddress || !publicClient || !walletClient) {
         toast({
@@ -448,30 +449,25 @@ export function SecurityDetails() {
         storeTransaction
       );
 
-      // Check if the connected wallet is the recovery address
-      const isRecovery = contractInfo.recoveryAddress.toLowerCase() === connectedAddress.toLowerCase();
-      
-      // Execute the appropriate cancellation based on role
-      const hash = await workflowManager.cancelOperation(
+      // Check if the connected wallet is the recovery address for ownership transfer
+      if (!isRoleConnected(contractInfo.recoveryAddress)) {
+        throw new Error('Only the recovery address can cancel ownership transfer');
+      }
+
+      await workflowManager.cancelOperation(
         CoreOperationType.OWNERSHIP_TRANSFER,
         BigInt(txId),
-        { from: connectedAddress as `0x${string}` }
+        { from: connectedAddress as Address }
       );
-      
-      await publicClient.waitForTransactionReceipt({ hash });
 
-      toast({
-        title: "Success",
-        description: "Ownership transfer cancelled successfully",
-      });
-
-      await loadContractInfo();
+      // Don't call handleOperationSuccess here as it's called in the onCancel callback
     } catch (error) {
       console.error('Error in ownership transfer cancellation:', error);
+      // Show error toast
       toast({
-        title: "Error",
-        description: "Failed to cancel transfer ownership.",
-        variant: "destructive"
+        title: 'Cancellation Failed',
+        description: error instanceof Error ? error.message : 'Failed to cancel ownership transfer',
+        variant: 'destructive',
       });
     }
   }
@@ -968,7 +964,7 @@ export function SecurityDetails() {
     }
   };
 
-  const handleUpdateBroadcasterCancellation = async (txId: number): Promise<void> => {
+  const handleUpdateBroadcasterCancellation = async (txId: number) => {
     try {
       if (!contractInfo || !connectedAddress || !contractAddress || !publicClient || !walletClient) {
         toast({
@@ -993,48 +989,26 @@ export function SecurityDetails() {
         storeTransaction
       );
 
-      // Cancel the broadcaster update operation
-      const hash = await workflowManager.cancelOperation(
-        CoreOperationType.BROADCASTER_UPDATE,
-        BigInt(txId),
-        { from: connectedAddress as `0x${string}` }
-      );
-      
-      await publicClient.waitForTransactionReceipt({ hash });
-
-      toast({
-        title: "Cancellation submitted",
-        description: "Broadcaster update cancellation has been submitted.",
-      });
-      
-      await loadContractInfo();
-    } catch (error) {
-      console.error('Error in broadcaster update cancellation:', error);
-      
-      // Improved error message handling
-      let errorMessage = "Failed to cancel broadcaster update.";
-      
-      // Check for specific error types and provide more helpful messages
-      if (error instanceof Error) {
-        const errorString = error.toString().toLowerCase();
-        
-        if (errorString.includes("user rejected") || errorString.includes("user denied")) {
-          errorMessage = "Transaction was rejected by the user.";
-        } else if (errorString.includes("insufficient funds")) {
-          errorMessage = "Insufficient funds to complete the transaction.";
-        } else if (errorString.includes("gas") && errorString.includes("limit")) {
-          errorMessage = "Gas estimation failed. The transaction may be invalid.";
-        } else if (errorString.includes("nonce")) {
-          errorMessage = "Transaction nonce error. Please try again.";
-        } else if (errorString.includes("can only cancel pending requests")) {
-          errorMessage = "This operation is no longer pending and cannot be cancelled.";
-        }
+      // Check if the connected wallet is the recovery address for ownership transfer
+      if (!isRoleConnected(contractInfo.recoveryAddress)) {
+        throw new Error('Only the recovery address can cancel ownership transfer');
       }
-      
+
+      await workflowManager.cancelOperation(
+        CoreOperationType.OWNERSHIP_TRANSFER,
+        BigInt(txId),
+        { from: connectedAddress as Address }
+      );
+
+      // Refresh data after successful cancellation
+      await handleOperationSuccess();
+    } catch (error) {
+      console.error('Error in ownership transfer cancellation:', error);
+      // Show error toast
       toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive"
+        title: 'Cancellation Failed',
+        description: error instanceof Error ? error.message : 'Failed to cancel ownership transfer',
+        variant: 'destructive',
       });
     }
   }
@@ -2259,11 +2233,19 @@ export function SecurityDetails() {
                                 onSubmit={async () => {
                                   await handleTransferOwnershipRequest();
                                   setShowOwnershipDialog(false);
-                                  // Use the new handler
                                   await handleOperationSuccess();
                                 }}
                                 onApprove={handleTransferOwnershipApproval}
-                                onCancel={handleTransferOwnershipCancellation}
+                                onCancel={async (txId) => {
+                                  try {
+                                    await handleOwnershipTransferCancellation(txId);
+                                    setShowOwnershipDialog(false);
+                                    await handleOperationSuccess();
+                                  } catch (error) {
+                                    console.error('Error in ownership cancellation:', error);
+                                    // Show error toast if needed
+                                  }
+                                }}
                                 showMetaTxOption={!!(pendingOwnershipTx && isRoleConnected(contractInfo.owner))}
                                 metaTxDescription="Sign a meta transaction to approve the ownership transfer. This will be broadcasted by the broadcaster."
                                 refreshData={handleOperationSuccess}
