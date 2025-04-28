@@ -45,6 +45,8 @@ interface MetaTxActionDialogProps {
   customInput?: React.ReactNode
   transactionRecord?: TxRecord
   operationName?: string
+  refreshData?: () => void
+  refreshSignedTransactions?: () => void
 }
 
 export function MetaTxActionDialog({
@@ -69,7 +71,9 @@ export function MetaTxActionDialog({
   isSigning: externalIsSigning = false,
   customInput,
   transactionRecord,
-  operationName
+  operationName,
+  refreshData,
+  refreshSignedTransactions
 }: MetaTxActionDialogProps) {
   // Use the WorkflowManager hook with enhanced role validation
   const {
@@ -159,6 +163,11 @@ export function MetaTxActionDialog({
       
       // Close the dialog on success
       onOpenChange(false)
+      
+      // Refresh all data after successful operation
+      if (refreshData) {
+        refreshData()
+      }
     } catch (error) {
       // Error handling is done in the hook
       console.error("Submit error:", error)

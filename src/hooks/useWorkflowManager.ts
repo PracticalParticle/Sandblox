@@ -15,7 +15,7 @@ export function useWorkflowManager(contractAddress?: Address) {
   const chainId = useChainId()
   const config = useConfig()
   const { toast } = useToast()
-  const { storeTransaction, removeTransaction } = useTransactionManager(contractAddress || '')
+  const { storeTransaction, removeTransaction, refreshTransactions } = useTransactionManager(contractAddress || '')
   const [manager, setManager] = useState<WorkflowManager | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isRequesting, setIsRequesting] = useState(false)
@@ -120,6 +120,9 @@ export function useWorkflowManager(contractAddress?: Address) {
         { from: walletClient.account.address }
       )
       
+      // Refresh transactions after successful operation
+      refreshTransactions()
+      
       toast({
         title: "Success",
         description: "Operation requested successfully",
@@ -141,7 +144,7 @@ export function useWorkflowManager(contractAddress?: Address) {
         return next
       })
     }
-  }, [manager, walletClient, toast, pendingOperations])
+  }, [manager, walletClient, toast, pendingOperations, refreshTransactions])
 
   // Approve a pending operation
   const approveOperation = useCallback(async (
@@ -357,6 +360,12 @@ export function useWorkflowManager(contractAddress?: Address) {
         { from: walletClient.account.address }
       )
       
+      // Clean up the transaction from storage after successful execution
+      if (result) {
+        const txId = Date.now().toString()
+        removeTransaction(txId)
+      }
+      
       toast({
         title: "Success",
         description: "Meta-transaction executed successfully",
@@ -372,7 +381,22 @@ export function useWorkflowManager(contractAddress?: Address) {
     } finally {
       setIsLoading(false)
     }
-  }, [manager, walletClient, toast])
+  }, [manager, walletClient, toast, removeTransaction])
+
+  // Add a function to refresh all data
+  const refreshAllData = useCallback(async () => {
+    if (!manager) return;
+    
+    try {
+      // Refresh contract info
+      await manager.initialize();
+      
+      // Refresh transactions
+      refreshTransactions();
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    }
+  }, [manager, refreshTransactions]);
 
   // Enhanced canExecutePhase that falls back to direct role checks if manager isn't initialized
   const canExecutePhase = useCallback((
@@ -430,6 +454,7 @@ export function useWorkflowManager(contractAddress?: Address) {
     signSinglePhaseOperation,
     executeMetaTransaction,
     canExecutePhase,
-    getRequiredRoleForOperation
+    getRequiredRoleForOperation,
+    refreshAllData
   }
 } 

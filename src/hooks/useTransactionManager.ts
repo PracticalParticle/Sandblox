@@ -11,6 +11,7 @@ export interface UseTransactionManagerReturn {
   clearTransactions: () => void;
   isLoading: boolean;
   error: Error | null;
+  refreshTransactions: () => void;
 }
 
 /**
@@ -22,8 +23,8 @@ export function useTransactionManager(contractAddress: string): UseTransactionMa
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  // Load transactions on mount and when contract address changes
-  useEffect(() => {
+  // Function to load transactions
+  const loadTransactions = useCallback(() => {
     try {
       const txs = transactionManager.getSignedTransactionsByContract(contractAddress);
       setTransactions(txs);
@@ -34,6 +35,23 @@ export function useTransactionManager(contractAddress: string): UseTransactionMa
       setIsLoading(false);
     }
   }, [contractAddress]);
+
+  // Load transactions on mount and when contract address changes
+  useEffect(() => {
+    loadTransactions();
+  }, [contractAddress, loadTransactions]);
+
+  // Listen for storage events
+  useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key && event.key.includes('transactions')) {
+        loadTransactions();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [loadTransactions]);
 
   // Memoized functions to prevent unnecessary re-renders
   const storeTransaction = useCallback(
@@ -103,6 +121,7 @@ export function useTransactionManager(contractAddress: string): UseTransactionMa
     removeTransaction,
     clearTransactions,
     isLoading,
-    error
+    error,
+    refreshTransactions: loadTransactions
   };
 } 

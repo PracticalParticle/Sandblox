@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table"
-import { Loader2, Clock, CheckCircle2, XCircle, AlertTriangle, Filter } from 'lucide-react'
+import { Loader2, Clock, CheckCircle2, XCircle, AlertTriangle, Filter, RefreshCw } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useAccount } from 'wagmi'
 
@@ -133,6 +133,14 @@ export function OpHistory({
 }: OpHistoryProps) {
   const { address: connectedAddress } = useAccount()
   
+  // Add local state to track operations
+  const [localOperations, setLocalOperations] = useState(operations)
+  
+  // Update local operations when props change
+  useEffect(() => {
+    setLocalOperations(operations)
+  }, [operations])
+  
   const {
     filteredOperations,
     statusFilter,
@@ -143,7 +151,7 @@ export function OpHistory({
     loadingTypes
   } = useOperationHistory({
     contractAddress,
-    operations,
+    operations: localOperations,
     isLoading
   })
 
@@ -412,7 +420,22 @@ export function OpHistory({
     <motion.div variants={container} initial="hidden" animate="show">
       <Card>
         <CardHeader>
-          <CardTitle>Operation History</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Operation History</CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (refreshData) refreshData();
+                if (refreshSignedTransactions) refreshSignedTransactions();
+              }}
+              className="gap-2"
+              disabled={isLoading || loadingTypes}
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoading || loadingTypes ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-4 mb-4">

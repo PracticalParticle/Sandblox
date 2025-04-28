@@ -17,7 +17,6 @@ import { useOperationTypes } from '@/hooks/useOperationTypes'
 import { Address } from 'viem'
 import { useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { TransactionManager } from '@/services/TransactionManager'
 
 export interface ExtendedSignedTransaction {
   txId: string
@@ -56,42 +55,11 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
   const navigate = useNavigate()
   const [localTransactions, setLocalTransactions] = useState<ExtendedSignedTransaction[]>(transactions)
   const [isDeleting, setIsDeleting] = useState<string | null>(null)
-  const [isRefreshing, setIsRefreshing] = useState(false)
 
   // Update local state when props change
   useEffect(() => {
     setLocalTransactions(transactions)
   }, [transactions])
-
-  // Listen for storage events to refresh transactions
-  useEffect(() => {
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.key && event.key.includes('transactions')) {
-        setIsRefreshing(true)
-        try {
-          const txManager = new TransactionManager()
-          const latestTxs = txManager.getSignedTransactionsByContract(contractAddress)
-          
-          // Convert to array format with proper typing
-          const txArray = Object.entries(latestTxs).map(([txId, txData]) => ({
-            txId,
-            signedData: txData.signedData,
-            timestamp: txData.timestamp,
-            metadata: txData.metadata as ExtendedSignedTransaction['metadata']
-          }))
-          
-          setLocalTransactions(txArray)
-        } catch (error) {
-          console.error('Error refreshing transactions:', error)
-        } finally {
-          setIsRefreshing(false)
-        }
-      }
-    }
-
-    window.addEventListener('storage', handleStorageChange)
-    return () => window.removeEventListener('storage', handleStorageChange)
-  }, [contractAddress])
 
   // Filter out any transactions that have been broadcasted
   const pendingTransactions = localTransactions
@@ -136,13 +104,13 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
         (tx.metadata?.type === 'RECOVERY_UPDATE' && tx.metadata?.purpose === 'address_update')) {
       // Make sure it has the correct action for broadcasting
       if (tx.metadata.action !== 'requestAndApprove') {
-        console.warn('Single-phase operation has incorrect action type:', tx.metadata.action)
+        console.warn('Single-phase operation has incorrect action type:', tx.metadata.action);
       }
     }
     
     // For other transactions, use the provided onClick handler
     if (!tx.metadata?.broadcasted && onTxClick) {
-      onTxClick(tx)
+      onTxClick(tx);
     }
   }
 
@@ -264,7 +232,10 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
                       variant="outline"
                       size="sm"
                       className="h-8 gap-1.5"
-                      onClick={() => handleRowClick(tx)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRowClick(tx);
+                      }}
                     >
                       {isDeleting === tx.txId ? (
                         <Loader2 className="h-4 w-4 animate-spin" />

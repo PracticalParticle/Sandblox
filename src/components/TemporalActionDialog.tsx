@@ -169,6 +169,14 @@ export function TemporalActionDialog({
         
         // Close the dialog on success
         onOpenChange(false)
+        
+        // Refresh data after successful operation
+        if (refreshData) {
+          await refreshData()
+        }
+        if (refreshSignedTransactions) {
+          await refreshSignedTransactions()
+        }
       } catch (error) {
         // Error handling is done in the hook
         console.error("Submit error:", error)
@@ -191,6 +199,9 @@ export function TemporalActionDialog({
       // Refresh data
       if (refreshData) {
         refreshData()
+      }
+      if (refreshSignedTransactions) {
+        refreshSignedTransactions()
       }
     } catch (error) {
       // Error handling is done in the hook
@@ -215,6 +226,9 @@ export function TemporalActionDialog({
       // Refresh data
       if (refreshData) {
         refreshData()
+      }
+      if (refreshSignedTransactions) {
+        refreshSignedTransactions()
       }
     } catch (error) {
       // Error handling is done in the hook
@@ -245,7 +259,6 @@ export function TemporalActionDialog({
       if (refreshData) {
         refreshData()
       }
-      
       if (refreshSignedTransactions) {
         refreshSignedTransactions()
       }

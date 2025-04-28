@@ -56,6 +56,7 @@ import { Hex } from 'viem'
 import { useOperationTypes } from '@/hooks/useOperationTypes'
 import { CoreOperationType } from '@/types/OperationRegistry'
 import type { BroadcastActionType } from '@/components/BroadcastDialog'
+import { OPERATION_TYPES } from '@/particle-core/sdk/typescript/types/core.access.index'
 
 const container = {
   hidden: { opacity: 0 },
@@ -196,6 +197,70 @@ export function SecurityDetails() {
     loadContractInfo()
   }, [contractAddress])
 
+  // Add a function to fetch operation history directly from contract
+  const fetchOperationHistory = async () => {
+    if (!contractAddress || !publicClient || !contractInfo) return;
+
+    try {
+      const chain = config.chains.find((c) => c.id === contractInfo.chainId);
+      if (!chain) {
+        throw new Error('Chain not found');
+      }
+
+      const contract = new SecureOwnable(
+        publicClient,
+        undefined,
+        contractAddress as `0x${string}`,
+        chain
+      );
+
+      // Get operation history directly from contract
+      const operationHistory = await contract.getOperationHistory();
+      console.log('Fresh operation history:', operationHistory);
+
+      // Update contract info with fresh operation history
+      setContractInfo(prevInfo => ({
+        ...prevInfo!,
+        operationHistory: operationHistory || []
+      }));
+
+      // Find pending transactions in operation history
+      if (operationHistory) {
+        // Find first pending ownership transfer
+        const pendingOwnership = operationHistory.find(
+          (tx: TxRecord) => tx.status === TxStatus.PENDING && 
+               tx.params.operationType === OPERATION_TYPES.OWNERSHIP_TRANSFER
+        );
+
+        // Find first pending broadcaster update
+        const pendingBroadcaster = operationHistory.find(
+          (tx: TxRecord) => tx.status === TxStatus.PENDING && 
+               tx.params.operationType === OPERATION_TYPES.BROADCASTER_UPDATE
+        );
+
+        console.log('Found pending ownership tx:', pendingOwnership);
+        console.log('Found pending broadcaster tx:', pendingBroadcaster);
+
+        setPendingOwnershipTx(pendingOwnership || null);
+        setPendingBroadcasterTx(pendingBroadcaster || null);
+      }
+    } catch (error) {
+      console.error('Error fetching operation history:', error);
+    }
+  };
+
+  // Add effect to refresh data periodically
+  useEffect(() => {
+    if (!contractAddress || !contractInfo) return;
+
+    const refreshInterval = setInterval(() => {
+      fetchOperationHistory();
+    }, 5000); // Refresh every 5 seconds
+
+    return () => clearInterval(refreshInterval);
+  }, [contractAddress, contractInfo]);
+
+  // Update the loadContractInfo function to use fetchOperationHistory
   const loadContractInfo = async () => {
     if (!contractAddress || !publicClient) return;
 
@@ -209,55 +274,11 @@ export function SecurityDetails() {
         throw new Error('Contract info not found');
       }
       
-      console.log('Contract info loaded:', info);
-      console.log('Operation history:', info.operationHistory);
-
-      // Get chain information
-      const chain = config.chains.find((c) => c.id === info.chainId);
-      if (!chain) {
-        throw new Error('Chain not found');
-      }
-
-      // Create contract instance to get operation types
-      const contract = new SecureOwnable(
-        publicClient,
-        undefined, // We don't need walletClient for read operations
-        contractAddress as `0x${string}`,
-        chain
-      );
-
-      // Get supported operation types
-      const supportedTypes = await contract.getSupportedOperationTypes();
-      const typeMap = new Map(
-        supportedTypes.map(({ operationType, name }) => [operationType, name])
-      );
-      
-      console.log('Operation type mapping:', typeMap);
-      
       setContractInfo(info);
-
-      // Find pending transactions in operation history
-      if (info.operationHistory) {
-        // Find first pending ownership transfer
-        const pendingOwnership = info.operationHistory.find(
-          (tx: TxRecord) => tx.status === TxStatus.PENDING && 
-               typeMap.get(tx.params.operationType) === 'OWNERSHIP_TRANSFER'
-        );
-
-        // Find first pending broadcaster update
-        const pendingBroadcaster = info.operationHistory.find(
-          (tx: TxRecord) => tx.status === TxStatus.PENDING && 
-               typeMap.get(tx.params.operationType) === 'BROADCASTER_UPDATE'
-        );
-
-        console.log('Found pending ownership tx:', pendingOwnership);
-        console.log('Found pending broadcaster tx:', pendingBroadcaster);
-
-        setPendingOwnershipTx(pendingOwnership || null);
-        setPendingBroadcasterTx(pendingBroadcaster || null);
-      }
-
       setError(null);
+
+      // Fetch operation history after setting contract info
+      await fetchOperationHistory();
     } catch (error) {
       console.error('Error loading contract:', error);
       if (!contractInfo) {
@@ -1061,7 +1082,6 @@ export function SecurityDetails() {
         setShowBroadcastTimelockDialog(true);
         break;
       case 'RECOVERY_UPDATE':
-     
         setShowBroadcastRecoveryDialog(true);
         break;
       case 'OWNERSHIP_TRANSFER':  
@@ -1071,6 +1091,27 @@ export function SecurityDetails() {
         setShowBroadcastBroadcasterDialog(true);
         break;
     }
+  };
+
+  // Add handlers for dialog close
+  const handleTimelockDialogClose = (open: boolean) => {
+    setShowBroadcastTimelockDialog(open);
+    if (!open) setActiveBroadcastTx(null);
+  };
+
+  const handleRecoveryDialogClose = (open: boolean) => {
+    setShowBroadcastRecoveryDialog(open);
+    if (!open) setActiveBroadcastTx(null);
+  };
+
+  const handleOwnershipDialogClose = (open: boolean) => {
+    setShowBroadcastOwnershipDialog(open);
+    if (!open) setActiveBroadcastTx(null);
+  };
+
+  const handleBroadcasterDialogClose = (open: boolean) => {
+    setShowBroadcastBroadcasterDialog(open);
+    if (!open) setActiveBroadcastTx(null);
   };
 
   // Add after loadContractInfo function
@@ -1167,6 +1208,33 @@ export function SecurityDetails() {
       toast({
         title: "Error",
         description: error.message || "Failed to store signed transaction",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Update the handleOperationSuccess function
+  const handleOperationSuccess = async () => {
+    try {
+      // Wait a short time for blockchain to update
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Fetch fresh operation history
+      await fetchOperationHistory();
+      
+      // Refresh signed transactions
+      refreshSignedTransactions();
+      
+      // Show success toast
+      toast({
+        title: "Success",
+        description: "Operation completed successfully",
+      });
+    } catch (error) {
+      console.error('Error refreshing after operation:', error);
+      toast({
+        title: "Error",
+        description: "Failed to refresh data after operation",
         variant: "destructive"
       });
     }
@@ -1497,6 +1565,9 @@ export function SecurityDetails() {
                               const minutes = convertToMinutes(newTimeLockPeriod, timeLockUnit);
                               await handleUpdateTimeLockRequest(minutes.toString());
                               setShowTimeLockDialog(false);
+                              // Refresh data after operation
+                              await loadContractInfo();
+                              refreshSignedTransactions();
                             }}
                           />
                         </CardContent>
@@ -1734,6 +1805,9 @@ export function SecurityDetails() {
                                 onSubmit={async (newBroadcaster) => {
                                   await handleUpdateBroadcasterRequest(newBroadcaster);
                                   setShowBroadcasterDialog(false);
+                                  // Refresh data after operation
+                                  await loadContractInfo();
+                                  refreshSignedTransactions();
                                 }}
                                 onApprove={handleApproveOperation}
                                 onCancel={handleUpdateBroadcasterCancellation}
@@ -1922,6 +1996,9 @@ export function SecurityDetails() {
                             onSubmit={async () => {
                               await handleUpdateRecoveryRequest(newRecoveryAddress);
                               setShowRecoveryDialog(false);
+                              // Refresh data after operation
+                              await loadContractInfo();
+                              refreshSignedTransactions();
                             }}
                           />
                         </CardContent>
@@ -2157,12 +2234,14 @@ export function SecurityDetails() {
                                 onSubmit={async () => {
                                   await handleTransferOwnershipRequest();
                                   setShowOwnershipDialog(false);
+                                  // Use the new handler
+                                  await handleOperationSuccess();
                                 }}
                                 onApprove={handleTransferOwnershipApproval}
                                 onCancel={handleTransferOwnershipCancellation}
                                 showMetaTxOption={!!(pendingOwnershipTx && isRoleConnected(contractInfo.owner))}
                                 metaTxDescription="Sign a meta transaction to approve the ownership transfer. This will be broadcasted by the broadcaster."
-                                refreshData={loadContractInfo}
+                                refreshData={handleOperationSuccess}
                                 refreshSignedTransactions={refreshSignedTransactions}
                               />
                             </>
@@ -2269,7 +2348,7 @@ export function SecurityDetails() {
       {/* Timelock update broadcast dialog */}
       <BroadcastDialog
         isOpen={showBroadcastTimelockDialog}
-        onOpenChange={setShowBroadcastTimelockDialog}
+        onOpenChange={handleTimelockDialogClose}
         title="Broadcast Timelock Update"
         description="Broadcast the signed timelock update transaction to the blockchain."
         contractInfo={{
@@ -2289,7 +2368,7 @@ export function SecurityDetails() {
       {/* Recovery update broadcast dialog */}
       <BroadcastDialog
         isOpen={showBroadcastRecoveryDialog}
-        onOpenChange={setShowBroadcastRecoveryDialog}
+        onOpenChange={handleRecoveryDialogClose}
         title="Broadcast Recovery Update"
         description="Broadcast the signed recovery address update transaction to the blockchain."
         contractInfo={{
@@ -2309,7 +2388,7 @@ export function SecurityDetails() {
       {/* Ownership transfer broadcast dialog */}
       <BroadcastDialog
         isOpen={showBroadcastOwnershipDialog}
-        onOpenChange={setShowBroadcastOwnershipDialog}
+        onOpenChange={handleOwnershipDialogClose}
         title="Broadcast Ownership Transfer"
         description="Broadcast the signed ownership transfer transaction to the blockchain."
         contractInfo={{
@@ -2329,7 +2408,7 @@ export function SecurityDetails() {
       {/* Broadcaster update broadcast dialog */}
       <BroadcastDialog
         isOpen={showBroadcastBroadcasterDialog}
-        onOpenChange={setShowBroadcastBroadcasterDialog}
+        onOpenChange={handleBroadcasterDialogClose}
         title="Broadcast Broadcaster Update"
         description="Broadcast the signed broadcaster update transaction to the blockchain."
         contractInfo={{

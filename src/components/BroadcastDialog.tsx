@@ -6,7 +6,7 @@ import { Loader2, Radio, Network, ArrowUpRight, InfoIcon } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
 import { TxInfoCard } from "./TxInfoCard"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { formatAddress } from "@/lib/utils"
 import { TxStatus } from "../particle-core/sdk/typescript/types/lib.index"
 import { Address } from "viem"
@@ -66,6 +66,15 @@ export function BroadcastDialog({
   transactionRecord
 }: BroadcastDialogProps) {
   const [isBroadcasting, setIsBroadcasting] = useState(false)
+  const [hasBroadcasted, setHasBroadcasted] = useState(false)
+  
+  // Reset state when dialog opens/closes
+  useEffect(() => {
+    if (!isOpen) {
+      setIsBroadcasting(false)
+      setHasBroadcasted(false)
+    }
+  }, [isOpen])
   
   const isConnectedWalletValid = () => {
     if (!connectedAddress || !contractInfo) return false
@@ -98,7 +107,13 @@ export function BroadcastDialog({
       // Call the onBroadcast function with the determined transaction type
       await onBroadcast(broadcastType)
       
-      // The dialog will be closed by the parent component after successful broadcast
+      // Set broadcasted state
+      setHasBroadcasted(true)
+      
+      // Close the dialog after a short delay
+      setTimeout(() => {
+        onOpenChange(false)
+      }, 1000)
     } catch (error) {
       console.error('Broadcast error:', error)
       // Error handling is done in the parent component
@@ -237,7 +252,7 @@ export function BroadcastDialog({
 
                     <Button 
                       onClick={handleBroadcast}
-                      disabled={!pendingTx || isLoading || isBroadcasting || pendingTx.metadata?.broadcasted || !isConnectedWalletValid()}
+                      disabled={!pendingTx || isLoading || isBroadcasting || hasBroadcasted || !isConnectedWalletValid()}
                       className="w-full"
                     >
                       {isBroadcasting ? (
@@ -245,7 +260,7 @@ export function BroadcastDialog({
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           Broadcasting...
                         </>
-                      ) : pendingTx?.metadata?.broadcasted ? (
+                      ) : hasBroadcasted ? (
                         <>
                           <ArrowUpRight className="mr-2 h-4 w-4" />
                           Already Broadcasted
