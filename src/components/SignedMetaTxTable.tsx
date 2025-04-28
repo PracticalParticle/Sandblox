@@ -17,13 +17,14 @@ import { useOperationTypes } from '@/hooks/useOperationTypes'
 import { Address } from 'viem'
 import { useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
+import { CoreOperationType } from '@/types/OperationRegistry'
 
 export interface ExtendedSignedTransaction {
   txId: string
   signedData: string
   timestamp: number
   metadata?: {
-    type: 'TIMELOCK_UPDATE' | 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' 
+    type: CoreOperationType
     purpose?: 'address_update' | 'ownership_transfer'
     action?: 'approve' | 'cancel' | 'requestAndApprove'
     broadcasted: boolean
@@ -80,15 +81,14 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
     // Second priority: Handle static operation types
     if (tx.metadata?.type) {
       switch (tx.metadata.type) {
-        case 'RECOVERY_UPDATE':
-          return tx.metadata.purpose === 'address_update' ? 'Recovery Address Update' : 'Ownership Transfer'
-        case 'TIMELOCK_UPDATE':
+        case CoreOperationType.RECOVERY_UPDATE:
+          return 'Recovery Address Update'
+        case CoreOperationType.TIMELOCK_UPDATE:
           return 'TimeLock Update'
-        case 'OWNERSHIP_TRANSFER':
+        case CoreOperationType.OWNERSHIP_TRANSFER:
           return 'Ownership Transfer'
-        case 'BROADCASTER_UPDATE':
+        case CoreOperationType.BROADCASTER_UPDATE:
           return 'Broadcaster Update'
-
         default:
           // If it's not a known static type, it might be a dynamic type name
           return tx.metadata.type
@@ -100,11 +100,18 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
 
   const handleRowClick = (tx: ExtendedSignedTransaction) => {
     // For single-phase operations, ensure action is recognized correctly
-    if (tx.metadata?.type === 'TIMELOCK_UPDATE' || 
-        (tx.metadata?.type === 'RECOVERY_UPDATE' && tx.metadata?.purpose === 'address_update')) {
-      // Make sure it has the correct action for broadcasting
-      if (tx.metadata.action !== 'requestAndApprove') {
-        console.warn('Single-phase operation has incorrect action type:', tx.metadata.action);
+    if (tx.metadata?.type) {
+      // Check if it's a single-phase operation
+      const isSinglePhase = [
+        CoreOperationType.TIMELOCK_UPDATE,
+        CoreOperationType.RECOVERY_UPDATE
+      ].includes(tx.metadata.type);
+
+      if (isSinglePhase) {
+        // Make sure it has the correct action for broadcasting
+        if (tx.metadata.action !== 'requestAndApprove') {
+          console.warn('Single-phase operation has incorrect action type:', tx.metadata.action);
+        }
       }
     }
     

@@ -2306,13 +2306,13 @@ export function SecurityDetails() {
                   return;
                 }
                 
+                // For RECOVERY_UPDATE, we need to check the purpose
                 if (tx.metadata.type === 'RECOVERY_UPDATE') {
                   if (tx.metadata.purpose === 'ownership_transfer') {
                     console.log('Opening ownership transfer dialog');
                     prepareBroadcastDialog('OWNERSHIP_TRANSFER', tx);
-                  } else if (tx.metadata.purpose === 'address_update') {
-                    
-                    console.log('Opening general recovery update dialog');
+                  } else {
+                    console.log('Opening recovery update dialog');
                     prepareBroadcastDialog('RECOVERY_UPDATE', tx);
                   }
                 } else {
