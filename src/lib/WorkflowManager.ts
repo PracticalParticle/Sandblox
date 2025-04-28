@@ -442,22 +442,6 @@ export class WorkflowManager {
       signature
     };
 
-    // Store the transaction if storeTransaction is provided
-    if (this.storeTransaction) {
-      this.storeTransaction(
-        '0', // txId 0 is used for single phase operations
-        JSON.stringify(signedMetaTx, this.bigIntReplacer),
-        {
-          type: operation.name.replace(/\s+/g, '_').toUpperCase(),
-          operationType,
-          ...actualParams,
-          broadcasted: false,
-          timestamp: Date.now(),
-          status: 'PENDING'
-        }
-      );
-    }
-
     return JSON.stringify(signedMetaTx, this.bigIntReplacer);
   }
 

@@ -10,12 +10,14 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table"
-import { Trash2, AlertCircle, CheckCircle2, Clock } from 'lucide-react'
+import { Trash2, AlertCircle, CheckCircle2, Clock, Loader2, X } from 'lucide-react'
 import { formatTimestamp } from '@/lib/utils'
 import * as AlertDialog from '@radix-ui/react-alert-dialog'
 import { useOperationTypes } from '@/hooks/useOperationTypes'
 import { Address } from 'viem'
 import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { TransactionManager } from '@/services/TransactionManager'
 
 export interface ExtendedSignedTransaction {
   txId: string
@@ -52,9 +54,47 @@ const container = {
 export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransaction, contractAddress, onTxClick }: SignedMetaTxTableProps) {
   const { getOperationName } = useOperationTypes(contractAddress)
   const navigate = useNavigate()
+  const [localTransactions, setLocalTransactions] = useState<ExtendedSignedTransaction[]>(transactions)
+  const [isDeleting, setIsDeleting] = useState<string | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  // Update local state when props change
+  useEffect(() => {
+    setLocalTransactions(transactions)
+  }, [transactions])
+
+  // Listen for storage events to refresh transactions
+  useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key && event.key.includes('transactions')) {
+        setIsRefreshing(true)
+        try {
+          const txManager = new TransactionManager()
+          const latestTxs = txManager.getSignedTransactionsByContract(contractAddress)
+          
+          // Convert to array format with proper typing
+          const txArray = Object.entries(latestTxs).map(([txId, txData]) => ({
+            txId,
+            signedData: txData.signedData,
+            timestamp: txData.timestamp,
+            metadata: txData.metadata as ExtendedSignedTransaction['metadata']
+          }))
+          
+          setLocalTransactions(txArray)
+        } catch (error) {
+          console.error('Error refreshing transactions:', error)
+        } finally {
+          setIsRefreshing(false)
+        }
+      }
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
+  }, [contractAddress])
 
   // Filter out any transactions that have been broadcasted
-  const pendingTransactions = transactions
+  const pendingTransactions = localTransactions
 
   if (pendingTransactions.length === 0) {
     return null
@@ -90,47 +130,40 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
     return 'Unknown Operation'
   }
 
-  // Function to determine if an operation is a withdrawal
-  const isWithdrawalOperation = (tx: ExtendedSignedTransaction): boolean => {
-    // Check explicit WITHDRAWAL_APPROVAL type first
-    if (tx.metadata?.type === 'WITHDRAWAL_APPROVAL') {
-      return true;
-    }
-    
-    // Then check using operation type if available
-    if (tx.metadata?.operationType) {
-      const operationName = getOperationName(tx.metadata.operationType)
-      return operationName === 'WITHDRAW_ETH' || 
-             operationName === 'WITHDRAW_TOKEN' || 
-             operationName === 'WITHDRAWAL_APPROVAL'
-    }
-    
-    return false;
-  }
-
   const handleRowClick = (tx: ExtendedSignedTransaction) => {
-    // Special handling for different operation types
-    const isWithdrawal = isWithdrawalOperation(tx);
-    
-    // For withdrawal operations, navigate to the blox page
-    if (isWithdrawal) {
-      navigate(`/blox/simple-vault/${contractAddress}`);
-      return;
-    }
-
     // For single-phase operations, ensure action is recognized correctly
     if (tx.metadata?.type === 'TIMELOCK_UPDATE' || 
         (tx.metadata?.type === 'RECOVERY_UPDATE' && tx.metadata?.purpose === 'address_update')) {
       // Make sure it has the correct action for broadcasting
       if (tx.metadata.action !== 'requestAndApprove') {
-        console.warn('Single-phase operation has incorrect action type:', tx.metadata.action);
-        // Could potentially auto-correct the action here if needed
+        console.warn('Single-phase operation has incorrect action type:', tx.metadata.action)
       }
     }
     
     // For other transactions, use the provided onClick handler
     if (!tx.metadata?.broadcasted && onTxClick) {
-      onTxClick(tx);
+      onTxClick(tx)
+    }
+  }
+
+  const handleRemoveTransaction = async (txId: string) => {
+    try {
+      setIsDeleting(txId)
+      await onRemoveTransaction(txId)
+      setLocalTransactions(prev => prev.filter(tx => tx.txId !== txId))
+    } catch (error) {
+      console.error('Error removing transaction:', error)
+    } finally {
+      setIsDeleting(null)
+    }
+  }
+
+  const handleClearAll = async () => {
+    try {
+      await onClearAll()
+      setLocalTransactions([])
+    } catch (error) {
+      console.error('Error clearing transactions:', error)
     }
   }
 
@@ -167,7 +200,7 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
                       <Button variant="outline" className="mt-2 sm:mt-0">Cancel</Button>
                     </AlertDialog.Cancel>
                     <AlertDialog.Action asChild>
-                      <Button variant="destructive" onClick={onClearAll}>Clear All</Button>
+                      <Button variant="destructive" onClick={handleClearAll}>Clear All</Button>
                     </AlertDialog.Action>
                   </div>
                 </AlertDialog.Content>
@@ -188,9 +221,7 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
               </TableRow>
             </TableHeader>
             <TableBody>
-              {pendingTransactions.map((tx) => {
-                const isWithdrawal = isWithdrawalOperation(tx);
-                return (
+              {pendingTransactions.map((tx) => (
                 <TableRow 
                   key={tx.txId}
                   className="cursor-pointer hover:bg-muted/50 transition-colors"
@@ -235,21 +266,9 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
                       className="h-8 gap-1.5"
                       onClick={() => handleRowClick(tx)}
                     >
-                       {!isWithdrawal && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 gap-1.5"
-                        onClick={() => handleRowClick(tx)}
-                      >
-
-
-
-
-
-                        <span>View Details</span>
-                      </Button>
-                    )}
+                      {isDeleting === tx.txId ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : null}
                     </Button>
                     <AlertDialog.Root>
                       <AlertDialog.Trigger asChild>
@@ -259,10 +278,15 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
                           className="h-8 w-8"
                           onClick={(e) => {
                             e.stopPropagation()
-                            onRemoveTransaction(tx.txId)
+                            handleRemoveTransaction(tx.txId)
                           }}
+                          disabled={isDeleting === tx.txId}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          {isDeleting === tx.txId ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
                         </Button>
                       </AlertDialog.Trigger>
                       <AlertDialog.Portal>
@@ -279,7 +303,16 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
                               <Button variant="outline" className="mt-2 sm:mt-0">Cancel</Button>
                             </AlertDialog.Cancel>
                             <AlertDialog.Action asChild>
-                              <Button variant="destructive" onClick={() => onRemoveTransaction(tx.txId)}>Remove</Button>
+                              <Button 
+                                variant="destructive" 
+                                onClick={() => handleRemoveTransaction(tx.txId)}
+                                disabled={isDeleting === tx.txId}
+                              >
+                                {isDeleting === tx.txId ? (
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                ) : null}
+                                Remove
+                              </Button>
                             </AlertDialog.Action>
                           </div>
                         </AlertDialog.Content>
@@ -287,7 +320,7 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
                     </AlertDialog.Root>
                   </TableCell>
                 </TableRow>
-              )})}
+              ))}
             </TableBody>
           </Table>
         </CardContent>

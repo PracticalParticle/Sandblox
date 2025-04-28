@@ -820,14 +820,13 @@ export function SecurityDetails() {
   // Update handleBroadcast function to handle both types
   const handleBroadcast = async (type: BroadcastActionType) => {
     try {
-      // Use the activeBroadcastTx that was set in prepareBroadcastDialog
       const pendingTx = activeBroadcastTx;
 
       if (!pendingTx) {
         throw new Error('No pending transaction found');
       }
 
-      if (!walletClient || !connectedAddress || !contractInfo || !contractAddress || !publicClient) {
+      if (!contractInfo || !connectedAddress || !contractAddress || !publicClient || !walletClient) {
         throw new Error('Wallet not connected or missing required information');
       }
 
@@ -850,8 +849,8 @@ export function SecurityDetails() {
       if (!chain) {
         throw new Error('Chain not found');
       }
-      
-      // Create and initialize the WorkflowManager
+
+      // Initialize WorkflowManager
       const workflowManager = await generateNewWorkflowManager(
         publicClient,
         walletClient,
@@ -916,25 +915,30 @@ export function SecurityDetails() {
 
       // Clear the active transaction
       setActiveBroadcastTx(null);
-      
-      // Close all broadcast dialogs
-      setShowBroadcastTimelockDialog(false);
-      setShowBroadcastRecoveryDialog(false);
-      setShowBroadcastOwnershipDialog(false);
-      setShowBroadcastBroadcasterDialog(false);
-      
-      toast({
-        title: "Transaction Confirmed",
-        description: "Transaction has been confirmed and removed from pending transactions",
-      });
 
-      // Reload contract info after broadcast
+      // Close the appropriate dialog
+      switch (type) {
+        case 'TIMELOCK_UPDATE':
+          setShowBroadcastTimelockDialog(false);
+          break;
+        case 'RECOVERY_UPDATE':
+          setShowBroadcastRecoveryDialog(false);
+          break;
+        case 'OWNERSHIP_TRANSFER':
+          setShowBroadcastOwnershipDialog(false);
+          break;
+        case 'BROADCASTER_UPDATE':
+          setShowBroadcastBroadcasterDialog(false);
+          break;
+      }
+
+      // Refresh contract info
       await loadContractInfo();
-    } catch (error) {
-      console.error('Broadcast error:', error);
+    } catch (error: any) {
+      console.error('Error in broadcast:', error);
       toast({
-        title: "Broadcast Failed",
-        description: error instanceof Error ? error.message : "Failed to broadcast transaction",
+        title: "Error",
+        description: error.message || "Failed to broadcast transaction",
         variant: "destructive"
       });
     }
@@ -1104,6 +1108,69 @@ export function SecurityDetails() {
     
     return coreOperations.includes(tx.metadata?.type || '');
   });
+
+  // Add function to handle signed transactions
+  const handleSignedTransaction = async (signedTx: string) => {
+    try {
+      if (!contractInfo) {
+        throw new Error('Contract info not available');
+      }
+
+      // Store the signed transaction
+      const txId = Date.now().toString();
+      storeTransaction(txId, signedTx, {
+        type: activeBroadcastTx?.metadata?.type || CoreOperationType.TIMELOCK_UPDATE,
+        purpose: activeBroadcastTx?.metadata?.purpose,
+        action: activeBroadcastTx?.metadata?.action,
+        broadcasted: false,
+        status: 'PENDING'
+      });
+
+      // Update local state
+      setSignedTransactions(prev => [...prev, {
+        txId,
+        operation: activeBroadcastTx?.metadata?.type || CoreOperationType.TIMELOCK_UPDATE,
+        status: 'PENDING',
+        contractAddress: contractAddress as `0x${string}`,
+        signedData: signedTx,
+        timestamp: Date.now(),
+        metadata: {
+          type: activeBroadcastTx?.metadata?.type || CoreOperationType.TIMELOCK_UPDATE,
+          purpose: activeBroadcastTx?.metadata?.purpose,
+          action: activeBroadcastTx?.metadata?.action,
+          broadcasted: false,
+          status: 'PENDING'
+        }
+      }]);
+
+      // Close the appropriate dialog based on the transaction type
+      const txType = activeBroadcastTx?.metadata?.type;
+      switch (txType) {
+        case 'TIMELOCK_UPDATE':
+          setShowBroadcastTimelockDialog(false);
+          break;
+        case 'RECOVERY_UPDATE':
+          setShowBroadcastRecoveryDialog(false);
+          break;
+        case 'OWNERSHIP_TRANSFER':
+          setShowBroadcastOwnershipDialog(false);
+          break;
+        case 'BROADCASTER_UPDATE':
+          setShowBroadcastBroadcasterDialog(false);
+          break;
+      }
+
+      // Clear the active transaction
+      setActiveBroadcastTx(null);
+    } catch (error: any) {
+      console.error('Error storing signed transaction:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to store signed transaction",
+        variant: "destructive"
+      });
+    }
+  };
 
   if (!contractAddress || error) {
     return (
@@ -1670,8 +1737,6 @@ export function SecurityDetails() {
                                 }}
                                 onApprove={handleApproveOperation}
                                 onCancel={handleUpdateBroadcasterCancellation}
-                                refreshData={loadContractInfo}
-                                refreshSignedTransactions={refreshSignedTransactions}
                               />
                             </>
                           )}

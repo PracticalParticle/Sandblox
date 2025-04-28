@@ -33,7 +33,7 @@ interface MetaTxActionDialogProps {
   currentValueLabel: string
   actionLabel: string
   isLoading?: boolean
-  onSubmit?: (newValue: string) => Promise<void>
+  onSubmit?: (signedTx: string) => Promise<void>
   requiredRole: string
   connectedAddress?: string
   newValue: string
@@ -154,13 +154,11 @@ export function MetaTxActionDialog({
         params = { newValue }
       }
       
-      // Call the workflow manager to sign the operation
+      // Sign the operation - WorkflowManager will handle storage
       await signSinglePhaseOperation(operationType, params)
       
-      // Call the parent callback if provided
-      if (onSubmit) {
-        await onSubmit(newValue)
-      }
+      // Close the dialog on success
+      onOpenChange(false)
     } catch (error) {
       // Error handling is done in the hook
       console.error("Submit error:", error)

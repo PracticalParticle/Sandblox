@@ -18,6 +18,8 @@ export function useWorkflowManager(contractAddress?: Address) {
   const { storeTransaction, removeTransaction } = useTransactionManager(contractAddress || '')
   const [manager, setManager] = useState<WorkflowManager | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isRequesting, setIsRequesting] = useState(false)
+  const [pendingOperations, setPendingOperations] = useState<Set<string>>(new Set())
 
   // Add role validation
   const { 
@@ -77,6 +79,20 @@ export function useWorkflowManager(contractAddress?: Address) {
     return 'owner'
   }, [])
 
+  // Helper function to safely stringify params
+  const safeStringify = (params: any): string => {
+    if (params === null || params === undefined) return ''
+    if (typeof params === 'bigint') return params.toString()
+    if (typeof params === 'object') {
+      const safeParams = Object.entries(params).reduce((acc, [key, value]) => {
+        acc[key] = typeof value === 'bigint' ? value.toString() : value
+        return acc
+      }, {} as Record<string, any>)
+      return JSON.stringify(safeParams)
+    }
+    return JSON.stringify(params)
+  }
+
   // Request an operation (first phase for multi-phase operations)
   const requestOperation = useCallback(async (
     operationType: OperationType,
@@ -84,8 +100,20 @@ export function useWorkflowManager(contractAddress?: Address) {
   ): Promise<Hash | undefined> => {
     if (!manager || !walletClient?.account) return
     
+    // Create a unique operation key
+    const operationKey = `${operationType}-${safeStringify(params)}`
+    
+    // Check if this operation is already pending
+    if (pendingOperations.has(operationKey)) {
+      console.log('Operation already pending:', operationKey)
+      return
+    }
+    
     setIsLoading(true)
     try {
+      // Add operation to pending set
+      setPendingOperations(prev => new Set([...prev, operationKey]))
+      
       const result = await manager.requestOperation(
         operationType,
         params,
@@ -106,8 +134,14 @@ export function useWorkflowManager(contractAddress?: Address) {
       })
     } finally {
       setIsLoading(false)
+      // Remove operation from pending set
+      setPendingOperations(prev => {
+        const next = new Set(prev)
+        next.delete(operationKey)
+        return next
+      })
     }
-  }, [manager, walletClient, toast])
+  }, [manager, walletClient, toast, pendingOperations])
 
   // Approve a pending operation
   const approveOperation = useCallback(async (
@@ -250,13 +284,38 @@ export function useWorkflowManager(contractAddress?: Address) {
   ): Promise<string | undefined> => {
     if (!manager || !walletClient?.account) return
     
+    // Create a unique operation key
+    const operationKey = `${operationType}-${safeStringify(params)}`
+    
+    // Check if this operation is already pending
+    if (pendingOperations.has(operationKey)) {
+      console.log('Operation already pending:', operationKey)
+      return
+    }
+    
     setIsLoading(true)
     try {
+      // Add operation to pending set
+      setPendingOperations(prev => new Set([...prev, operationKey]))
+      
       const result = await manager.prepareAndSignSinglePhaseOperation(
         operationType,
         params,
         { from: walletClient.account.address }
       )
+      
+      // Store the transaction
+      if (result) {
+        const txId = Date.now().toString()
+        storeTransaction(txId, result, {
+          type: operationType,
+          purpose: params.purpose,
+          action: 'requestAndApprove',
+          broadcasted: false,
+          timestamp: Date.now(),
+          status: 'PENDING'
+        })
+      }
       
       toast({
         title: "Success",
@@ -272,8 +331,14 @@ export function useWorkflowManager(contractAddress?: Address) {
       })
     } finally {
       setIsLoading(false)
+      // Remove operation from pending set
+      setPendingOperations(prev => {
+        const next = new Set(prev)
+        next.delete(operationKey)
+        return next
+      })
     }
-  }, [manager, walletClient, toast])
+  }, [manager, walletClient, toast, pendingOperations, storeTransaction])
 
   // Execute meta-transaction
   const executeMetaTransaction = useCallback(async (

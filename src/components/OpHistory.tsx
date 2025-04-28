@@ -626,8 +626,6 @@ export function OpHistory({
                   onCancel={onCancel}
                   showMetaTxOption={showMetaTxOption}
                   operationName={operationTypesGetOperationName(selectedTx.params.operationType as Hex)}
-                  refreshData={refreshData}
-                  refreshSignedTransactions={refreshSignedTransactions}
                 />
               )}
             </>

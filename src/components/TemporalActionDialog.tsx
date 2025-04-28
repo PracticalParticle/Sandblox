@@ -163,13 +163,12 @@ export function TemporalActionDialog({
           params = { newValue }
         }
         
+        // Only call requestOperation, let the parent handle the rest
         await requestOperation(operationType, params)
         setNewValue("")
         
-        // Call the parent callback if provided
-        if (onSubmit) {
-          await onSubmit(newValue)
-        }
+        // Close the dialog on success
+        onOpenChange(false)
       } catch (error) {
         // Error handling is done in the hook
         console.error("Submit error:", error)
