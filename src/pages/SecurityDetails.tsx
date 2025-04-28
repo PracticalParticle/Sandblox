@@ -1,4 +1,4 @@
-import { useAccount, useDisconnect, usePublicClient, useWalletClient, useConfig } from 'wagmi'
+import { useAccount, useDisconnect, usePublicClient, useWalletClient, useConfig, useChainId } from 'wagmi'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
@@ -54,10 +54,12 @@ import { ExtendedSignedTransaction } from '@/components/SignedMetaTxTable'
 import { TransactionManager } from '@/services/TransactionManager'
 import { Hex } from 'viem'
 import { useOperationTypes } from '@/hooks/useOperationTypes'
-import { CoreOperationType } from '@/types/OperationRegistry'
+import { CoreOperationType, operationRegistry } from '@/types/OperationRegistry'
 import type { BroadcastActionType } from '@/components/BroadcastDialog'
 import { OPERATION_TYPES } from '@/particle-core/sdk/typescript/types/core.access.index'
 import { Address } from 'viem'
+import { useRoleValidation } from '@/hooks/useRoleValidation'
+import { useWorkflowManager } from '@/hooks/useWorkflowManager'
 
 const container = {
   hidden: { opacity: 0 },
@@ -156,6 +158,7 @@ export function SecurityDetails() {
   const publicClient = usePublicClient()
   const { data: walletClient } = useWalletClient()
   const config = useConfig()
+  const chainId = useChainId()
 
   // State for input fields
   const [newRecoveryAddress, setNewRecoveryAddress] = useState('')
@@ -989,13 +992,39 @@ export function SecurityDetails() {
         storeTransaction
       );
 
-      // Check if the connected wallet is the recovery address for ownership transfer
-      if (!isRoleConnected(contractInfo.recoveryAddress)) {
-        throw new Error('Only the recovery address can cancel ownership transfer');
+      // Get the operation type from the transaction
+      const operationType = CoreOperationType.BROADCASTER_UPDATE;
+      const operation = operationRegistry.getOperation(operationType);
+      
+      if (!operation) {
+        throw new Error(`Unknown operation type: ${operationType}`);
+      }
+
+      // Check if the connected wallet has the required role for cancellation
+      const requiredRole = operation.requiredRoles.cancel;
+      let hasRequiredRole = false;
+
+      if (Array.isArray(requiredRole)) {
+        // If multiple roles are allowed, check if user has any of them
+        hasRequiredRole = requiredRole.some(role => {
+          if (role === 'owner') return isRoleConnected(contractInfo.owner);
+          if (role === 'recovery') return isRoleConnected(contractInfo.recoveryAddress);
+          if (role === 'broadcaster') return isRoleConnected(contractInfo.broadcaster);
+          return false;
+        });
+      } else {
+        // If single role is required, check if user has that role
+        if (requiredRole === 'owner') hasRequiredRole = isRoleConnected(contractInfo.owner);
+        else if (requiredRole === 'recovery') hasRequiredRole = isRoleConnected(contractInfo.recoveryAddress);
+        else if (requiredRole === 'broadcaster') hasRequiredRole = isRoleConnected(contractInfo.broadcaster);
+      }
+
+      if (!hasRequiredRole) {
+        throw new Error(`Only ${requiredRole} can cancel ${operation.name.toLowerCase()}`);
       }
 
       await workflowManager.cancelOperation(
-        CoreOperationType.OWNERSHIP_TRANSFER,
+        operationType,
         BigInt(txId),
         { from: connectedAddress as Address }
       );
@@ -1003,11 +1032,11 @@ export function SecurityDetails() {
       // Refresh data after successful cancellation
       await handleOperationSuccess();
     } catch (error) {
-      console.error('Error in ownership transfer cancellation:', error);
+      console.error('Error in operation cancellation:', error);
       // Show error toast
       toast({
-        title: 'Cancellation Failed',
-        description: error instanceof Error ? error.message : 'Failed to cancel ownership transfer',
+        title: 'Operation Cancellation Failed',
+        description: error instanceof Error ? error.message : 'Failed to cancel operation',
         variant: 'destructive',
       });
     }
@@ -2333,7 +2362,20 @@ export function SecurityDetails() {
               contractInfo={contractInfo}
               signedTransactions={filteredSignedTransactions as any}
               onApprove={handleApproveOperation}
-              onCancel={handleUpdateBroadcasterCancellation}
+              onCancel={(txId) => {
+                // Get the operation type from the transaction
+                const tx = contractInfo?.operationHistory?.find((op: TxRecord) => op.txId.toString() === txId.toString());
+                if (tx) {
+                  const operationName = getOperationName(tx.params.operationType as Hex);
+                  if (operationName === 'OWNERSHIP_TRANSFER') {
+                    return handleOwnershipTransferCancellation(txId);
+                  } else if (operationName === 'BROADCASTER_UPDATE') {
+                    return handleUpdateBroadcasterCancellation(txId);
+                  }
+                }
+                // Default to broadcaster update cancellation for backward compatibility
+                return handleUpdateBroadcasterCancellation(txId);
+              }}
               refreshData={loadContractInfo}
               refreshSignedTransactions={refreshSignedTransactions}
               contractAddress={contractAddress as `0x${string}`}

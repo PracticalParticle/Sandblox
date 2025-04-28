@@ -406,15 +406,32 @@ export function OpHistory({
     try {
       if (selectedTx) {
         const operationName = operationTypesGetOperationName(selectedTx.params.operationType as Hex);
+        
+        // Call the appropriate cancellation handler based on operation type
         if (operationName === 'OWNERSHIP_TRANSFER') {
+          // For ownership transfer, use the ownership transfer cancellation handler
           await onCancel?.(txId);
           onNotification?.({
             type: 'success',
             title: 'Cancellation Successful',
             description: 'Ownership transfer has been cancelled'
           });
-        } else {
+        } else if (operationName === 'BROADCASTER_UPDATE') {
+          // For broadcaster update, use the broadcaster update cancellation handler
           await onCancel?.(txId);
+          onNotification?.({
+            type: 'success',
+            title: 'Cancellation Successful',
+            description: 'Broadcaster update has been cancelled'
+          });
+        } else {
+          // For other operations, use the default cancellation handler
+          await onCancel?.(txId);
+          onNotification?.({
+            type: 'success',
+            title: 'Cancellation Successful',
+            description: 'Operation has been cancelled'
+          });
         }
       }
     } catch (error) {
