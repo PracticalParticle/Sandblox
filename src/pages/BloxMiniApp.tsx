@@ -415,18 +415,12 @@ const BloxMiniApp: React.FC = () => {
   };
 
   // Filter transactions and operations for withdrawals only
-  const withdrawalTransactions = signedTransactions.filter(tx => {
-    // Check explicit WITHDRAWAL_APPROVAL type
-    if (tx.metadata?.type === 'WITHDRAWAL_APPROVAL') {
-      return true;
-    }
-    
+  const withdrawalTransactions = signedTransactions.filter(tx => {    
     // Check using operation type if available
     if (tx.metadata?.operationType) {
       const operationName = getOperationName(tx.metadata.operationType);
       return operationName === 'WITHDRAW_ETH' || 
-             operationName === 'WITHDRAW_TOKEN' || 
-             operationName === 'WITHDRAWAL_APPROVAL';
+             operationName === 'WITHDRAW_TOKEN';
     }
     
     return false;

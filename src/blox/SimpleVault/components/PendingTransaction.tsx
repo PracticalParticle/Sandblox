@@ -145,19 +145,6 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
         throw new Error("Blockchain client not initialized")
       }
 
-      // Check if we're within the first hour of transaction creation
-      if (transactions[txId]?.releaseTime) {
-        const block = await publicClient.getBlock()
-        const now = Number(block.timestamp)
-        const timeLockPeriodInSeconds = timeLockPeriodInMinutes * 60
-        const startTime = Number(transactions[txId].releaseTime) - timeLockPeriodInSeconds
-        const elapsedTime = now - startTime
-        
-        if (elapsedTime < 3600) { // 3600 seconds = 1 hour
-          throw new Error("Cannot cancel within first hour of creation")
-        }
-      }
-
       if (onCancel) {
         await onCancel(txId);
       }
@@ -368,15 +355,6 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                   </Button>
                                 </div>
                               </TooltipTrigger>
-                              <TooltipContent side="bottom">
-                                {!canTimeLockCancel
-                                  ? "Only the owner can cancel transactions"
-                                  : isWithinFirstHour
-                                    ? "Cannot cancel within first hour of creation"
-                                    : tx.status !== TxStatus.PENDING 
-                                      ? "This transaction cannot be cancelled" 
-                                      : "Cancel this withdrawal request"}
-                              </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
                         </>

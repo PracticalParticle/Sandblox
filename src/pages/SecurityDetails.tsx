@@ -968,7 +968,7 @@ export function SecurityDetails() {
     }
   };
 
-  const handleUpdateBroadcasterCancellation = async (txId: number) => {
+  const handleUpdateBroadcasterCancellation = async (txId: number): Promise<void> => {
     try {
       if (!contractInfo || !connectedAddress || !contractAddress || !publicClient || !walletClient) {
         toast({
@@ -1010,9 +1010,30 @@ export function SecurityDetails() {
       await loadContractInfo();
     } catch (error) {
       console.error('Error in broadcaster update cancellation:', error);
+      
+      // Improved error message handling
+      let errorMessage = "Failed to cancel broadcaster update.";
+      
+      // Check for specific error types and provide more helpful messages
+      if (error instanceof Error) {
+        const errorString = error.toString().toLowerCase();
+        
+        if (errorString.includes("user rejected") || errorString.includes("user denied")) {
+          errorMessage = "Transaction was rejected by the user.";
+        } else if (errorString.includes("insufficient funds")) {
+          errorMessage = "Insufficient funds to complete the transaction.";
+        } else if (errorString.includes("gas") && errorString.includes("limit")) {
+          errorMessage = "Gas estimation failed. The transaction may be invalid.";
+        } else if (errorString.includes("nonce")) {
+          errorMessage = "Transaction nonce error. Please try again.";
+        } else if (errorString.includes("can only cancel pending requests")) {
+          errorMessage = "This operation is no longer pending and cannot be cancelled.";
+        }
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to cancel broadcaster update.",
+        description: errorMessage,
         variant: "destructive"
       });
     }

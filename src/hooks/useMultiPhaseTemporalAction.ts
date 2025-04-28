@@ -104,23 +104,7 @@ export function useMultiPhaseTemporalAction({
   const handleCancel = async (txId: number) => {
     if (!onCancel) return
     setIsCancelling(true)
-    try {
-      // Check if we're within the first hour of transaction creation
-      if (pendingTx && pendingTx.releaseTime) {
-        if (!publicClient) {
-          throw new Error("Blockchain client not initialized")
-        }
-        const block = await publicClient.getBlock()
-        const now = Number(block.timestamp)
-        const timeLockPeriodInSeconds = pendingTx.timeLockPeriodInMinutes * 60
-        const startTime = Number(pendingTx.releaseTime) - timeLockPeriodInSeconds
-        const elapsedTime = now - startTime
-        
-        if (elapsedTime < 3600) { // 3600 seconds = 1 hour
-          throw new Error("Cannot cancel within first hour of creation")
-        }
-      }
-      
+    try { 
       await onCancel(txId)
       toast({
         title: "Success",
