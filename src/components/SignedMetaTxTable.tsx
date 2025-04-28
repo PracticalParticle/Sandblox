@@ -22,7 +22,7 @@ export interface ExtendedSignedTransaction {
   signedData: string
   timestamp: number
   metadata?: {
-    type: 'TIMELOCK_UPDATE' | 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'WITHDRAWAL_APPROVAL'
+    type: 'TIMELOCK_UPDATE' | 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' 
     purpose?: 'address_update' | 'ownership_transfer'
     action?: 'approve' | 'cancel' | 'requestAndApprove'
     broadcasted: boolean
@@ -80,8 +80,7 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
           return 'Ownership Transfer'
         case 'BROADCASTER_UPDATE':
           return 'Broadcaster Update'
-        case 'WITHDRAWAL_APPROVAL':
-          return 'Withdrawal Approval'
+
         default:
           // If it's not a known static type, it might be a dynamic type name
           return tx.metadata.type

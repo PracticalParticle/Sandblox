@@ -39,9 +39,8 @@ import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { OpHistory } from '@/components/OpHistory'
 import { useTransactionManager } from '@/hooks/useTransactionManager'
 import { SecureOwnable } from '../particle-core/sdk/typescript/SecureOwnable'
-import { FUNCTION_SELECTORS } from '../particle-core/sdk/typescript/types/core.access.index'
 import { TemporalActionDialog } from '@/components/TemporalActionDialog'
-import { MetaTransaction, TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
+import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
 import { TxStatus } from '@/particle-core/sdk/typescript/types/lib.index'
 import { MetaTxActionDialog } from '@/components/MetaTxActionDialog'
 import { TransactionManagerProvider } from '@/contexts/TransactionManager'
@@ -55,8 +54,8 @@ import { ExtendedSignedTransaction } from '@/components/SignedMetaTxTable'
 import { TransactionManager } from '@/services/TransactionManager'
 import { Hex } from 'viem'
 import { useOperationTypes } from '@/hooks/useOperationTypes'
-import { WorkflowManager } from '@/lib/WorkflowManager'
 import { CoreOperationType } from '@/types/OperationRegistry'
+import type { BroadcastActionType } from '@/components/BroadcastDialog'
 
 const container = {
   hidden: { opacity: 0 },
@@ -104,6 +103,38 @@ const convertToMinutes = (value: string, unit: 'days' | 'hours' | 'minutes'): nu
     default:
       return numValue;
   }
+};
+
+// Helper function to convert string transaction type to CoreOperationType
+const convertToCoreOperationType = (type: string): CoreOperationType => {
+  switch(type) {
+    case 'TIMELOCK_UPDATE':
+      return CoreOperationType.TIMELOCK_UPDATE;
+    case 'OWNERSHIP_TRANSFER':
+      return CoreOperationType.OWNERSHIP_TRANSFER;
+    case 'BROADCASTER_UPDATE':
+      return CoreOperationType.BROADCASTER_UPDATE;
+    case 'RECOVERY_UPDATE':
+    case 'RECOVERY_ADDRESS_UPDATE':
+      return CoreOperationType.RECOVERY_UPDATE;
+    default:
+      // Default to timelock as fallback
+      console.warn(`Unknown operation type: ${type}`);
+      return CoreOperationType.TIMELOCK_UPDATE;
+  }
+};
+
+// Helper function to convert ExtendedSignedTransaction to BroadcastDialog pendingTx format
+const convertBroadcastTx = (tx: ExtendedSignedTransaction | undefined) => {
+  if (!tx) return undefined;
+  
+  return {
+    ...tx,
+    metadata: tx.metadata ? {
+      ...tx.metadata,
+      type: tx.metadata.type ? convertToCoreOperationType(tx.metadata.type) : CoreOperationType.TIMELOCK_UPDATE
+    } : undefined
+  };
 };
 
 export function SecurityDetails() {
@@ -282,7 +313,6 @@ export function SecurityDetails() {
         walletClient,
         contractInfo.address as `0x${string}`,
         chain,
-        // Add purpose field to distinguish from recovery address update
         (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
           ...metadata, 
           type: 'RECOVERY_UPDATE',
@@ -567,6 +597,7 @@ export function SecurityDetails() {
         throw new Error('Chain not found');
       }
 
+      // Set signing state before any wallet interaction
       setIsSigningTx(true);
       
       // Create and initialize the WorkflowManager
@@ -575,18 +606,16 @@ export function SecurityDetails() {
         walletClient,
         contractAddress as `0x${string}`,
         chain,
-        // Wrap storeTransaction to include purpose field to distinguish from transfer ownership
         (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
           ...metadata, 
           type: 'RECOVERY_UPDATE',
           purpose: 'address_update',
-          action: 'requestAndApprove', // Use the correct action for single-phase operations
+          action: 'requestAndApprove',
           broadcasted: false 
         })
       );
 
       // Prepare and sign the recovery update transaction
-      // Use the correct parameter name to match the operation's getExecutionOptions method
       await workflowManager.prepareAndSignSinglePhaseOperation(
         CoreOperationType.RECOVERY_UPDATE,
         { newRecoveryAddress: newRecoveryAddress as `0x${string}` },
@@ -632,6 +661,7 @@ export function SecurityDetails() {
         throw new Error(`Period must be between ${TIMELOCK_PERIODS.MIN} and ${TIMELOCK_PERIODS.MAX} minutes`);
       }
 
+      // Set signing state before any wallet interaction
       setIsSigningTx(true);
       
       // Create parameter object with BigInt value
@@ -652,15 +682,13 @@ export function SecurityDetails() {
           ...metadata, 
           type: 'TIMELOCK_UPDATE', 
           purpose: 'timelock_period',
-          action: 'requestAndApprove', // Use the correct action for single-phase operations
+          action: 'requestAndApprove',
           broadcasted: false,
-          // Include converted params for serialization
           newTimeLockPeriodInMinutes: metadataParams.newTimeLockPeriodInMinutes
         })
       );
 
       // Prepare and sign the timelock update transaction
-      // Pass the original params with BigInt to the operation
       await workflowManager.prepareAndSignSinglePhaseOperation(
         CoreOperationType.TIMELOCK_UPDATE,
         params,
@@ -790,7 +818,7 @@ export function SecurityDetails() {
   };
 
   // Update handleBroadcast function to handle both types
-  const handleBroadcast = async (type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE') => {
+  const handleBroadcast = async (type: BroadcastActionType) => {
     try {
       // Use the activeBroadcastTx that was set in prepareBroadcastDialog
       const pendingTx = activeBroadcastTx;
@@ -802,14 +830,13 @@ export function SecurityDetails() {
       if (!walletClient || !connectedAddress || !contractInfo || !contractAddress || !publicClient) {
         throw new Error('Wallet not connected or missing required information');
       }
+
       console.log('Broadcasting transaction:', pendingTx);
       console.log('Transaction type:', type);
       console.log('pendingTx metadata:', pendingTx.metadata);
       
       // Extract the action type from metadata or determine based on operation type
       let action: 'approve' | 'cancel' | 'requestAndApprove';
-      
-
       
       // Parse the signed transaction data
       const signedData = JSON.parse(pendingTx.signedData, (_key: string, value: any): any => {
@@ -836,21 +863,24 @@ export function SecurityDetails() {
       // Map the transaction type to CoreOperationType
       let operationType: CoreOperationType;
       
+      // Convert type to string for comparison
+      const typeStr = String(type);
+      
       // Determine the correct CoreOperationType based on the transaction type
-      if (type === 'OWNERSHIP_TRANSFER' || 
+      if (typeStr === 'OWNERSHIP_TRANSFER' || 
           (pendingTx.metadata?.type === 'RECOVERY_UPDATE' && pendingTx.metadata?.purpose === 'ownership_transfer')) {
         operationType = CoreOperationType.OWNERSHIP_TRANSFER;
         // Multi-phase operation - use action from metadata or default to 'approve'
         action = (pendingTx.metadata?.action as 'approve' | 'cancel') || 'approve';
-      } else if (type === 'BROADCASTER_UPDATE') {
+      } else if (typeStr === 'BROADCASTER_UPDATE') {
         operationType = CoreOperationType.BROADCASTER_UPDATE;
         // Multi-phase operation - use action from metadata or default to 'approve'
         action = (pendingTx.metadata?.action as 'approve' | 'cancel') || 'approve';
-      } else if (type === 'RECOVERY_UPDATE') {
+      } else if (typeStr === 'RECOVERY_UPDATE') {
         operationType = CoreOperationType.RECOVERY_UPDATE;
         // Single-phase operation - must use 'requestAndApprove'
         action = 'requestAndApprove';
-      } else if (type === 'TIMELOCK_UPDATE') {
+      } else if (typeStr === 'TIMELOCK_UPDATE') {
         operationType = CoreOperationType.TIMELOCK_UPDATE;
         // Single-phase operation - must use 'requestAndApprove'
         action = 'requestAndApprove';
@@ -861,7 +891,7 @@ export function SecurityDetails() {
       console.log('Using operation type for execution:', operationType);
       console.log('Using action type:', action);
       
-      // Execute the meta-transaction
+      // Execute the meta-transaction using WorkflowManager
       const txHash = await workflowManager.executeMetaTransaction(
         pendingTx.signedData,
         operationType,
@@ -886,13 +916,13 @@ export function SecurityDetails() {
 
       // Clear the active transaction
       setActiveBroadcastTx(null);
-
+      
       // Close all broadcast dialogs
       setShowBroadcastTimelockDialog(false);
       setShowBroadcastRecoveryDialog(false);
       setShowBroadcastOwnershipDialog(false);
       setShowBroadcastBroadcasterDialog(false);
-
+      
       toast({
         title: "Transaction Confirmed",
         description: "Transaction has been confirmed and removed from pending transactions",
@@ -962,9 +992,15 @@ export function SecurityDetails() {
 
   // Prepare the broadcast dialog for a specific transaction type
   const prepareBroadcastDialog = (
-    type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'RECOVERY_ADDRESS_UPDATE' | 'TIMELOCK_UPDATE',
+    type: BroadcastActionType,
     specificTx?: ExtendedSignedTransaction
   ) => {
+    // Skip if already processing a transaction
+    if (activeBroadcastTx) {
+      console.log('Already processing a transaction, skipping');
+      return;
+    }
+
     console.log('Preparing broadcast dialog for type:', type);
     console.log('Specific transaction:', specificTx);
     
@@ -986,18 +1022,11 @@ export function SecurityDetails() {
           )
         );
       } else if (type === 'RECOVERY_UPDATE') {
-        // For recovery threshold updates
+        // For recovery updates, look for RECOVERY_UPDATE type
         pendingTx = signedTransactions.find(tx => 
           tx.metadata?.type === 'RECOVERY_UPDATE' && 
           !tx.metadata?.broadcasted && 
-          (tx.metadata?.purpose !== 'address_update' && tx.metadata?.purpose !== 'ownership_transfer')
-        );
-      } else if (type === 'RECOVERY_ADDRESS_UPDATE') {
-        // For recovery address updates, look for RECOVERY_UPDATE with purpose=address_update
-        pendingTx = signedTransactions.find(tx => 
-          tx.metadata?.type === 'RECOVERY_UPDATE' && 
-          !tx.metadata?.broadcasted && 
-          tx.metadata?.purpose === 'address_update'
+          (tx.metadata?.purpose !== 'ownership_transfer')
         );
       } else if (type === 'TIMELOCK_UPDATE') {
         // For timelock updates, look for exact TIMELOCK_UPDATE type 
@@ -1005,10 +1034,11 @@ export function SecurityDetails() {
           tx.metadata?.type === 'TIMELOCK_UPDATE' && 
           !tx.metadata?.broadcasted
         );
-      } else {
-        // For other types, look for exact match
+      } else if (type === 'BROADCASTER_UPDATE') {
+        // For broadcaster updates
         pendingTx = signedTransactions.find(tx => 
-          tx.metadata?.type === type && !tx.metadata?.broadcasted
+          tx.metadata?.type === 'BROADCASTER_UPDATE' && 
+          !tx.metadata?.broadcasted
         );
       }
 
@@ -1027,7 +1057,7 @@ export function SecurityDetails() {
         setShowBroadcastTimelockDialog(true);
         break;
       case 'RECOVERY_UPDATE':
-      case 'RECOVERY_ADDRESS_UPDATE':
+     
         setShowBroadcastRecoveryDialog(true);
         break;
       case 'OWNERSHIP_TRANSFER':  
@@ -1036,7 +1066,6 @@ export function SecurityDetails() {
       case 'BROADCASTER_UPDATE':
         setShowBroadcastBroadcasterDialog(true);
         break;
-
     }
   };
 
@@ -1063,31 +1092,18 @@ export function SecurityDetails() {
     }
   };
 
-  // Function to determine if an operation is a withdrawal
-  const isWithdrawalOperation = (operationType: Hex): boolean => {
-    const operationName = getOperationName(operationType)
-    return operationName === 'WITHDRAW_ETH' || 
-           operationName === 'WITHDRAW_TOKEN' || 
-           operationName === 'WITHDRAWAL_APPROVAL'
-  }
-
   // Filter out withdrawal transactions from signed transactions
   const filteredSignedTransactions = signedTransactions.filter(tx => {
-    // Check explicit WITHDRAWAL_APPROVAL type
-    if (tx.metadata?.type === 'WITHDRAWAL_APPROVAL') {
-      return false
-    }
+    // Only show core operations
+    const coreOperations = [
+      'OWNERSHIP_TRANSFER',
+      'BROADCASTER_UPDATE',
+      'RECOVERY_UPDATE',
+      'TIMELOCK_UPDATE'
+    ];
     
-    // Check using operation type if available
-    if (tx.metadata?.operationType) {
-      const operationName = getOperationName(tx.metadata.operationType)
-      return !(operationName === 'WITHDRAW_ETH' || 
-              operationName === 'WITHDRAW_TOKEN' || 
-              operationName === 'WITHDRAWAL_APPROVAL')
-    }
-    
-    return true
-  })
+    return coreOperations.includes(tx.metadata?.type || '');
+  });
 
   if (!contractAddress || error) {
     return (
@@ -1410,9 +1426,10 @@ export function SecurityDetails() {
                                 message: `Please enter a period between ${formatTimeValue(TIMELOCK_PERIODS.MIN)} and ${formatTimeValue(TIMELOCK_PERIODS.MAX)}`
                               };
                             }}
-                            onSubmit={() => {
+                            onSubmit={async () => {
                               const minutes = convertToMinutes(newTimeLockPeriod, timeLockUnit);
-                              return handleUpdateTimeLockRequest(minutes.toString());
+                              await handleUpdateTimeLockRequest(minutes.toString());
+                              setShowTimeLockDialog(false);
                             }}
                           />
                         </CardContent>
@@ -1647,7 +1664,10 @@ export function SecurityDetails() {
                                 showNewValueInput={true}
                                 newValueLabel="New Broadcaster Address"
                                 newValuePlaceholder="Enter new broadcaster address"
-                                onSubmit={handleUpdateBroadcasterRequest}
+                                onSubmit={async (newBroadcaster) => {
+                                  await handleUpdateBroadcasterRequest(newBroadcaster);
+                                  setShowBroadcasterDialog(false);
+                                }}
                                 onApprove={handleApproveOperation}
                                 onCancel={handleUpdateBroadcasterCancellation}
                                 refreshData={loadContractInfo}
@@ -1834,7 +1854,10 @@ export function SecurityDetails() {
                               message: "Please enter a valid Ethereum address"
                             })}
                             isSigning={isSigningTx}
-                            onSubmit={handleUpdateRecoveryRequest}
+                            onSubmit={async () => {
+                              await handleUpdateRecoveryRequest(newRecoveryAddress);
+                              setShowRecoveryDialog(false);
+                            }}
                           />
                         </CardContent>
                       </CollapsibleContent>
@@ -2066,7 +2089,10 @@ export function SecurityDetails() {
                                 connectedAddress={connectedAddress}
                                 pendingTx={pendingOwnershipTx || undefined}
                                 showNewValueInput={false}
-                                onSubmit={async () => handleTransferOwnershipRequest()}
+                                onSubmit={async () => {
+                                  await handleTransferOwnershipRequest();
+                                  setShowOwnershipDialog(false);
+                                }}
                                 onApprove={handleTransferOwnershipApproval}
                                 onCancel={handleTransferOwnershipCancellation}
                                 showMetaTxOption={!!(pendingOwnershipTx && isRoleConnected(contractInfo.owner))}
@@ -2137,9 +2163,7 @@ export function SecurityDetails() {
                     console.log('Opening ownership transfer dialog');
                     prepareBroadcastDialog('OWNERSHIP_TRANSFER', tx);
                   } else if (tx.metadata.purpose === 'address_update') {
-                    console.log('Opening recovery address update dialog');
-                    prepareBroadcastDialog('RECOVERY_ADDRESS_UPDATE', tx);
-                  } else {
+                    
                     console.log('Opening general recovery update dialog');
                     prepareBroadcastDialog('RECOVERY_UPDATE', tx);
                   }
@@ -2154,28 +2178,35 @@ export function SecurityDetails() {
           {/* Operation History Section */}
           <motion.div variants={item} className="mt-6">
             <OpHistory
-              contractAddress={contractAddress as `0x${string}`}
-              operations={contractInfo?.operationHistory?.filter((op: TxRecord) => 
-                !isWithdrawalOperation(op.params.operationType as Hex)
-              ) || []}
               isLoading={loading}
               contractInfo={contractInfo}
-              signedTransactions={filteredSignedTransactions}
+              signedTransactions={filteredSignedTransactions as any}
               onApprove={handleApproveOperation}
               onCancel={handleUpdateBroadcasterCancellation}
               refreshData={loadContractInfo}
               refreshSignedTransactions={refreshSignedTransactions}
+              contractAddress={contractAddress as `0x${string}`}
+              operations={contractInfo?.operationHistory?.filter((op: TxRecord) => {
+                const operationName = getOperationName(op.params.operationType as Hex);
+                return [
+                  'OWNERSHIP_TRANSFER',
+                  'BROADCASTER_UPDATE',
+                  'RECOVERY_UPDATE',
+                  'TIMELOCK_UPDATE'
+                ].includes(operationName);
+              }) || []}
             />
           </motion.div>
         </motion.div>
       </div>
 
       {/* Broadcast Dialogs */}
+      {/* Timelock update broadcast dialog */}
       <BroadcastDialog
         isOpen={showBroadcastTimelockDialog}
         onOpenChange={setShowBroadcastTimelockDialog}
-        title="Broadcast TimeLock Update"
-        description="Broadcast the signed TimeLock period update transaction to the blockchain."
+        title="Broadcast Timelock Update"
+        description="Broadcast the signed timelock update transaction to the blockchain."
         contractInfo={{
           chainId: contractInfo?.chainId || 0,
           chainName: contractInfo?.chainName || '',
@@ -2183,13 +2214,14 @@ export function SecurityDetails() {
           owner: contractInfo?.owner || '',
           contractAddress: contractAddress
         }}
-        txType="TIMELOCK_UPDATE"
-        pendingTx={activeBroadcastTx && activeBroadcastTx?.metadata?.type !== 'WITHDRAWAL_APPROVAL' ? activeBroadcastTx : undefined}
+        actionType="TIMELOCK_UPDATE"
         onBroadcast={handleBroadcast}
+        pendingTx={activeBroadcastTx || undefined}
         connectedAddress={connectedAddress}
         operationName="Time Lock Update"
       />
 
+      {/* Recovery update broadcast dialog */}
       <BroadcastDialog
         isOpen={showBroadcastRecoveryDialog}
         onOpenChange={setShowBroadcastRecoveryDialog}
@@ -2202,13 +2234,14 @@ export function SecurityDetails() {
           owner: contractInfo?.owner || '',
           contractAddress: contractAddress
         }}
-        txType="RECOVERY_UPDATE"
-        pendingTx={activeBroadcastTx && activeBroadcastTx?.metadata?.type !== 'WITHDRAWAL_APPROVAL' ? activeBroadcastTx : undefined}
+        actionType="RECOVERY_UPDATE"
         onBroadcast={handleBroadcast}
+        pendingTx={activeBroadcastTx || undefined}
         connectedAddress={connectedAddress}
         operationName="Recovery Update"
       />
 
+      {/* Ownership transfer broadcast dialog */}
       <BroadcastDialog
         isOpen={showBroadcastOwnershipDialog}
         onOpenChange={setShowBroadcastOwnershipDialog}
@@ -2221,13 +2254,14 @@ export function SecurityDetails() {
           owner: contractInfo?.owner || '',
           contractAddress: contractAddress
         }}
-        txType="OWNERSHIP_TRANSFER"
-        pendingTx={activeBroadcastTx && activeBroadcastTx?.metadata?.type !== 'WITHDRAWAL_APPROVAL' ? activeBroadcastTx : undefined}
+        actionType="OWNERSHIP_TRANSFER"
         onBroadcast={handleBroadcast}
+        pendingTx={activeBroadcastTx || undefined}
         connectedAddress={connectedAddress}
         operationName="Ownership Transfer"
       />
 
+      {/* Broadcaster update broadcast dialog */}
       <BroadcastDialog
         isOpen={showBroadcastBroadcasterDialog}
         onOpenChange={setShowBroadcastBroadcasterDialog}
@@ -2240,9 +2274,9 @@ export function SecurityDetails() {
           owner: contractInfo?.owner || '',
           contractAddress: contractAddress
         }}
-        txType="BROADCASTER_UPDATE"
-        pendingTx={activeBroadcastTx && activeBroadcastTx?.metadata?.type !== 'WITHDRAWAL_APPROVAL' ? activeBroadcastTx : undefined}
+        actionType="BROADCASTER_UPDATE"
         onBroadcast={handleBroadcast}
+        pendingTx={activeBroadcastTx || undefined}
         connectedAddress={connectedAddress}
         operationName="Broadcaster Update"
       />
