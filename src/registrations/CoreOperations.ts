@@ -70,8 +70,8 @@ function registerOwnershipTransferOperation(contract: SecureOwnable): void {
     workflowType: WorkflowType.MULTI_PHASE,
     requiredRoles: {
       request: 'recovery',
-      approve: 'owner',
-      cancel: 'owner'
+      approve: ['owner', 'recovery'],
+      cancel: ['owner', 'recovery']
     },
     functionSelector: FUNCTION_SELECTORS.TRANSFER_OWNERSHIP as Hex,
     description: 'Transfer ownership of the contract to a new address',
