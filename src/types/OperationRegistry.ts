@@ -8,7 +8,9 @@ import { MetaTransaction } from '../particle-core/sdk/typescript/interfaces/lib.
 export enum OperationPhase {
   REQUEST = 'request',
   APPROVE = 'approve',
-  CANCEL = 'cancel'
+  CANCEL = 'cancel',
+  META_APPROVE = 'metaApprove',
+  META_CANCEL = 'metaCancel'
 }
 
 /**
@@ -86,9 +88,12 @@ export interface OperationTypeInfo {
   
   // Required roles that can execute this operation
   requiredRoles: {
-    request?: 'owner' | 'broadcaster' | 'recovery' | string[];
-    approve?: 'owner' | 'broadcaster' | 'recovery' | string[];
-    cancel?: 'owner' | 'broadcaster' | 'recovery' | string[];
+    request?: 'owner' | 'recovery' | string[];
+    approve?: 'owner' | 'recovery' | string[];
+    cancel?: 'owner' | 'recovery' | string[];
+    // Meta-transaction specific roles
+    metaApprove?: 'owner' | string[];
+    metaCancel?: 'owner' | string[];
   };
   
   // Function selector for the execution function

@@ -68,6 +68,9 @@ export function useWorkflowManager(contractAddress?: Address) {
       if (phase === OperationPhase.REQUEST) return 'recovery'
       return 'owner'
     } else if (operationType === CoreOperationType.BROADCASTER_UPDATE) {
+      if (phase === OperationPhase.META_APPROVE || phase === OperationPhase.META_CANCEL) {
+        return 'owner'
+      }
       return 'owner'
     } else if (operationType === CoreOperationType.RECOVERY_UPDATE) {
       return 'owner'

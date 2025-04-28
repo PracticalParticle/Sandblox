@@ -124,23 +124,6 @@ export function TemporalActionDialog({
     }
   }
 
-  // Check if wallet is valid based on required role directly using role validation results
-  const isWalletValidForRole = (role: string) => {
-    switch (role) {
-      case 'owner':
-        return isOwner
-      case 'broadcaster':
-        return isBroadcaster
-      case 'recovery':
-        return isRecovery
-      case 'owner_or_recovery':
-        return isOwner || isRecovery
-      default:
-        // If the role doesn't match our known roles, fall back to phase checking
-        return false
-    }
-  }
-
   // Handle submit (request phase)
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -271,16 +254,19 @@ export function TemporalActionDialog({
   }
 
   // Check if wallet is valid for request phase using both direct role check and canExecutePhase
-  const isWalletValidForRequest = isWalletValidForRole(requiredRole) || 
-    canExecutePhase(getOperationType(), OperationPhase.REQUEST, connectedAddress as Address)
+  const isWalletValidForRequest = canExecutePhase(getOperationType(), OperationPhase.REQUEST, connectedAddress as Address)
 
   // Check if wallet is valid for approval phase
-  const isWalletValidForApproval = isWalletValidForRole(requiredRole) || 
-    canExecutePhase(getOperationType(), OperationPhase.APPROVE, connectedAddress as Address)
+  const isWalletValidForApproval = canExecutePhase(getOperationType(), OperationPhase.APPROVE, connectedAddress as Address)
 
   // Check if wallet is valid for cancellation phase
-  const isWalletValidForCancellation = isWalletValidForRole(requiredRole) || 
-    canExecutePhase(getOperationType(), OperationPhase.CANCEL, connectedAddress as Address)
+  const isWalletValidForCancellation = canExecutePhase(getOperationType(), OperationPhase.CANCEL, connectedAddress as Address)
+  
+  // Check if wallet is valid for meta approval phase
+  const isWalletValidForMetaApproval = canExecutePhase(getOperationType(), OperationPhase.META_APPROVE, connectedAddress as Address)
+
+  // Check if wallet is valid for meta cancellation phase
+  const isWalletValidForMetaCancellation = canExecutePhase(getOperationType(), OperationPhase.META_CANCEL, connectedAddress as Address)
   
   // Check if the action is an ownership transfer
   const isOwnershipAction = actionType === 'ownership'
@@ -550,7 +536,7 @@ export function TemporalActionDialog({
                             <div className="flex-1">
                               <Button
                                 onClick={() => handleMetaTxSign('approve', actionType === 'broadcaster' ? 'broadcaster' : 'ownership')}
-                                disabled={isLoadingState || !isWalletValidForApproval}
+                                disabled={isLoadingState || !isWalletValidForMetaApproval}
                                 className={cn(
                                   "w-full transition-all duration-200 flex items-center justify-center",
                                   "bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
@@ -589,7 +575,7 @@ export function TemporalActionDialog({
                             <div className="flex-1">
                               <Button
                                 onClick={() => handleMetaTxSign('cancel', actionType === 'broadcaster' ? 'broadcaster' : 'ownership')}
-                                disabled={isLoadingState || !isWalletValidForCancellation}
+                                disabled={isLoadingState || !isWalletValidForMetaCancellation}
                                 className={cn(
                                   "w-full transition-all duration-200 flex items-center justify-center",
                                   "bg-rose-50 text-rose-700 hover:bg-rose-100",

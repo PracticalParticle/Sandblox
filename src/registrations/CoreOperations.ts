@@ -71,7 +71,9 @@ function registerOwnershipTransferOperation(contract: SecureOwnable): void {
     requiredRoles: {
       request: 'recovery',
       approve: ['owner', 'recovery'],
-      cancel: ['owner', 'recovery']
+      cancel: 'recovery',
+      metaApprove: 'owner',
+      metaCancel: 'owner'
     },
     functionSelector: FUNCTION_SELECTORS.TRANSFER_OWNERSHIP as Hex,
     description: 'Transfer ownership of the contract to a new address',
@@ -130,7 +132,9 @@ function registerBroadcasterUpdateOperation(contract: SecureOwnable): void {
     requiredRoles: {
       request: 'owner',
       approve: 'owner',
-      cancel: 'owner'
+      cancel: 'owner',
+      metaApprove: 'owner',
+      metaCancel: 'owner'
     },
     functionSelector: FUNCTION_SELECTORS.UPDATE_BROADCASTER as Hex,
     description: 'Update the broadcaster address for meta-transactions',

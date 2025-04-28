@@ -240,8 +240,8 @@ export class WorkflowManager {
       throw new Error(`Operation ${operation.name} is not a multi-phase operation`);
     }
 
-    if (!this.canExecutePhase(operationType, OperationPhase.APPROVE, options.from)) {
-      throw new Error(`Account ${options.from} is not authorized to approve this operation`);
+    if (!this.canExecutePhase(operationType, OperationPhase.META_APPROVE, options.from)) {
+      throw new Error(`Account ${options.from} is not authorized to approve this operation via meta-transaction`);
     }
 
     // Get the function selector for the approve meta-tx function
@@ -316,8 +316,8 @@ export class WorkflowManager {
       throw new Error(`Operation ${operation.name} is not a multi-phase operation`);
     }
 
-    if (!this.canExecutePhase(operationType, OperationPhase.CANCEL, options.from)) {
-      throw new Error(`Account ${options.from} is not authorized to cancel this operation`);
+    if (!this.canExecutePhase(operationType, OperationPhase.META_CANCEL, options.from)) {
+      throw new Error(`Account ${options.from} is not authorized to cancel this operation via meta-transaction`);
     }
 
     // Get the function selector for the cancel meta-tx function
