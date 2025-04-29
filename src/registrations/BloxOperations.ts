@@ -56,7 +56,7 @@ export async function loadBloxOperations(): Promise<void> {
         const folderName = folderPath[folderPath.length - 2];
         
         // Try to dynamically import the operations file for this Blox
-        const operationsModule = await import(`../blox/${folderName}/lib/operations`);
+        const operationsModule = await import(`../blox/${folderName}/lib/operations.ts`);
         
         if (operationsModule.default) {
           const handler = new operationsModule.default() as BaseBloxOperationsHandler;
