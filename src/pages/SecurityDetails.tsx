@@ -1,4 +1,4 @@
-import { useAccount, useDisconnect, usePublicClient, useWalletClient, useConfig, useChainId } from 'wagmi'
+import { useAccount, useDisconnect, usePublicClient, useWalletClient, useConfig } from 'wagmi'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
@@ -39,27 +39,25 @@ import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { OpHistory } from '@/components/OpHistory'
 import { useTransactionManager } from '@/hooks/useTransactionManager'
 import { SecureOwnable } from '../particle-core/sdk/typescript/SecureOwnable'
-import { TemporalActionDialog } from '@/components/TemporalActionDialog'
+import { TemporalActionDialog } from '@/components/security/TemporalActionDialog'
 import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
 import { TxStatus } from '@/particle-core/sdk/typescript/types/lib.index'
-import { MetaTxActionDialog } from '@/components/MetaTxActionDialog'
+import { MetaTxActionDialog } from '@/components/security/MetaTxActionDialog'
 import { TransactionManagerProvider } from '@/contexts/TransactionManager'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
 import { ContractInfo } from '@/components/ContractInfo'
 import { WalletStatusBadge } from '@/components/WalletStatusBadge'
 import { SignedMetaTxTable } from '@/components/SignedMetaTxTable'
-import { BroadcastDialog } from '@/components/BroadcastDialog'
+import { BroadcastDialog } from '@/components/security/BroadcastDialog'
 import { ExtendedSignedTransaction } from '@/components/SignedMetaTxTable'
 import { TransactionManager } from '@/services/TransactionManager'
 import { Hex } from 'viem'
 import { useOperationTypes } from '@/hooks/useOperationTypes'
 import { CoreOperationType, operationRegistry } from '@/types/OperationRegistry'
-import type { BroadcastActionType } from '@/components/BroadcastDialog'
+import type { BroadcastActionType } from '@/components/security/BroadcastDialog'
 import { OPERATION_TYPES } from '@/particle-core/sdk/typescript/types/core.access.index'
 import { Address } from 'viem'
-import { useRoleValidation } from '@/hooks/useRoleValidation'
-import { useWorkflowManager } from '@/hooks/useWorkflowManager'
 
 const container = {
   hidden: { opacity: 0 },
@@ -109,38 +107,6 @@ const convertToMinutes = (value: string, unit: 'days' | 'hours' | 'minutes'): nu
   }
 };
 
-// Helper function to convert string transaction type to CoreOperationType
-const convertToCoreOperationType = (type: string): CoreOperationType => {
-  switch(type) {
-    case 'TIMELOCK_UPDATE':
-      return CoreOperationType.TIMELOCK_UPDATE;
-    case 'OWNERSHIP_TRANSFER':
-      return CoreOperationType.OWNERSHIP_TRANSFER;
-    case 'BROADCASTER_UPDATE':
-      return CoreOperationType.BROADCASTER_UPDATE;
-    case 'RECOVERY_UPDATE':
-    case 'RECOVERY_ADDRESS_UPDATE':
-      return CoreOperationType.RECOVERY_UPDATE;
-    default:
-      // Default to timelock as fallback
-      console.warn(`Unknown operation type: ${type}`);
-      return CoreOperationType.TIMELOCK_UPDATE;
-  }
-};
-
-// Helper function to convert ExtendedSignedTransaction to BroadcastDialog pendingTx format
-const convertBroadcastTx = (tx: ExtendedSignedTransaction | undefined) => {
-  if (!tx) return undefined;
-  
-  return {
-    ...tx,
-    metadata: tx.metadata ? {
-      ...tx.metadata,
-      type: tx.metadata.type ? convertToCoreOperationType(tx.metadata.type) : CoreOperationType.TIMELOCK_UPDATE
-    } : undefined
-  };
-};
-
 export function SecurityDetails() {
   const { address: contractAddress } = useParams<{ address: string }>()
   const { getOperationName } = useOperationTypes(contractAddress as `0x${string}`)
@@ -158,7 +124,6 @@ export function SecurityDetails() {
   const publicClient = usePublicClient()
   const { data: walletClient } = useWalletClient()
   const config = useConfig()
-  const chainId = useChainId()
 
   // State for input fields
   const [newRecoveryAddress, setNewRecoveryAddress] = useState('')
@@ -859,14 +824,6 @@ export function SecurityDetails() {
       
       // Extract the action type from metadata or determine based on operation type
       let action: 'approve' | 'cancel' | 'requestAndApprove';
-      
-      // Parse the signed transaction data
-      const signedData = JSON.parse(pendingTx.signedData, (_key: string, value: any): any => {
-        if (typeof value === 'string' && /^\d+n$/.test(value)) {
-          return BigInt(value.slice(0, -1));
-        }
-        return value;
-      });
 
       const chain = config.chains.find((c) => c.id === contractInfo?.chainId);
       if (!chain) {
@@ -1176,69 +1133,6 @@ export function SecurityDetails() {
     
     return coreOperations.includes(tx.metadata?.type || '');
   });
-
-  // Add function to handle signed transactions
-  const handleSignedTransaction = async (signedTx: string) => {
-    try {
-      if (!contractInfo) {
-        throw new Error('Contract info not available');
-      }
-
-      // Store the signed transaction
-      const txId = Date.now().toString();
-      storeTransaction(txId, signedTx, {
-        type: activeBroadcastTx?.metadata?.type || CoreOperationType.TIMELOCK_UPDATE,
-        purpose: activeBroadcastTx?.metadata?.purpose,
-        action: activeBroadcastTx?.metadata?.action,
-        broadcasted: false,
-        status: 'PENDING'
-      });
-
-      // Update local state
-      setSignedTransactions(prev => [...prev, {
-        txId,
-        operation: activeBroadcastTx?.metadata?.type || CoreOperationType.TIMELOCK_UPDATE,
-        status: 'PENDING',
-        contractAddress: contractAddress as `0x${string}`,
-        signedData: signedTx,
-        timestamp: Date.now(),
-        metadata: {
-          type: activeBroadcastTx?.metadata?.type || CoreOperationType.TIMELOCK_UPDATE,
-          purpose: activeBroadcastTx?.metadata?.purpose,
-          action: activeBroadcastTx?.metadata?.action,
-          broadcasted: false,
-          status: 'PENDING'
-        }
-      }]);
-
-      // Close the appropriate dialog based on the transaction type
-      const txType = activeBroadcastTx?.metadata?.type;
-      switch (txType) {
-        case 'TIMELOCK_UPDATE':
-          setShowBroadcastTimelockDialog(false);
-          break;
-        case 'RECOVERY_UPDATE':
-          setShowBroadcastRecoveryDialog(false);
-          break;
-        case 'OWNERSHIP_TRANSFER':
-          setShowBroadcastOwnershipDialog(false);
-          break;
-        case 'BROADCASTER_UPDATE':
-          setShowBroadcastBroadcasterDialog(false);
-          break;
-      }
-
-      // Clear the active transaction
-      setActiveBroadcastTx(null);
-    } catch (error: any) {
-      console.error('Error storing signed transaction:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to store signed transaction",
-        variant: "destructive"
-      });
-    }
-  };
 
   // Update the handleOperationSuccess function
   const handleOperationSuccess = async () => {

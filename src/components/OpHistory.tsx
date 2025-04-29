@@ -34,7 +34,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { TemporalActionDialog } from './TemporalActionDialog'
+import { TemporalActionDialog } from './security/TemporalActionDialog'
 import { TxDetailsDialog } from './TxDetailsDialog'
 import { PendingTransactionDialog } from './PendingTransactionDialog'
 import { Button } from './ui/button'

@@ -8,11 +8,11 @@ import { Loader2, Radio, Network } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
 import { formatAddress, convertToMinutes } from "@/lib/utils"
-import { TxInfoCard } from "./TxInfoCard"
-import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index'
+import { TxInfoCard } from "../TxInfoCard"
+import { TxRecord } from '../../particle-core/sdk/typescript/interfaces/lib.index'
 import { useState, useEffect, FormEvent } from "react"
 import { useWorkflowManager } from "@/hooks/useWorkflowManager"
-import { CoreOperationType, OperationPhase } from "../types/OperationRegistry"
+import { CoreOperationType, OperationPhase } from "../../types/OperationRegistry"
 import { Address } from "viem"
 
 interface MetaTxActionDialogProps {
