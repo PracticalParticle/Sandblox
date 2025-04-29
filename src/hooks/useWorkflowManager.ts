@@ -8,8 +8,10 @@ import { useTransactionManager } from './useTransactionManager'
 import { useToast } from "@/components/ui/use-toast"
 import { OperationType, CoreOperationType, OperationPhase } from '../types/OperationRegistry'
 import { useRoleValidation } from './useRoleValidation'
+import { BloxContract } from '@/lib/catalog/types'
+import { getContractDetails } from '@/lib/catalog'
 
-export function useWorkflowManager(contractAddress?: Address) {
+export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
   const publicClient = usePublicClient()
   const { data: walletClient } = useWalletClient()
   const chainId = useChainId()
@@ -20,6 +22,7 @@ export function useWorkflowManager(contractAddress?: Address) {
   const [isLoading, setIsLoading] = useState(false)
   const [isRequesting, setIsRequesting] = useState(false)
   const [pendingOperations, setPendingOperations] = useState<Set<string>>(new Set())
+  const [contractType, setContractType] = useState<string | undefined>(undefined)
 
   // Add role validation
   const { 
@@ -36,6 +39,28 @@ export function useWorkflowManager(contractAddress?: Address) {
     config.chains.find(c => c.id === chainId)
   )
 
+  // Load contract type from catalog if bloxId is provided
+  useEffect(() => {
+    const loadContractType = async () => {
+      if (bloxId) {
+        try {
+          const contractDetails = await getContractDetails(bloxId);
+          if (contractDetails) {
+            // Extract contract type from the component path
+            // e.g., "/src/blox/SimpleRWA20/SimpleRWA20.tsx" -> "SimpleRWA20"
+            const folderPath = contractDetails.files.component.split('/');
+            const contractType = folderPath[folderPath.length - 2];
+            setContractType(contractType);
+          }
+        } catch (error) {
+          console.error("Failed to load contract details:", error);
+        }
+      }
+    };
+
+    loadContractType();
+  }, [bloxId]);
+
   // Initialize manager when dependencies change
   useEffect(() => {
     const initManager = async () => {
@@ -50,7 +75,8 @@ export function useWorkflowManager(contractAddress?: Address) {
           walletClient || undefined, 
           contractAddress,
           chain,
-          storeTransaction
+          storeTransaction,
+          contractType
         )
         
         setManager(workflowManager)
@@ -60,7 +86,7 @@ export function useWorkflowManager(contractAddress?: Address) {
     }
 
     initManager()
-  }, [publicClient, walletClient, contractAddress, chainId, config.chains, storeTransaction])
+  }, [publicClient, walletClient, contractAddress, chainId, config.chains, storeTransaction, contractType])
 
   // Helper function to determine required role based on operation and phase
   const getRequiredRoleForOperation = useCallback((operationType: OperationType, phase: OperationPhase): string => {

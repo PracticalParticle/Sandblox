@@ -14,6 +14,7 @@ import {
   CoreOperationType
 } from '../types/OperationRegistry';
 import { registerCoreOperations } from '../registrations/CoreOperations';
+import { registerBloxOperations, hasOperationsForContractType } from '../registrations/BloxOperations';
 import { ExecutionType } from '../particle-core/sdk/typescript/types/lib.index';
 import { SecureContractInfo } from './types';
 import { OPERATION_TYPES, FUNCTION_SELECTORS } from '../particle-core/sdk/typescript/types/core.access.index';
@@ -41,12 +42,14 @@ export class WorkflowManager {
   private broadcaster: Address = '0x0000000000000000000000000000000000000000' as Address;
   private contractInfo?: SecureContractInfo;
   private storeTransaction?: (txId: string, signedData: string, metadata?: Record<string, unknown>) => void;
+  private contractType?: string;
 
   constructor(
     publicClient: PublicClient,
     walletClient: WalletClient | undefined,
     contractAddress: Address,
     chain: Chain,
+    contractType?: string,
     storeTransaction?: (txId: string, signedData: string, metadata?: Record<string, unknown>) => void
   ) {
     this.publicClient = publicClient;
@@ -55,9 +58,35 @@ export class WorkflowManager {
     this.chain = chain;
     this.contract = new SecureOwnable(publicClient, walletClient, contractAddress, chain);
     this.storeTransaction = storeTransaction;
+    this.contractType = contractType;
 
     // Register core operations with the registry
     registerCoreOperations(this.contract);
+    
+    // Register Blox-specific operations if contract type is provided
+    if (contractType && hasOperationsForContractType(contractType)) {
+      // Initialize Blox operations in the background
+      this.initializeBloxOperations(contractType);
+    }
+  }
+
+  /**
+   * Initialize Blox operations
+   * @param contractType The contract type
+   */
+  private async initializeBloxOperations(contractType: string): Promise<void> {
+    try {
+      await registerBloxOperations(
+        contractType,
+        this.contract,
+        this.contractAddress,
+        this.publicClient,
+        this.walletClient,
+        this.chain
+      );
+    } catch (error) {
+      console.error(`Failed to register Blox operations for ${contractType}:`, error);
+    }
   }
 
   /**
@@ -96,7 +125,8 @@ export class WorkflowManager {
       recentEvents: [],
       chainId,
       chainName,
-      operationHistory: []
+      operationHistory: [],
+      contractType: this.contractType
     };
   }
 
@@ -249,6 +279,14 @@ export class WorkflowManager {
       throw new Error(`Account ${options.from} is not authorized to approve this operation via meta-transaction`);
     }
 
+    // Use the operation's prepareMetaTxApprove method directly if available
+    try {
+      return await operation.functions.prepareMetaTxApprove(txId, options);
+    } catch (error) {
+      // If the method is not implemented, use the default implementation
+      console.warn(`Operation ${operationType} does not implement prepareMetaTxApprove`, error);
+    }
+
     // Get the function selector for the approve meta-tx function
     let functionSelector: Hex;
     functionSelector = this.getMetaTxFunctionSelector(operationType, 'approve');
@@ -323,6 +361,14 @@ export class WorkflowManager {
 
     if (!this.canExecutePhase(operationType, OperationPhase.META_CANCEL, options.from)) {
       throw new Error(`Account ${options.from} is not authorized to cancel this operation via meta-transaction`);
+    }
+
+    // Use the operation's prepareMetaTxCancel method directly if available
+    try {
+      return await operation.functions.prepareMetaTxCancel(txId, options);
+    } catch (error) {
+      // If the method is not implemented, use the default implementation
+      console.warn(`Operation ${operationType} does not implement prepareMetaTxCancel`, error);
     }
 
     // Get the function selector for the cancel meta-tx function
@@ -401,6 +447,14 @@ export class WorkflowManager {
 
     if (!this.canExecutePhase(operationType, OperationPhase.REQUEST, options.from)) {
       throw new Error(`Account ${options.from} is not authorized to request this operation`);
+    }
+
+    // Use the operation's prepareMetaTx method directly
+    try {
+      return await operation.functions.prepareMetaTx(params, options);
+    } catch (error) {
+      // If the method is not implemented, use the default implementation
+      console.warn(`Operation ${operationType} does not implement prepareMetaTx`, error);
     }
 
     // Get execution options for the operation

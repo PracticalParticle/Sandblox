@@ -192,6 +192,7 @@ export async function generateNewSecureOwnableManager(
  * @param address The contract address
  * @param chain The chain object
  * @param storeTransaction Optional function to store transactions
+ * @param contractType Optional contract type for Blox-specific operations
  * @returns Initialized WorkflowManager instance
  */
 export async function generateNewWorkflowManager(
@@ -199,9 +200,10 @@ export async function generateNewWorkflowManager(
   walletClient: WalletClient | undefined,
   address: Address,
   chain: ViemChain,
-  storeTransaction?: (txId: string, signedData: string, metadata?: Record<string, unknown>) => void
+  storeTransaction?: (txId: string, signedData: string, metadata?: Record<string, unknown>) => void,
+  contractType?: string
 ): Promise<WorkflowManager> {
-  const manager = new WorkflowManager(publicClient, walletClient, address, chain, storeTransaction);
+  const manager = new WorkflowManager(publicClient, walletClient, address, chain, contractType, storeTransaction);
   await manager.initialize();
   return manager;
 }
