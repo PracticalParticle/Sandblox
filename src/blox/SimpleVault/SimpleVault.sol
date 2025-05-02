@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.2;
 
 // OpenZeppelin imports
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
