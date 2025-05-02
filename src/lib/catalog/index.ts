@@ -1,5 +1,4 @@
 import { BloxCatalog, BloxContract, BloxMetadata } from './types'
-import { env } from '@/config/env'
 
 // Use Vite's glob import to get all .blox.json files
 const bloxMetadataFiles = import.meta.glob('/src/blox/**/*.blox.json', { eager: true })
