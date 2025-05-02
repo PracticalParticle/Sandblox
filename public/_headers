@@ -52,9 +52,6 @@
 /*.abi.json
   Content-Type: application/json
 
-/*.bin
-  Content-Type: application/octet-stream
-
 /*.blox.json
   Content-Type: application/json
 

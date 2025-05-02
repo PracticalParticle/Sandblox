@@ -1,7 +1,15 @@
 import { type Address, type Hash, type Abi, type Hex } from 'viem'
 import { useWalletClient, usePublicClient } from 'wagmi'
-import { getContractABI, getContractBytecode } from '../catalog'
+import { getContractABI } from '../catalog'
 import { useEffect, useState, useMemo } from 'react'
+
+// TODO: Implement proper contract bytecode fetching
+// This is a temporary mock that returns a minimal valid bytecode
+// Replace this with actual implementation that fetches real bytecode
+const getMockBytecode = () => {
+  return '0x6080604052348015600f57600080fd5b50604051602080608183398101806040' + 
+         '5281815160007300000000000000000000000000000000000000001'
+}
 
 export interface DeploymentConfig {
   contractId: string
@@ -41,7 +49,7 @@ export function useContractDeployment(config: DeploymentConfig): DeploymentResul
   useEffect(() => {
     Promise.all([
       getContractABI(contractId),
-      getContractBytecode(contractId)
+      getMockBytecode()
     ])
       .then(([contractAbi, contractBytecode]) => {
         setAbi(contractAbi)

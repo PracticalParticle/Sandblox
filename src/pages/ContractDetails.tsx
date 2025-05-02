@@ -7,7 +7,6 @@ import type { BloxContract } from '../lib/catalog/types'
 import Prism from 'prismjs'
 import 'prismjs/components/prism-solidity'
 import 'prismjs/themes/prism-tomorrow.css'
-import { DeploymentDialog } from '../components/DeploymentDialog'
 import { Button } from '../components/ui/button'
 import ReactMarkdown from 'react-markdown'
 import { Address } from 'viem'
@@ -58,7 +57,6 @@ export function ContractDetails() {
   const [markdownContent, setMarkdownContent] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [showDeployDialog, setShowDeployDialog] = useState(false)
 
   const [showCodeDialog, setShowCodeDialog] = useState(false)
   const [showFactoryDialog, setShowFactoryDialog] = useState(false)
@@ -118,10 +116,6 @@ export function ContractDetails() {
     }
   }, [showCodeDialog])
 
-  // Handle dialog close
-  const handleCloseDeployDialog = () => {
-    setShowDeployDialog(false)
-  }
 
   const handleCreateClick = async () => {
     if (!contract || !hasFactory) return;
@@ -407,16 +401,6 @@ export function ContractDetails() {
           </div>
         </motion.div>
 
-       
-        
-        {contract && (
-          <DeploymentDialog
-            isOpen={showDeployDialog}
-            onClose={handleCloseDeployDialog}
-            contractId={contract.id}
-            contractName={contract.name}
-          />
-        )}
         
         {/* Render the factory dialog when loaded */}
         {FactoryDialog && factoryAddress && (
