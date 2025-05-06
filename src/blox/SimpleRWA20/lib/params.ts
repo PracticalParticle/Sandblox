@@ -25,7 +25,9 @@ export function isMintTokensParams(params: any): params is MintTokensParams {
     'to' in params &&
     typeof params.to === 'string' &&
     'amount' in params &&
-    typeof params.amount === 'bigint'
+    (typeof params.amount === 'bigint' ||
+      typeof params.amount === 'string' || // JSON payload
+      typeof params.amount === 'number')   // UI form input
   );
 }
 
