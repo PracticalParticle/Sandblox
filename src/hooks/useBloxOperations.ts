@@ -81,13 +81,15 @@ export function useBloxOperations() {
         }
 
         // Create contract instance
+        if (!walletClient) {
+          throw new Error('Wallet not connected – cannot instantiate contract for write operations');
+        }
         const contract = new contractModule.default(
           publicClient,
           walletClient,
           contractAddress,
           chain
         );
-
         // Create transaction manager instance
 const txManager = new TransactionManager();
 const storeTransaction = (txId: string, signedData: string, metadata?: Record<string, any>) => {
