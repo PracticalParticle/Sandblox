@@ -99,9 +99,17 @@ export default class SimpleRWA20OperationsHandler extends BaseBloxOperationsHand
     // Define the functions for the mint operation
     const functions: SinglePhaseOperationFunctions = {
       // Get execution options for meta-transaction
-      getExecutionOptions: async (params: { to: Address, amount: bigint }) => {
-        return "0x" as Hex; // This would be implemented to encode the parameters
-      },
+-     getExecutionOptions: async (params: { to: Address, amount: bigint }) => {
+-       return "0x" as Hex; // This would be implemented to encode the parameters
+-     },
++     getExecutionOptions: async ({ to, amount }: { to: Address, amount: bigint }) => {
++       // ABI-encode the call data for `mint(address,uint256)`
++       return encodeFunctionData({
++         abi: contract.abi,
++         functionName: "mint",
++         args: [to, amount],
++       }) as Hex;
++     },
       
       // Combined request and approval with meta-transaction
       requestAndApproveWithMetaTx: async (metaTx: MetaTransaction, options: TransactionOptions) => {
