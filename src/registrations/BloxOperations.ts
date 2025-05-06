@@ -15,22 +15,7 @@ const bloxOperationsRegistry = new Map<string, BaseBloxOperationsHandler>();
 /**
  * Abstract interface for Blox operation handler
  */
-export interface BloxOperationsHandler {
-  // Get the Blox ID
-  getBloxId(): string;
-  
-  // Register all operations for this Blox
-  registerOperations(
-    contract: any, 
-    contractAddress: Address, 
-    publicClient: PublicClient, 
-    walletClient?: WalletClient,
-    chain?: Chain
-  ): void;
-  
-  // Check if this handler can handle a given contract type
-  canHandle(contractType: string): boolean;
-}
+// interface removed – use BaseBloxOperationsHandler
 
 /**
  * Convert kebab-case to PascalCase
