@@ -351,99 +351,100 @@ export function useOperations(
   // META TRANSACTION ACTIONS
 
   // Prepare and sign a withdrawal approval meta-transaction
-  const signWithdrawalApproval = useCallback(async (txId: number): Promise<void> => {
-    const txIdStr = txId.toString();
-    setOperationLoading('metaTxSign', `${txIdStr}-approve`, true);
-    
-    try {
-      let signedMetaTx: string | undefined;
-      
-      // Try using the workflow manager if available
-      if (manager && address) {
-        // Create proper options object
-        const options: TransactionOptions = { from: address };
-        
-        signedMetaTx = await manager.prepareAndSignApproval(
-          VaultOperationType.WITHDRAW_ETH, // Using fallback operation type
-          BigInt(txId),
-          options
-        );
-      } else {
-        // Fallback to direct method
-        const vault = getVaultInstance();
-        if (!vault || !walletClient) throw new Error("Vault not initialized or wallet not connected");
-        
-        // Get stored settings and create meta tx params
-        const storedSettings = getStoredMetaTxSettings();
-        const metaTxParams = createVaultMetaTxParams(storedSettings);
-        
-        // Generate unsigned meta transaction
-        const unsignedMetaTx = await vault.generateUnsignedWithdrawalMetaTxApproval(
-          BigInt(txId),
-          metaTxParams
-        );
-        
-        // Get the message hash and sign it
-        const messageHash = unsignedMetaTx.message;
-        const signature = await walletClient.signMessage({
-          message: { raw: messageHash as Hex },
-          account: address as Address
-        });
-        
-        // Create the complete signed meta transaction
-        const signedTx = {
-          ...unsignedMetaTx,
-          signature
-        };
-        
-        // Convert BigInts to strings for storage
-        const serializedTx = convertBigIntsToStrings(signedTx);
-        signedMetaTx = JSON.stringify(serializedTx);
-      }
-      
-      if (!signedMetaTx) {
-        throw new Error("Failed to generate signed meta transaction");
-      }
-      
-      // Store the signed meta transaction
-      storeTransaction(
-        txIdStr,
-        signedMetaTx,
-        {
-          type: 'WITHDRAWAL_APPROVAL',
-          timestamp: Date.now(),
-          action: 'approve',
-          broadcasted: false,
-          status: 'PENDING'
-        }
+const signWithdrawalApproval = useCallback(async (txId: number): Promise<void> => {
+  const txIdStr = txId.toString();
+  setOperationLoading('metaTxSign', `${txIdStr}-approve`, true);
+
+  try {
+    let signedMetaTx: string | undefined;
+
+    // Try using the workflow manager if available
+-   if (manager && address) {
++   if (manager && address && walletClient) {
+      // Create proper options object
+      const options: TransactionOptions = { from: address };
+
+      signedMetaTx = await manager.prepareAndSignApproval(
+        VaultOperationType.WITHDRAW_ETH, // Using fallback operation type
+        BigInt(txId),
+        options
       );
-      
-      // Update signed state
-      setSignedMetaTxStates(prev => ({
-        ...prev,
-        [`${txIdStr}-approve`]: { type: 'approve' }
-      }));
-      
-      onSuccess?.({
-        type: 'success',
-        title: 'Meta Transaction Signed',
-        description: `Successfully signed approval for withdrawal #${txId}`
+    } else {
+      // Fallback to direct method
+      const vault = getVaultInstance();
+      if (!vault || !walletClient) throw new Error("Vault not initialized or wallet not connected");
+
+      // Get stored settings and create meta tx params
+      const storedSettings = getStoredMetaTxSettings();
+      const metaTxParams = createVaultMetaTxParams(storedSettings);
+
+      // Generate unsigned meta transaction
+      const unsignedMetaTx = await vault.generateUnsignedWithdrawalMetaTxApproval(
+        BigInt(txId),
+        metaTxParams
+      );
+
+      // Get the message hash and sign it
+      const messageHash = unsignedMetaTx.message;
+      const signature = await walletClient.signMessage({
+        message: { raw: messageHash as Hex },
+        account: address as Address
       });
-      
-      onRefresh?.();
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('Failed to sign withdrawal approval');
-      setError(error);
-      onError?.({
-        type: 'error',
-        title: 'Signing Failed',
-        description: error.message
-      });
-      throw error;
-    } finally {
-      setOperationLoading('metaTxSign', `${txIdStr}-approve`, false);
+
+      // Create the complete signed meta transaction
+      const signedTx = {
+        ...unsignedMetaTx,
+        signature
+      };
+
+      // Convert BigInts to strings for storage
+      const serializedTx = convertBigIntsToStrings(signedTx);
+      signedMetaTx = JSON.stringify(serializedTx);
     }
-  }, [manager, walletClient, address, getVaultInstance, storeTransaction, setOperationLoading, onSuccess, onError, onRefresh]);
+
+    if (!signedMetaTx) {
+      throw new Error("Failed to generate signed meta transaction");
+    }
+
+    // Store the signed meta transaction
+    storeTransaction(
+      txIdStr,
+      signedMetaTx,
+      {
+        type: 'WITHDRAWAL_APPROVAL',
+        timestamp: Date.now(),
+        action: 'approve',
+        broadcasted: false,
+        status: 'PENDING'
+      }
+    );
+
+    // Update signed state
+    setSignedMetaTxStates(prev => ({
+      ...prev,
+      [`${txIdStr}-approve`]: { type: 'approve' }
+    }));
+
+    onSuccess?.({
+      type: 'success',
+      title: 'Meta Transaction Signed',
+      description: `Successfully signed approval for withdrawal #${txId}`
+    });
+
+    onRefresh?.();
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error('Failed to sign withdrawal approval');
+    setError(error);
+    onError?.({
+      type: 'error',
+      title: 'Signing Failed',
+      description: error.message
+    });
+    throw error;
+  } finally {
+    setOperationLoading('metaTxSign', `${txIdStr}-approve`, false);
+  }
+}, [manager, walletClient, address, getVaultInstance, storeTransaction, setOperationLoading, onSuccess, onError, onRefresh]);
 
   // Prepare and sign a withdrawal cancellation meta-transaction
   const signWithdrawalCancellation = useCallback(async (txId: number): Promise<void> => {
