@@ -294,9 +294,14 @@ export function TemporalActionDialog({
     const now = Math.floor(Date.now() / 1000)
     const releaseTime = Number(pendingTx.releaseTime)
     const timeLockPeriod = (contractInfo.timeLockPeriodInMinutes || 0) * 60
+    if (timeLockPeriod === 0) {
+      return { currentProgress: 100, isTimeLockComplete: true }
+    }
+
     const startTime = releaseTime - timeLockPeriod
     const progress = Math.min(((now - startTime) / timeLockPeriod) * 100, 100)
-    
+    // …rest of function…
+  }
     return {
       currentProgress: progress,
       isTimeLockComplete: progress >= 100
