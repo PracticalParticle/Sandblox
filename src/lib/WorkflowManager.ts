@@ -438,4 +438,169 @@ export class WorkflowManager {
 
     return JSON.stringify(signedMetaTx, this.bigIntReplacer);
   }
+
+  /**
+   * Gets the appropriate function selector for a meta-transaction based on operation type and action
+   */
+  private getMetaTxFunctionSelector(operationType: OperationType, action: 'approve' | 'cancel' | 'requestAndApprove'): Hex {
+    // Get operation from registry
+    const operation = operationRegistry.getOperation(operationType);
+    if (!operation) {
+      throw new Error(`Unknown operation type: ${operationType}`);
+    }
+
+    // If we're using core operations, look them up directly
+    if (operationType === CoreOperationType.OWNERSHIP_TRANSFER) {
+      if (action === 'approve') return FUNCTION_SELECTORS.TRANSFER_OWNERSHIP_APPROVE_META as Hex;
+      if (action === 'cancel') return FUNCTION_SELECTORS.TRANSFER_OWNERSHIP_CANCEL_META as Hex;
+    } else if (operationType === CoreOperationType.BROADCASTER_UPDATE) {
+      if (action === 'approve') return FUNCTION_SELECTORS.UPDATE_BROADCASTER_APPROVE_META as Hex;
+      if (action === 'cancel') return FUNCTION_SELECTORS.UPDATE_BROADCASTER_CANCEL_META as Hex;
+    } else if (operationType === CoreOperationType.RECOVERY_UPDATE) {
+      if (action === 'requestAndApprove') return FUNCTION_SELECTORS.UPDATE_RECOVERY_META as Hex;
+    } else if (operationType === CoreOperationType.TIMELOCK_UPDATE) {
+      if (action === 'requestAndApprove') return FUNCTION_SELECTORS.UPDATE_TIMELOCK_META as Hex;
+    }
+
+    // For custom operations, this information should be stored in the operation's metadata
+    // This is a simplified version - in a real implementation, this information would be
+    // part of the operation registration
+    throw new Error(`No function selector found for operation ${operationType} and action ${action}`);
+  }
+
+  /**
+   * Handles BigInt serialization for JSON
+   */
+  private bigIntReplacer(_key: string, value: any): any {
+    if (typeof value === "bigint") {
+      return value.toString() + 'n';
+    }
+    return value;
+  }
+
+  /**
+   * Handles BigInt deserialization from JSON
+   */
+  private bigIntReviver(_key: string, value: any): any {
+    if (typeof value === 'string' && /^\d+n$/.test(value)) {
+      return BigInt(value.slice(0, -1));
+    }
+    return value;
+  }
+
+  /**
+   * Executes a signed meta-transaction
+   */
+  async executeMetaTransaction(
+    signedMetaTxJson: string,
+    operationType: OperationType,
+    action: 'approve' | 'cancel' | 'requestAndApprove',
+    options: TransactionOptions
+  ): Promise<Hash> {
+    const operation = operationRegistry.getOperation(operationType);
+    if (!operation) {
+      throw new Error(`Unknown operation type: ${operationType}`);
+    }
+
+    // Parse the signed meta-transaction
+    const signedMetaTx = JSON.parse(signedMetaTxJson, this.bigIntReviver) as MetaTransaction;
+
+    // Execute the appropriate function based on operation type and action
+    if (isMultiPhaseOperation(operation)) {
+      if (action === 'approve') {
+        const result = await operation.functions.approveWithMetaTx(signedMetaTx, options);
+        return result.hash;
+      } else if (action === 'cancel') {
+        const result = await operation.functions.cancelWithMetaTx(signedMetaTx, options);
+        return result.hash;
+      }
+    } else if (isSinglePhaseOperation(operation)) {
+      if (action === 'requestAndApprove') {
+        const result = await operation.functions.requestAndApproveWithMetaTx(signedMetaTx, options);
+        return result.hash;
+      }
+    }
+
+    throw new Error(`Unsupported action '${action}' for operation type '${operation.name}'`);
+  }
+
+  /**
+   * Prepares and signs a meta-transaction for a single-phase operation
+   */
+  async prepareAndSignSinglePhaseOperation(
+    operationType: OperationType,
+    params: any,
+    options: TransactionOptions
+  ): Promise<string> {
+    if (!this.walletClient) {
+      throw new Error('Wallet client is required');
+    }
+
+    const operation = operationRegistry.getOperation(operationType);
+    if (!operation) {
+      throw new Error(`Unknown operation type: ${operationType}`);
+    }
+
+    if (!isSinglePhaseOperation(operation)) {
+      throw new Error(`Operation ${operation.name} is not a single-phase operation`);
+    }
+
+    if (!this.canExecutePhase(operationType, OperationPhase.REQUEST, options.from)) {
+      throw new Error(`Account ${options.from} is not authorized to request this operation`);
+    }
+
+    // Use the operation's prepareMetaTx method directly
+    try {
+      return await operation.functions.prepareMetaTx(params, options);
+    } catch (error) {
+      // If the method is not implemented, use the default implementation
+      console.warn(`Operation ${operationType} does not implement prepareMetaTx`, error);
+    }
+
+    // Get execution options for the operation
+    const executionOptions = await operation.functions.getExecutionOptions(params);
+
+    // Get the function selector
+    let functionSelector: Hex;
+    functionSelector = this.getMetaTxFunctionSelector(operationType, 'requestAndApprove');
+
+    // Generate meta-transaction parameters
+    const metaTxParams = await this.contract.createMetaTxParams(
+      this.broadcaster,
+      functionSelector,
+      BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
+      BigInt(0), // No max gas price
+      options.from
+    );
+
+    // Process the parameters based on operation type
+    let actualParams = params;
+
+    // Generate unsigned meta-transaction for new operation
+    const unsignedMetaTx = await this.contract.generateUnsignedMetaTransactionForNew(
+      options.from,
+      this.contractAddress,
+      BigInt(0), // No value
+      BigInt(0), // No gas limit
+      this.getOperationTypeHash(operationType),
+      ExecutionType.STANDARD,
+      executionOptions,
+      metaTxParams
+    );
+
+    // Get the message hash and sign it
+    const messageHash = unsignedMetaTx.message;
+    const signature = await this.walletClient.signMessage({
+      message: { raw: messageHash as Hex },
+      account: options.from
+    });
+
+    // Create the complete signed meta transaction
+    const signedMetaTx = {
+      ...unsignedMetaTx,
+      signature
+    };
+
+    return JSON.stringify(signedMetaTx, this.bigIntReplacer);
+  }
 }
