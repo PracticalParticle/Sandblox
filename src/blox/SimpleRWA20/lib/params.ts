@@ -55,7 +55,7 @@ export function validateRWA20OperationParams(operationType: string, params: any)
     case 'BURN_TOKENS':
       return isBurnTokensParams(params);
     default:
-      // For unknown operations, just check if params is an object
-      return params && typeof params === 'object';
+      // Unknown operation → invalid
+      return false;
   }
 }
