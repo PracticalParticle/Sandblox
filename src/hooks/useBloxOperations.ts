@@ -5,7 +5,6 @@ import { useChain } from './useChain';
 import { BaseBloxOperationsHandler } from '../types/BloxOperationsHandler';
 import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index';
 import { TransactionManager } from '@/services/TransactionManager';
-import { loadBloxOperationsByBloxId } from '@/registrations/BloxOperations';
 
 interface BloxComponents {
   PendingTransactions: React.ComponentType<any>;
@@ -48,10 +47,10 @@ export function useBloxOperations() {
 
   const getBloxOperations = useCallback(async (bloxId: string, contractAddress?: Address): Promise<BloxOperations | undefined> => {
     try {
-      if (!bloxId) {
-        console.error('No bloxId provided to getBloxOperations');
-        return undefined;
-      }
+      // Convert bloxId to PascalCase for directory structure
+      const pascalCaseBloxId = bloxId.split('-').map(word => 
+        word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+      ).join('');
 
       // If no contract address provided, we can still load the operations handler
       // but some functionality might be limited
@@ -59,18 +58,14 @@ export function useBloxOperations() {
         console.warn('No contract address provided for blox operations');
       }
 
-      // Load the operations handler for this specific blox ID
-      const handler = await loadBloxOperationsByBloxId(bloxId);
-      
-      if (!handler) {
-        console.error(`No operations handler found for blox: ${bloxId}`);
-        return undefined;
+      // Dynamic import of blox operations
+      const module = await import(`../blox/${pascalCaseBloxId}/lib/operations`);
+      if (!module.default) {
+        throw new Error(`No operations handler found for blox: ${bloxId}`);
       }
 
-      // Convert bloxId to PascalCase for directory structure
-      const pascalCaseBloxId = bloxId.split('-').map(word => 
-        word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-      ).join('');
+      // Initialize the operations handler
+      const handler = new module.default() as BaseBloxOperationsHandler;
       
       // Get contract instance if we have an address
       if (contractAddress) {

@@ -181,7 +181,6 @@ export function OpHistory({
   const { getBloxOperations } = useBloxOperations()
   const [operationTx, setOperationTx] = useState<TxRecord | null>(null)
   const [bloxOperations, setBloxOperations] = useState<any>(null)
-  const [isLoadingBloxOperations, setIsLoadingBloxOperations] = useState(false)
 
   // Add effect to load blox operations when needed
   useEffect(() => {
@@ -192,7 +191,6 @@ export function OpHistory({
       }
 
       try {
-        setIsLoadingBloxOperations(true)
         const ops = await getBloxOperations(contractInfo.bloxId, contractAddress)
         if (ops) {
           console.log(`Loaded operations for ${contractInfo.bloxId}`)
@@ -205,16 +203,13 @@ export function OpHistory({
           title: 'Operation Load Error',
           description: 'Failed to load operations. Some functionality may be limited.'
         })
-      } finally {
-        setIsLoadingBloxOperations(false)
       }
     }
 
-    // Only load if we have a bloxId and don't already have the operations loaded
-    if (contractInfo?.bloxId && !bloxOperations) {
+    if (contractInfo?.bloxId) {
       loadBloxOperations()
     }
-  }, [contractInfo?.bloxId, contractAddress, getBloxOperations, bloxOperations])
+  }, [contractInfo?.bloxId, contractAddress, getBloxOperations])
 
   // Function to determine the action type and required role based on operation type
   const getActionTypeAndRole = (operationType: Hex): { actionType: string; requiredRole: string } => {
@@ -395,23 +390,18 @@ export function OpHistory({
         console.log('Opening blox-specific dialog for record:', record)
         
         // Ensure we have blox operations loaded
-        if (!bloxOperations && contractInfo?.bloxId) {
-          setIsLoadingBloxOperations(true)
-          try {
-            const ops = await getBloxOperations(contractInfo.bloxId, contractAddress)
-            if (ops) {
-              setBloxOperations(ops)
-            } else {
-              console.error('Failed to load blox operations')
-              onNotification?.({
-                type: 'error',
-                title: 'Operation Load Error',
-                description: 'Failed to load operations for this transaction type.'
-              })
-              return
-            }
-          } finally {
-            setIsLoadingBloxOperations(false)
+        if (!bloxOperations) {
+          if (!contractInfo?.bloxId) {
+            console.warn('No bloxId provided in contractInfo')
+            return
+          }
+
+          const ops = await getBloxOperations(contractInfo.bloxId, contractAddress)
+          if (ops) {
+            setBloxOperations(ops)
+          } else {
+            console.error('Failed to load blox operations')
+            return
           }
         }
 
@@ -481,7 +471,7 @@ export function OpHistory({
     }
   }
 
-  if (isLoading || loadingTypes || isLoadingBloxOperations) {
+  if (isLoading || loadingTypes) {
     return (
       <motion.div variants={container} initial="hidden" animate="show">
         <Card>
@@ -510,9 +500,9 @@ export function OpHistory({
                 if (refreshSignedTransactions) refreshSignedTransactions()
               }}
               className="gap-2"
-              disabled={isLoading || loadingTypes || isLoadingBloxOperations}
+              disabled={isLoading || loadingTypes}
             >
-              <RefreshCw className={`h-4 w-4 ${isLoading || loadingTypes || isLoadingBloxOperations ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`h-4 w-4 ${isLoading || loadingTypes ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
           </div>
