@@ -4,9 +4,9 @@ import { BaseBloxOperationsHandler } from '../../../types/BloxOperationsHandler'
 import { MetaTransaction, TxRecord } from '../../../particle-core/sdk/typescript/interfaces/lib.index';
 import { MultiPhaseOperationFunctions } from '../../../types/OperationRegistry';
 import SimpleVault from '../SimpleVault';
-import { createVaultMetaTxParams, getStoredMetaTxSettings } from '../SimpleVault.ui';
 import { TxStatus } from '../../../particle-core/sdk/typescript/types/lib.index';
 import { SecureOwnable } from '../../../particle-core/sdk/typescript/SecureOwnable';
+import { VaultMetaTxParams } from '../SimpleVault';
 
 /**
  * Represents a transaction record with vault-specific details
@@ -18,6 +18,52 @@ export interface VaultTxRecord extends Omit<TxRecord, 'status'> {
   token?: Address;
   type: "ETH" | "TOKEN";
 }
+
+// Storage key for meta tx settings
+const META_TX_SETTINGS_KEY = 'simpleVault.metaTxSettings';
+
+// Default values for meta tx settings
+const DEFAULT_META_TX_SETTINGS: VaultMetaTxParams = {
+  deadline: BigInt(3600), // 1 hour in seconds
+  maxGasPrice: BigInt(50000000000) // 50 gwei
+};
+
+/**
+ * Get meta transaction settings from local storage
+ * @returns VaultMetaTxParams with stored or default settings
+ */
+export const getStoredMetaTxSettings = (): VaultMetaTxParams => {
+  try {
+    const stored = localStorage.getItem(META_TX_SETTINGS_KEY);
+    if (!stored) return DEFAULT_META_TX_SETTINGS;
+    const parsed = JSON.parse(stored);
+    return {
+      deadline: BigInt(parsed.deadline),
+      maxGasPrice: BigInt(parsed.maxGasPrice)
+    };
+  } catch (error) {
+    console.error('Failed to load meta tx settings:', error);
+    return DEFAULT_META_TX_SETTINGS;
+  }
+};
+
+/**
+ * Create VaultMetaTxParams with absolute deadline from settings
+ * @param settings VaultMetaTxParams containing relative deadline
+ * @returns VaultMetaTxParams with absolute deadline
+ */
+export const createVaultMetaTxParams = (settings: VaultMetaTxParams): VaultMetaTxParams => {
+  // Get current timestamp in seconds
+  const currentTimestamp = BigInt(Math.floor(Date.now() / 1000));
+  
+  // Convert deadline from seconds to actual timestamp by adding to current time
+  const deadlineTimestamp = currentTimestamp + BigInt(settings.deadline);
+  
+  return {
+    deadline: deadlineTimestamp,
+    maxGasPrice: settings.maxGasPrice
+  };
+};
 
 /**
  * Helper function to compute keccak256 of a string and take first 4 bytes (function selector)
