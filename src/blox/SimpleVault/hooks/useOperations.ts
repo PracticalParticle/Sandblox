@@ -124,7 +124,7 @@ export function useOperations(
   }, [txManagerError, onError]);
 
   // Initialize the vault contract instance when needed
-  const getVaultInstance = useCallback((): SimpleVault | null => {
+  const vaultInstance = useMemo((): SimpleVault | null => {
     if (!walletClient || !publicClient || !chain || !address) {
       setError(new Error("Vault not initialized or wallet not connected"));
       return null;
