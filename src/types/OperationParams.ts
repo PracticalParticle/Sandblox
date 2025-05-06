@@ -53,8 +53,12 @@ export function isTimeLockUpdateParams(params: any): params is TimeLockUpdatePar
     params &&
     typeof params === 'object' &&
     'newTimeLockPeriodInMinutes' in params &&
-    typeof params.newTimeLockPeriodInMinutes === 'bigint'
+    (typeof params.newTimeLockPeriodInMinutes === 'bigint' ||
+     typeof params.newTimeLockPeriodInMinutes === 'number' ||
+     (typeof params.newTimeLockPeriodInMinutes === 'string' &&
+      /^\d+$/.test(params.newTimeLockPeriodInMinutes)))
   );
+}
 }
 
 /**
