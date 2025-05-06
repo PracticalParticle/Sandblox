@@ -155,7 +155,11 @@ export function MetaTxActionDialog({
         params = { newRecoveryAddress: newValue as Address }
       } else if (operationType === CoreOperationType.TIMELOCK_UPDATE) {
         // For timelock updates, we need to convert the value to minutes first
-        const minutes = convertToMinutes(newValue, timeLockUnit)
+        let minutes = convertToMinutes(newValue, timeLockUnit)
+        // Ensure we cast only integer values to BigInt
+        if (!Number.isInteger(minutes)) {
+          minutes = Math.round(minutes)
+        }
         params = { newTimeLockPeriodInMinutes: BigInt(minutes) }
       } else {
         // For custom operations
