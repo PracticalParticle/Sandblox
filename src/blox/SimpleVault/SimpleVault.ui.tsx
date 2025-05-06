@@ -20,7 +20,7 @@ import { ContractInfo as BaseContractInfo } from "@/lib/verification/index";
 import { AddTokenDialog } from "./components";
 import { PendingTransaction } from "./components/PendingTransaction";
 import type { TokenState, TokenBalanceState } from "./components";
-import type { VaultTxRecord } from "./components/PendingTransaction";
+import type { VaultTxRecord } from "./lib/operations";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";

@@ -5,7 +5,7 @@ import { TxRecord, MetaTransaction } from '../../particle-core/sdk/typescript/in
 import { TransactionOptions, TransactionResult } from '../../particle-core/sdk/typescript/interfaces/base.index';
 import { TxStatus } from '../../particle-core/sdk/typescript/types/lib.index';
 import { ContractValidations } from '../../particle-core/sdk/typescript/utils/validations';
-import { VaultTxRecord } from "./components/PendingTransaction";
+import { VaultTxRecord } from "./lib/operations";
 
 // Parse and type the ABI
 const SimpleVaultABI = SimpleVaultABIJson as Abi;

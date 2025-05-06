@@ -13,14 +13,7 @@ import { useOperationTypes } from "@/hooks/useOperationTypes";
 import { NotificationMessage } from "../lib/types";
 import { useActionPermissions } from "@/hooks/useActionPermissions";
 import { usePublicClient } from "wagmi"
-
-export interface VaultTxRecord extends Omit<TxRecord, 'status'> {
-  status: TxStatus;
-  amount: bigint;
-  to: Address;
-  token?: Address;
-  type: "ETH" | "TOKEN";
-}
+import { VaultTxRecord } from "../lib/operations";
 
 export interface PendingTransactionsProps {
   transactions: VaultTxRecord[];

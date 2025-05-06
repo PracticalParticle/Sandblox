@@ -5,7 +5,18 @@ import { MetaTransaction, TxRecord } from '../../../particle-core/sdk/typescript
 import { MultiPhaseOperationFunctions } from '../../../types/OperationRegistry';
 import SimpleVault from '../SimpleVault';
 import { createVaultMetaTxParams, getStoredMetaTxSettings } from '../SimpleVault.ui';
-import { VaultTxRecord } from '../components/PendingTransaction';
+import { TxStatus } from '../../../particle-core/sdk/typescript/types/lib.index';
+
+/**
+ * Represents a transaction record with vault-specific details
+ */
+export interface VaultTxRecord extends Omit<TxRecord, 'status'> {
+  status: TxStatus;
+  amount: bigint;
+  to: Address;
+  token?: Address;
+  type: "ETH" | "TOKEN";
+}
 
 /**
  * Helper function to compute keccak256 of a string and take first 4 bytes (function selector)

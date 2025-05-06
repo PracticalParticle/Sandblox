@@ -7,7 +7,7 @@ import { useTransactionManager } from '@/hooks/useTransactionManager';
 import { convertBigIntsToStrings } from '@/lib/utils';
 import SimpleVault from '../SimpleVault';
 import { NotificationMessage } from '../lib/types';
-import { VaultTxRecord } from '../components/PendingTransaction';
+import { VaultTxRecord } from '../lib/operations';
 import { createVaultMetaTxParams, getStoredMetaTxSettings } from '../SimpleVault.ui';
 import { MetaTransaction } from '../../../particle-core/sdk/typescript/interfaces/lib.index';
 import { TransactionOptions } from '../../../particle-core/sdk/typescript/interfaces/base.index';
