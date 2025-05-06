@@ -43,7 +43,61 @@ function toPascalCase(str: string): string {
 }
 
 /**
+ * Load operations handler for a specific Blox type by ID
+ * @param bloxId The ID of the Blox to load
+ * @returns Promise resolving to the loaded handler or undefined if not found
+ */
+export async function loadBloxOperationsByBloxId(bloxId: string): Promise<BaseBloxOperationsHandler | undefined> {
+  try {
+    // Check if we already have this handler loaded
+    if (bloxOperationsRegistry.has(bloxId)) {
+      return bloxOperationsRegistry.get(bloxId);
+    }
+    
+    // Otherwise, load the catalog to verify this bloxId exists
+    const catalog = await loadCatalog();
+    
+    // Verify bloxId exists in catalog
+    if (!catalog[bloxId]) {
+      console.warn(`Blox ID ${bloxId} not found in catalog`);
+      return undefined;
+    }
+    
+    // Skip template and test bloxes
+    if (bloxId.toLowerCase().includes('template') || bloxId.toLowerCase().includes('test')) {
+      console.log(`Skipping operations for template/test Blox: ${bloxId}`);
+      return undefined;
+    }
+    
+    // Convert bloxId to PascalCase for directory structure
+    const pascalCaseBloxId = toPascalCase(bloxId);
+    
+    try {
+      // Try to dynamically import the operations file for this Blox
+      const operationsModule = await import(`../blox/${pascalCaseBloxId}/lib/operations.ts`);
+      
+      if (operationsModule.default) {
+        const handler = new operationsModule.default() as BaseBloxOperationsHandler;
+        bloxOperationsRegistry.set(bloxId, handler);
+        console.log(`Registered operations handler for Blox: ${bloxId}`);
+        return handler;
+      } else {
+        console.warn(`No operations handler class found for Blox ${bloxId}`);
+        return undefined;
+      }
+    } catch (error) {
+      console.warn(`No operations file found for Blox ${bloxId}`, error);
+      return undefined;
+    }
+  } catch (error) {
+    console.error(`Failed to load operations for Blox ${bloxId}:`, error);
+    return undefined;
+  }
+}
+
+/**
  * Load operations for all Blox types from the catalog
+ * @deprecated Use loadBloxOperationsByBloxId for targeted loading instead
  */
 export async function loadBloxOperations(): Promise<void> {
   try {
@@ -55,35 +109,7 @@ export async function loadBloxOperations(): Promise<void> {
     
     // Dynamically import operations for each Blox type
     for (const bloxId of Object.keys(catalog)) {
-      try {
-        // Skip template and test bloxes
-        if (bloxId.toLowerCase().includes('template') || bloxId.toLowerCase().includes('test')) {
-          console.log(`Skipping operations for template/test Blox: ${bloxId}`);
-          continue;
-        }
-
-        // Get folder name from the catalog for this bloxId
-        const contract = catalog[bloxId];
-        if (!contract) continue;
-        
-        // Convert bloxId to PascalCase for directory structure
-        const pascalCaseBloxId = toPascalCase(bloxId);
-
-        try {
-          // Try to dynamically import the operations file for this Blox
-          const operationsModule = await import(`../blox/${pascalCaseBloxId}/lib/operations.ts`);
-          
-          if (operationsModule.default) {
-            const handler = new operationsModule.default() as BaseBloxOperationsHandler;
-            bloxOperationsRegistry.set(bloxId, handler);
-            console.log(`Registered operations handler for Blox: ${bloxId}`);
-          }
-        } catch (error) {
-          console.warn(`No operations file found for Blox ${bloxId}`, error);
-        }
-      } catch (error) {
-        console.error(`Failed to process Blox ${bloxId}:`, error);
-      }
+      await loadBloxOperationsByBloxId(bloxId);
     }
     
     console.log(`Loaded operations handlers for ${bloxOperationsRegistry.size} Blox types`);
@@ -129,6 +155,7 @@ export async function registerBloxOperations(
 }
 
 /**
+ * Register operations for a specific blox by ID
  * Check if operations are available for a given contract type
  * @param contractType The contract type to check
  * @returns True if operations are available, false otherwise

@@ -3,7 +3,6 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter as Router } from 'react-router-dom';
 import { CustomWagmiProvider } from './components/providers/CustomWagmiProvider';
-import { initializeBloxOperations } from './registrations/BloxOperations';
 
 // Initialize theme
 const initializeTheme = () => {
@@ -14,20 +13,12 @@ const initializeTheme = () => {
   }
 };
 
-// Initialize BloxOperations system
-const initializeOperations = async () => {
-  try {
-    console.log('Initializing BloxOperations system...');
-    await initializeBloxOperations();
-    console.log('BloxOperations system initialized successfully.');
-  } catch (error) {
-    console.error('Failed to initialize BloxOperations system:', error);
-  }
-};
+// Note: BloxOperations are now loaded on-demand within the OpHistory component
+// and other relevant components rather than all at once during initialization.
+// This improves performance by only loading the specific Blox operations needed.
 
 // Run initializations
 initializeTheme();
-initializeOperations();
 
 // Import styles in correct order
 import './styles/theme.css';        // Theme variables first
