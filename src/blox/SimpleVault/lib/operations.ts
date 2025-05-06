@@ -187,7 +187,7 @@ export default class SimpleVaultOperationsHandler extends BaseBloxOperationsHand
       this.registerMultiPhaseOperation(
         SimpleVaultOperationsHandler.WITHDRAW_ETH,
         operationTypeHash,
-        "Withdraw ETH",
+        "WITHDRAW_ETH",
         "Withdraw ETH from the vault to a specified address",
         SimpleVaultOperationsHandler.FUNCTION_SELECTORS.WITHDRAW_ETH,
         functions,
@@ -280,7 +280,7 @@ export default class SimpleVaultOperationsHandler extends BaseBloxOperationsHand
       this.registerMultiPhaseOperation(
         SimpleVaultOperationsHandler.WITHDRAW_TOKEN,
         operationTypeHash,
-        "Withdraw Token",
+        "WITHDRAW_TOKEN",
         "Withdraw ERC20 tokens from the vault to a specified address",
         SimpleVaultOperationsHandler.FUNCTION_SELECTORS.WITHDRAW_TOKEN,
         functions,
@@ -438,12 +438,12 @@ export default class SimpleVaultOperationsHandler extends BaseBloxOperationsHand
       const operationName = this.getOperationName(record);
       
       // Only convert if this is a withdrawal operation
-      if (operationName !== 'Withdraw ETH' && operationName !== 'Withdraw Token') {
+      if (operationName !== 'WITHDRAW_ETH' && operationName !== 'WITHDRAW_TOKEN') {
         return null;
       }
       
       // Extract needed parameters from the transaction record
-      const isEthWithdrawal = operationName === 'Withdraw ETH';
+      const isEthWithdrawal = operationName === 'WITHDRAW_ETH';
       
       // Type assertion for dynamic access to params
       const params = record.params as any;
