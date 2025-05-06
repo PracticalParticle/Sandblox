@@ -389,12 +389,15 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
         { from: walletClient.account.address }
       )
       
-      // Clean up the transaction from storage after successful execution
-      if (result) {
-        const txId = Date.now().toString()
-        removeTransaction(txId)
+      // Clean up the original stored transaction (pass through txId)
+      if (result && signedMetaTxJson) {
+        try {
+          const { txId } = JSON.parse(signedMetaTxJson) as { txId: string }
+          removeTransaction(txId)
+        } catch {
+          console.warn('Unable to extract txId from signed meta-tx – manual cleanup required')
+        }
       }
-      
       toast({
         title: "Success",
         description: "Meta-transaction executed successfully",
