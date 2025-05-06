@@ -225,9 +225,6 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
             const elapsedTime = now - startTime;
             const progress = Math.min((elapsedTime / timeLockPeriodInSeconds) * 100, 100);
             const isTimeLockComplete = progress >= 100;
-            
-            // Calculate if within first hour
-            const isWithinFirstHour = elapsedTime < 3600;
 
             // Key for meta transaction state
             const approveKey = `${tx.txId}-approve`;
@@ -333,7 +330,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                 <div className="flex-1">
                                   <Button
                                     onClick={() => handleCancelAction(Number(tx.txId))}
-                                    disabled={!canTimeLockCancel || isLoading || tx.status !== TxStatus.PENDING || isWithinFirstHour}
+                                    disabled={!canTimeLockCancel || isLoading || tx.status !== TxStatus.PENDING }
                                     variant="outline"
                                     className="w-full transition-all duration-200 flex items-center justify-center
                                       bg-rose-50 text-rose-700 hover:bg-rose-100 
