@@ -109,6 +109,8 @@ export interface OperationTypeInfo {
 export interface OperationRegistryEntry extends OperationTypeInfo {
   // Functions for this operation based on workflow type
   functions: MultiPhaseOperationFunctions | SinglePhaseOperationFunctions;
+  // The ID of the blox that owns this operation
+  bloxId: string;
 }
 
 /**

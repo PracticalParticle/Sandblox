@@ -36,3 +36,10 @@ export interface BloxContract extends BloxMetadata {
 }
 
 export type BloxCatalog = Record<string, BloxContract>
+
+
+export interface NotificationMessage {
+  type: 'error' | 'warning' | 'info' | 'success';
+  title: string;
+  description: string;
+}

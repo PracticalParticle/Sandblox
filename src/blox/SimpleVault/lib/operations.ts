@@ -1,9 +1,11 @@
 import { Address, Chain, Hex, PublicClient, WalletClient, keccak256, toHex } from 'viem';
 import { TransactionOptions, TransactionResult } from '../../../particle-core/sdk/typescript/interfaces/base.index';
 import { BaseBloxOperationsHandler } from '../../../types/BloxOperationsHandler';
-import { MetaTransaction } from '../../../particle-core/sdk/typescript/interfaces/lib.index';
+import { MetaTransaction, TxRecord } from '../../../particle-core/sdk/typescript/interfaces/lib.index';
 import { MultiPhaseOperationFunctions } from '../../../types/OperationRegistry';
 import SimpleVault from '../SimpleVault';
+import { createVaultMetaTxParams, getStoredMetaTxSettings } from '../SimpleVault.ui';
+import { VaultTxRecord } from '../components/PendingTransaction';
 
 /**
  * Helper function to compute keccak256 of a string and take first 4 bytes (function selector)
@@ -20,6 +22,12 @@ export default class SimpleVaultOperationsHandler extends BaseBloxOperationsHand
   static readonly WITHDRAW_ETH = "WITHDRAW_ETH";
   static readonly WITHDRAW_TOKEN = "WITHDRAW_TOKEN";
   
+  // Operation type hashes - these should match the contract's values
+  static readonly OPERATION_TYPE_HASHES = {
+    [SimpleVaultOperationsHandler.WITHDRAW_ETH]: '0xa99312c91aa06b9113fcc873b11cd09baf6496ab86705fb2da271c04f9a2d8a4' as Hex,
+    [SimpleVaultOperationsHandler.WITHDRAW_TOKEN]: '0xb99312c91aa06b9113fcc873b11cd09baf6496ab86705fb2da271c04f9a2d8a5' as Hex
+  } as const;
+  
   // Function selectors for operations - computed explicitly
   static readonly FUNCTION_SELECTORS = {
     WITHDRAW_ETH: computeFunctionSelector("withdrawEthRequest(address,uint256)"),
@@ -29,9 +37,6 @@ export default class SimpleVaultOperationsHandler extends BaseBloxOperationsHand
     APPROVE_WITHDRAWAL_META_TX: computeFunctionSelector("approveWithdrawalWithMetaTx((uint256,uint256,uint8,(address,address,uint256,uint256,bytes32,uint8,bytes),bytes32,bytes,(address,uint256,address,uint256),(uint256,uint256,address,bytes4,uint256,uint256,address),bytes,bytes))")
   } as const;
 
-  // Store the wallet client for later use
-  private walletClient?: WalletClient;
-  private publicClient?: PublicClient;
   // Map to store operation type hashes by name
   private operationTypeMap: Map<string, Hex> = new Map();
 
@@ -47,14 +52,15 @@ export default class SimpleVaultOperationsHandler extends BaseBloxOperationsHand
     contractAddress: Address,
     publicClient: PublicClient,
     walletClient?: WalletClient,
-    chain?: Chain
+    chain?: Chain,
+    storeTransaction?: (txId: string, signedData: string, metadata?: Record<string, any>) => void
   ): Promise<void> {
-    // Store client references
-    this.walletClient = walletClient;
-    this.publicClient = publicClient;
+    // Initialize the handler
+    this.initialize(contract, contractAddress, publicClient, walletClient, chain);
+    this.storeTransaction = storeTransaction;
     
-    // Load operation types from contract
-    await this.loadOperationTypes(contract);
+    // Load operation types
+    await this.loadOperationTypes();
     
     // Register operations
     this.registerWithdrawEthOperation(contract);
@@ -62,24 +68,24 @@ export default class SimpleVaultOperationsHandler extends BaseBloxOperationsHand
   }
 
   /**
-   * Load operation types map from contract
+   * Load operation types map
    */
-  private async loadOperationTypes(contract: SimpleVault): Promise<void> {
+  private async loadOperationTypes(): Promise<void> {
     try {
-      // Get operation types from contract
-      const operationTypes = await contract.getVaultOperationTypes();
-      
-      // Store inverse mapping (name -> hash)
-      for (const [hash, name] of operationTypes.entries()) {
-        if (name === SimpleVaultOperationsHandler.WITHDRAW_ETH || 
-            name === SimpleVaultOperationsHandler.WITHDRAW_TOKEN) {
-          this.operationTypeMap.set(name, hash);
-        }
-      }
+      // Set up operation type mapping
+      this.operationTypeMap.set(
+        SimpleVaultOperationsHandler.WITHDRAW_ETH,
+        SimpleVaultOperationsHandler.OPERATION_TYPE_HASHES[SimpleVaultOperationsHandler.WITHDRAW_ETH]
+      );
+      this.operationTypeMap.set(
+        SimpleVaultOperationsHandler.WITHDRAW_TOKEN,
+        SimpleVaultOperationsHandler.OPERATION_TYPE_HASHES[SimpleVaultOperationsHandler.WITHDRAW_TOKEN]
+      );
       
       console.log(`Loaded ${this.operationTypeMap.size} operation types for SimpleVault`);
     } catch (error) {
       console.error('Failed to load operation types for SimpleVault:', error);
+      throw error;
     }
   }
 
@@ -277,6 +283,235 @@ export default class SimpleVaultOperationsHandler extends BaseBloxOperationsHand
       );
     } catch (error) {
       console.error(`Failed to register WITHDRAW_TOKEN operation: ${error}`);
+    }
+  }
+
+  /**
+   * Handle approval of a transaction
+   */
+  async handleApprove(txId: number): Promise<void> {
+    if (!this.contract || !this.contractAddress || !this.walletClient?.account) {
+      throw new Error("Contract not initialized");
+    }
+
+    const tx = await this.contract.approveWithdrawalAfterDelay(txId, {
+      from: this.walletClient.account.address
+    });
+    await tx.wait();
+  }
+
+  /**
+   * Handle cancellation of a transaction
+   */
+  async handleCancel(txId: number): Promise<void> {
+    if (!this.contract || !this.contractAddress || !this.walletClient?.account) {
+      throw new Error("Contract not initialized");
+    }
+
+    const tx = await this.contract.cancelWithdrawal(txId, {
+      from: this.walletClient.account.address
+    });
+    await tx.wait();
+  }
+
+  /**
+   * Handle meta-transaction signing
+   */
+  async handleMetaTxSign(tx: TxRecord, type: 'approve' | 'cancel'): Promise<void> {
+    if (!this.contract || !this.contractAddress || !this.walletClient?.account) {
+      throw new Error("Contract not initialized");
+    }
+
+    if (type === 'approve') {
+      // Get stored settings and create meta tx params
+      const storedSettings = getStoredMetaTxSettings();
+      const metaTxParams = createVaultMetaTxParams(storedSettings);
+      
+      // Generate unsigned meta transaction
+      const unsignedMetaTx = await this.contract.generateUnsignedWithdrawalMetaTxApproval(
+        BigInt(tx.txId),
+        metaTxParams
+      );
+      
+      // Get the message hash and sign it
+      const messageHash = unsignedMetaTx.message;
+      const signature = await this.walletClient.signMessage({
+        message: { raw: messageHash as Hex },
+        account: this.walletClient.account.address
+      });
+
+      // Create the complete signed meta transaction
+      const signedMetaTx = {
+        ...unsignedMetaTx,
+        signature
+      };
+
+      // Convert BigInt values to strings recursively
+      const serializableMetaTx = JSON.parse(
+        JSON.stringify(signedMetaTx, (key, value) => 
+          typeof value === 'bigint' ? value.toString() : value
+        )
+      );
+
+      // Store the transaction if storeTransaction is provided
+      if (this.storeTransaction) {
+        // Get operation name for the transaction type
+        const operationName = this.getOperationName(tx);
+        
+        this.storeTransaction(
+          tx.txId.toString(),
+          JSON.stringify(serializableMetaTx),
+          {
+            type: operationName,
+            timestamp: Date.now(),
+            action: type,
+            broadcasted: false,
+            status: 'PENDING',
+            operationType: tx.params.operationType,
+            bloxId: this.bloxId
+          }
+        );
+      }
+    } else {
+      throw new Error("Meta-transaction cancellation not implemented");
+    }
+  }
+
+  /**
+   * Handle meta-transaction broadcasting
+   */
+  async handleBroadcast(tx: TxRecord, type: 'approve' | 'cancel'): Promise<void> {
+    if (!this.contract || !this.contractAddress || !this.walletClient?.account) {
+      throw new Error("Contract not initialized");
+    }
+
+    if (type === 'approve') {
+      // Get the stored transaction data
+      const txId = tx.txId.toString();
+      
+      // Get the stored transaction from localStorage
+      const storedTxKey = `dapp_signed_transactions`;
+      const storedData = localStorage.getItem(storedTxKey);
+      
+      if (!storedData) {
+        throw new Error("No stored transactions found");
+      }
+
+      const parsedData = JSON.parse(storedData);
+      const contractTransactions = parsedData[this.contractAddress];
+      
+      if (!contractTransactions || !contractTransactions[txId]) {
+        throw new Error("No stored transaction found for this ID");
+      }
+
+      const storedTx = contractTransactions[txId];
+      const signedMetaTx = JSON.parse(storedTx.signedData);
+
+      // Broadcast the transaction
+      const result = await this.contract.approveWithdrawalWithMetaTx(
+        signedMetaTx,
+        { from: this.walletClient.account.address }
+      );
+      
+      await result.wait();
+    } else {
+      throw new Error("Meta-transaction cancellation not implemented");
+    }
+  }
+
+  /**
+   * Convert a TxRecord to a VaultTxRecord
+   */
+  convertRecord(record: TxRecord): VaultTxRecord | null {
+    try {
+      const operationName = this.getOperationName(record);
+      
+      // Only convert if this is a withdrawal operation
+      if (operationName !== 'Withdraw ETH' && operationName !== 'Withdraw Token') {
+        return null;
+      }
+      
+      // Extract needed parameters from the transaction record
+      const isEthWithdrawal = operationName === 'Withdraw ETH';
+      
+      // Type assertion for dynamic access to params
+      const params = record.params as any;
+      
+      console.log('Full transaction params:', params);
+      
+      // The "to" address is stored in params.target
+      if (!params.target) {
+        console.error('Missing "target" address in transaction params:', params);
+        throw new Error('Missing "target" address in transaction params');
+      }
+      
+      // The amount is stored in params.value
+      if (params.value === undefined) {
+        console.error('Missing "value" in transaction params:', params);
+        throw new Error('Missing "value" in transaction params');
+      }
+      
+      // If it's a token withdrawal, validate token address
+      // For token withdrawals, the token address may be a parameter or might be
+      // the target itself depending on implementation
+      const tokenAddress = params.token || (isEthWithdrawal ? undefined : params.target);
+      if (!isEthWithdrawal && !tokenAddress) {
+        console.error('Missing token address for token withdrawal:', params);
+        throw new Error('Missing token address for token withdrawal');
+      }
+
+      // Convert address and amount to appropriate types
+      const toAddress = params.target as `0x${string}`;
+      const amountBigInt = BigInt(params.value);
+      
+      console.log('Converting withdrawal record:', {
+        recordId: record.txId.toString(),
+        releaseTime: record.releaseTime.toString(),
+        to: toAddress,
+        amount: amountBigInt.toString(),
+        token: !isEthWithdrawal ? tokenAddress : undefined
+      });
+      
+      // Create VaultTxRecord from TxRecord
+      const vaultTx: VaultTxRecord = {
+        ...record, // Keep all original fields including result and payment
+        status: record.status,
+        amount: amountBigInt,
+        to: toAddress,
+        type: isEthWithdrawal ? "ETH" : "TOKEN"
+      };
+      
+      // Add token address if it's a token withdrawal
+      if (!isEthWithdrawal && tokenAddress) {
+        vaultTx.token = tokenAddress as `0x${string}`;
+      }
+      
+      // Validate the created object
+      const requiredFields = ['txId', 'status', 'amount', 'to', 'type', 'releaseTime'];
+      const missingFields = requiredFields.filter(field => {
+        if (field === 'txId' || field === 'amount') {
+          return vaultTx[field as keyof typeof vaultTx] === undefined;
+        }
+        return !vaultTx[field as keyof typeof vaultTx];
+      });
+      
+      if (missingFields.length > 0) {
+        console.error(`Created VaultTxRecord missing required fields: ${missingFields.join(', ')}`, vaultTx);
+        throw new Error(`Created VaultTxRecord missing required fields: ${missingFields.join(', ')}`);
+      }
+      
+      console.log('Successfully converted to VaultTxRecord:', {
+        id: vaultTx.txId.toString(),
+        to: vaultTx.to,
+        amount: vaultTx.amount.toString(),
+        type: vaultTx.type,
+        releaseTime: vaultTx.releaseTime.toString()
+      });
+      
+      return vaultTx;
+    } catch (error) {
+      console.error('Error converting to VaultTxRecord:', error);
+      return null;
     }
   }
 } 

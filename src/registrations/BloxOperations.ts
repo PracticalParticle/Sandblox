@@ -33,6 +33,16 @@ export interface BloxOperationsHandler {
 }
 
 /**
+ * Convert kebab-case to PascalCase
+ */
+function toPascalCase(str: string): string {
+  return str
+    .split('-')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join('');
+}
+
+/**
  * Load operations for all Blox types from the catalog
  */
 export async function loadBloxOperations(): Promise<void> {
@@ -46,25 +56,33 @@ export async function loadBloxOperations(): Promise<void> {
     // Dynamically import operations for each Blox type
     for (const bloxId of Object.keys(catalog)) {
       try {
+        // Skip template and test bloxes
+        if (bloxId.toLowerCase().includes('template') || bloxId.toLowerCase().includes('test')) {
+          console.log(`Skipping operations for template/test Blox: ${bloxId}`);
+          continue;
+        }
+
         // Get folder name from the catalog for this bloxId
         const contract = catalog[bloxId];
         if (!contract) continue;
         
-        // Extract folder name from component path
-        // e.g., "/src/blox/SimpleRWA20/SimpleRWA20.tsx" -> "SimpleRWA20"
-        const folderPath = contract.files.component.split('/');
-        const folderName = folderPath[folderPath.length - 2];
-        
-        // Try to dynamically import the operations file for this Blox
-        const operationsModule = await import(`../blox/${folderName}/lib/operations.ts`);
-        
-        if (operationsModule.default) {
-          const handler = new operationsModule.default() as BaseBloxOperationsHandler;
-          bloxOperationsRegistry.set(bloxId, handler);
-          console.log(`Registered operations handler for Blox: ${bloxId}`);
+        // Convert bloxId to PascalCase for directory structure
+        const pascalCaseBloxId = toPascalCase(bloxId);
+
+        try {
+          // Try to dynamically import the operations file for this Blox
+          const operationsModule = await import(`../blox/${pascalCaseBloxId}/lib/operations.ts`);
+          
+          if (operationsModule.default) {
+            const handler = new operationsModule.default() as BaseBloxOperationsHandler;
+            bloxOperationsRegistry.set(bloxId, handler);
+            console.log(`Registered operations handler for Blox: ${bloxId}`);
+          }
+        } catch (error) {
+          console.warn(`No operations file found for Blox ${bloxId}`, error);
         }
       } catch (error) {
-        console.warn(`No operations file found for Blox ${bloxId}`, error);
+        console.error(`Failed to process Blox ${bloxId}:`, error);
       }
     }
     
