@@ -271,6 +271,6 @@ export function convertToMinutes(value: string, unit: 'days' | 'hours' | 'minute
     case 'minutes':
       return numValue;
     default:
-      return numValue;
+      return 0; // Return 0 for unknown units for consistent behavior
   }
-} 
+}
