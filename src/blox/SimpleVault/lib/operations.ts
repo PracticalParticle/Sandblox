@@ -6,6 +6,7 @@ import { MultiPhaseOperationFunctions } from '../../../types/OperationRegistry';
 import SimpleVault from '../SimpleVault';
 import { createVaultMetaTxParams, getStoredMetaTxSettings } from '../SimpleVault.ui';
 import { TxStatus } from '../../../particle-core/sdk/typescript/types/lib.index';
+import { SecureOwnable } from '../../../particle-core/sdk/typescript/SecureOwnable';
 
 /**
  * Represents a transaction record with vault-specific details
@@ -32,12 +33,6 @@ export default class SimpleVaultOperationsHandler extends BaseBloxOperationsHand
   // Operation type constants - use human-readable names
   static readonly WITHDRAW_ETH = "WITHDRAW_ETH";
   static readonly WITHDRAW_TOKEN = "WITHDRAW_TOKEN";
-  
-  // Operation type hashes - these should match the contract's values
-  static readonly OPERATION_TYPE_HASHES = {
-    [SimpleVaultOperationsHandler.WITHDRAW_ETH]: '0xa99312c91aa06b9113fcc873b11cd09baf6496ab86705fb2da271c04f9a2d8a4' as Hex,
-    [SimpleVaultOperationsHandler.WITHDRAW_TOKEN]: '0xb99312c91aa06b9113fcc873b11cd09baf6496ab86705fb2da271c04f9a2d8a5' as Hex
-  } as const;
   
   // Function selectors for operations - computed explicitly
   static readonly FUNCTION_SELECTORS = {
@@ -79,19 +74,58 @@ export default class SimpleVaultOperationsHandler extends BaseBloxOperationsHand
   }
 
   /**
-   * Load operation types map
+   * Load operation types from contract
    */
   private async loadOperationTypes(): Promise<void> {
     try {
-      // Set up operation type mapping
-      this.operationTypeMap.set(
+      if (!this.contractAddress || !this.publicClient) {
+        throw new Error("Contract address or public client not available");
+      }
+
+      // Create an instance of SecureOwnable to access the contract's operation types
+      if (!this.chain) {
+        throw new Error("Chain information is required to load operation types");
+      }
+
+      const secureOwnable = new SecureOwnable(
+        this.publicClient, 
+        this.walletClient || undefined, 
+        this.contractAddress, 
+        this.chain
+      );
+      
+      // Fetch operation types from the contract
+      const types = await secureOwnable.getSupportedOperationTypes();
+      
+      // Create a map of operation names to operation type hashes
+      types.forEach(({ operationType, name }) => {
+        const normalizedName = name.toUpperCase().replace(/\s/g, '_');
+        this.operationTypeMap.set(normalizedName, operationType as Hex);
+      });
+      
+      // Validate that all required operation types are available
+      const requiredTypes = [
         SimpleVaultOperationsHandler.WITHDRAW_ETH,
-        SimpleVaultOperationsHandler.OPERATION_TYPE_HASHES[SimpleVaultOperationsHandler.WITHDRAW_ETH]
-      );
-      this.operationTypeMap.set(
-        SimpleVaultOperationsHandler.WITHDRAW_TOKEN,
-        SimpleVaultOperationsHandler.OPERATION_TYPE_HASHES[SimpleVaultOperationsHandler.WITHDRAW_TOKEN]
-      );
+        SimpleVaultOperationsHandler.WITHDRAW_TOKEN
+      ];
+      
+      const missingTypes = requiredTypes.filter(type => !this.operationTypeMap.has(type));
+      if (missingTypes.length > 0) {
+        console.warn(`Some required operation types are missing from contract: ${missingTypes.join(', ')}`);
+        
+        // Attempt to find close matches by name similarity
+        types.forEach(({ operationType, name }) => {
+          for (const missingType of missingTypes) {
+            // Check if the contract-provided name contains parts of our expected names
+            // e.g., "Withdraw ETH" would match with "WITHDRAW_ETH"
+            if (name.toUpperCase().includes(missingType.replace(/_/g, ' ')) || 
+                missingType.includes(name.toUpperCase().replace(/\s/g, '_'))) {
+              console.log(`Using "${name}" (${operationType}) for "${missingType}"`);
+              this.operationTypeMap.set(missingType, operationType as Hex);
+            }
+          }
+        });
+      }
       
       console.log(`Loaded ${this.operationTypeMap.size} operation types for SimpleVault`);
     } catch (error) {
