@@ -89,6 +89,26 @@ export class TransactionManager {
   }
 
   /**
+   * Handles BigInt serialization for JSON
+   */
+  private bigIntReplacer(_key: string, value: any): any {
+    if (typeof value === "bigint") {
+      return value.toString() + 'n';
+    }
+    return value;
+  }
+
+  /**
+   * Handles BigInt deserialization from JSON
+   */
+  private bigIntReviver(_key: string, value: any): any {
+    if (typeof value === 'string' && /^\d+n$/.test(value)) {
+      return BigInt(value.slice(0, -1));
+    }
+    return value;
+  }
+
+  /**
    * Gets all transaction data from localStorage
    */
   private getTransactionData(): TransactionStorage {
@@ -96,7 +116,7 @@ export class TransactionManager {
       const data = localStorage.getItem(this.storageKey);
       if (!data) return {};
 
-      const parsedData = JSON.parse(data);
+      const parsedData = JSON.parse(data, this.bigIntReviver);
       if (!this.validateTransactionData(parsedData)) {
         console.warn('Invalid transaction data found in storage, resetting...');
         localStorage.removeItem(this.storageKey);
@@ -124,7 +144,7 @@ export class TransactionManager {
    */
   private saveTransactionData(data: TransactionStorage): void {
     try {
-      const serialized = JSON.stringify(data);
+      const serialized = JSON.stringify(data, this.bigIntReplacer);
       if (serialized.length > this.maxStorageSize) {
         throw new Error(TransactionError.STORAGE_FULL);
       }

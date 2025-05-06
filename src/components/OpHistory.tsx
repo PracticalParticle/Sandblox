@@ -14,8 +14,8 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table"
-import { Loader2, Clock, CheckCircle2, XCircle, AlertTriangle, Filter } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { Loader2, Clock, CheckCircle2, XCircle, AlertTriangle, Filter, RefreshCw } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAccount } from 'wagmi'
 
 import {
@@ -34,11 +34,24 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { TemporalActionDialog } from './TemporalActionDialog'
+import { TemporalActionDialog } from './security/TemporalActionDialog'
 import { TxDetailsDialog } from './TxDetailsDialog'
 import { PendingTransactionDialog } from './PendingTransactionDialog'
 import { Button } from './ui/button'
-import { VaultTxRecord } from '@/blox/SimpleVault/components/PendingTransaction'
+import { useBloxOperations } from '@/hooks/useBloxOperations'
+import { useOperationRegistry } from '@/hooks/useOperationRegistry'
+
+// Generic type for blox-specific transaction records
+interface BloxTxRecord {
+  [key: string]: any // Allow for any fields
+  txId: bigint // Match TxRecord type
+  params: any
+  status: TxStatus // Use TxStatus enum
+  releaseTime: bigint // Match TxRecord type
+  message: `0x${string}` // Match TxRecord type
+  result?: any
+  payment?: any
+}
 
 // Status badge variants mapping
 const statusVariants: { [key: number]: { variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode } } = {
@@ -49,6 +62,7 @@ const statusVariants: { [key: number]: { variant: "default" | "secondary" | "des
   [TxStatus.FAILED]: { variant: "destructive", icon: <XCircle className="h-3 w-3" /> },
   [TxStatus.REJECTED]: { variant: "destructive", icon: <XCircle className="h-3 w-3" /> }
 }
+
 
 // Create a new PendingBadge component to handle the progress
 function PendingBadge({ record, contractInfo }: { record: TxRecord, contractInfo: { timeLockPeriodInMinutes: number } }) {
@@ -80,11 +94,11 @@ function PendingBadge({ record, contractInfo }: { record: TxRecord, contractInfo
   )
 }
 
-interface OpHistoryProps {
+export interface OpHistoryProps {
   contractAddress: `0x${string}`
   operations: TxRecord[]
   isLoading: boolean
-  contractInfo: SecureContractInfo
+  contractInfo: SecureContractInfo & { bloxId?: string }
   signedTransactions?: {
     txId: string
     timestamp: number
@@ -106,6 +120,8 @@ interface OpHistoryProps {
   refreshData?: () => void
   refreshSignedTransactions?: () => void
   onNotification?: (notification: { type: string; title: string; description: string }) => void
+  onMetaTxSign?: (tx: TxRecord, type: 'approve' | 'cancel') => Promise<void>
+  onBroadcastMetaTx?: (tx: TxRecord, type: 'approve' | 'cancel') => Promise<void>
 }
 
 const container = {
@@ -126,12 +142,22 @@ export function OpHistory({
   signedTransactions = [],
   onApprove,
   onCancel,
+  onMetaTxSign,
+  onBroadcastMetaTx,
   showMetaTxOption,
   refreshData,
   refreshSignedTransactions,
   onNotification
 }: OpHistoryProps) {
   const { address: connectedAddress } = useAccount()
+  
+  // Add local state to track operations
+  const [localOperations, setLocalOperations] = useState(operations)
+  
+  // Update local operations when props change
+  useEffect(() => {
+    setLocalOperations(operations)
+  }, [operations])
   
   const {
     filteredOperations,
@@ -143,24 +169,59 @@ export function OpHistory({
     loadingTypes
   } = useOperationHistory({
     contractAddress,
-    operations,
+    operations: localOperations,
     isLoading
   })
 
-  const [selectedTx, setSelectedTx] = useState<TxRecord | null>(null)
+  const [selectedTransaction, setSelectedTransaction] = useState<TxRecord | null>(null)
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
-  const [isWithdrawalDialogOpen, setIsWithdrawalDialogOpen] = useState(false)
+  const [isOperationDialogOpen, setIsOperationDialogOpen] = useState(false)
   const { getOperationName: operationTypesGetOperationName } = useOperationTypes(contractAddress)
+  const { getOperationInfo, isBloxOperation } = useOperationRegistry()
+  const { getBloxOperations } = useBloxOperations()
+  const [operationTx, setOperationTx] = useState<TxRecord | null>(null)
+  const [bloxOperations, setBloxOperations] = useState<any>(null)
+  const [isLoadingBloxOperations, setIsLoadingBloxOperations] = useState(false)
 
-  // State for the withdrawal dialog transaction
-  const [withdrawalTx, setWithdrawalTx] = useState<VaultTxRecord | null>(null)
+  // Add effect to load blox operations when needed
+  useEffect(() => {
+    const loadBloxOperations = async () => {
+      if (!contractInfo?.bloxId) {
+        console.warn('No bloxId provided in contractInfo')
+        return
+      }
+
+      try {
+        setIsLoadingBloxOperations(true)
+        const ops = await getBloxOperations(contractInfo.bloxId, contractAddress)
+        if (ops) {
+          console.log(`Loaded operations for ${contractInfo.bloxId}`)
+          setBloxOperations(ops)
+        }
+      } catch (error) {
+        console.error('Failed to load blox operations:', error)
+        onNotification?.({
+          type: 'error',
+          title: 'Operation Load Error',
+          description: 'Failed to load operations. Some functionality may be limited.'
+        })
+      } finally {
+        setIsLoadingBloxOperations(false)
+      }
+    }
+
+    // Only load if we have a bloxId and don't already have the operations loaded
+    if (contractInfo?.bloxId && !bloxOperations) {
+      loadBloxOperations()
+    }
+  }, [contractInfo?.bloxId, contractAddress, getBloxOperations, bloxOperations])
 
   // Function to determine the action type and required role based on operation type
   const getActionTypeAndRole = (operationType: Hex): { actionType: string; requiredRole: string } => {
     const operationName = operationTypesGetOperationName(operationType)
     switch (operationName) {
       case 'OWNERSHIP_TRANSFER':
-        return { actionType: 'ownership', requiredRole: 'owner_or_recovery' }
+        return { actionType: 'ownership', requiredRole: 'recovery' }
       case 'BROADCASTER_UPDATE':
         return { actionType: 'broadcaster', requiredRole: 'owner' }
       case 'RECOVERY_UPDATE':
@@ -172,228 +233,255 @@ export function OpHistory({
     }
   }
 
-  // Function to determine if an operation is a withdrawal
-  const isWithdrawalOperation = (operationType: Hex): boolean => {
-    const operationName = operationTypesGetOperationName(operationType)
-    return operationName === 'WITHDRAW_ETH' || operationName === 'WITHDRAW_TOKEN'
+  // Function to determine if an operation is a blox-specific operation
+  const isBloxSpecificOperation = (operationType: Hex): boolean => {
+    try {
+      const operationName = operationTypesGetOperationName(operationType)
+      
+      // Core operations that should be handled by TemporalActionDialog
+      const coreOperations = [
+        'OWNERSHIP_TRANSFER',
+        'BROADCASTER_UPDATE',
+        'RECOVERY_UPDATE',
+        'TIMELOCK_UPDATE'
+      ]
+      
+      // Check if it's a core operation
+      if (coreOperations.includes(operationName)) {
+        return false
+      }
+
+      // If we have blox operations and it has a getOperationName function, use that
+      if (bloxOperations?.getOperationName) {
+        const bloxOpName = bloxOperations.getOperationName({ params: { operationType } })
+        return Boolean(bloxOpName && bloxOpName !== 'Unknown Operation')
+      }
+
+      // Default to true if not a core operation
+      return true
+    } catch (error) {
+      console.error('Error checking operation type:', error)
+      return false
+    }
   }
 
-  // Convert a TxRecord to a VaultTxRecord for withdrawal operations
-  const convertToVaultTxRecord = (record: TxRecord): VaultTxRecord | null => {
+  // Convert TxRecord to BloxTxRecord for operations
+  const convertToBloxTxRecord = (record: TxRecord): BloxTxRecord | null => {
     try {
-      const operationName = operationTypesGetOperationName(record.params.operationType as Hex);
-      
-      // Only convert if this is a withdrawal operation
-      if (operationName !== 'WITHDRAW_ETH' && operationName !== 'WITHDRAW_TOKEN') {
-        return null;
-      }
-      
-      // Extract needed parameters from the transaction record
-      const isEthWithdrawal = operationName === 'WITHDRAW_ETH';
-      
-      // Type assertion for dynamic access to params
-      const params = record.params as any;
-      
-      console.log('Full transaction params:', params);
-      
-      // The "to" address is stored in params.target
-      if (!params.target) {
-        console.error('Missing "target" address in transaction params:', params);
-        throw new Error('Missing "target" address in transaction params');
-      }
-      
-      // The amount is stored in params.value
-      if (params.value === undefined) {
-        console.error('Missing "value" in transaction params:', params);
-        throw new Error('Missing "value" in transaction params');
-      }
-      
-      // If it's a token withdrawal, validate token address
-      // For token withdrawals, the token address may be a parameter or might be
-      // the target itself depending on implementation
-      const tokenAddress = params.token || (isEthWithdrawal ? undefined : params.target);
-      if (!isEthWithdrawal && !tokenAddress) {
-        console.error('Missing token address for token withdrawal:', params);
-        throw new Error('Missing token address for token withdrawal');
-      }
-
-      // Convert address and amount to appropriate types
-      const toAddress = params.target as `0x${string}`;
-      const amountBigInt = params.value as bigint;
-      
-      console.log('Converting withdrawal record:', {
-        recordId: record.txId.toString(),
-        releaseTime: record.releaseTime.toString(),
-        to: toAddress,
-        amount: amountBigInt.toString(),
-        token: !isEthWithdrawal ? tokenAddress : undefined
-      });
-      
-      // Create VaultTxRecord from TxRecord
-      const vaultTx: VaultTxRecord = {
-        ...record, // Keep all original fields including result and payment
-        status: record.status,
-        amount: amountBigInt,
-        to: toAddress,
-        type: isEthWithdrawal ? "ETH" : "TOKEN"
-      };
-      
-      // Add token address if it's a token withdrawal
-      if (!isEthWithdrawal && tokenAddress) {
-        vaultTx.token = tokenAddress as `0x${string}`;
-      }
-      
-      // Validate the created object
-      const requiredFields = ['txId', 'status', 'amount', 'to', 'type', 'releaseTime'];
-      const missingFields = requiredFields.filter(field => {
-        if (field === 'txId' || field === 'amount') {
-          return vaultTx[field as keyof typeof vaultTx] === undefined;
+      if (!bloxOperations) {
+        console.warn('No blox operations available for conversion')
+        // Return a basic conversion as fallback
+        return {
+          ...record,
+          txId: record.txId,
+          params: record.params,
+          status: record.status,
+          releaseTime: record.releaseTime,
+          message: record.message,
+          result: record.result,
+          payment: record.payment
         }
-        return !vaultTx[field as keyof typeof vaultTx];
-      });
-      
-      if (missingFields.length > 0) {
-        console.error(`Created VaultTxRecord missing required fields: ${missingFields.join(', ')}`, vaultTx);
-        throw new Error(`Created VaultTxRecord missing required fields: ${missingFields.join(', ')}`);
       }
       
-      console.log('Successfully converted to VaultTxRecord:', {
-        id: vaultTx.txId.toString(),
-        to: vaultTx.to,
-        amount: vaultTx.amount.toString(),
-        type: vaultTx.type,
-        releaseTime: vaultTx.releaseTime.toString()
-      });
+      // Use the blox-specific conversion if available
+      if (typeof bloxOperations.convertRecord === 'function') {
+        const converted = bloxOperations.convertRecord(record)
+        if (converted) {
+          return {
+            ...converted,
+            // Ensure critical fields are always present
+            txId: record.txId,
+            params: record.params || converted.params,
+            status: record.status,
+            releaseTime: record.releaseTime,
+            message: record.message,
+            result: record.result,
+            payment: record.payment
+          }
+        }
+      }
       
-      return vaultTx;
+      // Default to passing through the record if no conversion method
+      return {
+        ...record,
+        txId: record.txId,
+        params: record.params,
+        status: record.status,
+        releaseTime: record.releaseTime,
+        message: record.message,
+        result: record.result,
+        payment: record.payment
+      }
     } catch (error) {
-      console.error('Error converting to VaultTxRecord:', error);
-      return null;
+      console.error('Error converting to BloxTxRecord:', error)
+      return null
     }
-  };
+  }
 
   // Function to handle notification events from the dialog
   const handleNotification = (message: { type: string; title: string; description: string }) => {
-    console.log(`${message.type}: ${message.title} - ${message.description}`);
+    console.log(`${message.type}: ${message.title} - ${message.description}`)
     // Pass the notification to the parent component if available
-    onNotification?.(message);
-  };
-
-  // Handle meta transaction signing
-  const handleMetaTxSign = async (tx: VaultTxRecord, type: 'approve' | 'cancel') => {
-    console.log(`Signing ${type} meta transaction for transaction #${tx.txId}`);
-    
-    try {
-      // Here you would implement the meta transaction signing logic
-      // For now we'll just simulate success with a delay
-      
-      // Create a notification
-      onNotification?.({
-        type: 'info',
-        title: 'Signing In Progress',
-        description: `Preparing to sign ${type} meta-transaction for withdrawal #${tx.txId}`
-      });
-      
-      // Wait a moment to simulate signing
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Success notification
-      onNotification?.({
-        type: 'success',
-        title: 'Meta Transaction Signed',
-        description: `Successfully signed ${type} meta-transaction for withdrawal #${tx.txId}`
-      });
-      
-      // Refresh data to show signed transaction
-      refreshData?.();
-      refreshSignedTransactions?.();
-    } catch (error) {
-      console.error(`Error signing ${type} meta transaction:`, error);
-      onNotification?.({
-        type: 'error',
-        title: 'Signing Failed',
-        description: error instanceof Error ? error.message : `Failed to sign ${type} meta-transaction`
-      });
-    }
-  };
-
-  // Handle meta transaction broadcasting
-  const handleBroadcastMetaTx = async (tx: VaultTxRecord, type: 'approve' | 'cancel') => {
-    console.log(`Broadcasting ${type} meta transaction for transaction #${tx.txId}`);
-    
-    try {
-      // Here you would implement the meta transaction broadcasting logic
-      // For now we'll just simulate success with a delay
-      
-      // Create a notification
-      onNotification?.({
-        type: 'info',
-        title: 'Broadcasting In Progress',
-        description: `Preparing to broadcast ${type} meta-transaction for withdrawal #${tx.txId}`
-      });
-      
-      // Wait a moment to simulate broadcasting
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Success notification
-      onNotification?.({
-        type: 'success',
-        title: 'Meta Transaction Broadcast',
-        description: `Successfully broadcasted ${type} meta-transaction for withdrawal #${tx.txId}`
-      });
-      
-      // Refresh data after broadcast
-      refreshData?.();
-      refreshSignedTransactions?.();
-    } catch (error) {
-      console.error(`Error broadcasting ${type} meta transaction:`, error);
-      onNotification?.({
-        type: 'error',
-        title: 'Broadcasting Failed',
-        description: error instanceof Error ? error.message : `Failed to broadcast ${type} meta-transaction`
-      });
-    }
-  };
-
-  const handleRowClick = (record: TxRecord) => {
-    const isWithdrawal = isWithdrawalOperation(record.params.operationType as Hex);
-    
-    // For pending withdrawals, open the PendingTransactionDialog
-    if (isWithdrawal && record.status === TxStatus.PENDING) {
-      console.log('Opening withdrawal dialog for record:', record);
-      
-      try {
-        const vaultTx = convertToVaultTxRecord(record);
-        if (vaultTx) {
-          console.log('Setting withdrawal transaction:', vaultTx);
-          setWithdrawalTx(vaultTx);
-          setIsWithdrawalDialogOpen(true);
-        } else {
-          console.error('Failed to convert transaction record to vault record');
-          // Provide notification to the user
-          onNotification?.({
-            type: 'error',
-            title: 'Transaction Error',
-            description: 'Could not process withdrawal transaction details'
-          });
-        }
-      } catch (error) {
-        console.error('Error processing withdrawal transaction:', error);
-        onNotification?.({
-          type: 'error',
-          title: 'Transaction Error',
-          description: error instanceof Error ? error.message : 'Failed to process transaction details'
-        });
-      }
-      return;
-    }
-
-    // Set the selected transaction and open the appropriate dialog
-    setSelectedTx(record);
-    setIsDetailsOpen(true);
+    onNotification?.(message)
   }
 
-  if (isLoading || loadingTypes) {
+  // Handle meta transaction signing with type safety
+  const handleMetaTxSign = async (tx: TxRecord, type: 'approve' | 'cancel') => {
+    const bloxTx = convertToBloxTxRecord(tx)
+    if (!bloxTx) {
+      console.error('Failed to convert transaction record')
+      onNotification?.({
+        type: 'error',
+        title: 'Transaction Error',
+        description: 'Failed to prepare transaction for signing'
+      })
+      return
+    }
+    
+    if (onMetaTxSign) {
+      try {
+        // Convert back to TxRecord for the handler
+        await onMetaTxSign(tx, type)
+      } catch (error) {
+        console.error('Error signing meta transaction:', error)
+        onNotification?.({
+          type: 'error',
+          title: 'Signing Error',
+          description: error instanceof Error ? error.message : 'Unknown error during signing'
+        })
+      }
+    } else {
+      console.warn('No meta transaction sign handler provided')
+    }
+  }
+
+  // Handle meta transaction broadcasting with type safety
+  const handleBroadcastMetaTx = async (tx: TxRecord, type: 'approve' | 'cancel') => {
+    const bloxTx = convertToBloxTxRecord(tx)
+    if (!bloxTx) {
+      console.error('Failed to convert transaction record')
+      onNotification?.({
+        type: 'error',
+        title: 'Transaction Error',
+        description: 'Failed to prepare transaction for broadcasting'
+      })
+      return
+    }
+    
+    if (onBroadcastMetaTx) {
+      try {
+        // Convert back to TxRecord for the handler
+        await onBroadcastMetaTx(tx, type)
+      } catch (error) {
+        console.error('Error broadcasting meta transaction:', error)
+        onNotification?.({
+          type: 'error',
+          title: 'Broadcast Error',
+          description: error instanceof Error ? error.message : 'Unknown error during broadcasting'
+        })
+      }
+    } else {
+      console.warn('No meta transaction broadcast handler provided')
+    }
+  }
+
+  const handleRowClick = async (record: TxRecord) => {
+    try {
+      // Check if this is a blox operation
+      const isBlox = await isBloxOperation(record.params.operationType as Hex, contractInfo?.bloxId)
+      
+      // For pending blox-specific operations, open the PendingTransactionDialog
+      if (isBlox && record.status === TxStatus.PENDING) {
+        console.log('Opening blox-specific dialog for record:', record)
+        
+        // Ensure we have blox operations loaded
+        if (!bloxOperations && contractInfo?.bloxId) {
+          setIsLoadingBloxOperations(true)
+          try {
+            const ops = await getBloxOperations(contractInfo.bloxId, contractAddress)
+            if (ops) {
+              setBloxOperations(ops)
+            } else {
+              console.error('Failed to load blox operations')
+              onNotification?.({
+                type: 'error',
+                title: 'Operation Load Error',
+                description: 'Failed to load operations for this transaction type.'
+              })
+              return
+            }
+          } finally {
+            setIsLoadingBloxOperations(false)
+          }
+        }
+
+        // Convert the record if needed
+        let bloxTx = record
+        if (bloxOperations?.convertRecord) {
+          bloxTx = bloxOperations.convertRecord(record) || record
+        }
+
+        setOperationTx(bloxTx)
+        setIsOperationDialogOpen(true)
+      } else {
+        // Handle non-blox operations as before
+        setSelectedTransaction(record)
+        setIsDetailsOpen(true)
+      }
+    } catch (error) {
+      console.error('Error processing transaction:', error)
+      onNotification?.({
+        type: 'error',
+        title: 'Transaction Error',
+        description: error instanceof Error ? error.message : 'Failed to process transaction details'
+      })
+    }
+  }
+
+  // Function to handle cancellation
+  const handleCancel = async (txId: number) => {
+    try {
+      if (selectedTransaction) {
+        const operationName = operationTypesGetOperationName(selectedTransaction.params.operationType as Hex)
+        
+        // Call the appropriate cancellation handler based on operation type
+        if (operationName === 'OWNERSHIP_TRANSFER') {
+          // For ownership transfer, use the ownership transfer cancellation handler
+          await onCancel?.(txId)
+          onNotification?.({
+            type: 'success',
+            title: 'Cancellation Successful',
+            description: 'Ownership transfer has been cancelled'
+          })
+        } else if (operationName === 'BROADCASTER_UPDATE') {
+          // For broadcaster update, use the broadcaster update cancellation handler
+          await onCancel?.(txId)
+          onNotification?.({
+            type: 'success',
+            title: 'Cancellation Successful',
+            description: 'Broadcaster update has been cancelled'
+          })
+        } else {
+          // For other operations, use the default cancellation handler
+          await onCancel?.(txId)
+          onNotification?.({
+            type: 'success',
+            title: 'Cancellation Successful',
+            description: 'Operation has been cancelled'
+          })
+        }
+      }
+    } catch (error) {
+      console.error('Error in cancellation:', error)
+      onNotification?.({
+        type: 'error',
+        title: 'Cancellation Failed',
+        description: error instanceof Error ? error.message : 'Failed to cancel operation'
+      })
+    }
+  }
+
+  if (isLoading || loadingTypes || isLoadingBloxOperations) {
     return (
       <motion.div variants={container} initial="hidden" animate="show">
         <Card>
@@ -412,7 +500,22 @@ export function OpHistory({
     <motion.div variants={container} initial="hidden" animate="show">
       <Card>
         <CardHeader>
-          <CardTitle>Operation History</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Operation History</CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (refreshData) refreshData()
+                if (refreshSignedTransactions) refreshSignedTransactions()
+              }}
+              className="gap-2"
+              disabled={isLoading || loadingTypes || isLoadingBloxOperations}
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoading || loadingTypes || isLoadingBloxOperations ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-4 mb-4">
@@ -468,23 +571,23 @@ export function OpHistory({
                   tx => tx.txId === record.txId.toString() && 
                        tx.metadata?.status === 'PENDING' && 
                        !tx.metadata?.broadcasted
-                );
+                )
                 
                 // Find the matching signed transaction for tooltip details
                 const matchingSignedTx = hasPendingSignature ? signedTransactions?.find(
                   tx => tx.txId === record.txId.toString() && 
                        tx.metadata?.status === 'PENDING' && 
                        !tx.metadata?.broadcasted
-                ) : null;
+                ) : null
                 
-                const action = matchingSignedTx?.metadata?.action;
-                const isApprove = action === 'approve';
+                const action = matchingSignedTx?.metadata?.action
+                const isApprove = action === 'approve'
                 
                 // Check if the transaction is completed based on both record status and signed transaction metadata
                 const isCompleted = record.status === TxStatus.COMPLETED || 
-                                  (matchingSignedTx?.metadata?.status === 'COMPLETED' && matchingSignedTx?.metadata?.broadcasted);
+                                  (matchingSignedTx?.metadata?.status === 'COMPLETED' && matchingSignedTx?.metadata?.broadcasted)
                 
-                const isWithdrawal = isWithdrawalOperation(record.params.operationType as Hex)
+                const isBloxOperation = isBloxSpecificOperation(record.params.operationType as Hex)
                 const isPending = record.status === TxStatus.PENDING
                 
                 return (
@@ -562,11 +665,11 @@ export function OpHistory({
                       size="sm"
                       className="h-8 gap-1.5"
                       onClick={(e) => {
-                        e.stopPropagation(); // Prevent row click
-                        handleRowClick(record);
+                        e.stopPropagation() // Prevent row click
+                        handleRowClick(record)
                       }}
                     >
-                      {isWithdrawal && isPending ? (
+                      {isBloxOperation && isPending ? (
                         <>
                           <Clock className="h-3.5 w-3.5" />
                           <span>Manage Transaction</span>
@@ -589,57 +692,55 @@ export function OpHistory({
           </Table>
 
           {/* Dialogs */}
-          {selectedTx && (
+          {selectedTransaction && (
             <>
               {/* Show TxDetailsDialog only for completed, cancelled, failed or rejected transactions */}
-              {(selectedTx.status === TxStatus.COMPLETED || 
-                selectedTx.status === TxStatus.CANCELLED || 
-                selectedTx.status === TxStatus.FAILED ||
-                selectedTx.status === TxStatus.REJECTED) && (
+              {(selectedTransaction.status === TxStatus.COMPLETED || 
+                selectedTransaction.status === TxStatus.CANCELLED || 
+                selectedTransaction.status === TxStatus.FAILED ||
+                selectedTransaction.status === TxStatus.REJECTED) && (
                 <TxDetailsDialog
                   isOpen={isDetailsOpen}
                   onOpenChange={setIsDetailsOpen}
-                  record={selectedTx}
-                  operationName={operationTypesGetOperationName(selectedTx.params.operationType as Hex)}
+                  record={selectedTransaction}
+                  operationName={operationTypesGetOperationName(selectedTransaction.params.operationType as Hex)}
                 />
               )}
               
-              {/* Show TemporalActionDialog for pending transactions that aren't withdrawals */}
-              {selectedTx.status === TxStatus.PENDING && !isWithdrawalOperation(selectedTx.params.operationType as Hex) && (
+              {/* Show TemporalActionDialog for pending transactions that aren't blox specific */}
+              {selectedTransaction.status === TxStatus.PENDING && !isBloxSpecificOperation(selectedTransaction.params.operationType as Hex) && (
                 <TemporalActionDialog
                   isOpen={isDetailsOpen}
                   onOpenChange={setIsDetailsOpen}
-                  title={`${operationTypesGetOperationName(selectedTx.params.operationType as Hex)} Details`}
+                  title={`${operationTypesGetOperationName(selectedTransaction.params.operationType as Hex)} Details`}
                   contractInfo={{
                     ...contractInfo,
                     contractAddress: contractAddress
                   }}
-                  {...getActionTypeAndRole(selectedTx.params.operationType as Hex)}
-                  currentValue={selectedTx.params.target}
+                  {...getActionTypeAndRole(selectedTransaction.params.operationType as Hex)}
+                  currentValue={selectedTransaction.params.target}
                   currentValueLabel="Target Address"
                   actionLabel="Approve Operation"
-                  requiredRole={getActionTypeAndRole(selectedTx.params.operationType as Hex).requiredRole}
+                  requiredRole={getActionTypeAndRole(selectedTransaction.params.operationType as Hex).requiredRole}
                   connectedAddress={connectedAddress}
-                  pendingTx={selectedTx}
+                  pendingTx={selectedTransaction}
                   showNewValueInput={false}
                   onApprove={onApprove}
                   onCancel={onCancel}
                   showMetaTxOption={showMetaTxOption}
-                  operationName={operationTypesGetOperationName(selectedTx.params.operationType as Hex)}
-                  refreshData={refreshData}
-                  refreshSignedTransactions={refreshSignedTransactions}
+                  operationName={operationTypesGetOperationName(selectedTransaction.params.operationType as Hex)}
                 />
               )}
             </>
           )}
 
-          {/* PendingTransactionDialog for withdrawal transactions */}
-          {withdrawalTx && (
+          {/* PendingTransactionDialog for blox-specific operations */}
+          {operationTx && (
             <PendingTransactionDialog
-              isOpen={isWithdrawalDialogOpen}
-              onOpenChange={setIsWithdrawalDialogOpen}
-              title={`${withdrawalTx.type} Withdrawal #${withdrawalTx.txId}`}
-              description="Review and manage this withdrawal transaction"
+              isOpen={isOperationDialogOpen}
+              onOpenChange={setIsOperationDialogOpen}
+              title={`Operation #${operationTx.txId.toString()}`}
+              description="Review and manage this transaction"
               contractInfo={{
                 contractAddress: contractAddress,
                 timeLockPeriodInMinutes: contractInfo.timeLockPeriodInMinutes,
@@ -649,7 +750,7 @@ export function OpHistory({
                 owner: contractInfo.owner as `0x${string}`,
                 recoveryAddress: contractInfo.recoveryAddress as `0x${string}`
               }}
-              transaction={withdrawalTx}
+              transaction={operationTx as unknown as TxRecord}
               onApprove={onApprove}
               onCancel={onCancel}
               onMetaTxSign={handleMetaTxSign}
@@ -658,10 +759,10 @@ export function OpHistory({
               isLoading={false}
               connectedAddress={connectedAddress}
               signedMetaTxStates={signedTransactions.reduce((acc, tx) => {
-                if (tx.txId === withdrawalTx.txId.toString() && tx.metadata?.action) {
-                  acc[`${tx.txId}-${tx.metadata.action}`] = { type: tx.metadata.action as 'approve' | 'cancel' };
+                if (tx.txId === operationTx.txId.toString() && tx.metadata?.action) {
+                  acc[`${tx.txId}-${tx.metadata.action}`] = { type: tx.metadata.action as 'approve' | 'cancel' }
                 }
-                return acc;
+                return acc
               }, {} as Record<string, { type: 'approve' | 'cancel' }>)}
               showMetaTxOption={showMetaTxOption}
               refreshData={refreshData}

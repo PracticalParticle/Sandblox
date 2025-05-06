@@ -7,14 +7,17 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
 import { Loader2, X, CheckCircle2, Clock, Shield, Wallet } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { TxRecord } from "../particle-core/sdk/typescript/interfaces/lib.index"
+import { TxRecord } from "../../particle-core/sdk/typescript/interfaces/lib.index"
 import { formatAddress } from "@/lib/utils"
 import { Progress } from "@/components/ui/progress"
-import { useMultiPhaseTemporalAction } from "@/hooks/useMultiPhaseTemporalAction"
-import { useState, useEffect } from "react"
-import { TxInfoCard } from "./TxInfoCard"
+import { useState, useEffect, FormEvent } from "react"
+import { TxInfoCard } from "../TxInfoCard"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
+import { useWorkflowManager } from "@/hooks/useWorkflowManager"
+import { CoreOperationType, OperationPhase } from "../../types/OperationRegistry"
+import { Address } from "viem"
+import { toast } from "@/components/ui/use-toast"
 
 interface TemporalActionDialogProps {
   isOpen: boolean
@@ -60,7 +63,7 @@ export function TemporalActionDialog({
   currentValue,
   currentValueLabel,
   actionLabel,
-  isLoading = false,
+  isLoading: externalIsLoading = false,
   onSubmit,
   onApprove,
   onCancel,
@@ -76,63 +79,257 @@ export function TemporalActionDialog({
   refreshData,
   refreshSignedTransactions
 }: TemporalActionDialogProps): JSX.Element {
+  // Use the WorkflowManager hook with enhanced role validation
   const {
-    newValue,
-    isApproving,
-    isCancelling,
-    isSigning,
-    setNewValue,
-    handleSubmit,
-    handleApprove,
-    handleCancel,
-    handleMetaTxSign
-  } = useMultiPhaseTemporalAction({
-    isOpen,
-    onOpenChange,
-    onSubmit,
-    onApprove,
-    onCancel,
-    pendingTx: pendingTx ? { 
-      ...pendingTx, 
-      contractAddress: contractInfo.contractAddress as `0x${string}`,
-      timeLockPeriodInMinutes: contractInfo.timeLockPeriodInMinutes 
-    } : undefined,
-    showNewValueInput,
-    onMetaTxSignSuccess: refreshData,
-    refreshSignedTransactions
-  })
+    isLoading: workflowIsLoading,
+    requestOperation,
+    approveOperation,
+    cancelOperation,
+    signApproval,
+    signCancellation,
+    canExecutePhase,
+    isOwner,
+    isBroadcaster,
+    isRecovery
+  } = useWorkflowManager(contractInfo.contractAddress as `0x${string}`)
 
-  const getRoleAddress = (role: string) => {
-    if (!contractInfo) return null;
-    switch (role) {
-      case 'owner':
-        return contractInfo.owner;
-      case 'broadcaster':
-        return contractInfo.broadcaster;
-      case 'recovery':
-        return contractInfo.recoveryAddress;
-      case 'owner_or_recovery':
-        // Return true if connected address matches either owner or recovery
-        return [contractInfo.owner, contractInfo.recoveryAddress];
-      default:
-        return null;
+  // Local state
+  const [newValue, setNewValue] = useState("")
+  const [isApproving, setIsApproving] = useState(false)
+  const [isCancelling, setIsCancelling] = useState(false)
+  const [isSigning, setIsSigning] = useState(false)
+  
+  // Reset state when dialog opens/closes
+  useEffect(() => {
+    if (!isOpen) {
+      setNewValue("")
+      setIsApproving(false)
+      setIsCancelling(false)
+      setIsSigning(false)
     }
-  };
+  }, [isOpen])
 
-  const isConnectedWalletValid = connectedAddress && 
-    requiredRole && 
-    contractInfo && 
-    (() => {
-      const roleAddress = getRoleAddress(requiredRole);
-      if (Array.isArray(roleAddress)) {
-        // For owner_or_recovery role, check if connected address matches either
-        return roleAddress.some(addr => 
-          addr?.toLowerCase() === connectedAddress.toLowerCase()
-        );
+  // Map the actionType to a core operation type
+  const getOperationType = () => {
+    switch (actionType) {
+      case 'ownership':
+        return CoreOperationType.OWNERSHIP_TRANSFER
+      case 'broadcaster':
+        return CoreOperationType.BROADCASTER_UPDATE
+      case 'recovery':
+        return CoreOperationType.RECOVERY_UPDATE
+      case 'timelock':
+        return CoreOperationType.TIMELOCK_UPDATE
+      default:
+        return actionType // Custom operation type
+    }
+  }
+
+  // Handle submit (request phase)
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!showNewValueInput || newValue) {
+      try {
+        const operationType = getOperationType()
+        // Prepare parameters based on operation type
+        let params: any = {}
+        
+        if (operationType === CoreOperationType.OWNERSHIP_TRANSFER) {
+          // No params needed for ownership transfer
+        } else if (operationType === CoreOperationType.BROADCASTER_UPDATE) {
+          params = { newBroadcaster: newValue }
+        } else if (operationType === CoreOperationType.RECOVERY_UPDATE) {
+          params = { newRecoveryAddress: newValue }
+        } else if (operationType === CoreOperationType.TIMELOCK_UPDATE) {
+          params = { newTimeLockPeriodInMinutes: BigInt(newValue) }
+        } else {
+          // For custom operations
+          params = { newValue }
+        }
+        
+        // Only call requestOperation, let the parent handle the rest
+        await requestOperation(operationType, params)
+        setNewValue("")
+        
+        // Close the dialog on success
+        onOpenChange(false)
+        
+        // Refresh data after successful operation
+        if (refreshData) {
+          await refreshData()
+        }
+        if (refreshSignedTransactions) {
+          await refreshSignedTransactions()
+        }
+      } catch (error) {
+        // Error handling is done in the hook
+        console.error("Submit error:", error)
       }
-      return roleAddress?.toLowerCase() === connectedAddress.toLowerCase();
-    })();
+    }
+  }
 
+  // Handle approve
+  const handleApprove = async (txId: number) => {
+    setIsApproving(true)
+    try {
+      const operationType = getOperationType()
+      await approveOperation(operationType, txId)
+      
+      // Call the parent callback if provided
+      if (onApprove) {
+        await onApprove(txId)
+      }
+      
+      // Refresh data
+      if (refreshData) {
+        refreshData()
+      }
+      if (refreshSignedTransactions) {
+        refreshSignedTransactions()
+      }
+    } catch (error) {
+      // Error handling is done in the hook
+      console.error("Approve error:", error)
+    } finally {
+      setIsApproving(false)
+    }
+  }
+
+  // Handle cancel
+  const handleCancel = async (txId: number) => {
+    if (isCancelling) return; // Prevent duplicate calls
+    
+    setIsCancelling(true);
+    try {
+      const operationType = getOperationType();
+      
+      // Call the parent callback first if provided
+      if (onCancel) {
+        await onCancel(txId);
+      } else {
+        // Only call cancelOperation if no parent callback
+        await cancelOperation(operationType, txId);
+      }
+      
+      // Refresh data
+      if (refreshData) {
+        refreshData();
+      }
+      if (refreshSignedTransactions) {
+        refreshSignedTransactions();
+      }
+      
+      // Close the dialog on success
+      onOpenChange(false);
+    } catch (error) {
+      console.error("Cancel error:", error);
+      // Show error toast
+      toast({
+        title: 'Cancellation Failed',
+        description: error instanceof Error ? error.message : 'Failed to cancel operation',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCancelling(false);
+    }
+  }
+
+  // Handle meta transaction signing
+  const handleMetaTxSign = async (type: 'approve' | 'cancel', metaTxType: 'broadcaster' | 'ownership' | 'recovery' | 'timelock') => {
+    setIsSigning(true)
+    try {
+      if (!pendingTx?.txId) {
+        throw new Error('Transaction ID is required for signing meta transactions')
+      }
+      
+      const txId = parseInt(pendingTx.txId.toString())
+      const operationType = getOperationType()
+      
+      if (type === 'approve') {
+        await signApproval(operationType, txId)
+      } else {
+        await signCancellation(operationType, txId)
+      }
+      
+      // Refresh data
+      if (refreshData) {
+        refreshData()
+      }
+      if (refreshSignedTransactions) {
+        refreshSignedTransactions()
+      }
+    } catch (error) {
+      // Error handling is done in the hook
+      console.error("Meta TX sign error:", error)
+    } finally {
+      setIsSigning(false)
+    }
+  }
+
+  // Check if wallet is valid for request phase using both direct role check and canExecutePhase
+  const isWalletValidForRequest = canExecutePhase(getOperationType(), OperationPhase.REQUEST, connectedAddress as Address)
+
+  // Check if wallet is valid for approval phase
+  const isWalletValidForApproval = canExecutePhase(getOperationType(), OperationPhase.APPROVE, connectedAddress as Address)
+
+  // Check if wallet is valid for cancellation phase
+  const isWalletValidForCancellation = canExecutePhase(getOperationType(), OperationPhase.CANCEL, connectedAddress as Address)
+  
+  // Check if wallet is valid for meta approval phase
+  const isWalletValidForMetaApproval = canExecutePhase(getOperationType(), OperationPhase.META_APPROVE, connectedAddress as Address)
+
+  // Check if wallet is valid for meta cancellation phase
+  const isWalletValidForMetaCancellation = canExecutePhase(getOperationType(), OperationPhase.META_CANCEL, connectedAddress as Address)
+  
+  // Check if the action is an ownership transfer
+  const isOwnershipAction = actionType === 'ownership'
+
+  // Determine if we should show the meta transaction tab
+  const showMetaTxTab = showMetaTxOption !== undefined ? showMetaTxOption : !(isOwnershipAction && isRecovery)
+
+  // Determine if time lock is complete for a pending transaction
+  const getTimeLockProgress = () => {
+    if (!pendingTx) return { currentProgress: 0, isTimeLockComplete: false }
+    
+    const now = Math.floor(Date.now() / 1000)
+    const releaseTime = Number(pendingTx.releaseTime)
+    const timeLockPeriod = (contractInfo.timeLockPeriodInMinutes || 0) * 60
+    const startTime = releaseTime - timeLockPeriod
+    const progress = Math.min(((now - startTime) / timeLockPeriod) * 100, 100)
+    
+    return {
+      currentProgress: progress,
+      isTimeLockComplete: progress >= 100
+    }
+  }
+  
+  // Get role message for wallet validation errors
+  const getRequiredRoleMessage = () => {
+    if (isOwnershipAction && getTimeLockProgress().isTimeLockComplete) {
+      return "Please connect the owner or recovery wallet to proceed"
+    } else if (isOwnershipAction) {
+      return "Please connect the owner wallet to proceed"
+    } else if (requiredRole === 'broadcaster') {
+      return "Please connect the broadcaster wallet to proceed"
+    } else if (requiredRole === 'recovery') {
+      return "Please connect the recovery wallet to proceed"
+    } else {
+      return `Please connect the ${requiredRole} wallet to proceed`
+    }
+  }
+
+  // For ownership transfer with completed timelock, either owner or recovery can approve
+  const isWalletValidForActionWithTimelock = () => {
+    if (isOwnershipAction && getTimeLockProgress().isTimeLockComplete) {
+      return isOwner || isRecovery
+    }
+    return isWalletValidForApproval
+  }
+
+  // Combined loading state
+  const isLoadingState = externalIsLoading || workflowIsLoading || isApproving || isCancelling || isSigning
+
+  // Render the request phase UI
   const renderRequestPhase = () => (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-4">
@@ -150,25 +347,25 @@ export function TemporalActionDialog({
               value={newValue}
               onChange={(e) => setNewValue(e.target.value)}
               placeholder={newValuePlaceholder || "Enter Ethereum address"}
-              disabled={isLoading}
+              disabled={isLoadingState}
             />
           </div>
         )}
 
-        {!isConnectedWalletValid && (
+        {!isWalletValidForRequest && (
           <Alert variant="destructive">
             <AlertDescription>
-              Please connect the {requiredRole} wallet to proceed
+              {getRequiredRoleMessage()}
             </AlertDescription>
           </Alert>
         )}
 
         <Button 
           type="submit" 
-          disabled={showNewValueInput ? (!newValue || !isConnectedWalletValid || isLoading) : (!isConnectedWalletValid || isLoading)}
+          disabled={showNewValueInput ? (!newValue || !isWalletValidForRequest || isLoadingState) : (!isWalletValidForRequest || isLoadingState)}
           className="w-full"
         >
-          {isLoading ? (
+          {isLoadingState ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Processing...
@@ -181,64 +378,11 @@ export function TemporalActionDialog({
     </form>
   )
 
+  // Render the approval phase UI
   const renderApprovalPhase = () => {
     if (!pendingTx) return null
 
-    const [currentProgress, setCurrentProgress] = useState(0)
-    const [isTimeLockComplete, setIsTimeLockComplete] = useState(false)
-
-    useEffect(() => {
-      const calculateProgress = () => {
-        const now = Math.floor(Date.now() / 1000)
-        const releaseTime = Number(pendingTx.releaseTime)
-        const timeLockPeriod = (contractInfo.timeLockPeriodInMinutes || 0) * 60
-        const startTime = releaseTime - timeLockPeriod
-        const progress = Math.min(((now - startTime) / timeLockPeriod) * 100, 100)
-        setCurrentProgress(progress)
-        setIsTimeLockComplete(progress >= 100)
-      }
-
-      // Calculate initial progress
-      calculateProgress()
-
-      // Update progress every second
-      const intervalId = setInterval(calculateProgress, 1000)
-
-      // Cleanup interval on unmount
-      return () => clearInterval(intervalId)
-    }, [pendingTx.releaseTime, contractInfo.timeLockPeriodInMinutes])
-
-    // Check if the connected wallet is recovery address for ownership actions
-    const isRecoveryWallet = connectedAddress?.toLowerCase() === contractInfo?.recoveryAddress?.toLowerCase()
-    const isOwnerWallet = connectedAddress?.toLowerCase() === contractInfo?.owner?.toLowerCase()
-    const isOwnershipAction = actionType === 'ownership'
-    
-    // Control meta transaction tab visibility with showMetaTxOption prop if provided
-    const showMetaTxTab = showMetaTxOption !== undefined ? showMetaTxOption : !(isOwnershipAction && isRecoveryWallet)
-
-    // Determine the required role message based on action type and timelock status
-    const getRequiredRoleMessage = () => {
-      if (isOwnershipAction && isTimeLockComplete) {
-        return "Please connect the owner or recovery wallet to proceed";
-      } else if (isOwnershipAction) {
-        return "Please connect the owner wallet to proceed";
-      } else if (requiredRole === 'broadcaster') {
-        return "Please connect the broadcaster wallet to proceed";
-      } else if (requiredRole === 'recovery') {
-        return "Please connect the recovery wallet to proceed";
-      } else {
-        return `Please connect the ${requiredRole} wallet to proceed`;
-      }
-    };
-
-    // Check if the wallet is valid for the current action phase
-    const isWalletValidForAction = () => {
-      if (isOwnershipAction && isTimeLockComplete) {
-        // When timelock is 100% for ownership transfer, either owner or recovery is valid
-        return isOwnerWallet || isRecoveryWallet;
-      }
-      return isConnectedWalletValid;
-    };
+    const { currentProgress, isTimeLockComplete } = getTimeLockProgress()
 
     return (
       <div className="space-y-4">
@@ -247,7 +391,7 @@ export function TemporalActionDialog({
           Transaction #{pendingTx.txId.toString()}
         </div>
 
-        {!isWalletValidForAction() && (
+        {!isWalletValidForActionWithTimelock() && (
           <Alert variant="destructive">
             <AlertDescription>
               {getRequiredRoleMessage()}
@@ -297,7 +441,7 @@ export function TemporalActionDialog({
                           <div className="w-full">
                             <Button
                               onClick={() => handleApprove(Number(pendingTx.txId))}
-                              disabled={isLoading || isApproving || !isWalletValidForAction() || (!isTimeLockComplete && isRecoveryWallet)}
+                              disabled={isLoadingState || !isWalletValidForActionWithTimelock() || (!isTimeLockComplete && isRecovery)}
                               className={cn(
                                 "w-full transition-all duration-200 flex items-center justify-center",
                                 isTimeLockComplete 
@@ -327,7 +471,7 @@ export function TemporalActionDialog({
                           sideOffset={4}
                           className="max-w-[200px] text-xs bg-popover/95 backdrop-blur-sm"
                         >
-                          {!isWalletValidForAction()
+                          {!isWalletValidForActionWithTimelock()
                             ? getRequiredRoleMessage()
                             : !isTimeLockComplete
                               ? "Time lock period not complete"
@@ -342,7 +486,7 @@ export function TemporalActionDialog({
                           <div className="w-full">
                             <Button
                               onClick={() => handleCancel(Number(pendingTx.txId))}
-                              disabled={isLoading || isCancelling || !isWalletValidForAction()}
+                              disabled={isLoadingState || !isWalletValidForCancellation}
                               className={cn(
                                 "w-full transition-all duration-200 flex items-center justify-center",
                                 "bg-rose-50 text-rose-700 hover:bg-rose-100",
@@ -372,7 +516,7 @@ export function TemporalActionDialog({
                           sideOffset={4}
                           className="max-w-[200px] text-xs bg-popover/95 backdrop-blur-sm"
                         >
-                          {!isWalletValidForAction()
+                          {!isWalletValidForCancellation
                             ? getRequiredRoleMessage()
                             : "Cancel this request"}
                         </TooltipContent>
@@ -405,7 +549,7 @@ export function TemporalActionDialog({
                             <div className="flex-1">
                               <Button
                                 onClick={() => handleMetaTxSign('approve', actionType === 'broadcaster' ? 'broadcaster' : 'ownership')}
-                                disabled={isLoading || isSigning || !isWalletValidForAction()}
+                                disabled={isLoadingState || !isWalletValidForMetaApproval}
                                 className={cn(
                                   "w-full transition-all duration-200 flex items-center justify-center",
                                   "bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
@@ -444,7 +588,7 @@ export function TemporalActionDialog({
                             <div className="flex-1">
                               <Button
                                 onClick={() => handleMetaTxSign('cancel', actionType === 'broadcaster' ? 'broadcaster' : 'ownership')}
-                                disabled={isLoading || isCancelling || !isWalletValidForAction()}
+                                disabled={isLoadingState || !isWalletValidForMetaCancellation}
                                 className={cn(
                                   "w-full transition-all duration-200 flex items-center justify-center",
                                   "bg-rose-50 text-rose-700 hover:bg-rose-100",

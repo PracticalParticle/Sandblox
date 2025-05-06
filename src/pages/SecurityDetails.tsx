@@ -23,10 +23,10 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle, CardContent } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useSecureContract } from '@/hooks/useSecureContract'
+import { useSecureOwnable } from '@/hooks/useSecureOwnable'
 import { useToast } from '../components/ui/use-toast'
 import { SecureContractInfo } from '@/lib/types'
-import { isValidEthereumAddress, generateNewSecureOwnableManager } from '@/lib/utils'
+import { isValidEthereumAddress, generateNewWorkflowManager, convertBigIntsToStrings } from '@/lib/utils'
 import {
   Tooltip,
   TooltipContent,
@@ -39,22 +39,25 @@ import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { OpHistory } from '@/components/OpHistory'
 import { useTransactionManager } from '@/hooks/useTransactionManager'
 import { SecureOwnable } from '../particle-core/sdk/typescript/SecureOwnable'
-import { FUNCTION_SELECTORS } from '../particle-core/sdk/typescript/types/core.access.index'
-import { TemporalActionDialog } from '@/components/TemporalActionDialog'
-import { MetaTransaction, TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
+import { TemporalActionDialog } from '@/components/security/TemporalActionDialog'
+import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
 import { TxStatus } from '@/particle-core/sdk/typescript/types/lib.index'
-import { MetaTxActionDialog } from '@/components/MetaTxActionDialog'
+import { MetaTxActionDialog } from '@/components/security/MetaTxActionDialog'
 import { TransactionManagerProvider } from '@/contexts/TransactionManager'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
 import { ContractInfo } from '@/components/ContractInfo'
 import { WalletStatusBadge } from '@/components/WalletStatusBadge'
 import { SignedMetaTxTable } from '@/components/SignedMetaTxTable'
-import { BroadcastDialog } from '@/components/BroadcastDialog'
+import { BroadcastDialog } from '@/components/security/BroadcastDialog'
 import { ExtendedSignedTransaction } from '@/components/SignedMetaTxTable'
 import { TransactionManager } from '@/services/TransactionManager'
 import { Hex } from 'viem'
 import { useOperationTypes } from '@/hooks/useOperationTypes'
+import { CoreOperationType, operationRegistry } from '@/types/OperationRegistry'
+import type { BroadcastActionType } from '@/components/security/BroadcastDialog'
+import { OPERATION_TYPES } from '@/particle-core/sdk/typescript/types/core.access.index'
+import { Address } from 'viem'
 
 const container = {
   hidden: { opacity: 0 },
@@ -115,7 +118,7 @@ export function SecurityDetails() {
   const { transactions = {}, storeTransaction, clearTransactions, removeTransaction } = useTransactionManager(contractAddress || '')
   const [signedTransactions, setSignedTransactions] = useState<ExtendedSignedTransaction[]>([])
   const [contractInfo, setContractInfo] = useState<SecureContractInfo | null>(null)
-  const { validateAndLoadContract, updateBroadcaster, approveOperation } = useSecureContract()
+  const { validateAndLoadContract } = useSecureOwnable()
   const { toast } = useToast()
   const { openConnectModal } = useConnectModal()
   const publicClient = usePublicClient()
@@ -163,6 +166,70 @@ export function SecurityDetails() {
     loadContractInfo()
   }, [contractAddress])
 
+  // Add a function to fetch operation history directly from contract
+  const fetchOperationHistory = async () => {
+    if (!contractAddress || !publicClient || !contractInfo) return;
+
+    try {
+      const chain = config.chains.find((c) => c.id === contractInfo.chainId);
+      if (!chain) {
+        throw new Error('Chain not found');
+      }
+
+      const contract = new SecureOwnable(
+        publicClient,
+        undefined,
+        contractAddress as `0x${string}`,
+        chain
+      );
+
+      // Get operation history directly from contract
+      const operationHistory = await contract.getOperationHistory();
+      console.log('Fresh operation history:', operationHistory);
+
+      // Update contract info with fresh operation history
+      setContractInfo(prevInfo => ({
+        ...prevInfo!,
+        operationHistory: operationHistory || []
+      }));
+
+      // Find pending transactions in operation history
+      if (operationHistory) {
+        // Find first pending ownership transfer
+        const pendingOwnership = operationHistory.find(
+          (tx: TxRecord) => tx.status === TxStatus.PENDING && 
+               tx.params.operationType === OPERATION_TYPES.OWNERSHIP_TRANSFER
+        );
+
+        // Find first pending broadcaster update
+        const pendingBroadcaster = operationHistory.find(
+          (tx: TxRecord) => tx.status === TxStatus.PENDING && 
+               tx.params.operationType === OPERATION_TYPES.BROADCASTER_UPDATE
+        );
+
+        console.log('Found pending ownership tx:', pendingOwnership);
+        console.log('Found pending broadcaster tx:', pendingBroadcaster);
+
+        setPendingOwnershipTx(pendingOwnership || null);
+        setPendingBroadcasterTx(pendingBroadcaster || null);
+      }
+    } catch (error) {
+      console.error('Error fetching operation history:', error);
+    }
+  };
+
+  // Add effect to refresh data periodically
+  useEffect(() => {
+    if (!contractAddress || !contractInfo) return;
+
+    const refreshInterval = setInterval(() => {
+      fetchOperationHistory();
+    }, 5000); // Refresh every 5 seconds
+
+    return () => clearInterval(refreshInterval);
+  }, [contractAddress, contractInfo]);
+
+  // Update the loadContractInfo function to use fetchOperationHistory
   const loadContractInfo = async () => {
     if (!contractAddress || !publicClient) return;
 
@@ -176,55 +243,11 @@ export function SecurityDetails() {
         throw new Error('Contract info not found');
       }
       
-      console.log('Contract info loaded:', info);
-      console.log('Operation history:', info.operationHistory);
-
-      // Get chain information
-      const chain = config.chains.find((c) => c.id === info.chainId);
-      if (!chain) {
-        throw new Error('Chain not found');
-      }
-
-      // Create contract instance to get operation types
-      const contract = new SecureOwnable(
-        publicClient,
-        undefined, // We don't need walletClient for read operations
-        contractAddress as `0x${string}`,
-        chain
-      );
-
-      // Get supported operation types
-      const supportedTypes = await contract.getSupportedOperationTypes();
-      const typeMap = new Map(
-        supportedTypes.map(({ operationType, name }) => [operationType, name])
-      );
-      
-      console.log('Operation type mapping:', typeMap);
-      
       setContractInfo(info);
-
-      // Find pending transactions in operation history
-      if (info.operationHistory) {
-        // Find first pending ownership transfer
-        const pendingOwnership = info.operationHistory.find(
-          (tx: TxRecord) => tx.status === TxStatus.PENDING && 
-               typeMap.get(tx.params.operationType) === 'OWNERSHIP_TRANSFER'
-        );
-
-        // Find first pending broadcaster update
-        const pendingBroadcaster = info.operationHistory.find(
-          (tx: TxRecord) => tx.status === TxStatus.PENDING && 
-               typeMap.get(tx.params.operationType) === 'BROADCASTER_UPDATE'
-        );
-
-        console.log('Found pending ownership tx:', pendingOwnership);
-        console.log('Found pending broadcaster tx:', pendingBroadcaster);
-
-        setPendingOwnershipTx(pendingOwnership || null);
-        setPendingBroadcasterTx(pendingBroadcaster || null);
-      }
-
       setError(null);
+
+      // Fetch operation history after setting contract info
+      await fetchOperationHistory();
     } catch (error) {
       console.error('Error loading contract:', error);
       if (!contractInfo) {
@@ -274,12 +297,12 @@ export function SecurityDetails() {
         throw new Error('Chain not found');
       }
 
-      const manager = await generateNewSecureOwnableManager(
+      // Create and initialize the WorkflowManager
+      const workflowManager = await generateNewWorkflowManager(
         publicClient,
         walletClient,
-        contractInfo.address,
+        contractInfo.address as `0x${string}`,
         chain,
-        // Add purpose field to distinguish from recovery address update
         (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
           ...metadata, 
           type: 'RECOVERY_UPDATE',
@@ -288,9 +311,13 @@ export function SecurityDetails() {
           broadcasted: false 
         })
       );
-      const tx = await manager.transferOwnership({
-        from: connectedAddress as `0x${string}`
-      });
+      
+      // Request the ownership transfer operation
+      const tx = await workflowManager.requestOperation(
+        CoreOperationType.OWNERSHIP_TRANSFER,
+        {}, // No additional parameters needed for ownership transfer
+        { from: connectedAddress as `0x${string}` }
+      );
 
       await publicClient.waitForTransactionReceipt({ hash: tx });
 
@@ -331,8 +358,8 @@ export function SecurityDetails() {
         throw new Error('Chain not found');
       }
 
-      // Create manager instance with transaction storage
-      const manager = await generateNewSecureOwnableManager(
+      // Create and initialize the WorkflowManager
+      const workflowManager = await generateNewWorkflowManager(
         publicClient,
         walletClient,
         contractAddress as `0x${string}`,
@@ -340,12 +367,19 @@ export function SecurityDetails() {
         storeTransaction
       );
 
-      const result = await manager.approveOwnershipTransfer(
+      // Approve the ownership transfer operation
+      const result = await workflowManager.approveOperation(
+        CoreOperationType.OWNERSHIP_TRANSFER,
         BigInt(txId),
         { from: connectedAddress as `0x${string}` }
       );
+      
       await publicClient.waitForTransactionReceipt({ hash: result });
 
+      toast({
+        title: "Success",
+        description: "Ownership transfer approved successfully",
+      });
 
       await loadContractInfo();
     } catch (error) {
@@ -358,7 +392,7 @@ export function SecurityDetails() {
     }
   }
 
-  const handleTransferOwnershipCancellation = async (txId: number) => {
+  const handleOwnershipTransferCancellation = async (txId: number) => {
     try {
       if (!contractInfo || !connectedAddress || !contractAddress || !publicClient || !walletClient) {
         toast({
@@ -374,73 +408,77 @@ export function SecurityDetails() {
         throw new Error('Chain not found');
       }
 
-      // Create contract instance
-      const contract = new SecureOwnable(
+      // Create and initialize the WorkflowManager
+      const workflowManager = await generateNewWorkflowManager(
         publicClient,
         walletClient,
         contractAddress as `0x${string}`,
-        chain
+        chain,
+        storeTransaction
       );
-      if(contractInfo.recoveryAddress.toLowerCase() === connectedAddress.toLowerCase()) {
-        const result = await contract.transferOwnershipCancellation(
-          BigInt(txId),
-          { from: connectedAddress as `0x${string}` }
-        );
-        await result.wait();
-        toast({
-        title: "Cancellation submitted",
-        description: "Transfer ownership cancellation has been submitted.",
-        });
-        await loadContractInfo();
-        return;
+
+      // Check if the connected wallet is the recovery address for ownership transfer
+      if (!isRoleConnected(contractInfo.recoveryAddress)) {
+        throw new Error('Only the recovery address can cancel ownership transfer');
       }
-      // Generate meta transaction parameters for cancellation
-      const metaTxParams = await contract.createMetaTxParams(
-        contractAddress as `0x${string}`,
-        FUNCTION_SELECTORS.TRANSFER_OWNERSHIP_CANCEL_META as `0x${string}`,
-        BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
-        BigInt(0), // No max gas price
-        connectedAddress as `0x${string}`
-      );
 
-      // Generate unsigned meta transaction for cancellation
-      const unsignedMetaTx = await contract.generateUnsignedMetaTransactionForExisting(
+      await workflowManager.cancelOperation(
+        CoreOperationType.OWNERSHIP_TRANSFER,
         BigInt(txId),
-        metaTxParams
+        { from: connectedAddress as Address }
       );
 
-      // Execute the cancellation
-      const result = await contract.transferOwnershipCancellationWithMetaTx(
-        unsignedMetaTx,
-        { from: connectedAddress as `0x${string}` }
-      );
-
-      await result.wait();
-
-      toast({
-        title: "Cancellation submitted",
-        description: "Transfer ownership cancellation has been submitted.",
-      });
-      await loadContractInfo();
+      // Don't call handleOperationSuccess here as it's called in the onCancel callback
     } catch (error) {
       console.error('Error in ownership transfer cancellation:', error);
+      // Show error toast
       toast({
-        title: "Error",
-        description: "Failed to cancel transfer ownership.",
-        variant: "destructive"
+        title: 'Cancellation Failed',
+        description: error instanceof Error ? error.message : 'Failed to cancel ownership transfer',
+        variant: 'destructive',
       });
     }
   }
 
   const handleUpdateBroadcasterRequest = async (newBroadcaster: string) => {
     try {
-      await updateBroadcaster(contractAddress as `0x${string}`, newBroadcaster as `0x${string}`);
+      if (!contractInfo || !connectedAddress || !contractAddress || !publicClient || !walletClient) {
+        toast({
+          title: "Error",
+          description: "Missing required information",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const chain = config.chains.find((c) => c.id === contractInfo.chainId);
+      if (!chain) {
+        throw new Error('Chain not found');
+      }
+
+      // Create and initialize the WorkflowManager
+      const workflowManager = await generateNewWorkflowManager(
+        publicClient,
+        walletClient,
+        contractAddress as `0x${string}`,
+        chain,
+        storeTransaction
+      );
+
+      // Request the broadcaster update operation
+      const hash = await workflowManager.requestOperation(
+        CoreOperationType.BROADCASTER_UPDATE,
+        { newBroadcaster: newBroadcaster as `0x${string}` },
+        { from: connectedAddress as `0x${string}` }
+      );
       
+      await publicClient.waitForTransactionReceipt({ hash });
+
       toast({
         title: "Request submitted",
         description: "Broadcaster update request has been submitted.",
       });
-
+      
       // Add a small delay before reloading contract info to allow transaction to be mined
       setTimeout(async () => {
         await loadContractInfo();
@@ -472,18 +510,13 @@ export function SecurityDetails() {
         throw new Error('Chain not found');
       }
 
-      // Create contract instance to get operation types
-      const contract = new SecureOwnable(
+      // Create and initialize the WorkflowManager
+      const workflowManager = await generateNewWorkflowManager(
         publicClient,
         walletClient,
         contractAddress as `0x${string}`,
-        chain
-      );
-
-      // Get supported operation types
-      const supportedTypes = await contract.getSupportedOperationTypes();
-      const typeMap = new Map(
-        supportedTypes.map(({ operationType, name }) => [operationType, name])
+        chain,
+        storeTransaction
       );
 
       // Find the transaction in operation history
@@ -492,19 +525,30 @@ export function SecurityDetails() {
         throw new Error('Transaction not found');
       }
 
-      // Get operation name and determine type
-      const operationName = typeMap.get(tx.params.operationType);
-      let operationType: 'ownership' | 'broadcaster';
+      // Map the operation type hash to the correct CoreOperationType
+      let operationType: CoreOperationType;
+      const operationName = getOperationName(tx.params.operationType);
       
-      if (operationName?.includes('OWNERSHIP')) {
-        operationType = 'ownership';
-      } else if (operationName?.includes('BROADCASTER')) {
-        operationType = 'broadcaster';
+      if (operationName.includes('OWNERSHIP')) {
+        operationType = CoreOperationType.OWNERSHIP_TRANSFER;
+      } else if (operationName.includes('BROADCASTER')) {
+        operationType = CoreOperationType.BROADCASTER_UPDATE;
+      } else if (operationName.includes('RECOVERY')) {
+        operationType = CoreOperationType.RECOVERY_UPDATE;
+      } else if (operationName.includes('TIMELOCK')) {
+        operationType = CoreOperationType.TIMELOCK_UPDATE;
       } else {
-        throw new Error('Unsupported operation type');
+        throw new Error(`Unsupported operation type: ${operationName}`);
       }
 
-      await approveOperation(contractAddress as `0x${string}`, txId, operationType);
+      // Approve the operation
+      const hash = await workflowManager.approveOperation(
+        operationType,
+        BigInt(txId),
+        { from: connectedAddress as `0x${string}` }
+      );
+      
+      await publicClient.waitForTransactionReceipt({ hash });
       
       toast({
         title: "Success",
@@ -538,26 +582,28 @@ export function SecurityDetails() {
         throw new Error('Chain not found');
       }
 
+      // Set signing state before any wallet interaction
       setIsSigningTx(true);
-      // Create manager instance with transaction storage
-      const manager = await generateNewSecureOwnableManager(
+      
+      // Create and initialize the WorkflowManager
+      const workflowManager = await generateNewWorkflowManager(
         publicClient,
         walletClient,
         contractAddress as `0x${string}`,
         chain,
-        // Wrap storeTransaction to include purpose field to distinguish from transfer ownership
         (txId, signedData, metadata) => storeTransaction(txId, signedData, { 
           ...metadata, 
           type: 'RECOVERY_UPDATE',
           purpose: 'address_update',
-          action: 'approve',
+          action: 'requestAndApprove',
           broadcasted: false 
         })
       );
 
       // Prepare and sign the recovery update transaction
-      await manager.prepareAndSignRecoveryUpdate(
-        newRecoveryAddress as `0x${string}`,
+      await workflowManager.prepareAndSignSinglePhaseOperation(
+        CoreOperationType.RECOVERY_UPDATE,
+        { newRecoveryAddress: newRecoveryAddress as `0x${string}` },
         { from: connectedAddress as `0x${string}` }
       );
 
@@ -594,16 +640,25 @@ export function SecurityDetails() {
         throw new Error('Chain not found');
       }
 
-      // Convert the period to minutes before sending
-      const periodInMinutes = parseInt(newPeriod);
+      // Convert the period to minutes based on the selected unit
+      const periodInMinutes = convertToMinutes(newPeriod, timeLockUnit);
       if (isNaN(periodInMinutes) || periodInMinutes < TIMELOCK_PERIODS.MIN || periodInMinutes > TIMELOCK_PERIODS.MAX) {
-        throw new Error(`Period must be between ${TIMELOCK_PERIODS.MIN} and ${TIMELOCK_PERIODS.MAX} minutes`);
+        throw new Error(`Period must be between ${formatTimeValue(TIMELOCK_PERIODS.MIN)} and ${formatTimeValue(TIMELOCK_PERIODS.MAX)}`);
       }
 
+      // Set signing state before any wallet interaction
       setIsSigningTx(true);
       
-      // Create manager instance with transaction storage
-      const manager = await generateNewSecureOwnableManager(
+      // Create parameter object with BigInt value
+      const params = { 
+        newTimeLockPeriodInMinutes: BigInt(periodInMinutes) 
+      };
+      
+      // Convert BigInt values to strings for metadata
+      const metadataParams = convertBigIntsToStrings(params);
+      
+      // Create and initialize the WorkflowManager
+      const workflowManager = await generateNewWorkflowManager(
         publicClient,
         walletClient,
         contractAddress as `0x${string}`,
@@ -612,14 +667,19 @@ export function SecurityDetails() {
           ...metadata, 
           type: 'TIMELOCK_UPDATE', 
           purpose: 'timelock_period',
-          action: 'approve',
-          broadcasted: false 
+          action: 'requestAndApprove',
+          broadcasted: false,
+          newTimeLockPeriodInMinutes: metadataParams.newTimeLockPeriodInMinutes,
+          originalValue: newPeriod,
+          originalUnit: timeLockUnit,
+          convertedMinutes: periodInMinutes
         })
       );
 
-      // Prepare and sign the timelock update transaction with BigInt conversion
-      await manager.prepareAndSignTimeLockUpdate(
-        BigInt(periodInMinutes),
+      // Prepare and sign the timelock update transaction
+      await workflowManager.prepareAndSignSinglePhaseOperation(
+        CoreOperationType.TIMELOCK_UPDATE,
+        params,
         { from: connectedAddress as `0x${string}` }
       );
 
@@ -746,55 +806,32 @@ export function SecurityDetails() {
   };
 
   // Update handleBroadcast function to handle both types
-  const handleBroadcast = async (type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'RECOVERY_ADDRESS_UPDATE' | 'TIMELOCK_UPDATE' | 'WITHDRAWAL_APPROVAL') => {
+  const handleBroadcast = async (type: BroadcastActionType) => {
     try {
-      // Use the activeBroadcastTx that was set in prepareBroadcastDialog
       const pendingTx = activeBroadcastTx;
 
       if (!pendingTx) {
         throw new Error('No pending transaction found');
       }
 
-      if (!walletClient || !connectedAddress) {
-        throw new Error('Wallet not connected');
+      if (!contractInfo || !connectedAddress || !contractAddress || !publicClient || !walletClient) {
+        throw new Error('Wallet not connected or missing required information');
       }
+
       console.log('Broadcasting transaction:', pendingTx);
       console.log('Transaction type:', type);
       console.log('pendingTx metadata:', pendingTx.metadata);
       
-      // Extract the action type from metadata
-      const action = pendingTx.metadata?.action as 'approve' | 'cancel';
-      
-      if (!action) {
-        throw new Error('Action type not found in transaction metadata');
-      }
+      // Extract the action type from metadata or determine based on operation type
+      let action: 'approve' | 'cancel' | 'requestAndApprove';
 
-      // Special handling for WITHDRAWAL_APPROVAL
-      if (type === 'WITHDRAWAL_APPROVAL') {
-        // For withdrawal approvals, just redirect to blox page
-        if (contractAddress) {
-          navigate(`/blox/${contractAddress}`);
-          return;
-        }
-      }
-      
-      // Parse the signed transaction data
-      const signedData = JSON.parse(pendingTx.signedData, (_key: string, value: any): any => {
-        if (typeof value === 'string' && /^\d+n$/.test(value)) {
-          return BigInt(value.slice(0, -1));
-        }
-        return value;
-      }) as MetaTransaction;
-
-      if (!publicClient) {
-        throw new Error('Public client not found');
-      }
       const chain = config.chains.find((c) => c.id === contractInfo?.chainId);
       if (!chain) {
         throw new Error('Chain not found');
       }
-      // Create manager instance with transaction storage
-      const manager = await generateNewSecureOwnableManager(
+
+      // Initialize WorkflowManager
+      const workflowManager = await generateNewWorkflowManager(
         publicClient,
         walletClient,
         contractAddress as `0x${string}`,
@@ -802,37 +839,45 @@ export function SecurityDetails() {
         storeTransaction
       );
 
-      // Determine the correct type to use for the contract interaction
-      // Handle special cases like RECOVERY_UPDATE with purpose=ownership_transfer
-      let contractType: 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE' | 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' = 
-        type === 'RECOVERY_ADDRESS_UPDATE' ? 'RECOVERY_UPDATE' : 
-        (type as 'RECOVERY_UPDATE' | 'TIMELOCK_UPDATE' | 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE');
+      // Map the transaction type to CoreOperationType
+      let operationType: CoreOperationType;
       
-      if (pendingTx.metadata?.type === 'RECOVERY_UPDATE' && pendingTx.metadata?.purpose === 'ownership_transfer') {
-        contractType = 'OWNERSHIP_TRANSFER';
-      } else if (pendingTx.metadata?.type) {
-        // Use the type from metadata if available, as it's what was used to sign the transaction
-        // Only use it if it's one of the valid contract types
-        const metadataType = pendingTx.metadata.type;
-        if (
-          metadataType === 'RECOVERY_UPDATE' || 
-          metadataType === 'TIMELOCK_UPDATE' || 
-          metadataType === 'OWNERSHIP_TRANSFER' || 
-          metadataType === 'BROADCASTER_UPDATE'
-        ) {
-          contractType = metadataType;
-        }
+      // Convert type to string for comparison
+      const typeStr = String(type);
+      
+      // Determine the correct CoreOperationType based on the transaction type
+      if (typeStr === 'OWNERSHIP_TRANSFER' || 
+          (pendingTx.metadata?.type === 'RECOVERY_UPDATE' && pendingTx.metadata?.purpose === 'ownership_transfer')) {
+        operationType = CoreOperationType.OWNERSHIP_TRANSFER;
+        // Multi-phase operation - use action from metadata or default to 'approve'
+        action = (pendingTx.metadata?.action as 'approve' | 'cancel') || 'approve';
+      } else if (typeStr === 'BROADCASTER_UPDATE') {
+        operationType = CoreOperationType.BROADCASTER_UPDATE;
+        // Multi-phase operation - use action from metadata or default to 'approve'
+        action = (pendingTx.metadata?.action as 'approve' | 'cancel') || 'approve';
+      } else if (typeStr === 'RECOVERY_UPDATE') {
+        operationType = CoreOperationType.RECOVERY_UPDATE;
+        // Single-phase operation - must use 'requestAndApprove'
+        action = 'requestAndApprove';
+      } else if (typeStr === 'TIMELOCK_UPDATE') {
+        operationType = CoreOperationType.TIMELOCK_UPDATE;
+        // Single-phase operation - must use 'requestAndApprove'
+        action = 'requestAndApprove';
+      } else {
+        throw new Error(`Unsupported operation type: ${type}`);
       }
       
-      console.log('Using contract type for execution:', contractType);
+      console.log('Using operation type for execution:', operationType);
+      console.log('Using action type:', action);
       
-      // Prepare and sign the update transaction
-      const txHash = await manager.executeMetaTransaction(
-        signedData,
-        { from: connectedAddress as `0x${string}` },
-        contractType,
+      // Execute the meta-transaction using WorkflowManager
+      const txHash = await workflowManager.executeMetaTransaction(
+        pendingTx.signedData,
+        operationType,
         action,
+        { from: connectedAddress as `0x${string}` }
       );
+      
       console.log('txHash', txHash);
       toast({
         title: "Transaction Submitted",
@@ -840,7 +885,7 @@ export function SecurityDetails() {
       });
       
       // Wait for transaction confirmation
-      await publicClient?.waitForTransactionReceipt({ hash: txHash });
+      await publicClient.waitForTransactionReceipt({ hash: txHash });
 
       // Remove the broadcasted transaction from local storage
       removeTransaction(pendingTx.txId);
@@ -851,24 +896,29 @@ export function SecurityDetails() {
       // Clear the active transaction
       setActiveBroadcastTx(null);
 
-      // Close all broadcast dialogs
-      setShowBroadcastTimelockDialog(false);
-      setShowBroadcastRecoveryDialog(false);
-      setShowBroadcastOwnershipDialog(false);
-      setShowBroadcastBroadcasterDialog(false);
+      // Close the appropriate dialog
+      switch (type) {
+        case 'TIMELOCK_UPDATE':
+          setShowBroadcastTimelockDialog(false);
+          break;
+        case 'RECOVERY_UPDATE':
+          setShowBroadcastRecoveryDialog(false);
+          break;
+        case 'OWNERSHIP_TRANSFER':
+          setShowBroadcastOwnershipDialog(false);
+          break;
+        case 'BROADCASTER_UPDATE':
+          setShowBroadcastBroadcasterDialog(false);
+          break;
+      }
 
-      toast({
-        title: "Transaction Confirmed",
-        description: "Transaction has been confirmed and removed from pending transactions",
-      });
-
-      // Reload contract info after broadcast
+      // Refresh contract info
       await loadContractInfo();
-    } catch (error) {
-      console.error('Broadcast error:', error);
+    } catch (error: any) {
+      console.error('Error in broadcast:', error);
       toast({
-        title: "Broadcast Failed",
-        description: error instanceof Error ? error.message : "Failed to broadcast transaction",
+        title: "Error",
+        description: error.message || "Failed to broadcast transaction",
         variant: "destructive"
       });
     }
@@ -890,42 +940,76 @@ export function SecurityDetails() {
         throw new Error('Chain not found');
       }
 
-      // Create contract instance
-      const contract = new SecureOwnable(
+      // Create and initialize the WorkflowManager
+      const workflowManager = await generateNewWorkflowManager(
         publicClient,
         walletClient,
         contractAddress as `0x${string}`,
-        chain
+        chain,
+        storeTransaction
       );
 
-      // Execute the direct cancellation since we're the owner
-      const result = await contract.updateBroadcasterCancellation(
+      // Get the operation type from the transaction
+      const operationType = CoreOperationType.BROADCASTER_UPDATE;
+      const operation = operationRegistry.getOperation(operationType);
+      
+      if (!operation) {
+        throw new Error(`Unknown operation type: ${operationType}`);
+      }
+
+      // Check if the connected wallet has the required role for cancellation
+      const requiredRole = operation.requiredRoles.cancel;
+      let hasRequiredRole = false;
+
+      if (Array.isArray(requiredRole)) {
+        // If multiple roles are allowed, check if user has any of them
+        hasRequiredRole = requiredRole.some(role => {
+          if (role === 'owner') return isRoleConnected(contractInfo.owner);
+          if (role === 'recovery') return isRoleConnected(contractInfo.recoveryAddress);
+          if (role === 'broadcaster') return isRoleConnected(contractInfo.broadcaster);
+          return false;
+        });
+      } else {
+        // If single role is required, check if user has that role
+        if (requiredRole === 'owner') hasRequiredRole = isRoleConnected(contractInfo.owner);
+        else if (requiredRole === 'recovery') hasRequiredRole = isRoleConnected(contractInfo.recoveryAddress);
+        else if (requiredRole === 'broadcaster') hasRequiredRole = isRoleConnected(contractInfo.broadcaster);
+      }
+
+      if (!hasRequiredRole) {
+        throw new Error(`Only ${requiredRole} can cancel ${operation.name.toLowerCase()}`);
+      }
+
+      await workflowManager.cancelOperation(
+        operationType,
         BigInt(txId),
-        { from: connectedAddress as `0x${string}` }
+        { from: connectedAddress as Address }
       );
 
-      await result.wait();
-
-      toast({
-        title: "Cancellation submitted",
-        description: "Broadcaster update cancellation has been submitted.",
-      });
-      await loadContractInfo();
+      // Refresh data after successful cancellation
+      await handleOperationSuccess();
     } catch (error) {
-      console.error('Error in broadcaster update cancellation:', error);
+      console.error('Error in operation cancellation:', error);
+      // Show error toast
       toast({
-        title: "Error",
-        description: "Failed to cancel broadcaster update.",
-        variant: "destructive"
+        title: 'Operation Cancellation Failed',
+        description: error instanceof Error ? error.message : 'Failed to cancel operation',
+        variant: 'destructive',
       });
     }
   }
 
   // Prepare the broadcast dialog for a specific transaction type
   const prepareBroadcastDialog = (
-    type: 'OWNERSHIP_TRANSFER' | 'BROADCASTER_UPDATE' | 'RECOVERY_UPDATE' | 'RECOVERY_ADDRESS_UPDATE' | 'TIMELOCK_UPDATE' | 'WITHDRAWAL_APPROVAL',
+    type: BroadcastActionType,
     specificTx?: ExtendedSignedTransaction
   ) => {
+    // Skip if already processing a transaction
+    if (activeBroadcastTx) {
+      console.log('Already processing a transaction, skipping');
+      return;
+    }
+
     console.log('Preparing broadcast dialog for type:', type);
     console.log('Specific transaction:', specificTx);
     
@@ -947,18 +1031,11 @@ export function SecurityDetails() {
           )
         );
       } else if (type === 'RECOVERY_UPDATE') {
-        // For recovery threshold updates
+        // For recovery updates, look for RECOVERY_UPDATE type
         pendingTx = signedTransactions.find(tx => 
           tx.metadata?.type === 'RECOVERY_UPDATE' && 
           !tx.metadata?.broadcasted && 
-          (tx.metadata?.purpose !== 'address_update' && tx.metadata?.purpose !== 'ownership_transfer')
-        );
-      } else if (type === 'RECOVERY_ADDRESS_UPDATE') {
-        // For recovery address updates, look for RECOVERY_UPDATE with purpose=address_update
-        pendingTx = signedTransactions.find(tx => 
-          tx.metadata?.type === 'RECOVERY_UPDATE' && 
-          !tx.metadata?.broadcasted && 
-          tx.metadata?.purpose === 'address_update'
+          (tx.metadata?.purpose !== 'ownership_transfer')
         );
       } else if (type === 'TIMELOCK_UPDATE') {
         // For timelock updates, look for exact TIMELOCK_UPDATE type 
@@ -966,16 +1043,11 @@ export function SecurityDetails() {
           tx.metadata?.type === 'TIMELOCK_UPDATE' && 
           !tx.metadata?.broadcasted
         );
-      } else if (type === 'WITHDRAWAL_APPROVAL') {
-        // For withdrawal approvals, look for WITHDRAWAL_APPROVAL type
+      } else if (type === 'BROADCASTER_UPDATE') {
+        // For broadcaster updates
         pendingTx = signedTransactions.find(tx => 
-          tx.metadata?.type === 'WITHDRAWAL_APPROVAL' && 
+          tx.metadata?.type === 'BROADCASTER_UPDATE' && 
           !tx.metadata?.broadcasted
-        );
-      } else {
-        // For other types, look for exact match
-        pendingTx = signedTransactions.find(tx => 
-          tx.metadata?.type === type && !tx.metadata?.broadcasted
         );
       }
 
@@ -994,7 +1066,6 @@ export function SecurityDetails() {
         setShowBroadcastTimelockDialog(true);
         break;
       case 'RECOVERY_UPDATE':
-      case 'RECOVERY_ADDRESS_UPDATE':
         setShowBroadcastRecoveryDialog(true);
         break;
       case 'OWNERSHIP_TRANSFER':  
@@ -1003,13 +1074,28 @@ export function SecurityDetails() {
       case 'BROADCASTER_UPDATE':
         setShowBroadcastBroadcasterDialog(true);
         break;
-      case 'WITHDRAWAL_APPROVAL':
-        // For withdrawal approvals, navigate to blox page
-        if (contractAddress) {
-          navigate(`/blox/${contractAddress}`);
-        }
-        break;
     }
+  };
+
+  // Add handlers for dialog close
+  const handleTimelockDialogClose = (open: boolean) => {
+    setShowBroadcastTimelockDialog(open);
+    if (!open) setActiveBroadcastTx(null);
+  };
+
+  const handleRecoveryDialogClose = (open: boolean) => {
+    setShowBroadcastRecoveryDialog(open);
+    if (!open) setActiveBroadcastTx(null);
+  };
+
+  const handleOwnershipDialogClose = (open: boolean) => {
+    setShowBroadcastOwnershipDialog(open);
+    if (!open) setActiveBroadcastTx(null);
+  };
+
+  const handleBroadcasterDialogClose = (open: boolean) => {
+    setShowBroadcastBroadcasterDialog(open);
+    if (!open) setActiveBroadcastTx(null);
   };
 
   // Add after loadContractInfo function
@@ -1035,31 +1121,45 @@ export function SecurityDetails() {
     }
   };
 
-  // Function to determine if an operation is a withdrawal
-  const isWithdrawalOperation = (operationType: Hex): boolean => {
-    const operationName = getOperationName(operationType)
-    return operationName === 'WITHDRAW_ETH' || 
-           operationName === 'WITHDRAW_TOKEN' || 
-           operationName === 'WITHDRAWAL_APPROVAL'
-  }
-
   // Filter out withdrawal transactions from signed transactions
   const filteredSignedTransactions = signedTransactions.filter(tx => {
-    // Check explicit WITHDRAWAL_APPROVAL type
-    if (tx.metadata?.type === 'WITHDRAWAL_APPROVAL') {
-      return false
-    }
+    // Only show core operations
+    const coreOperations = [
+      'OWNERSHIP_TRANSFER',
+      'BROADCASTER_UPDATE',
+      'RECOVERY_UPDATE',
+      'TIMELOCK_UPDATE'
+    ];
     
-    // Check using operation type if available
-    if (tx.metadata?.operationType) {
-      const operationName = getOperationName(tx.metadata.operationType)
-      return !(operationName === 'WITHDRAW_ETH' || 
-              operationName === 'WITHDRAW_TOKEN' || 
-              operationName === 'WITHDRAWAL_APPROVAL')
+    return coreOperations.includes(tx.metadata?.type || '');
+  });
+
+  // Update the handleOperationSuccess function
+  const handleOperationSuccess = async () => {
+    try {
+      // Wait a short time for blockchain to update
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Fetch fresh operation history
+      await fetchOperationHistory();
+      
+      // Refresh signed transactions
+      refreshSignedTransactions();
+      
+      // Show success toast
+      toast({
+        title: "Success",
+        description: "Operation completed successfully",
+      });
+    } catch (error) {
+      console.error('Error refreshing after operation:', error);
+      toast({
+        title: "Error",
+        description: "Failed to refresh data after operation",
+        variant: "destructive"
+      });
     }
-    
-    return true
-  })
+  };
 
   if (!contractAddress || error) {
     return (
@@ -1382,10 +1482,15 @@ export function SecurityDetails() {
                                 message: `Please enter a period between ${formatTimeValue(TIMELOCK_PERIODS.MIN)} and ${formatTimeValue(TIMELOCK_PERIODS.MAX)}`
                               };
                             }}
-                            onSubmit={() => {
+                            onSubmit={async () => {
                               const minutes = convertToMinutes(newTimeLockPeriod, timeLockUnit);
-                              return handleUpdateTimeLockRequest(minutes.toString());
+                              await handleUpdateTimeLockRequest(minutes.toString());
+                              setShowTimeLockDialog(false);
+                              // Refresh data after operation
+                              await loadContractInfo();
+                              refreshSignedTransactions();
                             }}
+                            timeLockUnit={timeLockUnit}
                           />
                         </CardContent>
                       </CollapsibleContent>
@@ -1619,11 +1724,15 @@ export function SecurityDetails() {
                                 showNewValueInput={true}
                                 newValueLabel="New Broadcaster Address"
                                 newValuePlaceholder="Enter new broadcaster address"
-                                onSubmit={handleUpdateBroadcasterRequest}
+                                onSubmit={async (newBroadcaster) => {
+                                  await handleUpdateBroadcasterRequest(newBroadcaster);
+                                  setShowBroadcasterDialog(false);
+                                  // Refresh data after operation
+                                  await loadContractInfo();
+                                  refreshSignedTransactions();
+                                }}
                                 onApprove={handleApproveOperation}
                                 onCancel={handleUpdateBroadcasterCancellation}
-                                refreshData={loadContractInfo}
-                                refreshSignedTransactions={refreshSignedTransactions}
                               />
                             </>
                           )}
@@ -1806,7 +1915,13 @@ export function SecurityDetails() {
                               message: "Please enter a valid Ethereum address"
                             })}
                             isSigning={isSigningTx}
-                            onSubmit={handleUpdateRecoveryRequest}
+                            onSubmit={async () => {
+                              await handleUpdateRecoveryRequest(newRecoveryAddress);
+                              setShowRecoveryDialog(false);
+                              // Refresh data after operation
+                              await loadContractInfo();
+                              refreshSignedTransactions();
+                            }}
                           />
                         </CardContent>
                       </CollapsibleContent>
@@ -2038,12 +2153,25 @@ export function SecurityDetails() {
                                 connectedAddress={connectedAddress}
                                 pendingTx={pendingOwnershipTx || undefined}
                                 showNewValueInput={false}
-                                onSubmit={async () => handleTransferOwnershipRequest()}
+                                onSubmit={async () => {
+                                  await handleTransferOwnershipRequest();
+                                  setShowOwnershipDialog(false);
+                                  await handleOperationSuccess();
+                                }}
                                 onApprove={handleTransferOwnershipApproval}
-                                onCancel={handleTransferOwnershipCancellation}
+                                onCancel={async (txId) => {
+                                  try {
+                                    await handleOwnershipTransferCancellation(txId);
+                                    setShowOwnershipDialog(false);
+                                    await handleOperationSuccess();
+                                  } catch (error) {
+                                    console.error('Error in ownership cancellation:', error);
+                                    // Show error toast if needed
+                                  }
+                                }}
                                 showMetaTxOption={!!(pendingOwnershipTx && isRoleConnected(contractInfo.owner))}
                                 metaTxDescription="Sign a meta transaction to approve the ownership transfer. This will be broadcasted by the broadcaster."
-                                refreshData={loadContractInfo}
+                                refreshData={handleOperationSuccess}
                                 refreshSignedTransactions={refreshSignedTransactions}
                               />
                             </>
@@ -2104,15 +2232,13 @@ export function SecurityDetails() {
                   return;
                 }
                 
+                // For RECOVERY_UPDATE, we need to check the purpose
                 if (tx.metadata.type === 'RECOVERY_UPDATE') {
                   if (tx.metadata.purpose === 'ownership_transfer') {
                     console.log('Opening ownership transfer dialog');
                     prepareBroadcastDialog('OWNERSHIP_TRANSFER', tx);
-                  } else if (tx.metadata.purpose === 'address_update') {
-                    console.log('Opening recovery address update dialog');
-                    prepareBroadcastDialog('RECOVERY_ADDRESS_UPDATE', tx);
                   } else {
-                    console.log('Opening general recovery update dialog');
+                    console.log('Opening recovery update dialog');
                     prepareBroadcastDialog('RECOVERY_UPDATE', tx);
                   }
                 } else {
@@ -2126,28 +2252,48 @@ export function SecurityDetails() {
           {/* Operation History Section */}
           <motion.div variants={item} className="mt-6">
             <OpHistory
-              contractAddress={contractAddress as `0x${string}`}
-              operations={contractInfo?.operationHistory?.filter((op: TxRecord) => 
-                !isWithdrawalOperation(op.params.operationType as Hex)
-              ) || []}
               isLoading={loading}
               contractInfo={contractInfo}
-              signedTransactions={filteredSignedTransactions}
+              signedTransactions={filteredSignedTransactions as any}
               onApprove={handleApproveOperation}
-              onCancel={handleUpdateBroadcasterCancellation}
+              onCancel={(txId) => {
+                // Get the operation type from the transaction
+                const tx = contractInfo?.operationHistory?.find((op: TxRecord) => op.txId.toString() === txId.toString());
+                if (tx) {
+                  const operationName = getOperationName(tx.params.operationType as Hex);
+                  if (operationName === 'OWNERSHIP_TRANSFER') {
+                    return handleOwnershipTransferCancellation(txId);
+                  } else if (operationName === 'BROADCASTER_UPDATE') {
+                    return handleUpdateBroadcasterCancellation(txId);
+                  }
+                }
+                // Default to broadcaster update cancellation for backward compatibility
+                return handleUpdateBroadcasterCancellation(txId);
+              }}
               refreshData={loadContractInfo}
               refreshSignedTransactions={refreshSignedTransactions}
+              contractAddress={contractAddress as `0x${string}`}
+              operations={contractInfo?.operationHistory?.filter((op: TxRecord) => {
+                const operationName = getOperationName(op.params.operationType as Hex);
+                return [
+                  'OWNERSHIP_TRANSFER',
+                  'BROADCASTER_UPDATE',
+                  'RECOVERY_UPDATE',
+                  'TIMELOCK_UPDATE'
+                ].includes(operationName);
+              }) || []}
             />
           </motion.div>
         </motion.div>
       </div>
 
       {/* Broadcast Dialogs */}
+      {/* Timelock update broadcast dialog */}
       <BroadcastDialog
         isOpen={showBroadcastTimelockDialog}
-        onOpenChange={setShowBroadcastTimelockDialog}
-        title="Broadcast TimeLock Update"
-        description="Broadcast the signed TimeLock period update transaction to the blockchain."
+        onOpenChange={handleTimelockDialogClose}
+        title="Broadcast Timelock Update"
+        description="Broadcast the signed timelock update transaction to the blockchain."
         contractInfo={{
           chainId: contractInfo?.chainId || 0,
           chainName: contractInfo?.chainName || '',
@@ -2155,16 +2301,17 @@ export function SecurityDetails() {
           owner: contractInfo?.owner || '',
           contractAddress: contractAddress
         }}
-        txType="TIMELOCK_UPDATE"
-        pendingTx={activeBroadcastTx && activeBroadcastTx?.metadata?.type !== 'WITHDRAWAL_APPROVAL' ? activeBroadcastTx : undefined}
+        actionType="TIMELOCK_UPDATE"
         onBroadcast={handleBroadcast}
+        pendingTx={activeBroadcastTx || undefined}
         connectedAddress={connectedAddress}
         operationName="Time Lock Update"
       />
 
+      {/* Recovery update broadcast dialog */}
       <BroadcastDialog
         isOpen={showBroadcastRecoveryDialog}
-        onOpenChange={setShowBroadcastRecoveryDialog}
+        onOpenChange={handleRecoveryDialogClose}
         title="Broadcast Recovery Update"
         description="Broadcast the signed recovery address update transaction to the blockchain."
         contractInfo={{
@@ -2174,16 +2321,17 @@ export function SecurityDetails() {
           owner: contractInfo?.owner || '',
           contractAddress: contractAddress
         }}
-        txType="RECOVERY_UPDATE"
-        pendingTx={activeBroadcastTx && activeBroadcastTx?.metadata?.type !== 'WITHDRAWAL_APPROVAL' ? activeBroadcastTx : undefined}
+        actionType="RECOVERY_UPDATE"
         onBroadcast={handleBroadcast}
+        pendingTx={activeBroadcastTx || undefined}
         connectedAddress={connectedAddress}
         operationName="Recovery Update"
       />
 
+      {/* Ownership transfer broadcast dialog */}
       <BroadcastDialog
         isOpen={showBroadcastOwnershipDialog}
-        onOpenChange={setShowBroadcastOwnershipDialog}
+        onOpenChange={handleOwnershipDialogClose}
         title="Broadcast Ownership Transfer"
         description="Broadcast the signed ownership transfer transaction to the blockchain."
         contractInfo={{
@@ -2193,16 +2341,17 @@ export function SecurityDetails() {
           owner: contractInfo?.owner || '',
           contractAddress: contractAddress
         }}
-        txType="OWNERSHIP_TRANSFER"
-        pendingTx={activeBroadcastTx && activeBroadcastTx?.metadata?.type !== 'WITHDRAWAL_APPROVAL' ? activeBroadcastTx : undefined}
+        actionType="OWNERSHIP_TRANSFER"
         onBroadcast={handleBroadcast}
+        pendingTx={activeBroadcastTx || undefined}
         connectedAddress={connectedAddress}
         operationName="Ownership Transfer"
       />
 
+      {/* Broadcaster update broadcast dialog */}
       <BroadcastDialog
         isOpen={showBroadcastBroadcasterDialog}
-        onOpenChange={setShowBroadcastBroadcasterDialog}
+        onOpenChange={handleBroadcasterDialogClose}
         title="Broadcast Broadcaster Update"
         description="Broadcast the signed broadcaster update transaction to the blockchain."
         contractInfo={{
@@ -2212,9 +2361,9 @@ export function SecurityDetails() {
           owner: contractInfo?.owner || '',
           contractAddress: contractAddress
         }}
-        txType="BROADCASTER_UPDATE"
-        pendingTx={activeBroadcastTx && activeBroadcastTx?.metadata?.type !== 'WITHDRAWAL_APPROVAL' ? activeBroadcastTx : undefined}
+        actionType="BROADCASTER_UPDATE"
         onBroadcast={handleBroadcast}
+        pendingTx={activeBroadcastTx || undefined}
         connectedAddress={connectedAddress}
         operationName="Broadcaster Update"
       />

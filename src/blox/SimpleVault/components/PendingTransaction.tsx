@@ -13,14 +13,7 @@ import { useOperationTypes } from "@/hooks/useOperationTypes";
 import { NotificationMessage } from "../lib/types";
 import { useActionPermissions } from "@/hooks/useActionPermissions";
 import { usePublicClient } from "wagmi"
-
-export interface VaultTxRecord extends Omit<TxRecord, 'status'> {
-  status: TxStatus;
-  amount: bigint;
-  to: Address;
-  token?: Address;
-  type: "ETH" | "TOKEN";
-}
+import { VaultTxRecord } from "../lib/operations";
 
 export interface PendingTransactionsProps {
   transactions: VaultTxRecord[];
@@ -145,19 +138,6 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
         throw new Error("Blockchain client not initialized")
       }
 
-      // Check if we're within the first hour of transaction creation
-      if (transactions[txId]?.releaseTime) {
-        const block = await publicClient.getBlock()
-        const now = Number(block.timestamp)
-        const timeLockPeriodInSeconds = timeLockPeriodInMinutes * 60
-        const startTime = Number(transactions[txId].releaseTime) - timeLockPeriodInSeconds
-        const elapsedTime = now - startTime
-        
-        if (elapsedTime < 3600) { // 3600 seconds = 1 hour
-          throw new Error("Cannot cancel within first hour of creation")
-        }
-      }
-
       if (onCancel) {
         await onCancel(txId);
       }
@@ -245,9 +225,6 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
             const elapsedTime = now - startTime;
             const progress = Math.min((elapsedTime / timeLockPeriodInSeconds) * 100, 100);
             const isTimeLockComplete = progress >= 100;
-            
-            // Calculate if within first hour
-            const isWithinFirstHour = elapsedTime < 3600;
 
             // Key for meta transaction state
             const approveKey = `${tx.txId}-approve`;
@@ -353,7 +330,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                 <div className="flex-1">
                                   <Button
                                     onClick={() => handleCancelAction(Number(tx.txId))}
-                                    disabled={!canTimeLockCancel || isLoading || tx.status !== TxStatus.PENDING || isWithinFirstHour}
+                                    disabled={!canTimeLockCancel || isLoading || tx.status !== TxStatus.PENDING }
                                     variant="outline"
                                     className="w-full transition-all duration-200 flex items-center justify-center
                                       bg-rose-50 text-rose-700 hover:bg-rose-100 
@@ -368,15 +345,6 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                   </Button>
                                 </div>
                               </TooltipTrigger>
-                              <TooltipContent side="bottom">
-                                {!canTimeLockCancel
-                                  ? "Only the owner can cancel transactions"
-                                  : isWithinFirstHour
-                                    ? "Cannot cancel within first hour of creation"
-                                    : tx.status !== TxStatus.PENDING 
-                                      ? "This transaction cannot be cancelled" 
-                                      : "Cancel this withdrawal request"}
-                              </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
                         </>

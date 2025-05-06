@@ -1,10 +1,9 @@
-import { useState, useEffect, Suspense, useCallback } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, ArrowLeft, Shield, ChevronUp, ChevronDown } from 'lucide-react';
-import { useSecureContract } from '@/hooks/useSecureContract';
-import type { SecureContractInfo } from '@/lib/types';
+import { useSecureOwnable } from '@/hooks/useSecureOwnable';
 import { Button } from "@/components/ui/button";
 import { getContractDetails } from '@/lib/catalog';
 import type { BloxContract } from '@/lib/catalog/types';
@@ -14,20 +13,48 @@ import { useConfig, useChainId, useConnect, useAccount, useDisconnect, usePublic
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useToast } from '@/components/ui/use-toast';
-import { ContractInfo } from '@/components/ContractInfo';
+import { ContractInfo } from "@/components/ContractInfo";
+import { SecureContractInfo } from "@/lib/types";
 import { WalletStatusBadge } from '@/components/WalletStatusBadge';
-import { SignedMetaTxTable, ExtendedSignedTransaction } from '@/components/SignedMetaTxTable';
+import { ExtendedSignedTransaction, SignedMetaTxTable } from '@/components/SignedMetaTxTable';
 import { OpHistory } from '@/components/OpHistory';
 import { useTransactionManager } from '@/hooks/useTransactionManager';
 import { useOperationTypes } from '@/hooks/useOperationTypes';
 import { Hex } from 'viem';
 import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index';
 import { useChain } from '@/hooks/useChain';
-import SimpleVault from '@/blox/SimpleVault/SimpleVault';
-import { useMetaTxActions } from '@/blox/SimpleVault/hooks/useMetaTxActions';
-import { PendingTransactionDialog } from '@/components/PendingTransactionDialog';
-import { VaultTxRecord } from '@/blox/SimpleVault/components/PendingTransaction';
+
 import { TransactionManager } from '@/services/TransactionManager';
+import { OperationType } from '@/types/OperationRegistry';
+import { useWorkflowManager } from '@/hooks/useWorkflowManager';
+import { PublicClient, WalletClient, Chain } from 'viem';
+
+// Message type for notifications
+interface Message {
+  type: 'error' | 'warning' | 'info' | 'success';
+  title: string;
+  description: string;
+  timestamp: Date;
+}
+
+// Interface for stored transactions
+interface StoredTransaction {
+  signedData: string;
+  timestamp: number;
+  metadata?: Record<string, unknown>;
+}
+
+// Interface for signed transactions
+interface SignedTransaction {
+  txId: string;
+  timestamp: number;
+  metadata?: {
+    type: string;
+    action?: 'approve' | 'cancel';
+    broadcasted: boolean;
+    status?: 'COMPLETED' | 'PENDING';
+  };
+}
 
 // Animation variants
 const container = {
@@ -47,32 +74,60 @@ const item = {
 
 // Helper function to format time values
 
-interface Message {
-  type: 'error' | 'warning' | 'info' | 'success';
-  title: string;
-  description: string;
-  timestamp: Date;
-}
+// Add this component before the BloxMiniApp component:
+const SidebarContent = ({ 
+  bloxContract, 
+  address, 
+  contractInfo 
+}: { 
+  bloxContract: BloxContract | null;
+  address: string;
+  contractInfo: SecureContractInfo | undefined;
+}) => {
+  const { toast } = useToast();
+  
+  if (!bloxContract || !contractInfo) return null;
+  
+  const BloxUI = getUIComponent(bloxContract.id);
+  if (!BloxUI) return null;
 
-// Add this interface near your other interfaces (before the component)
-interface StoredTransaction {
-  signedData: string;
-  timestamp: number;
-  metadata?: Record<string, unknown>;
-}
+  const contractUIInfo = {
+    address: address as `0x${string}`,
+    type: bloxContract.id || '',
+    name: bloxContract.name || '',
+    category: bloxContract.category || '',
+    description: bloxContract.description || '',
+    bloxId: bloxContract.id || '',
+    chainId: contractInfo.chainId,
+    chainName: contractInfo.chainName || ''
+  } satisfies BloxUIProps['contractInfo'];
+
+  return (
+    <BloxUI 
+      contractAddress={address as `0x${string}`}
+      contractInfo={contractUIInfo}
+      onError={(error: Error) => {
+        toast({
+          title: "Operation Failed",
+          description: error.message || 'Failed to perform operation',
+          variant: "destructive"
+        });
+      }}
+      renderSidebar={true}
+    />
+  );
+};
 
 const BloxMiniApp: React.FC = () => {
   const { type, address } = useParams<{ type: string; address: string }>();
   const { address: connectedAddress } = useAccount();
   const { disconnect } = useDisconnect();
-  const [, setMessages] = useState<Message[]>([]);
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [contractInfo, setContractInfo] = useState<SecureContractInfo | undefined>(undefined);
   const [bloxContract, setBloxContract] = useState<BloxContract>();
   const [uiInitialized, setUiInitialized] = useState(false);
-  const { validateAndLoadContract, approveOperation, cancelOperation } = useSecureContract();
+  const { validateAndLoadContract } = useSecureOwnable();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const config = useConfig()
   const chainId = useChainId()
@@ -80,32 +135,43 @@ const BloxMiniApp: React.FC = () => {
   const navigate = useNavigate()
   const { toast } = useToast()
   const { transactions = {}, clearTransactions, removeTransaction } = useTransactionManager(address || '');
-  const [signedTransactions, setSignedTransactions] = useState<ExtendedSignedTransaction[]>([]);
+  const [signedTransactions, setSignedTransactions] = useState<SignedTransaction[]>([]);
   const { getOperationName } = useOperationTypes(address as `0x${string}`);
-  
-  // Add new state for mobile view
   const [isMobileView, setIsMobileView] = useState(false);
   const [bloxUiLoading, setBloxUiLoading] = useState(true);
-
-  // Add a new state for tracking transaction changes
-  const [transactionCounter, setTransactionCounter] = useState(0);
-
-  // Add the required hooks for SimpleVault operations
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const chain = useChain();
+  const [tokenBalances, setTokenBalances] = useState<Record<string, { balance: bigint; metadata?: any; loading: boolean; error?: string }>>({});
 
-  // Add useEffect to handle screen size changes
+  // Initialize workflow manager
+  const {
+    manager,
+    approveOperation,
+    cancelOperation,
+    signApproval,
+    signCancellation,
+    executeMetaTransaction,
+    refreshAllData
+  } = useWorkflowManager(address as `0x${string}`, type);
+
+  // Function to show notifications using toast
+  const showNotification = (notification: { type: 'error' | 'warning' | 'info' | 'success'; title: string; description: string }) => {
+    toast({
+      title: notification.title,
+      description: notification.description,
+      variant: notification.type === 'error' ? 'destructive' : undefined
+    });
+  };
+
+  // Add effect to handle screen size changes
   useEffect(() => {
     const handleResize = () => {
       setIsMobileView(window.innerWidth < 768);
-      // Set default sidebar state based on screen size
       setIsSidebarOpen(window.innerWidth >= 768);
     };
 
-    // Initial check
     handleResize();
-
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -119,7 +185,7 @@ const BloxMiniApp: React.FC = () => {
       } catch (error) {
         console.error('Failed to initialize UI components:', error);
         setError('Failed to initialize UI components');
-        addMessage({
+        showNotification({
           type: 'error',
           title: 'Initialization Failed',
           description: 'Failed to initialize UI components'
@@ -133,9 +199,8 @@ const BloxMiniApp: React.FC = () => {
   const loadContractInfo = async () => {
     if (!address || !uiInitialized) return;
 
-    // Skip if we already have the contract info for this address
     if (contractInfo?.contractAddress === address) {
-      setBloxUiLoading(false); // Make sure to set loading to false if we already have the contract
+      setBloxUiLoading(false);
       return;
     }
 
@@ -150,11 +215,6 @@ const BloxMiniApp: React.FC = () => {
         throw new Error('Contract info not found');
       }
       
-      // Ensure all required fields are present
-      if (!info.owner || !info.broadcaster || !info.recoveryAddress) {
-        throw new Error('Invalid contract info - missing required fields');
-      }
-
       setContractInfo(info);
 
       // Get chain name for error messages
@@ -163,13 +223,12 @@ const BloxMiniApp: React.FC = () => {
 
       // Only show network warning if chain is wrong
       if (chainId !== info.chainId) {
-        addMessage({
+        showNotification({
           type: 'warning',
           title: 'Wrong Network',
           description: `This contract is deployed on ${targetChainName}. Please switch networks.`
         });
         
-        // Find a connector that supports network switching
         const connector = connectors.find(c => c.id === 'injected')
         if (connector) {
           try {
@@ -197,7 +256,7 @@ const BloxMiniApp: React.FC = () => {
     } catch (error) {
       console.error('Error loading contract:', error);
       setError(error instanceof Error ? error.message : 'Failed to load contract details');
-      addMessage({
+      showNotification({
         type: 'error',
         title: 'Loading Failed',
         description: error instanceof Error ? error.message : 'Failed to load contract details'
@@ -212,16 +271,14 @@ const BloxMiniApp: React.FC = () => {
   useEffect(() => {
     if (!address || !uiInitialized) return;
     
-    // Load contract info when component mounts or when address/uiInitialized changes
     loadContractInfo();
     
-    // Add a fallback timeout to ensure loading state is reset even if something goes wrong
     const timeoutId = setTimeout(() => {
       if (bloxUiLoading) {
         console.warn('Forced reset of loading state after timeout');
         setBloxUiLoading(false);
       }
-    }, 10000); // 10 second fallback
+    }, 10000);
     
     return () => clearTimeout(timeoutId);
   }, [address, uiInitialized]);
@@ -234,245 +291,261 @@ const BloxMiniApp: React.FC = () => {
     }
   }, [type]);
 
-  // Transform raw transactions to ExtendedSignedTransaction format
+  // Transform raw transactions to SignedTransaction format
   useEffect(() => {
     if (!transactions) return;
     
-    const txArray: ExtendedSignedTransaction[] = Object.entries(transactions).map(([txId, txData]) => ({
+    const txArray: SignedTransaction[] = Object.entries(transactions).map(([txId, txData]) => ({
       txId,
-      signedData: txData.signedData,
       timestamp: txData.timestamp,
-      metadata: txData.metadata as ExtendedSignedTransaction['metadata']
+      metadata: {
+        type: txData.metadata?.type as string || 'unknown',
+        action: txData.metadata?.action === 'requestAndApprove' ? 'approve' : txData.metadata?.action as 'approve' | 'cancel' | undefined,
+        broadcasted: txData.metadata?.broadcasted as boolean || false,
+        status: txData.metadata?.status as 'COMPLETED' | 'PENDING' | undefined
+      }
     }));
     
     setSignedTransactions(txArray);
   }, [transactions]);
 
-  // Create a comprehensive refresh function
-  const refreshAllData = useCallback(async () => {
-    if (!address) return;
-    
-    try {
-      // Refresh contract info
-      const updatedContractInfo = await validateAndLoadContract(address as `0x${string}`);
-      if (updatedContractInfo) {
-        setContractInfo(updatedContractInfo);
-      }
-      
-      // Signal completed refresh
-      console.log('Data refreshed at:', new Date().toISOString());
-    } catch (error) {
-      console.error('Failed to refresh data:', error);
-    }
-  }, [address]);
-
-  // Add periodic refresh effect
-  useEffect(() => {
-    // Only set up refresh if we have an address and contract info
-    if (!address || !contractInfo) return;
-    
-    // Initial refresh when component mounts with contract info
-    refreshAllData();
-    
-    // Set up interval for periodic refreshes (every 15 seconds)
-    const intervalId = setInterval(refreshAllData, 15000); // 15 seconds
-    
-    // Clean up interval on unmount
-    return () => clearInterval(intervalId);
-  }, [address, contractInfo?.contractAddress]); // Remove transactionCounter dependency
-
-  // Add effect for transaction counter changes
-  useEffect(() => {
-    if (transactionCounter > 0) {
-      // Add a small delay to prevent immediate refresh
-      const timeoutId = setTimeout(refreshAllData, 2000);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [transactionCounter, refreshAllData]);
-
-  // Update the handleApproveOperation function
-  const handleApproveOperation = async (txId: number) => {
-    try {
-      if (!contractInfo || !connectedAddress || !address) {
-        toast({
-          title: "Error",
-          description: "Missing required information",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Find the transaction to determine the operation type
-      const transaction = contractInfo.operationHistory.find((op: TxRecord) => Number(op.txId) === txId);
-      if (!transaction) {
-        throw new Error("Transaction not found");
-      }
-
-      const operationName = getOperationName(transaction.params.operationType as Hex);
-      
-      // Check if this is a withdrawal operation
-      const isWithdrawal = 
-        operationName === 'WITHDRAW_ETH' || operationName === 'WITHDRAW_TOKEN';
-      
-      if (isWithdrawal) {
-        // For withdrawals, use SimpleVault contract directly
-        if (!publicClient || !walletClient || !chain) {
-          throw new Error("Wallet not connected or chain not found");
-        }
-        
-        // Initialize SimpleVault contract
-        const vault = new SimpleVault(publicClient, walletClient, address as `0x${string}`, chain);
-        
-        // Call the approveWithdrawalAfterDelay method
-        const tx = await vault.approveWithdrawalAfterDelay(Number(txId), { from: connectedAddress });
-        await tx.wait();
-      } else {
-        // For other operations, use the standard approveOperation
-        const operationType = 'ownership'; // Default to ownership for non-withdrawal operations
-        await approveOperation(address as `0x${string}`, txId, operationType);
-      }
-      
-      toast({
-        title: "Success",
-        description: "Operation approved successfully",
-      });
-
-      // Increment transaction counter to trigger refresh
-      setTransactionCounter(prev => prev + 1);
-      
-      // Refresh all data after operation completes
-      await refreshAllData();
-    } catch (error) {
-      console.error('Failed to approve operation:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : 'Failed to approve operation',
-        variant: "destructive"
-      });
-    }
-  };
-
-  // Update the handleCancelOperation function
-  const handleCancelOperation = async (txId: number) => {
-    try {
-      if (!contractInfo || !connectedAddress || !address) {
-        toast({
-          title: "Error",
-          description: "Missing required information",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Find the transaction to determine the operation type
-      const transaction = contractInfo.operationHistory.find((op: TxRecord) => Number(op.txId) === txId);
-      if (!transaction) {
-        throw new Error("Transaction not found");
-      }
-
-      const operationName = getOperationName(transaction.params.operationType as Hex);
-      
-      // Check if this is a withdrawal operation
-      const isWithdrawal = 
-        operationName === 'WITHDRAW_ETH' || operationName === 'WITHDRAW_TOKEN';
-      
-      if (isWithdrawal) {
-        // For withdrawals, use SimpleVault contract directly
-        if (!publicClient || !walletClient || !chain) {
-          throw new Error("Wallet not connected or chain not found");
-        }
-        
-        // Initialize SimpleVault contract
-        const vault = new SimpleVault(publicClient, walletClient, address as `0x${string}`, chain);
-        
-        // Call the cancelWithdrawal method
-        const tx = await vault.cancelWithdrawal(Number(txId), { from: connectedAddress });
-        await tx.wait();
-      } else {
-        // For other operations, use the standard cancelOperation
-        const operationType = 'ownership'; // Default to ownership for non-withdrawal operations
-        await cancelOperation(address as `0x${string}`, txId, operationType);
-      }
-      
-      toast({
-        title: "Success",
-        description: "Operation cancelled successfully",
-      });
-
-      // Increment transaction counter to trigger refresh
-      setTransactionCounter(prev => prev + 1);
-
-      // Refresh all data after operation completes
-      await refreshAllData();
-    } catch (error) {
-      console.error('Failed to cancel operation:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : 'Failed to cancel operation',
-        variant: "destructive"
-      });
-    }
-  };
-
-  // Filter transactions and operations for withdrawals only
-  const withdrawalTransactions = signedTransactions.filter(tx => {
-    // Check explicit WITHDRAWAL_APPROVAL type
-    if (tx.metadata?.type === 'WITHDRAWAL_APPROVAL') {
-      return true;
-    }
-    
-    // Check using operation type if available
-    if (tx.metadata?.operationType) {
-      const operationName = getOperationName(tx.metadata.operationType);
-      return operationName === 'WITHDRAW_ETH' || 
-             operationName === 'WITHDRAW_TOKEN' || 
-             operationName === 'WITHDRAWAL_APPROVAL';
-    }
-    
-    return false;
-  });
-
-  // Function to check if an operation is a withdrawal
-  const isWithdrawalOperation = (operationType: Hex): boolean => {
-    const operationName = getOperationName(operationType);
-    return operationName === 'WITHDRAW_ETH' || operationName === 'WITHDRAW_TOKEN';
-  };
-
-  // Function to add messages that can be called from child components
-  const addMessage = React.useCallback((message: Omit<Message, 'timestamp'>) => {
-    setMessages(prev => {
-      const now = new Date();
-      const recentDuplicate = prev.find(m => 
-        m.type === message.type &&
-        m.title === message.title &&
-        m.description === message.description &&
-        (now.getTime() - m.timestamp.getTime()) < 5000
-      );
-
-      if (recentDuplicate) return prev; // Return previous state if duplicate found
-      return [{
-        ...message,
-        timestamp: now
-      }, ...prev]; // Return new state array
-    });
-  }, []);
-
   // Update the handleDisconnect function
   const handleDisconnect = async () => {
     try {
       await disconnect();
-      toast({
+      showNotification({
+        type: 'success',
         title: "Disconnected",
         description: "Wallet disconnected successfully",
       });
     } catch (error) {
       console.error('Error disconnecting wallet:', error);
-      toast({
+      showNotification({
+        type: 'error',
         title: "Error",
         description: "Failed to disconnect wallet",
-        variant: "destructive"
       });
     }
+  };
+
+  // Add a function to filter out core operations
+  const filterBloxOperations = (operations: TxRecord[]): TxRecord[] => {
+    return operations.filter(op => {
+      const operationName = getOperationName(op.params.operationType as Hex);
+      const coreOperations = [
+        'OWNERSHIP_TRANSFER',
+        'BROADCASTER_UPDATE',
+        'RECOVERY_UPDATE',
+        'TIMELOCK_UPDATE'
+      ];
+      return !coreOperations.includes(operationName);
+    });
+  };
+
+  // Add a function to handle operation approval
+  const handleApproveOperation = async (txId: number) => {
+    if (!manager || !contractInfo) return;
+    
+    try {
+      const tx = contractInfo.operationHistory.find((op: TxRecord) => Number(op.txId) === txId);
+      if (!tx) throw new Error("Transaction not found");
+
+      const operationType = tx.params.operationType as OperationType;
+      await approveOperation(operationType, BigInt(txId));
+      
+      showNotification({
+        type: 'success',
+        title: "Success",
+        description: "Operation approved successfully",
+      });
+
+      await refreshAllData();
+    } catch (error) {
+      console.error('Failed to approve operation:', error);
+      showNotification({
+        type: 'error',
+        title: "Error",
+        description: error instanceof Error ? error.message : 'Failed to approve operation',
+      });
+    }
+  };
+
+  // Add a function to handle operation cancellation
+  const handleCancelOperation = async (txId: number) => {
+    if (!manager || !contractInfo) return;
+    
+    try {
+      const tx = contractInfo.operationHistory.find((op: TxRecord) => Number(op.txId) === txId);
+      if (!tx) throw new Error("Transaction not found");
+
+      const operationType = tx.params.operationType as OperationType;
+      await cancelOperation(operationType, BigInt(txId));
+      
+      showNotification({
+        type: 'success',
+        title: "Success",
+        description: "Operation cancelled successfully",
+      });
+
+      await refreshAllData();
+    } catch (error) {
+      console.error('Failed to cancel operation:', error);
+      showNotification({
+        type: 'error',
+        title: "Error",
+        description: error instanceof Error ? error.message : 'Failed to cancel operation',
+      });
+    }
+  };
+
+  // Add a function to handle meta transaction signing
+  const handleMetaTxSign = async (tx: TxRecord, type: 'approve' | 'cancel') => {
+    if (!manager || !contractInfo) return;
+    
+    try {
+      const operationType = tx.params.operationType as OperationType;
+      let signedTx;
+      
+      if (type === 'approve') {
+        signedTx = await signApproval(operationType, BigInt(tx.txId));
+      } else {
+        signedTx = await signCancellation(operationType, BigInt(tx.txId));
+      }
+
+      if (!signedTx) throw new Error("Failed to sign transaction");
+      
+      showNotification({
+        type: 'success',
+        title: "Success",
+        description: "Transaction signed successfully",
+      });
+
+      await refreshAllData();
+    } catch (error) {
+      console.error('Failed to sign transaction:', error);
+      showNotification({
+        type: 'error',
+        title: "Error",
+        description: error instanceof Error ? error.message : 'Failed to sign transaction',
+      });
+    }
+  };
+
+  // Add a function to handle meta transaction broadcasting
+  const handleBroadcastMetaTx = async (tx: TxRecord, type: 'approve' | 'cancel') => {
+    if (!manager || !contractInfo) return;
+    
+    try {
+      const operationType = tx.params.operationType as OperationType;
+      const txId = tx.txId.toString();
+      const storedTx = localStorage.getItem(`tx-${address}-${txId}`);
+      if (!storedTx) throw new Error("Signed transaction not found");
+      
+      const parsedTx = JSON.parse(storedTx);
+      const signedMetaTxJson = parsedTx.signedData;
+      
+      await executeMetaTransaction(signedMetaTxJson, operationType, type);
+      
+      showNotification({
+        type: 'success',
+        title: "Success",
+        description: "Transaction broadcast successfully",
+      });
+
+      await refreshAllData();
+    } catch (error) {
+      console.error('Failed to broadcast transaction:', error);
+      showNotification({
+        type: 'error',
+        title: "Error",
+        description: error instanceof Error ? error.message : 'Failed to broadcast transaction',
+      });
+    }
+  };
+
+  // Add this effect to fetch balances
+  useEffect(() => {
+    const fetchBalances = async () => {
+      if (!address || !publicClient || !walletClient || !chain) return;
+
+      try {
+        // Get the contract instance based on type
+        const contract = await getContractInstance(type, address as `0x${string}`, publicClient, walletClient, chain);
+        if (!contract) return;
+
+        // Fetch balances using the contract's interface
+        const balances = await contract.getBalances?.();
+        if (balances) {
+          setTokenBalances(balances);
+        }
+
+        // Fetch token balances for tracked tokens
+        const trackedTokens = Object.keys(tokenBalances);
+        for (const tokenAddress of trackedTokens) {
+          try {
+            const balance = await contract.getTokenBalance?.(tokenAddress as `0x${string}`);
+            const metadata = await contract.getTokenMetadata?.(tokenAddress as `0x${string}`);
+            
+            if (balance !== undefined) {
+              setTokenBalances(prev => ({
+                ...prev,
+                [tokenAddress]: {
+                  balance,
+                  metadata,
+                  loading: false,
+                  error: undefined
+                }
+              }));
+            }
+          } catch (error) {
+            console.error(`Error fetching token balance for ${tokenAddress}:`, error);
+            setTokenBalances(prev => ({
+              ...prev,
+              [tokenAddress]: {
+                ...prev[tokenAddress],
+                loading: false,
+                error: error instanceof Error ? error.message : 'Unknown error'
+              }
+            }));
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching balances:', error);
+      }
+    };
+
+    fetchBalances();
+  }, [address, publicClient, walletClient, chain, type]);
+
+  // Helper function to get contract instance
+  const getContractInstance = async (
+    type: string | undefined,
+    address: `0x${string}`,
+    publicClient: PublicClient,
+    walletClient: WalletClient,
+    chain: Chain
+  ) => {
+    if (!type) return null;
+
+    try {
+      // Convert hyphenated type to PascalCase (e.g., "simple-vault" -> "SimpleVault")
+      const pascalCaseType = type
+        .split('-')
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+        .join('');
+      
+      // Dynamically import the contract class based on type
+      const contractModule = await import(`@/blox/${pascalCaseType}/${pascalCaseType}.tsx`);
+      const ContractClass = contractModule.default;
+      
+      if (ContractClass) {
+        return new ContractClass(publicClient, walletClient, address, chain);
+      }
+    } catch (error) {
+      console.error(`Failed to load contract instance for type ${type}:`, error);
+    }
+    
+    return null;
   };
 
   // Render the appropriate Blox UI based on type
@@ -504,7 +577,6 @@ const BloxMiniApp: React.FC = () => {
       );
     }
 
-    // We've already checked that contractInfo is not null above
     const contractUIInfo = {
       address: address as `0x${string}`,
       type: bloxContract.id,
@@ -512,7 +584,7 @@ const BloxMiniApp: React.FC = () => {
       category: bloxContract.category,
       description: bloxContract.description,
       bloxId: bloxContract.id,
-      chainId: secureContractInfo.chainId,
+      chainId: Number(secureContractInfo.chainId),
       chainName: secureContractInfo.chainName
     } satisfies BloxUIProps['contractInfo'];
 
@@ -521,7 +593,7 @@ const BloxMiniApp: React.FC = () => {
         contractAddress={address as `0x${string}`}
         contractInfo={contractUIInfo}
         onError={(error: Error) => {
-          addMessage({
+          showNotification({
             type: 'error',
             title: 'Error',
             description: error.message
@@ -547,7 +619,7 @@ const BloxMiniApp: React.FC = () => {
     // Only show warning if chain changes after initial load
     if (chainId !== contractInfo.chainId) {
       const targetChain = config.chains.find(c => c.id === contractInfo.chainId);
-      addMessage({
+      showNotification({
         type: 'warning',
         title: 'Wrong Network',
         description: `This contract is deployed on ${targetChain?.name || 'Unknown Network'}. Please switch networks.`
@@ -555,46 +627,8 @@ const BloxMiniApp: React.FC = () => {
     }
   }, [chainId, contractInfo?.chainId]);
 
-  // Add meta transaction handlers using the useMetaTxActions hook
-  const {
-    handleMetaTxSign: handleMetaTxSignBase,
-    handleBroadcastMetaTx,
-    signedMetaTxStates: metaTxStates,
-    isLoading: isMetaTxLoading
-  } = useMetaTxActions(
-    address as `0x${string}`,
-    addMessage,  // onSuccess
-    addMessage,  // onError
-    refreshAllData // onRefresh
-  );
-
-  // Wrap the base function to include any additional logic if needed
-  const handleMetaTxSign = async (tx: VaultTxRecord, type: 'approve' | 'cancel') => {
-    await handleMetaTxSignBase(tx, type);
-    
-    // Increment transaction counter to trigger refresh
-    setTransactionCounter(prev => prev + 1);
-    
-    // After signing, immediately refresh the local transactions
-    refreshLocalTransactions();
-  };
-
-  // Transform contractInfo to match expected type
-  const dialogContractInfo = React.useMemo(() => {
-    if (!contractInfo) return null;
-    return {
-      contractAddress: contractInfo.contractAddress as `0x${string}`,
-      timeLockPeriodInMinutes: contractInfo.timeLockPeriodInMinutes,
-      chainId: contractInfo.chainId,
-      chainName: contractInfo.chainName,
-      broadcaster: contractInfo.broadcaster as `0x${string}`,
-      owner: contractInfo.owner as `0x${string}`,
-      recoveryAddress: contractInfo.recoveryAddress as `0x${string}`
-    };
-  }, [contractInfo]);
-
   // Update the PendingTransactionDialog usage
-  const [selectedTransaction, setSelectedTransaction] = useState<ExtendedSignedTransaction | null>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<SignedTransaction | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   // Add a manual refresh function
@@ -617,7 +651,7 @@ const BloxMiniApp: React.FC = () => {
             txId,
             signedData: (txData as StoredTransaction).signedData,
             timestamp: (txData as StoredTransaction).timestamp,
-            metadata: (txData as StoredTransaction).metadata as ExtendedSignedTransaction['metadata']
+            metadata: (txData as StoredTransaction).metadata as SignedTransaction['metadata']
           }));
           
           // Update the state with the latest transactions
@@ -647,7 +681,7 @@ const BloxMiniApp: React.FC = () => {
       txId,
       signedData: (txData as StoredTransaction).signedData,
       timestamp: (txData as StoredTransaction).timestamp,
-      metadata: (txData as StoredTransaction).metadata as ExtendedSignedTransaction['metadata']
+      metadata: (txData as StoredTransaction).metadata as SignedTransaction['metadata']
     }));
     
     setSignedTransactions(txArray);
@@ -676,7 +710,9 @@ const BloxMiniApp: React.FC = () => {
                   >
                     <ArrowLeft className="h-4 w-4" />
                   </Button>
-                  <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Blox Mini App</h1>
+                  <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">
+                    {bloxContract?.name || 'Blox Mini App'}
+                  </h1>
                 </div>
               </div>
             </div>
@@ -752,39 +788,17 @@ const BloxMiniApp: React.FC = () => {
                 )}
               </div>
               <ScrollArea className="h-[calc(100%-3rem)] p-4">
-                {!loading && !error && bloxContract && (
+                {!loading && !error && bloxContract && address && (
                   <Suspense fallback={
                     <div className="flex items-center justify-center py-4">
                       <p className="text-sm text-muted-foreground">Loading sidebar...</p>
                     </div>
                   }>
-                    {(() => {
-                      const BloxUI = getUIComponent(bloxContract.id);
-                      if (!BloxUI) return null;
-                      return (
-                        <BloxUI 
-                          contractAddress={address as `0x${string}`}
-                          contractInfo={{
-                            address: address as `0x${string}`,
-                            type: bloxContract.id,
-                            name: bloxContract.name,
-                            category: bloxContract.category,
-                            description: bloxContract.description,
-                            bloxId: bloxContract.id,
-                            chainId: (contractInfo as SecureContractInfo).chainId,
-                            chainName: (contractInfo as SecureContractInfo).chainName
-                          }}
-                          onError={(error: Error) => {
-                            toast({
-                              title: "Operation Failed",
-                              description: error.message || 'Failed to perform operation',
-                              variant: "destructive"
-                            });
-                          }}
-                          renderSidebar
-                        />
-                      );
-                    })()}
+                    <SidebarContent 
+                      bloxContract={bloxContract}
+                      address={address}
+                      contractInfo={contractInfo}
+                    />
                   </Suspense>
                 )}
               </ScrollArea>
@@ -810,71 +824,60 @@ const BloxMiniApp: React.FC = () => {
                 {renderBloxUI()}
               </div>
               
-              {/* Pending Meta Transactions for Withdrawals - render immediately when data is available */}
-              {contractInfo && withdrawalTransactions.length > 0 && (
+              {/* Signed Meta Transactions */}
+              {contractInfo && signedTransactions.length > 0 && (
                 <motion.div variants={item} className="mt-6">
                   <SignedMetaTxTable
-                    transactions={withdrawalTransactions}
-                    onClearAll={() => {
-                      clearTransactions();
-                      refreshAllData();
-                    }}
-                    onRemoveTransaction={(txId) => {
-                      removeTransaction(txId);
-                      refreshAllData();
-                    }}
+                    transactions={signedTransactions.filter(tx => {
+                      // Only show blox-specific operations
+                      const coreOperations = [
+                        'OWNERSHIP_TRANSFER',
+                        'BROADCASTER_UPDATE',
+                        'RECOVERY_UPDATE',
+                        'TIMELOCK_UPDATE'
+                      ];
+                      return !coreOperations.includes(tx.metadata?.type || '');
+                    }) as unknown as ExtendedSignedTransaction[]}
+                    onClearAll={clearTransactions}
+                    onRemoveTransaction={removeTransaction}
                     contractAddress={address as `0x${string}`}
-                    onTxClick={(tx) => {
-                      setSelectedTransaction(tx);
-                      setIsDialogOpen(true);
-                    }}
                   />
                 </motion.div>
               )}
 
-              {/* Withdrawal Operations History - render immediately when data is available */}
+              {/* Operations History */}
               {contractInfo && (
                 <motion.div variants={item} className="mt-6">
                   <OpHistory
                     contractAddress={address as `0x${string}`}
-                    operations={contractInfo.operationHistory.filter((op: TxRecord) => 
-                      isWithdrawalOperation(op.params.operationType as Hex)
-                    )}
-                    isLoading={false} // Set to false since we're controlling visibility with the conditional rendering
-                    contractInfo={contractInfo}
-                    signedTransactions={withdrawalTransactions}
+                    operations={filterBloxOperations(contractInfo.operationHistory)}
+                    isLoading={loading}
+                    contractInfo={{
+                      ...contractInfo,
+                      bloxId: type || '',
+                      chainId: contractInfo.chainId,
+                      chainName: contractInfo.chainName,
+                      broadcaster: contractInfo.broadcaster as `0x${string}`,
+                      owner: contractInfo.owner as `0x${string}`,
+                      recoveryAddress: contractInfo.recoveryAddress as `0x${string}`,
+                      timeLockPeriodInMinutes: contractInfo.timeLockPeriodInMinutes
+                    }}
+                    signedTransactions={signedTransactions}
                     onApprove={handleApproveOperation}
                     onCancel={handleCancelOperation}
-                    refreshData={refreshAllData} // Use the comprehensive refresh function
-                    refreshSignedTransactions={refreshAllData} // Use the same function for consistency
+                    showMetaTxOption={true}
+                    refreshData={refreshAllData}
+                    refreshSignedTransactions={refreshLocalTransactions}
+                    onNotification={(notification) => {
+                      showNotification({
+                        type: notification.type as 'error' | 'warning' | 'info' | 'success',
+                        title: notification.title,
+                        description: notification.description
+                      });
+                    }}
                   />
                 </motion.div>
               )}
-
-              {/* Update the PendingTransactionDialog usage */}
-              {selectedTransaction && dialogContractInfo && (
-                <PendingTransactionDialog
-                  isOpen={isDialogOpen}
-                  onOpenChange={setIsDialogOpen}
-                  title={`Pending Transaction #${selectedTransaction.txId}`}
-                  description="Review and manage this withdrawal transaction"
-                  contractInfo={dialogContractInfo}
-                  transaction={selectedTransaction as unknown as VaultTxRecord}
-                  onApprove={handleApproveOperation}
-                  onCancel={handleCancelOperation}
-                  onMetaTxSign={handleMetaTxSign}
-                  onBroadcastMetaTx={handleBroadcastMetaTx}
-                  onNotification={addMessage}
-                  isLoading={isMetaTxLoading}
-                  connectedAddress={connectedAddress}
-                  signedMetaTxStates={metaTxStates}
-                  showMetaTxOption={true}
-                  refreshData={refreshAllData}
-                  mode="timelock"
-                />
-              )}
-
-              
             </div>
           </div>
         </div>

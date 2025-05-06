@@ -20,7 +20,7 @@ import { ContractInfo as BaseContractInfo } from "@/lib/verification/index";
 import { AddTokenDialog } from "./components";
 import { PendingTransaction } from "./components/PendingTransaction";
 import type { TokenState, TokenBalanceState } from "./components";
-import type { VaultTxRecord } from "./components/PendingTransaction";
+import type { VaultTxRecord } from "./lib/operations";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -34,6 +34,7 @@ import { useTimeLockActions } from './hooks/useTimeLockActions';
 import { useMetaTxActions } from './hooks/useMetaTxActions';
 import { useActionPermissions } from '@/hooks/useActionPermissions';
 import { useRoleValidation } from "@/hooks/useRoleValidation";
+import { getStoredMetaTxSettings, createVaultMetaTxParams } from "./lib/operations";
 
 // Extend the base ContractInfo interface to include broadcaster and other properties
 interface ContractInfo extends BaseContractInfo {
@@ -580,42 +581,6 @@ interface SimpleVaultUIProps {
 // Add storage key for meta tx settings
 const META_TX_SETTINGS_KEY = 'simpleVault.metaTxSettings';
 
-// Default values for meta tx settings
-const DEFAULT_META_TX_SETTINGS: VaultMetaTxParams = {
-  deadline: BigInt(3600), // 1 hour in seconds
-  maxGasPrice: BigInt(50000000000) // 50 gwei
-};
-
-// Initialize settings from local storage
-export const getStoredMetaTxSettings = (): VaultMetaTxParams => {
-  try {
-    const stored = localStorage.getItem(META_TX_SETTINGS_KEY);
-    if (!stored) return DEFAULT_META_TX_SETTINGS;
-    const parsed = JSON.parse(stored);
-    return {
-      deadline: BigInt(parsed.deadline),
-      maxGasPrice: BigInt(parsed.maxGasPrice)
-    };
-  } catch (error) {
-    console.error('Failed to load meta tx settings:', error);
-    return DEFAULT_META_TX_SETTINGS;
-  }
-};
-
-// Create VaultMetaTxParams from settings
-export const createVaultMetaTxParams = (settings: VaultMetaTxParams): VaultMetaTxParams => {
-  // Get current timestamp in seconds
-  const currentTimestamp = BigInt(Math.floor(Date.now() / 1000));
-  
-  // Convert deadline from seconds to actual timestamp by adding to current time
-  const deadlineTimestamp = currentTimestamp + BigInt(settings.deadline);
-  
-  return {
-    deadline: deadlineTimestamp,
-    maxGasPrice: settings.maxGasPrice
-  };
-};
-
 // Update the settings atom to be writable with initial value from storage
 const metaTxSettingsAtom = atom<VaultMetaTxParams>(getStoredMetaTxSettings());
 
@@ -857,8 +822,6 @@ function SimpleVaultUIContent({
     addMessage, // onError
     handleRefresh // onRefresh
   );
-
-  // Wrap the base function to include metaTxSettings
 
   // Filter transactions for withdrawals
   const filteredPendingTxs = React.useMemo(() => {

@@ -6,8 +6,7 @@ import { useChain } from '@/hooks/useChain';
 import { useTransactionManager } from '@/hooks/useTransactionManager';
 import { convertBigIntsToStrings } from '@/lib/utils';
 import { NotificationMessage } from '../lib/types';
-import { VaultTxRecord } from '../components/PendingTransaction';
-import { createVaultMetaTxParams, getStoredMetaTxSettings } from '../SimpleVault.ui';
+import { VaultTxRecord, createVaultMetaTxParams, getStoredMetaTxSettings } from '../lib/operations';
 import { MetaTransaction } from '../../../particle-core/sdk/typescript/interfaces/lib.index';
 
 interface UseMetaTxActionsReturn {

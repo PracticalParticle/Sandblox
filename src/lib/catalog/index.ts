@@ -3,9 +3,6 @@ import { BloxCatalog, BloxContract, BloxMetadata } from './types'
 // Use Vite's glob import to get all .blox.json files
 const bloxMetadataFiles = import.meta.glob('/src/blox/**/*.blox.json', { eager: true })
 
-// Use Vite's glob import to get all config.ts files
-const bloxConfigFiles = import.meta.glob('/src/blox/**/config.ts', { eager: true })
-
 // Map to store folder names by contract ID
 const contractFolderMap = new Map<string, string>()
 
@@ -41,17 +38,6 @@ async function loadBloxMetadata(contractId: string): Promise<BloxMetadata> {
   const metadata = bloxMetadataFiles[metadataPath] as BloxMetadata
   if (!metadata) {
     throw new Error(`Failed to load metadata for contract ${contractId}`)
-  }
-
-  // Try to load dynamic configuration
-  const configPath = `/src/blox/${folderName}/config.ts`
-  const configModule = bloxConfigFiles[configPath]
-  if (configModule && typeof configModule === 'object' && 'getSimpleVaultConfig' in configModule) {
-    const dynamicConfig = await (configModule as { getSimpleVaultConfig: () => Partial<BloxContract> }).getSimpleVaultConfig()
-    return {
-      ...metadata,
-      ...dynamicConfig
-    }
   }
 
   return metadata

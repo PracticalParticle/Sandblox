@@ -4,6 +4,7 @@ import { Address, Chain as ViemChain , PublicClient, WalletClient } from 'viem'
 import { devnet } from '@/config/chains'
 import { mainnet, sepolia } from 'wagmi/chains'
 import { SecureOwnableManager } from "./SecureOwnableManager"
+import { WorkflowManager } from "./WorkflowManager"
 
 /// <reference types="node" />
 
@@ -183,6 +184,30 @@ export async function generateNewSecureOwnableManager(
   await manager.init();
   return manager;
 }
+
+/**
+ * Creates and initializes a new WorkflowManager instance
+ * @param publicClient The Viem PublicClient instance
+ * @param walletClient The Viem WalletClient instance
+ * @param address The contract address
+ * @param chain The chain object
+ * @param storeTransaction Optional function to store transactions
+ * @param contractType Optional contract type for Blox-specific operations
+ * @returns Initialized WorkflowManager instance
+ */
+export async function generateNewWorkflowManager(
+  publicClient: PublicClient,
+  walletClient: WalletClient | undefined,
+  address: Address,
+  chain: ViemChain,
+  storeTransaction?: (txId: string, signedData: string, metadata?: Record<string, unknown>) => void,
+  contractType?: string
+): Promise<WorkflowManager> {
+  const manager = new WorkflowManager(publicClient, walletClient, address, chain, contractType, storeTransaction);
+  await manager.initialize();
+  return manager;
+}
+
 /**
  * Format a Unix timestamp into a human-readable date string
  * @param timestamp Unix timestamp in seconds
@@ -226,4 +251,26 @@ export function convertBigIntsToStrings(obj: any): any {
   }
 
   return obj;
+}
+
+/**
+ * Converts a time value from a given unit to minutes
+ * @param value The time value to convert
+ * @param unit The unit of the time value (days, hours, or minutes)
+ * @returns The converted value in minutes
+ */
+export function convertToMinutes(value: string, unit: 'days' | 'hours' | 'minutes'): number {
+  const numValue = parseInt(value);
+  if (isNaN(numValue) || numValue < 0) return 0;
+  
+  switch (unit) {
+    case 'days':
+      return numValue * 24 * 60;
+    case 'hours':
+      return numValue * 60;
+    case 'minutes':
+      return numValue;
+    default:
+      return numValue;
+  }
 } 

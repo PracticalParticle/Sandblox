@@ -20,7 +20,7 @@ contract SimpleVault is GuardianAccountAbstraction {
     bytes4 private constant WITHDRAW_TOKEN_SELECTOR = bytes4(keccak256("executeWithdrawToken(address,address,uint256)"));
 
     // Timelock period constants (in minutes)
-    uint256 private constant MIN_TIMELOCK_PERIOD = 24 * 60; // 1 day
+    uint256 private constant MIN_TIMELOCK_PERIOD = 1 * 24 * 60; // 1 day
     uint256 private constant MAX_TIMELOCK_PERIOD = 90 * 24 * 60; // 90 days
 
     // Struct for meta-transaction parameters
@@ -175,9 +175,6 @@ contract SimpleVault is GuardianAccountAbstraction {
      * @param txId The ID of the withdrawal transaction to cancel
      */
     function cancelWithdrawal(uint256 txId) public onlyOwner returns (MultiPhaseSecureOperation.TxRecord memory) {
-        MultiPhaseSecureOperation.TxRecord memory currentTxRecord = MultiPhaseSecureOperation.getTxRecord(_getSecureState(), txId);
-        require(block.timestamp >= currentTxRecord.releaseTime - (_getSecureState().timeLockPeriodInMinutes * 1 minutes) + 1 hours, "Cannot cancel within first hour");
-
         MultiPhaseSecureOperation.TxRecord memory txRecord = MultiPhaseSecureOperation.txCancellation(
             _getSecureState(),
             txId
