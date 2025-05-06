@@ -89,11 +89,10 @@ export function useBloxOperations() {
         );
 
         // Create transaction manager instance
-        const txManager = new TransactionManager();
-        const storeTransaction = (txId: string, signedData: string, metadata?: Record<string, any>) => {
-          txManager.storeSignedTransaction(contractAddress, txId, signedData, metadata);
-        };
-
+const txManager = new TransactionManager();
+const storeTransaction = (txId: string, signedData: string, metadata?: Record<string, any>) => {
+  txManager.storeSignedTransaction(contractAddress, String(txId), signedData, metadata);
+};
         // Register operations
         await handler.registerOperations(
           contract,
