@@ -141,7 +141,16 @@ export function TemporalActionDialog({
         } else if (operationType === CoreOperationType.RECOVERY_UPDATE) {
           params = { newRecoveryAddress: newValue }
         } else if (operationType === CoreOperationType.TIMELOCK_UPDATE) {
-          params = { newTimeLockPeriodInMinutes: BigInt(newValue) }
+          const minutes = Number(newValue)
+          if (!Number.isFinite(minutes) || minutes < 0) {
+            toast({
+              variant: 'destructive',
+              title: 'Invalid value',
+              description: 'Enter a positive number of minutes',
+            })
+            return
+          }
+          params = { newTimeLockPeriodInMinutes: BigInt(minutes) }
         } else {
           // For custom operations
           params = { newValue }
