@@ -202,6 +202,14 @@ export class StandardOperationRegistry implements OperationRegistry {
    * Register a new operation
    */
   registerOperation(operation: OperationRegistryEntry): void {
+    if (this.operations.has(operation.operationType)) {
+      throw new Error(`Operation '${operation.operationType}' already registered`);
+    }
+    if (this.operationsByHash.has(operation.operationTypeHash)) {
+      throw new Error(
+        `Operation hash '${operation.operationTypeHash}' already registered`,
+      );
+    }
     this.operations.set(operation.operationType, operation);
     this.operationsByHash.set(operation.operationTypeHash, operation);
   }
