@@ -74,7 +74,7 @@ export async function loadBloxOperationsByBloxId(bloxId: string): Promise<BaseBl
     
     try {
       // Try to dynamically import the operations file for this Blox
-      const operationsModule = await import(`../blox/${pascalCaseBloxId}/lib/operations.ts`);
+      const operationsModule = await import(`../blox/${pascalCaseBloxId}/lib/operations`);
       
       if (operationsModule.default) {
         const handler = new operationsModule.default() as BaseBloxOperationsHandler;
