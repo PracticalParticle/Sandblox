@@ -5,6 +5,7 @@ import { useChain } from './useChain';
 import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index';
 import { MetaTransactionManager } from '@/services/MetaTransactionManager';
 import { loadBloxOperationsByBloxId } from '@/registrations/BloxOperations';
+import { loadBloxContractModule } from '@/lib/catalog';
 
 interface BloxComponents {
   PendingTransactions: React.ComponentType<any>;
@@ -73,8 +74,8 @@ export function useBloxOperations() {
       
       // Get contract instance if we have an address
       if (contractAddress) {
-        // Get contract module
-        const contractModule = await import(`../blox/${pascalCaseBloxId}/${pascalCaseBloxId}`);
+        // Get contract module using the utility function
+        const contractModule = await loadBloxContractModule(bloxId);
         if (!contractModule.default) {
           throw new Error(`No contract implementation found for blox: ${bloxId}`);
         }

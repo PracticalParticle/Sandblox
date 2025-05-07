@@ -154,3 +154,22 @@ export async function getContractABI(contractId: string): Promise<any> {
   
   return response.json()
 }
+
+/**
+ * Dynamically load a blox contract module
+ * @param bloxId The ID of the blox to load the contract module for
+ * @returns Promise resolving to the contract module
+ */
+export async function loadBloxContractModule(bloxId: string): Promise<any> {
+  const folderName = contractFolderMap.get(bloxId);
+  if (!folderName) {
+    throw new Error(`No folder found for blox ${bloxId}`);
+  }
+  
+  try {
+    return await import(`../../blox/${folderName}/${folderName}`);
+  } catch (error) {
+    console.error(`Failed to load contract module for blox: ${bloxId}`, error);
+    throw error;
+  }
+}
