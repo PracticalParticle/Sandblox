@@ -173,3 +173,26 @@ export async function loadBloxContractModule(bloxId: string): Promise<any> {
     throw error;
   }
 }
+
+/**
+ * Dynamically load a blox component module
+ * @param bloxId The ID of the blox to load
+ * @param componentName The name of the component folder/file to load
+ * @returns Promise resolving to the component module
+ */
+export async function loadBloxComponentModule(bloxId: string, componentName: string): Promise<any> {
+  const folderName = contractFolderMap.get(bloxId);
+  if (!folderName) {
+    throw new Error(`No folder found for blox ${bloxId}`);
+  }
+  
+  try {
+    return await import(`../../blox/${folderName}/components/${componentName}`);
+  } catch (error) {
+    console.error(`Failed to load component module for blox: ${bloxId}`, error);
+    throw error;
+  }
+}
+
+// Export additional utilities
+export { contractFolderMap }
