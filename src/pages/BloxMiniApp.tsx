@@ -29,13 +29,6 @@ import { OperationType } from '@/types/OperationRegistry';
 import { useWorkflowManager } from '@/hooks/useWorkflowManager';
 import { PublicClient, WalletClient, Chain } from 'viem';
 
-// Message type for notifications
-interface Message {
-  type: 'error' | 'warning' | 'info' | 'success';
-  title: string;
-  description: string;
-  timestamp: Date;
-}
 
 // Interface for stored transactions
 interface StoredTransaction {
@@ -149,9 +142,6 @@ const BloxMiniApp: React.FC = () => {
     manager,
     approveOperation,
     cancelOperation,
-    signApproval,
-    signCancellation,
-    executeMetaTransaction,
     refreshAllData
   } = useWorkflowManager(address as `0x${string}`, type);
 
@@ -398,71 +388,6 @@ const BloxMiniApp: React.FC = () => {
     }
   };
 
-  // Add a function to handle meta transaction signing
-  const handleMetaTxSign = async (tx: TxRecord, type: 'approve' | 'cancel') => {
-    if (!manager || !contractInfo) return;
-    
-    try {
-      const operationType = tx.params.operationType as OperationType;
-      let signedTx;
-      
-      if (type === 'approve') {
-        signedTx = await signApproval(operationType, BigInt(tx.txId));
-      } else {
-        signedTx = await signCancellation(operationType, BigInt(tx.txId));
-      }
-
-      if (!signedTx) throw new Error("Failed to sign transaction");
-      
-      showNotification({
-        type: 'success',
-        title: "Success",
-        description: "Transaction signed successfully",
-      });
-
-      await refreshAllData();
-    } catch (error) {
-      console.error('Failed to sign transaction:', error);
-      showNotification({
-        type: 'error',
-        title: "Error",
-        description: error instanceof Error ? error.message : 'Failed to sign transaction',
-      });
-    }
-  };
-
-  // Add a function to handle meta transaction broadcasting
-  const handleBroadcastMetaTx = async (tx: TxRecord, type: 'approve' | 'cancel') => {
-    if (!manager || !contractInfo) return;
-    
-    try {
-      const operationType = tx.params.operationType as OperationType;
-      const txId = tx.txId.toString();
-      const storedTx = localStorage.getItem(`tx-${address}-${txId}`);
-      if (!storedTx) throw new Error("Signed transaction not found");
-      
-      const parsedTx = JSON.parse(storedTx);
-      const signedMetaTxJson = parsedTx.signedData;
-      
-      await executeMetaTransaction(signedMetaTxJson, operationType, type);
-      
-      showNotification({
-        type: 'success',
-        title: "Success",
-        description: "Transaction broadcast successfully",
-      });
-
-      await refreshAllData();
-    } catch (error) {
-      console.error('Failed to broadcast transaction:', error);
-      showNotification({
-        type: 'error',
-        title: "Error",
-        description: error instanceof Error ? error.message : 'Failed to broadcast transaction',
-      });
-    }
-  };
-
   // Add this effect to fetch balances
   useEffect(() => {
     const fetchBalances = async () => {
@@ -626,12 +551,6 @@ const BloxMiniApp: React.FC = () => {
       });
     }
   }, [chainId, contractInfo?.chainId]);
-
-  // Update the PendingTransactionDialog usage
-  const [selectedTransaction, setSelectedTransaction] = useState<SignedTransaction | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-
-  // Add a manual refresh function
 
   // Add a useEffect to listen for local storage changes
   useEffect(() => {

@@ -96,13 +96,20 @@ export function PendingTransactionDialog({
 
         // Get blox components and operations
         const [components, operations] = await Promise.all([
-          getBloxComponents(operationInfo.bloxId),
+          getBloxComponents(operationInfo.bloxId, 'PendingTransaction'),
           getBloxOperations(operationInfo.bloxId, contractInfo.contractAddress)
         ]);
 
-        if (components?.PendingTransactions) {
-          setBloxPendingTransactions(() => components.PendingTransactions);
+        if (components) {
+          // Access the PendingTransactions component from the loaded module
+          const PendingTransactionsComponent = components.PendingTransactions || components.default;
+          if (PendingTransactionsComponent) {
+            setBloxPendingTransactions(() => PendingTransactionsComponent);
+          } else {
+            console.error('PendingTransactions component not found in loaded module');
+          }
         }
+        
         if (operations) {
           setBloxOperations(operations);
         }

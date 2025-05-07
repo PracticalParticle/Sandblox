@@ -5,10 +5,10 @@ import { useChain } from './useChain';
 import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index';
 import { MetaTransactionManager } from '@/services/MetaTransactionManager';
 import { loadBloxOperationsByBloxId } from '@/registrations/BloxOperations';
+import { loadBloxContractModule, loadBloxComponentModule } from '@/lib/catalog';
 
 interface BloxComponents {
-  PendingTransactions: React.ComponentType<any>;
-  [key: string]: any;
+  [key: string]: React.ComponentType<any>;
 }
 
 interface BloxOperations {
@@ -26,21 +26,23 @@ export function useBloxOperations() {
   const { data: walletClient } = useWalletClient();
   const chain = useChain();
 
-  const getBloxComponents = useCallback(async (bloxId: string): Promise<BloxComponents | undefined> => {
+  const getBloxComponents = useCallback(async (bloxId: string, componentName: string): Promise<BloxComponents | undefined> => {
     try {
-      // Convert bloxId to PascalCase for directory structure
-      const pascalCaseBloxId = bloxId.split('-').map(word => 
-        word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-      ).join('');
+      if (!bloxId) {
+        console.error('No bloxId provided to getBloxComponents');
+        return undefined;
+      }
       
-      // Dynamic import of blox components
-      const module = await import(`../blox/${pascalCaseBloxId}/components/PendingTransaction`);
-      return {
-        PendingTransactions: module.PendingTransactions,
-        ...module
-      };
+      if (!componentName) {
+        console.error('No componentName provided to getBloxComponents');
+        return undefined;
+      }
+      
+      // Use the catalog utility function to load the component
+      const module = await loadBloxComponentModule(bloxId, componentName);
+      return module;
     } catch (error) {
-      console.error(`Failed to load components for blox: ${bloxId}`, error);
+      console.error(`Failed to load component ${componentName} for blox: ${bloxId}`, error);
       return undefined;
     }
   }, []);
@@ -65,16 +67,11 @@ export function useBloxOperations() {
         console.error(`No operations handler found for blox: ${bloxId}`);
         return undefined;
       }
-
-      // Convert bloxId to PascalCase for directory structure
-      const pascalCaseBloxId = bloxId.split('-').map(word => 
-        word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-      ).join('');
       
       // Get contract instance if we have an address
       if (contractAddress) {
-        // Get contract module
-        const contractModule = await import(`../blox/${pascalCaseBloxId}/${pascalCaseBloxId}`);
+        // Get contract module using the utility function
+        const contractModule = await loadBloxContractModule(bloxId);
         if (!contractModule.default) {
           throw new Error(`No contract implementation found for blox: ${bloxId}`);
         }

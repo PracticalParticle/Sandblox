@@ -10,12 +10,11 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table"
-import { Trash2, AlertCircle, CheckCircle2, Clock, Loader2, X } from 'lucide-react'
+import { Trash2, AlertCircle, CheckCircle2, Clock, Loader2 } from 'lucide-react'
 import { formatTimestamp } from '@/lib/utils'
 import * as AlertDialog from '@radix-ui/react-alert-dialog'
 import { useOperationTypes } from '@/hooks/useOperationTypes'
 import { Address } from 'viem'
-import { useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { CoreOperationType } from '@/types/OperationRegistry'
 
@@ -53,7 +52,6 @@ const container = {
 
 export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransaction, contractAddress, onTxClick }: SignedMetaTxTableProps) {
   const { getOperationName } = useOperationTypes(contractAddress)
-  const navigate = useNavigate()
   const [localTransactions, setLocalTransactions] = useState<ExtendedSignedTransaction[]>(transactions)
   const [isDeleting, setIsDeleting] = useState<string | null>(null)
 

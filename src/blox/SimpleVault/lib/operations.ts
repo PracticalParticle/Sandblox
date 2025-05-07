@@ -1,5 +1,5 @@
 import { Address, Chain, Hex, PublicClient, WalletClient, keccak256, toHex } from 'viem';
-import { TransactionOptions, TransactionResult } from '../../../particle-core/sdk/typescript/interfaces/base.index';
+import { TransactionOptions } from '../../../particle-core/sdk/typescript/interfaces/base.index';
 import { BaseBloxOperationsHandler } from '../../../types/BloxOperationsHandler';
 import { MetaTransaction, TxRecord } from '../../../particle-core/sdk/typescript/interfaces/lib.index';
 import { MultiPhaseOperationFunctions } from '../../../types/OperationRegistry';
@@ -218,7 +218,7 @@ export default class SimpleVaultOperationsHandler extends BaseBloxOperationsHand
       
       cancelWithMetaTx: async (metaTx: MetaTransaction, options: TransactionOptions) => {
         // Implement this if available in the SimpleVault contract
-        throw new Error("Cancel with meta-transaction not implemented");
+        throw new Error(`Cancel with meta-transaction not implemented for transaction ${JSON.stringify(metaTx)} with options ${JSON.stringify(options)}`);
       },
       
       // Meta-transaction preparation helpers
@@ -255,7 +255,7 @@ export default class SimpleVaultOperationsHandler extends BaseBloxOperationsHand
       
       prepareMetaTxCancel: async (txId: bigint, options: TransactionOptions) => {
         // Implement this if available in the SimpleVault contract
-        throw new Error("Prepare meta-transaction cancel not implemented");
+        throw new Error(`Prepare meta-transaction cancel not implemented for transaction ID ${txId} with options ${JSON.stringify(options)}`);
       }
     };
     
@@ -311,7 +311,7 @@ export default class SimpleVaultOperationsHandler extends BaseBloxOperationsHand
       
       cancelWithMetaTx: async (metaTx: MetaTransaction, options: TransactionOptions) => {
         // Implement this if available in the SimpleVault contract
-        throw new Error("Cancel with meta-transaction not implemented");
+        throw new Error(`Cancel with meta-transaction not implemented for transaction ${JSON.stringify(metaTx)} with options ${JSON.stringify(options)}`);
       },
       
       // Meta-transaction preparation helpers
@@ -348,7 +348,7 @@ export default class SimpleVaultOperationsHandler extends BaseBloxOperationsHand
       
       prepareMetaTxCancel: async (txId: bigint, options: TransactionOptions) => {
         // Implement this if available in the SimpleVault contract
-        throw new Error("Prepare meta-transaction cancel not implemented");
+        throw new Error(`Prepare meta-transaction cancel not implemented for transaction ID ${txId} with options ${JSON.stringify(options)}`);
       }
     };
     
@@ -439,7 +439,7 @@ export default class SimpleVaultOperationsHandler extends BaseBloxOperationsHand
 
       // Convert BigInt values to strings recursively
       const serializableMetaTx = JSON.parse(
-        JSON.stringify(signedMetaTx, (key, value) => 
+        JSON.stringify(signedMetaTx, (_, value) => 
           typeof value === 'bigint' ? value.toString() : value
         )
       );

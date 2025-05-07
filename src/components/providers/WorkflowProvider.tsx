@@ -1,7 +1,6 @@
-import React, { createContext, useContext, ReactNode } from 'react';
+import { createContext, useContext, ReactNode } from 'react';
 import { useWorkflowManager } from '@/hooks/useWorkflowManager';
 import { Address, Hash } from 'viem';
-import { TransactionOptions } from '@/particle-core/sdk/typescript/interfaces/base.index';
 import { OperationPhase, OperationType } from '@/types/OperationRegistry';
 import { WorkflowManager } from '@/lib/WorkflowManager';
 

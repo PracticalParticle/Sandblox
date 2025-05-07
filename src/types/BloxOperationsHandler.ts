@@ -7,7 +7,6 @@ import {
   SinglePhaseOperationFunctions,
   OperationType
 } from './OperationRegistry';
-import { SecureOwnable } from '../particle-core/sdk/typescript/SecureOwnable';
 import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index';
 
 /**
