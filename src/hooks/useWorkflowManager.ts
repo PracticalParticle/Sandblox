@@ -1,14 +1,12 @@
 import { useState, useEffect, useCallback } from "react"
 import { usePublicClient, useWalletClient, useChainId, useConfig } from 'wagmi'
 import { Address, Hash } from 'viem'
-import { TransactionOptions } from '../particle-core/sdk/typescript/interfaces/base.index'
 import { WorkflowManager } from '../lib/WorkflowManager'
 import { generateNewWorkflowManager } from '@/lib/utils'
 import { useMetaTransactionManager } from './useMetaTransactionManager'
 import { useToast } from "@/components/ui/use-toast"
 import { OperationType, CoreOperationType, OperationPhase } from '../types/OperationRegistry'
 import { useRoleValidation } from './useRoleValidation'
-import { BloxContract } from '@/lib/catalog/types'
 import { getContractDetails } from '@/lib/catalog'
 
 export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
@@ -20,7 +18,6 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
   const { storeTransaction, removeTransaction, refreshTransactions } = useMetaTransactionManager(contractAddress || '')
   const [manager, setManager] = useState<WorkflowManager | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [isRequesting, setIsRequesting] = useState(false)
   const [pendingOperations, setPendingOperations] = useState<Set<string>>(new Set())
   const [contractType, setContractType] = useState<string | undefined>(undefined)
 

@@ -12,6 +12,12 @@ import {
 } from '../types/OperationRegistry';
 
 /**
+ * Identifier for core security operations
+ * Used to identify operations that are part of the base protocol rather than blox-specific
+ */
+const CORE_BLOX_ID = 'particle-core';
+
+/**
  * Registers all core SecureOwnable operations
  * @param contract The SecureOwnable contract instance
  */
@@ -29,7 +35,7 @@ export function registerCoreOperations(contract: SecureOwnable): void {
 function registerOwnershipTransferOperation(contract: SecureOwnable): void {
   const functions: MultiPhaseOperationFunctions = {
     // Request phase
-    request: async (params: any, options: TransactionOptions) => {
+    request: async (_params: any, options: TransactionOptions) => {
       return contract.transferOwnershipRequest(options);
     },
     
@@ -52,14 +58,14 @@ function registerOwnershipTransferOperation(contract: SecureOwnable): void {
     },
     
     // Meta-transaction preparation helpers
-    prepareMetaTxApprove: async (txId, options) => {
+    prepareMetaTxApprove: async (txId, _options) => {
       // This would be implemented in SecureOwnableManager
-      throw new Error('Not implemented in this layer');
+      throw new Error(`Not implemented in this layer: prepareMetaTxApprove for txId ${txId}`);
     },
     
-    prepareMetaTxCancel: async (txId, options) => {
+    prepareMetaTxCancel: async (txId, _options) => {
       // This would be implemented in SecureOwnableManager
-      throw new Error('Not implemented in this layer');
+      throw new Error(`Not implemented in this layer: prepareMetaTxCancel for txId ${txId}`);
     }
   };
   
@@ -77,7 +83,8 @@ function registerOwnershipTransferOperation(contract: SecureOwnable): void {
     },
     functionSelector: FUNCTION_SELECTORS.TRANSFER_OWNERSHIP as Hex,
     description: 'Transfer ownership of the contract to a new address',
-    functions
+    functions,
+    bloxId: CORE_BLOX_ID
   };
   
   operationRegistry.registerOperation(operationEntry);
@@ -113,14 +120,14 @@ function registerBroadcasterUpdateOperation(contract: SecureOwnable): void {
     },
     
     // Meta-transaction preparation helpers
-    prepareMetaTxApprove: async (txId, options) => {
+    prepareMetaTxApprove: async (txId, _options) => {
       // This would be implemented in SecureOwnableManager
-      throw new Error('Not implemented in this layer');
+      throw new Error(`Not implemented in this layer: prepareMetaTxApprove for txId ${txId}`);
     },
     
-    prepareMetaTxCancel: async (txId, options) => {
+    prepareMetaTxCancel: async (txId, _options) => {
       // This would be implemented in SecureOwnableManager
-      throw new Error('Not implemented in this layer');
+      throw new Error(`Not implemented in this layer: prepareMetaTxCancel for txId ${txId}`);
     }
   };
   
@@ -138,7 +145,8 @@ function registerBroadcasterUpdateOperation(contract: SecureOwnable): void {
     },
     functionSelector: FUNCTION_SELECTORS.UPDATE_BROADCASTER as Hex,
     description: 'Update the broadcaster address for meta-transactions',
-    functions
+    functions,
+    bloxId: CORE_BLOX_ID
   };
   
   operationRegistry.registerOperation(operationEntry);
@@ -161,9 +169,9 @@ function registerRecoveryUpdateOperation(contract: SecureOwnable): void {
     },
     
     // Meta-transaction preparation
-    prepareMetaTx: async (params, options) => {
+    prepareMetaTx: async (params, _options) => {
       // This would be implemented in SecureOwnableManager
-      throw new Error('Not implemented in this layer');
+      throw new Error(`Not implemented in this layer: prepareMetaTx for recovery update with params ${JSON.stringify(params)}`);
     }
   };
   
@@ -177,7 +185,8 @@ function registerRecoveryUpdateOperation(contract: SecureOwnable): void {
     },
     functionSelector: FUNCTION_SELECTORS.UPDATE_RECOVERY as Hex,
     description: 'Update the recovery address for the contract',
-    functions
+    functions,
+    bloxId: CORE_BLOX_ID
   };
   
   operationRegistry.registerOperation(operationEntry);
@@ -202,9 +211,9 @@ function registerTimeLockUpdateOperation(contract: SecureOwnable): void {
     },
     
     // Meta-transaction preparation
-    prepareMetaTx: async (params, options) => {
+    prepareMetaTx: async (params, _options) => {
       // This would be implemented in SecureOwnableManager
-      throw new Error('Not implemented in this layer');
+      throw new Error(`Not implemented in this layer: prepareMetaTx for timelock update with params ${JSON.stringify(params)}`);
     }
   };
   
@@ -218,7 +227,8 @@ function registerTimeLockUpdateOperation(contract: SecureOwnable): void {
     },
     functionSelector: FUNCTION_SELECTORS.UPDATE_TIMELOCK as Hex,
     description: 'Update the time lock period for operations',
-    functions
+    functions,
+    bloxId: CORE_BLOX_ID
   };
   
   operationRegistry.registerOperation(operationEntry);

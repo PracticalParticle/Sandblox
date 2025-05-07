@@ -1,24 +1,19 @@
 import { Address, Chain, Hash, Hex, PublicClient, WalletClient } from 'viem';
 import { MetaTransaction } from '../particle-core/sdk/typescript/interfaces/lib.index';
-import { TransactionOptions, TransactionResult } from '../particle-core/sdk/typescript/interfaces/base.index';
+import { TransactionOptions } from '../particle-core/sdk/typescript/interfaces/base.index';
 import { SecureOwnable } from '../particle-core/sdk/typescript/SecureOwnable';
 import { registerCoreOperations } from '../registrations/CoreOperations';
 import { registerBloxOperations, hasOperationsForContractType } from '../registrations/BloxOperations';
 import { ExecutionType } from '../particle-core/sdk/typescript/types/lib.index';
 import { 
   operationRegistry, 
-  OperationRegistry, 
-  OperationRegistryEntry, 
   CoreOperationType,
   OperationType,
   OperationPhase,
   isMultiPhaseOperation,
   isSinglePhaseOperation,
   ContractRoleInfo,
-  canExecuteOperationPhase,
-  WorkflowType,
-  MultiPhaseOperationFunctions,
-  SinglePhaseOperationFunctions
+  canExecuteOperationPhase
 } from '../types/OperationRegistry';
 import { SecureContractInfo } from './types';
 import { OPERATION_TYPES, FUNCTION_SELECTORS } from '../particle-core/sdk/typescript/types/core.access.index';
@@ -572,9 +567,6 @@ export class WorkflowManager {
       BigInt(0), // No max gas price
       options.from
     );
-
-    // Process the parameters based on operation type
-    let actualParams = params;
 
     // Generate unsigned meta-transaction for new operation
     const unsignedMetaTx = await this.contract.generateUnsignedMetaTransactionForNew(

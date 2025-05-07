@@ -34,7 +34,7 @@ import { useTimeLockActions } from './hooks/useTimeLockActions';
 import { useMetaTxActions } from './hooks/useMetaTxActions';
 import { useActionPermissions } from '@/hooks/useActionPermissions';
 import { useRoleValidation } from "@/hooks/useRoleValidation";
-import { getStoredMetaTxSettings, createVaultMetaTxParams } from "./lib/operations";
+import { getStoredMetaTxSettings } from "./lib/operations";
 
 // Extend the base ContractInfo interface to include broadcaster and other properties
 interface ContractInfo extends BaseContractInfo {
