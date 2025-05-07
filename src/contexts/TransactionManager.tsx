@@ -1,11 +1,11 @@
 import { createContext, useContext, ReactNode } from 'react';
-import { TransactionManager } from '../services/TransactionManager';
+import { MetaTransactionManager } from '../services/MetaTransactionManager';
 
 // Create singleton instance
-const transactionManager = new TransactionManager();
+const transactionManager = new MetaTransactionManager();
 
 // Create context
-const TransactionManagerContext = createContext<TransactionManager | null>(null);
+const TransactionManagerContext = createContext<MetaTransactionManager | null>(null);
 
 // Create provider component
 export function TransactionManagerProvider({ children }: { children: ReactNode }) {
@@ -17,10 +17,10 @@ export function TransactionManagerProvider({ children }: { children: ReactNode }
 }
 
 // Create hook
-export function useTransactionManager(): TransactionManager {
+export function useMetaTransactionManager(): MetaTransactionManager {
   const context = useContext(TransactionManagerContext);
   if (!context) {
-    throw new Error('useTransactionManager must be used within a TransactionManagerProvider');
+    throw new Error('useMetaTransactionManager must be used within a TransactionManagerProvider');
   }
   return context;
 } 

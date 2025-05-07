@@ -17,7 +17,7 @@ import { AlertCircle, Loader2, Coins, Shield, Info, Settings2 } from "lucide-rea
 import { ContractInfo as BaseContractInfo } from "@/lib/verification/index";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { TransactionManagerProvider } from "@/contexts/TransactionManager";
+import { TransactionManagerProvider } from "@/contexts/MetaTransactionManager";
 import { useMetaTxActions } from './hooks/useMetaTxActions';
 import { useRoleValidation } from "@/hooks/useRoleValidation";
 import { MintForm, BurnForm } from './components';

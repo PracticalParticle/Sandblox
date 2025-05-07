@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { TransactionManager, ContractTransactions } from '../services/TransactionManager';
+import { MetaTransactionManager, ContractTransactions } from '../services/MetaTransactionManager';
 
 // Create a singleton instance
-const transactionManager = new TransactionManager();
+const transactionManager = new MetaTransactionManager();
 
 export interface UseTransactionManagerReturn {
   transactions: ContractTransactions;
@@ -18,7 +18,7 @@ export interface UseTransactionManagerReturn {
  * Hook for managing transactions for a specific contract
  * @param contractAddress The Ethereum contract address
  */
-export function useTransactionManager(contractAddress: string): UseTransactionManagerReturn {
+export function useMetaTransactionManager(contractAddress: string): UseTransactionManagerReturn {
   const [transactions, setTransactions] = useState<ContractTransactions>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);

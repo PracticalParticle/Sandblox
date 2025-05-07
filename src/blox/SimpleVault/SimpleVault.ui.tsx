@@ -26,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Hex } from "viem";
 import { VaultMetaTxParams } from './SimpleVault';
-import { TransactionManagerProvider } from "@/contexts/TransactionManager";
+import { TransactionManagerProvider } from "@/contexts/MetaTransactionManager";
 import { useOperationTypes } from "@/hooks/useOperationTypes";
 import { VAULT_OPERATIONS } from "./hooks/useSimpleVaultOperations";
 import { useWalletBalances, TokenBalance } from '@/hooks/useWalletBalances';

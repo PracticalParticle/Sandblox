@@ -18,13 +18,13 @@ import { SecureContractInfo } from "@/lib/types";
 import { WalletStatusBadge } from '@/components/WalletStatusBadge';
 import { ExtendedSignedTransaction, SignedMetaTxTable } from '@/components/SignedMetaTxTable';
 import { OpHistory } from '@/components/OpHistory';
-import { useTransactionManager } from '@/hooks/useTransactionManager';
+import { useMetaTransactionManager } from '@/hooks/useMetaTransactionManager';
 import { useOperationTypes } from '@/hooks/useOperationTypes';
 import { Hex } from 'viem';
 import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index';
 import { useChain } from '@/hooks/useChain';
 
-import { TransactionManager } from '@/services/TransactionManager';
+import { MetaTransactionManager } from '@/services/MetaTransactionManager';
 import { OperationType } from '@/types/OperationRegistry';
 import { useWorkflowManager } from '@/hooks/useWorkflowManager';
 import { PublicClient, WalletClient, Chain } from 'viem';
@@ -134,7 +134,7 @@ const BloxMiniApp: React.FC = () => {
   const { connectAsync, connectors } = useConnect()
   const navigate = useNavigate()
   const { toast } = useToast()
-  const { transactions = {}, clearTransactions, removeTransaction } = useTransactionManager(address || '');
+  const { transactions = {}, clearTransactions, removeTransaction } = useMetaTransactionManager(address || '');
   const [signedTransactions, setSignedTransactions] = useState<SignedTransaction[]>([]);
   const { getOperationName } = useOperationTypes(address as `0x${string}`);
   const [isMobileView, setIsMobileView] = useState(false);
@@ -643,7 +643,7 @@ const BloxMiniApp: React.FC = () => {
         
         if (address) {
           // Only update the specific transactions for this contract
-          const txManager = new TransactionManager();
+          const txManager = new MetaTransactionManager();
           const latestTxs = txManager.getSignedTransactionsByContract(address);
           
           // Convert to array format with proper typing
@@ -673,7 +673,7 @@ const BloxMiniApp: React.FC = () => {
   const refreshLocalTransactions = () => {
     if (!address) return;
     
-    const txManager = new TransactionManager();
+    const txManager = new MetaTransactionManager();
     const latestTxs = txManager.getSignedTransactionsByContract(address);
     
     // Convert to array format with proper typing

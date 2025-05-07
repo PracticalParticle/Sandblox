@@ -37,13 +37,13 @@ import { Badge } from "@/components/ui/badge"
 import { TIMELOCK_PERIODS } from '@/constants/contract'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { OpHistory } from '@/components/OpHistory'
-import { useTransactionManager } from '@/hooks/useTransactionManager'
+import { useMetaTransactionManager } from '@/hooks/useMetaTransactionManager'
 import { SecureOwnable } from '../particle-core/sdk/typescript/SecureOwnable'
 import { TemporalActionDialog } from '@/components/security/TemporalActionDialog'
 import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index'
 import { TxStatus } from '@/particle-core/sdk/typescript/types/lib.index'
 import { MetaTxActionDialog } from '@/components/security/MetaTxActionDialog'
-import { TransactionManagerProvider } from '@/contexts/TransactionManager'
+import { TransactionManagerProvider } from '@/contexts/MetaTransactionManager'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
 import { ContractInfo } from '@/components/ContractInfo'
@@ -51,7 +51,7 @@ import { WalletStatusBadge } from '@/components/WalletStatusBadge'
 import { SignedMetaTxTable } from '@/components/SignedMetaTxTable'
 import { BroadcastDialog } from '@/components/security/BroadcastDialog'
 import { ExtendedSignedTransaction } from '@/components/SignedMetaTxTable'
-import { TransactionManager } from '@/services/TransactionManager'
+import { MetaTransactionManager } from '@/services/MetaTransactionManager'
 import { Hex } from 'viem'
 import { useOperationTypes } from '@/hooks/useOperationTypes'
 import { CoreOperationType, operationRegistry } from '@/types/OperationRegistry'
@@ -115,7 +115,7 @@ export function SecurityDetails() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { transactions = {}, storeTransaction, clearTransactions, removeTransaction } = useTransactionManager(contractAddress || '')
+  const { transactions = {}, storeTransaction, clearTransactions, removeTransaction } = useMetaTransactionManager(contractAddress || '')
   const [signedTransactions, setSignedTransactions] = useState<ExtendedSignedTransaction[]>([])
   const [contractInfo, setContractInfo] = useState<SecureContractInfo | null>(null)
   const { validateAndLoadContract } = useSecureOwnable()
@@ -1101,9 +1101,9 @@ export function SecurityDetails() {
   // Add after loadContractInfo function
   const refreshSignedTransactions = () => {
     try {
-      // Get the latest transactions from TransactionManager
+      // Get the latest transactions from MetaTransactionManager
       if (contractAddress) {
-        const txManager = new TransactionManager();
+        const txManager = new MetaTransactionManager();
         const latestTxs = txManager.getSignedTransactionsByContract(contractAddress);
         
         // Convert to array format

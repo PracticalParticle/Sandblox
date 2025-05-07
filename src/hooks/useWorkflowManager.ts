@@ -4,7 +4,7 @@ import { Address, Hash } from 'viem'
 import { TransactionOptions } from '../particle-core/sdk/typescript/interfaces/base.index'
 import { WorkflowManager } from '../lib/WorkflowManager'
 import { generateNewWorkflowManager } from '@/lib/utils'
-import { useTransactionManager } from './useTransactionManager'
+import { useMetaTransactionManager } from './useMetaTransactionManager'
 import { useToast } from "@/components/ui/use-toast"
 import { OperationType, CoreOperationType, OperationPhase } from '../types/OperationRegistry'
 import { useRoleValidation } from './useRoleValidation'
@@ -17,7 +17,7 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
   const chainId = useChainId()
   const config = useConfig()
   const { toast } = useToast()
-  const { storeTransaction, removeTransaction, refreshTransactions } = useTransactionManager(contractAddress || '')
+  const { storeTransaction, removeTransaction, refreshTransactions } = useMetaTransactionManager(contractAddress || '')
   const [manager, setManager] = useState<WorkflowManager | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isRequesting, setIsRequesting] = useState(false)

@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { Address, Hex } from 'viem';
 import { usePublicClient, useWalletClient } from 'wagmi';
 import { useChain } from '@/hooks/useChain';
-import { useTransactionManager } from '@/hooks/useTransactionManager';
+import { useMetaTransactionManager } from '@/hooks/useMetaTransactionManager';
 import { convertBigIntsToStrings } from '@/lib/utils';
 import SimpleRWA20 from '../SimpleRWA20';
 import { useOperationTypes } from '@/hooks/useOperationTypes';
@@ -37,7 +37,7 @@ export function useMetaTxActions(
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const chain = useChain();
-  const { transactions, storeTransaction } = useTransactionManager(contractAddress);
+  const { transactions, storeTransaction } = useMetaTransactionManager(contractAddress);
   const [signedMetaTxStates, setSignedMetaTxStates] = useState<Record<string, { type: 'mint' | 'burn' }>>({});
   const [isLoading, setIsLoading] = useState(false);
   const { operationTypes } = useOperationTypes(contractAddress);

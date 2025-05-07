@@ -35,7 +35,7 @@ export interface StoredTransaction {
   };
 }
 
-export interface TransactionManager {
+export interface MetaTransactionManager {
   transactions: Record<string, StoredTransaction>;
   storeTransaction: (key: string, signedData: string, metadata: StoredTransaction['metadata']) => void;
 } 

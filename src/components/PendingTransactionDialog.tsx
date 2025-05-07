@@ -15,7 +15,7 @@ import { Card } from "@/components/ui/card";
 import { NotificationMessage } from "@/lib/catalog/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatAddress } from "@/lib/utils";
-import { useTransactionManager } from "@/hooks/useTransactionManager";
+import { useMetaTransactionManager } from "@/hooks/useMetaTransactionManager";
 import { TxRecord } from "@/particle-core/sdk/typescript/interfaces/lib.index";
 import { useOperationRegistry } from "../hooks/useOperationRegistry";
 import { useBloxOperations } from "../hooks/useBloxOperations";
@@ -71,7 +71,7 @@ export function PendingTransactionDialog({
   const [activeTab, setActiveTab] = React.useState<'timelock' | 'metatx'>(mode);
   
   // Add transaction manager
-  const { removeTransaction } = useTransactionManager(contractInfo.contractAddress);
+  const { removeTransaction } = useMetaTransactionManager(contractInfo.contractAddress);
 
   // Get operation registry hooks
   const { getOperationInfo } = useOperationRegistry();

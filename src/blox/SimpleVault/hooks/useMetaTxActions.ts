@@ -3,7 +3,7 @@ import { Address, Hex } from 'viem';
 import { usePublicClient, useWalletClient } from 'wagmi';
 import SimpleVault from '../SimpleVault';
 import { useChain } from '@/hooks/useChain';
-import { useTransactionManager } from '@/hooks/useTransactionManager';
+import { useMetaTransactionManager } from '@/hooks/useMetaTransactionManager';
 import { convertBigIntsToStrings } from '@/lib/utils';
 import { NotificationMessage } from '../lib/types';
 import { VaultTxRecord, createVaultMetaTxParams, getStoredMetaTxSettings } from '../lib/operations';
@@ -17,7 +17,7 @@ interface UseMetaTxActionsReturn {
   error: Error | null;
 }
 
-// Type for the transactions record to match TransactionManager
+// Type for the transactions record to match MetaTransactionManager
 interface TransactionRecord {
   [key: string]: {
     signedData: string;
@@ -35,7 +35,7 @@ export function useMetaTxActions(
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const chain = useChain();
-  const { transactions, storeTransaction, error: txManagerError } = useTransactionManager(contractAddress);
+  const { transactions, storeTransaction, error: txManagerError } = useMetaTransactionManager(contractAddress);
   const [signedMetaTxStates, setSignedMetaTxStates] = useState<Record<string, { type: 'approve' | 'cancel' }>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);

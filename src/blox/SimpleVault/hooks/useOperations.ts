@@ -3,14 +3,14 @@ import { Address, Hex } from 'viem';
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
 import { useChain } from '@/hooks/useChain';
 import { useWorkflowManager } from '@/hooks/useWorkflowManager';
-import { useTransactionManager } from '@/hooks/useTransactionManager';
+import { useMetaTransactionManager } from '@/hooks/useMetaTransactionManager';
 import { convertBigIntsToStrings } from '@/lib/utils';
 import SimpleVault from '../SimpleVault';
 import { NotificationMessage } from '../lib/types';
 import { VaultTxRecord, createVaultMetaTxParams, getStoredMetaTxSettings } from '../lib/operations';
 import { MetaTransaction } from '../../../particle-core/sdk/typescript/interfaces/lib.index';
 import { TransactionOptions } from '../../../particle-core/sdk/typescript/interfaces/base.index';
-import { ContractTransactions } from '@/services/TransactionManager';
+import { ContractTransactions } from '@/services/MetaTransactionManager';
 
 // Operation types from operations.ts
 export enum VaultOperationType {
@@ -84,7 +84,7 @@ export function useOperations(
     storeTransaction, 
     removeTransaction,
     error: txManagerError 
-  } = useTransactionManager(contractAddress);
+  } = useMetaTransactionManager(contractAddress);
   
   // Initialize workflow manager for standardized operation handling
   const { 

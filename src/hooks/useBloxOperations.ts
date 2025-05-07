@@ -2,9 +2,8 @@ import { useCallback } from 'react';
 import { Address, PublicClient } from 'viem';
 import { usePublicClient, useWalletClient } from 'wagmi';
 import { useChain } from './useChain';
-import { BaseBloxOperationsHandler } from '../types/BloxOperationsHandler';
 import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index';
-import { TransactionManager } from '@/services/TransactionManager';
+import { MetaTransactionManager } from '@/services/MetaTransactionManager';
 import { loadBloxOperationsByBloxId } from '@/registrations/BloxOperations';
 
 interface BloxComponents {
@@ -89,7 +88,7 @@ export function useBloxOperations() {
         );
 
         // Create transaction manager instance
-        const txManager = new TransactionManager();
+        const txManager = new MetaTransactionManager();
         const storeTransaction = (txId: string, signedData: string, metadata?: Record<string, any>) => {
           txManager.storeSignedTransaction(contractAddress, txId, signedData, metadata);
         };

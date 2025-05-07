@@ -36,7 +36,7 @@ export enum TransactionError {
 /**
  * Class for managing transaction storage in localStorage
  */
-export class TransactionManager {
+export class MetaTransactionManager {
   private readonly storageKey: string;
   private readonly maxStorageSize: number;
 
