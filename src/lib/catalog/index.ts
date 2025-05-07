@@ -3,6 +3,21 @@ import { BloxCatalog, BloxContract, BloxMetadata } from './types'
 // Use Vite's glob import to get all .blox.json files
 const bloxMetadataFiles = import.meta.glob('/src/blox/**/*.blox.json', { eager: true })
 
+// Pre-load contract modules and component modules with glob imports
+const contractModules = import.meta.glob([
+  '/src/blox/**/*.tsx',
+  '/src/blox/**/*.jsx',
+  '/src/blox/**/*.ts',
+  '/src/blox/**/*.js'
+], { eager: false })
+
+const componentModules = import.meta.glob([
+  '/src/blox/**/components/**/*.tsx',
+  '/src/blox/**/components/**/*.jsx',
+  '/src/blox/**/components/**/*.ts',
+  '/src/blox/**/components/**/*.js'
+], { eager: false })
+
 // Map to store folder names by contract ID
 const contractFolderMap = new Map<string, string>()
 
@@ -166,8 +181,22 @@ export async function loadBloxContractModule(bloxId: string): Promise<any> {
     throw new Error(`No folder found for blox ${bloxId}`);
   }
   
+  // Try different possible extensions
+  const possiblePaths = [
+    `/src/blox/${folderName}/${folderName}.tsx`,
+    `/src/blox/${folderName}/${folderName}.jsx`,
+    `/src/blox/${folderName}/${folderName}.ts`,
+    `/src/blox/${folderName}/${folderName}.js`,
+  ];
+  
+  const modulePath = possiblePaths.find(path => contractModules[path]);
+  
+  if (!modulePath) {
+    throw new Error(`Contract module not found for blox: ${bloxId}`);
+  }
+
   try {
-    return await import(`../../blox/${folderName}/${folderName}`);
+    return await contractModules[modulePath]();
   } catch (error) {
     console.error(`Failed to load contract module for blox: ${bloxId}`, error);
     throw error;
@@ -186,8 +215,22 @@ export async function loadBloxComponentModule(bloxId: string, componentName: str
     throw new Error(`No folder found for blox ${bloxId}`);
   }
   
+  // Try different possible extensions
+  const possiblePaths = [
+    `/src/blox/${folderName}/components/${componentName}.tsx`,
+    `/src/blox/${folderName}/components/${componentName}.jsx`,
+    `/src/blox/${folderName}/components/${componentName}.ts`,
+    `/src/blox/${folderName}/components/${componentName}.js`,
+  ];
+  
+  const modulePath = possiblePaths.find(path => componentModules[path]);
+  
+  if (!modulePath) {
+    throw new Error(`Component module not found for blox: ${bloxId}, component: ${componentName}`);
+  }
+  
   try {
-    return await import(`../../blox/${folderName}/components/${componentName}`);
+    return await componentModules[modulePath]();
   } catch (error) {
     console.error(`Failed to load component module for blox: ${bloxId}`, error);
     throw error;
