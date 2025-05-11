@@ -52,8 +52,8 @@ export interface MultiPhaseOperationFunctions {
   cancelWithMetaTx: (metaTx: MetaTransaction, options: TransactionOptions) => Promise<TransactionResult>;
   
   // Meta-transaction preparation
-  prepareMetaTxApprove: (txId: bigint, options: TransactionOptions) => Promise<string>;
-  prepareMetaTxCancel: (txId: bigint, options: TransactionOptions) => Promise<string>;
+  prepareMetaTxApprove?: (txId: bigint, options: TransactionOptions) => Promise<string>;
+  prepareMetaTxCancel?: (txId: bigint, options: TransactionOptions) => Promise<string>;
 }
 
 /**
@@ -67,7 +67,7 @@ export interface SinglePhaseOperationFunctions {
   requestAndApproveWithMetaTx: (metaTx: MetaTransaction, options: TransactionOptions) => Promise<TransactionResult>;
   
   // Meta-transaction preparation
-  prepareMetaTx: (params: any, options: TransactionOptions) => Promise<string>;
+  prepareMetaTx?: (params: any, options: TransactionOptions) => Promise<string>;
 }
 
 /**
@@ -110,7 +110,7 @@ export interface OperationRegistryEntry extends OperationTypeInfo {
   // Functions for this operation based on workflow type
   functions: MultiPhaseOperationFunctions | SinglePhaseOperationFunctions;
   // The ID of the blox that owns this operation
-  bloxId: string;
+  bloxId?: string;
 }
 
 /**

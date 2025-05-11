@@ -94,24 +94,30 @@ export function PendingTransactionDialog({
           return;
         }
 
-        // Get blox components and operations
-        const [components, operations] = await Promise.all([
-          getBloxComponents(operationInfo.bloxId, 'PendingTransaction'),
-          getBloxOperations(operationInfo.bloxId, contractInfo.contractAddress)
-        ]);
+        // Handle the case where bloxId is optional
+        if (operationInfo.bloxId) {
+          // Get blox components and operations
+          const [components, operations] = await Promise.all([
+            getBloxComponents(operationInfo.bloxId, 'PendingTransaction'),
+            getBloxOperations(operationInfo.bloxId, contractInfo.contractAddress)
+          ]);
 
-        if (components) {
-          // Access the PendingTransactions component from the loaded module
-          const PendingTransactionsComponent = components.PendingTransactions || components.default;
-          if (PendingTransactionsComponent) {
-            setBloxPendingTransactions(() => PendingTransactionsComponent);
-          } else {
-            console.error('PendingTransactions component not found in loaded module');
+          if (components) {
+            // Access the PendingTransactions component from the loaded module
+            const PendingTransactionsComponent = components.PendingTransactions || components.default;
+            if (PendingTransactionsComponent) {
+              setBloxPendingTransactions(() => PendingTransactionsComponent);
+            } else {
+              console.error('PendingTransactions component not found in loaded module');
+            }
           }
-        }
-        
-        if (operations) {
-          setBloxOperations(operations);
+          
+          if (operations) {
+            setBloxOperations(operations);
+          }
+        } else {
+          // bloxId is optional, so this isn't an error case
+          console.log('Operation does not have a bloxId, skipping blox-specific components');
         }
       } catch (error) {
         console.error('Failed to load blox components:', error);
