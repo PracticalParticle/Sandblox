@@ -49,17 +49,6 @@ function registerOwnershipTransferOperation(contract: SecureOwnable): void {
     
     cancelWithMetaTx: async (metaTx, options) => {
       return contract.transferOwnershipCancellationWithMetaTx(metaTx, options);
-    },
-    
-    // Meta-transaction preparation helpers
-    prepareMetaTxApprove: async (txId, options) => {
-      // This would be implemented in SecureOwnableManager
-      throw new Error('Not implemented in this layer');
-    },
-    
-    prepareMetaTxCancel: async (txId, options) => {
-      // This would be implemented in SecureOwnableManager
-      throw new Error('Not implemented in this layer');
     }
   };
   
@@ -110,17 +99,6 @@ function registerBroadcasterUpdateOperation(contract: SecureOwnable): void {
     
     cancelWithMetaTx: async (metaTx, options) => {
       return contract.updateBroadcasterCancellationWithMetaTx(metaTx, options);
-    },
-    
-    // Meta-transaction preparation helpers
-    prepareMetaTxApprove: async (txId, options) => {
-      // This would be implemented in SecureOwnableManager
-      throw new Error('Not implemented in this layer');
-    },
-    
-    prepareMetaTxCancel: async (txId, options) => {
-      // This would be implemented in SecureOwnableManager
-      throw new Error('Not implemented in this layer');
     }
   };
   
@@ -158,12 +136,6 @@ function registerRecoveryUpdateOperation(contract: SecureOwnable): void {
     // Combined request and approval with meta-transaction
     requestAndApproveWithMetaTx: async (metaTx, options) => {
       return contract.updateRecoveryRequestAndApprove(metaTx, options);
-    },
-    
-    // Meta-transaction preparation
-    prepareMetaTx: async (params, options) => {
-      // This would be implemented in SecureOwnableManager
-      throw new Error('Not implemented in this layer');
     }
   };
   
@@ -199,12 +171,6 @@ function registerTimeLockUpdateOperation(contract: SecureOwnable): void {
     // Combined request and approval with meta-transaction
     requestAndApproveWithMetaTx: async (metaTx, options) => {
       return contract.updateTimeLockRequestAndApprove(metaTx, options);
-    },
-    
-    // Meta-transaction preparation
-    prepareMetaTx: async (params, options) => {
-      // This would be implemented in SecureOwnableManager
-      throw new Error('Not implemented in this layer');
     }
   };
   

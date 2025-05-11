@@ -292,11 +292,8 @@ export class WorkflowManager {
     }
 
     // Use the operation's prepareMetaTxApprove method directly if available
-    try {
+    if (isMultiPhaseOperation(operation) && operation.functions.prepareMetaTxApprove) {
       return await operation.functions.prepareMetaTxApprove(txId, options);
-    } catch (error) {
-      // If the method is not implemented, use the default implementation
-      console.warn(`Operation ${operationType} does not implement prepareMetaTxApprove`, error);
     }
 
     // Get the function selector for the approve meta-tx function
@@ -376,11 +373,8 @@ export class WorkflowManager {
     }
 
     // Use the operation's prepareMetaTxCancel method directly if available
-    try {
+    if (isMultiPhaseOperation(operation) && operation.functions.prepareMetaTxCancel) {
       return await operation.functions.prepareMetaTxCancel(txId, options);
-    } catch (error) {
-      // If the method is not implemented, use the default implementation
-      console.warn(`Operation ${operationType} does not implement prepareMetaTxCancel`, error);
     }
 
     // Get the function selector for the cancel meta-tx function
@@ -545,11 +539,8 @@ export class WorkflowManager {
     }
 
     // Use the operation's prepareMetaTx method directly
-    try {
+    if (isSinglePhaseOperation(operation) && operation.functions.prepareMetaTx) {
       return await operation.functions.prepareMetaTx(params, options);
-    } catch (error) {
-      // If the method is not implemented, use the default implementation
-      console.warn(`Operation ${operationType} does not implement prepareMetaTx`, error);
     }
 
     // Get execution options for the operation
