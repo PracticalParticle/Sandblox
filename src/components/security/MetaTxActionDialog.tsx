@@ -61,7 +61,6 @@ export function MetaTxActionDialog({
   currentValueLabel,
   actionLabel,
   isLoading: externalIsLoading = false,
-  onSubmit,
   requiredRole,
   connectedAddress,
   newValue,
@@ -74,7 +73,6 @@ export function MetaTxActionDialog({
   transactionRecord,
   operationName,
   refreshData,
-  refreshSignedTransactions,
   timeLockUnit = 'minutes'
 }: MetaTxActionDialogProps) {
   // Use the WorkflowManager hook with enhanced role validation

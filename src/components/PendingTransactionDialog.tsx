@@ -80,7 +80,7 @@ export function PendingTransactionDialog({
   // State for blox-specific components and operations
   const [BloxPendingTransactions, setBloxPendingTransactions] = useState<React.ComponentType<any> | null>(null);
   const [bloxOperations, setBloxOperations] = useState<any>(null);
-  const [isLoadingComponents, setIsLoadingComponents] = useState(true);
+  const [, setIsLoadingComponents] = useState(true);
 
   // Load blox-specific components and operations
   useEffect(() => {

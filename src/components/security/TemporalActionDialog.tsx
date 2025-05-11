@@ -64,7 +64,6 @@ export function TemporalActionDialog({
   currentValueLabel,
   actionLabel,
   isLoading: externalIsLoading = false,
-  onSubmit,
   onApprove,
   onCancel,
   requiredRole,
@@ -89,7 +88,6 @@ export function TemporalActionDialog({
     signCancellation,
     canExecutePhase,
     isOwner,
-    isBroadcaster,
     isRecovery
   } = useWorkflowManager(contractInfo.contractAddress as `0x${string}`)
 
@@ -235,7 +233,7 @@ export function TemporalActionDialog({
   }
 
   // Handle meta transaction signing
-  const handleMetaTxSign = async (type: 'approve' | 'cancel', metaTxType: 'broadcaster' | 'ownership' | 'recovery' | 'timelock') => {
+  const handleMetaTxSign = async (type: 'approve' | 'cancel'): Promise<void> => {
     setIsSigning(true)
     try {
       if (!pendingTx?.txId) {
@@ -548,7 +546,7 @@ export function TemporalActionDialog({
                           <TooltipTrigger asChild>
                             <div className="flex-1">
                               <Button
-                                onClick={() => handleMetaTxSign('approve', actionType === 'broadcaster' ? 'broadcaster' : 'ownership')}
+                                onClick={() => handleMetaTxSign('approve')}
                                 disabled={isLoadingState || !isWalletValidForMetaApproval}
                                 className={cn(
                                   "w-full transition-all duration-200 flex items-center justify-center",
@@ -587,7 +585,7 @@ export function TemporalActionDialog({
                           <TooltipTrigger asChild>
                             <div className="flex-1">
                               <Button
-                                onClick={() => handleMetaTxSign('cancel', actionType === 'broadcaster' ? 'broadcaster' : 'ownership')}
+                                onClick={() => handleMetaTxSign('cancel')}
                                 disabled={isLoadingState || !isWalletValidForMetaCancellation}
                                 className={cn(
                                   "w-full transition-all duration-200 flex items-center justify-center",

@@ -15,7 +15,7 @@ import {
   TableRow,
 } from "./ui/table"
 import { Loader2, Clock, CheckCircle2, XCircle, AlertTriangle, Filter, RefreshCw } from 'lucide-react'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useAccount } from 'wagmi'
 
 import {
@@ -177,7 +177,7 @@ export function OpHistory({
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [isOperationDialogOpen, setIsOperationDialogOpen] = useState(false)
   const { getOperationName: operationTypesGetOperationName } = useOperationTypes(contractAddress)
-  const { getOperationInfo, isBloxOperation } = useOperationRegistry()
+  const { isBloxOperation } = useOperationRegistry()
   const { getBloxOperations } = useBloxOperations()
   const [operationTx, setOperationTx] = useState<TxRecord | null>(null)
   const [bloxOperations, setBloxOperations] = useState<any>(null)
@@ -439,47 +439,6 @@ export function OpHistory({
   }
 
   // Function to handle cancellation
-  const handleCancel = async (txId: number) => {
-    try {
-      if (selectedTransaction) {
-        const operationName = operationTypesGetOperationName(selectedTransaction.params.operationType as Hex)
-        
-        // Call the appropriate cancellation handler based on operation type
-        if (operationName === 'OWNERSHIP_TRANSFER') {
-          // For ownership transfer, use the ownership transfer cancellation handler
-          await onCancel?.(txId)
-          onNotification?.({
-            type: 'success',
-            title: 'Cancellation Successful',
-            description: 'Ownership transfer has been cancelled'
-          })
-        } else if (operationName === 'BROADCASTER_UPDATE') {
-          // For broadcaster update, use the broadcaster update cancellation handler
-          await onCancel?.(txId)
-          onNotification?.({
-            type: 'success',
-            title: 'Cancellation Successful',
-            description: 'Broadcaster update has been cancelled'
-          })
-        } else {
-          // For other operations, use the default cancellation handler
-          await onCancel?.(txId)
-          onNotification?.({
-            type: 'success',
-            title: 'Cancellation Successful',
-            description: 'Operation has been cancelled'
-          })
-        }
-      }
-    } catch (error) {
-      console.error('Error in cancellation:', error)
-      onNotification?.({
-        type: 'error',
-        title: 'Cancellation Failed',
-        description: error instanceof Error ? error.message : 'Failed to cancel operation'
-      })
-    }
-  }
 
   if (isLoading || loadingTypes || isLoadingBloxOperations) {
     return (
