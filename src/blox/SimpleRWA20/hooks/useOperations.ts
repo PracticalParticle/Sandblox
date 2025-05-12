@@ -9,6 +9,7 @@ import { NotificationMessage, RWA20TxRecord, TokenMetaTxParams } from '../lib/ty
 import { createRWA20MetaTxParams } from '../lib/operations';
 import { SimpleRWA20Service } from '../lib/services';
 import SimpleRWA20 from '../SimpleRWA20';
+import { keccak256 } from 'viem';
 
 // Valid operation types for SimpleRWA20
 export const RWA20_OPERATIONS = {
@@ -242,9 +243,9 @@ export function useOperations({
       const signedTxString = await generateSignedMintMetaTx(to, amount);
       const signedTx = JSON.parse(signedTxString);
       
-      // Generate a unique identifier for this transaction
+      // Generate a numeric transaction ID using timestamp
       const timestamp = Date.now();
-      const txId = `mint-${to}-${amount.toString()}-${timestamp}`;
+      const txId = timestamp.toString();
 
       // Store the signed transaction
       storeTransaction(
@@ -257,7 +258,8 @@ export function useOperations({
           amount: amount.toString(),
           action: 'mint',
           broadcasted: false,
-          status: 'PENDING'
+          status: 'PENDING',
+          operationType: '0x' + keccak256(new TextEncoder().encode('MINT_TOKENS')).slice(2)
         }
       );
 
@@ -300,9 +302,9 @@ export function useOperations({
       const signedTxString = await generateSignedBurnMetaTx(from, amount);
       const signedTx = JSON.parse(signedTxString);
       
-      // Generate a unique identifier for this transaction
+      // Generate a numeric transaction ID using timestamp
       const timestamp = Date.now();
-      const txId = `burn-${from}-${amount.toString()}-${timestamp}`;
+      const txId = timestamp.toString();
 
       // Store the signed transaction
       storeTransaction(
@@ -315,7 +317,8 @@ export function useOperations({
           amount: amount.toString(),
           action: 'burn',
           broadcasted: false,
-          status: 'PENDING'
+          status: 'PENDING',
+          operationType: '0x' + keccak256(new TextEncoder().encode('BURN_TOKENS')).slice(2)
         }
       );
 
