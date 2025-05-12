@@ -30,8 +30,7 @@ import { TransactionManagerProvider } from "@/contexts/MetaTransactionManager";
 import { useOperationTypes } from "@/hooks/useOperationTypes";
 import { VAULT_OPERATIONS } from "./hooks/useSimpleVaultOperations";
 import { useWalletBalances, TokenBalance } from '@/hooks/useWalletBalances';
-import { useTimeLockActions } from './hooks/useTimeLockActions';
-import { useMetaTxActions } from './hooks/useMetaTxActions';
+import { useOperations } from './hooks/useOperations';
 import { useActionPermissions } from '@/hooks/useActionPermissions';
 import { useRoleValidation } from "@/hooks/useRoleValidation";
 import { SimpleVaultService } from "./lib/services";
@@ -843,13 +842,21 @@ function SimpleVaultUIContent({
     }
   }, [vault, vaultService, setEthBalance, setPendingTxs, onError, _mock]);
 
-  // Get meta transaction actions
-  useMetaTxActions(
-    contractAddress as Address,
-    addMessage, // onSuccess
-    addMessage, // onError
-    handleRefresh // onRefresh
-  );
+  // Get operations actions and state
+  const {
+    handleMetaTxSign,
+    handleBroadcastMetaTx,
+    handleApproveWithdrawal,
+    handleCancelWithdrawal,
+    loadingStates: operationsLoadingStates,
+    signedMetaTxStates,
+    vaultService: operationsVaultService
+  } = useOperations({
+    contractAddress: contractAddress as Address,
+    onSuccess: addMessage,
+    onError: addMessage, 
+    onRefresh: handleRefresh
+  });
 
   // Filter transactions for withdrawals
   const filteredPendingTxs = React.useMemo(() => {
@@ -871,17 +878,11 @@ function SimpleVaultUIContent({
       try {
         setLoadingState(prev => ({ ...prev, initialization: true }));
         
-        // Ensure contractAddress is valid before creating vault instance
-        if (typeof contractAddress !== 'string' || !contractAddress.startsWith('0x')) {
-          throw new Error('Invalid contract address');
-        }
-
         // Create vault instance with validated address
-        const validatedAddress = contractAddress as `0x${string}`;
         const vaultInstance = new SimpleVault(
           publicClient, 
           walletClient, 
-          validatedAddress, 
+          contractAddress, 
           chain
         );
         setVault(vaultInstance);
@@ -890,7 +891,7 @@ function SimpleVaultUIContent({
         const serviceInstance = new SimpleVaultService(
           publicClient,
           walletClient,
-          validatedAddress,
+          contractAddress,
           chain
         );
         setVaultService(serviceInstance);
@@ -974,20 +975,20 @@ function SimpleVaultUIContent({
     }
   };
 
-  const handleWithdrawal = async (to: Address, amount: bigint, token?: Address) => {
-    if (!vault || !address) {
-      throw new Error("Vault not initialized or wallet not connected");
+  const handleWithdrawal = async (to: Address, amount: bigint, token?: Address): Promise<void> => {
+    if (!vaultService || !address) {
+      throw new Error("Service not initialized or wallet not connected");
     }
 
     setLoadingState(prev => ({ ...prev, withdrawal: true }));
     try {
       let tx;
       if (token) {
-        // Request token withdrawal
-        tx = await vault.withdrawTokenRequest(token, to, amount, { from: address });
+        // Request token withdrawal via service
+        tx = await vaultService.withdrawTokenRequest(token, to, amount, { from: address });
       } else {
-        // Request ETH withdrawal
-        tx = await vault.withdrawEthRequest(to, amount, { from: address });
+        // Request ETH withdrawal via service
+        tx = await vaultService.withdrawEthRequest(to, amount, { from: address });
       }
 
       // Wait for transaction confirmation
@@ -1014,25 +1015,14 @@ function SimpleVaultUIContent({
     }
   };
 
-  // Add hooks
-  const {
-    handleApproveWithdrawal,
-    handleCancelWithdrawal,
-    loadingStates: timeLockLoadingStates
-  } = useTimeLockActions(
-    contractAddress as Address,
-    addMessage,
-    handleRefresh
-  );
-
   // Update loadingState to include timeLockLoadingStates
   useEffect(() => {
     setLoadingState(prev => ({
       ...prev,
-      approval: timeLockLoadingStates.approval,
-      cancellation: timeLockLoadingStates.cancellation
+      approval: operationsLoadingStates.approval,
+      cancellation: operationsLoadingStates.cancellation
     }));
-  }, [timeLockLoadingStates]);
+  }, [operationsLoadingStates]);
 
   const fetchTokenBalance = async (tokenAddress: Address): Promise<void> => {
     if (!vault || !vaultService) return;
@@ -1088,9 +1078,6 @@ function SimpleVaultUIContent({
       return newBalances;
     });
   };
-
-  // Ensure contractAddress is properly typed at the start
-  const typedContractAddress = contractAddress as Address;
 
   // Render sidebar content
   if (renderSidebar) {
@@ -1254,7 +1241,7 @@ function SimpleVaultUIContent({
                 onSubmit={handleDeposit}
                 isLoading={loadingState.deposit}
                 walletBalances={walletBalances}
-                contractAddress={typedContractAddress}
+                contractAddress={contractAddress as Address}
               />
             </CardContent>
           </Card>
@@ -1270,8 +1257,8 @@ function SimpleVaultUIContent({
                   tx={tx}
                   onApprove={handleApproveWithdrawal}
                   onCancel={handleCancelWithdrawal}
-                  isLoading={loadingState.approval[Number(tx.txId)] || loadingState.cancellation[Number(tx.txId)]}
-                  contractAddress={typedContractAddress}
+                  isLoading={operationsLoadingStates.approval[Number(tx.txId)] || operationsLoadingStates.cancellation[Number(tx.txId)]}
+                  contractAddress={contractAddress as Address}
                   onNotification={handleNotification}
                   onRefresh={handleRefresh}
                   mode="timelock"
@@ -1447,7 +1434,7 @@ function SimpleVaultUIContent({
                                 onApprove={handleApproveWithdrawal}
                                 onCancel={handleCancelWithdrawal}
                                 isLoading={false}
-                                contractAddress={typedContractAddress}
+                                contractAddress={contractAddress as Address}
                                 mode="timelock"
                                 onNotification={addMessage}
                                 connectedAddress={address}
@@ -1466,7 +1453,7 @@ function SimpleVaultUIContent({
                                 onBroadcastMetaTx={handleBroadcastMetaTx}
                                 signedMetaTxStates={signedMetaTxStates}
                                 isLoading={isMetaTxLoading}
-                                contractAddress={typedContractAddress}
+                                contractAddress={contractAddress as Address}
                                 mode="metatx"
                                 onNotification={addMessage}
                                 connectedAddress={address}
@@ -1491,8 +1478,8 @@ function SimpleVaultUIContent({
                           tx={tx}
                           onApprove={handleApproveWithdrawal}
                           onCancel={handleCancelWithdrawal}
-                          isLoading={loadingState.approval[Number(tx.txId)] || loadingState.cancellation[Number(tx.txId)]}
-                          contractAddress={typedContractAddress}
+                          isLoading={operationsLoadingStates.approval[Number(tx.txId)] || operationsLoadingStates.cancellation[Number(tx.txId)]}
+                          contractAddress={contractAddress as Address}
                           onNotification={handleNotification}
                           onRefresh={handleRefresh}
                           mode="timelock"
