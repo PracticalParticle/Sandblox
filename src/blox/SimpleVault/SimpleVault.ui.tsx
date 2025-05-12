@@ -25,16 +25,14 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Hex } from "viem";
-import { NotificationMessage, VaultMetaTxParams, TokenMetadata } from './lib/types';
+import { NotificationMessage, VaultMetaTxParams } from './lib/types';
 import { TransactionManagerProvider } from "@/contexts/MetaTransactionManager";
 import { useOperationTypes } from "@/hooks/useOperationTypes";
-import { VAULT_OPERATIONS } from "./hooks/useSimpleVaultOperations";
 import { useWalletBalances, TokenBalance } from '@/hooks/useWalletBalances';
-import { useOperations } from './hooks/useOperations';
+import { useOperations, VAULT_OPERATIONS } from './hooks/useOperations';
 import { useActionPermissions } from '@/hooks/useActionPermissions';
 import { useRoleValidation } from "@/hooks/useRoleValidation";
 import { SimpleVaultService } from "./lib/services";
-import { getStoredMetaTxSettings } from "./lib/operations";
 
 // Extend the base ContractInfo interface to include broadcaster and other properties
 interface ContractInfo extends BaseContractInfo {

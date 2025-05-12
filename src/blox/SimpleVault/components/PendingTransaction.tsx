@@ -7,7 +7,7 @@ import { Loader2, X, CheckCircle2, Clock, XCircle, RefreshCw, Radio } from "luci
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
 import { TxStatus } from "../../../particle-core/sdk/typescript/types/lib.index";
-import { VAULT_OPERATIONS } from "../hooks/useSimpleVaultOperations";
+import { VAULT_OPERATIONS } from "../hooks/useOperations";
 import { useOperationTypes } from "@/hooks/useOperationTypes";
 import { NotificationMessage } from "../lib/types";
 import { useActionPermissions } from "@/hooks/useActionPermissions";
