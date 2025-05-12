@@ -1,41 +1,37 @@
+import { Address } from 'viem';
+import { TxStatus } from '../../../particle-core/sdk/typescript/types/lib.index';
+import { TxRecord } from '../../../particle-core/sdk/typescript/interfaces/lib.index';
+
 export interface NotificationMessage {
   type: 'error' | 'warning' | 'info' | 'success';
   title: string;
   description: string;
 }
 
-export interface TokenMetadata {
-  name: string;
-  symbol: string;
-  decimals: number;
-  logo?: string;
-}
-
-export interface TokenState {
-  balance: bigint;
-  metadata?: TokenMetadata;
-  loading: boolean;
-  error?: string;
-}
-
-export interface TokenBalanceState {
-  [key: string]: TokenState;
-}
-
+/**
+ * Parameters for meta-transaction generation
+ */
 export interface VaultMetaTxParams {
   deadline: bigint;
   maxGasPrice: bigint;
 }
 
-export interface StoredTransaction {
-  signedData: string;
-  metadata: {
-    type: string;
-    timestamp: number;
-  };
+/**
+ * Represents a transaction record with vault-specific details
+ */
+export interface VaultTxRecord extends Omit<TxRecord, 'status'> {
+  status: TxStatus;
+  amount: bigint;
+  to: Address;
+  token?: Address;
+  type: "ETH" | "TOKEN";
 }
 
-export interface MetaTransactionManager {
-  transactions: Record<string, StoredTransaction>;
-  storeTransaction: (key: string, signedData: string, metadata: StoredTransaction['metadata']) => void;
-} 
+/**
+ * Token metadata interface
+ */
+export interface TokenMetadata {
+  name: string;
+  symbol: string;
+  decimals: number;
+}
