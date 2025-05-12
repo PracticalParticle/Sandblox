@@ -557,16 +557,6 @@ interface SimpleVaultUIProps {
   contractAddress?: Address;  // Make contractAddress optional
   contractInfo?: ContractInfo;  // Make contractInfo optional
   onError?: (error: Error) => void;
-  _mock?: {
-    account: { address: Address; isConnected: boolean };
-    publicClient: any;
-    walletClient: { data: any };
-    chain: any;
-    initialData?: {
-      ethBalance: bigint;
-      pendingTransactions: any[];
-    };
-  };
   dashboardMode?: boolean;
   renderSidebar?: boolean;
   addMessage?: (message: NotificationMessage) => void;
@@ -753,22 +743,21 @@ function SimpleVaultUIContent({
   contractAddress, 
   contractInfo, 
   onError,
-  _mock,
   dashboardMode = false,
   renderSidebar = false,
   addMessage
 }: SimpleVaultUIProps): JSX.Element {
   const { address } = useAccount();
   const publicClient = usePublicClient();
-  const { data: walletClient } = _mock?.walletClient || useWalletClient();
-  const chain = _mock?.chain || useChain();
+  const { data: walletClient } = useWalletClient();
+  const chain = useChain();
   const navigate = useNavigate();
   
   // Add useRoleValidation hook
   const { isOwner } = useRoleValidation(contractAddress as Address, address, chain);
   
   // State declarations
-  const [ethBalance, setEthBalance] = useState<bigint>(_mock?.initialData?.ethBalance || BigInt(0));
+  const [ethBalance, setEthBalance] = useState<bigint>(BigInt(0));
   const [tokenBalances, setTokenBalances] = useAtom<TokenBalanceState>(tokenBalanceAtom);
   const [pendingTxs, setPendingTxs] = useAtom(pendingTxsAtom);
   const [loadingState, setLoadingState] = useAtom(loadingStateAtom);
@@ -816,8 +805,8 @@ function SimpleVaultUIContent({
 
   // Define handleRefresh before it's used
   const handleRefresh = useCallback(async () => {
-    if (!vault || !vaultService || _mock) {
-      console.log("Cannot fetch: vault not initialized or using mock data");
+    if (!vault || !vaultService) {
+      console.log("Cannot fetch: vault not initialized");
       return;
     }
     
@@ -838,7 +827,7 @@ function SimpleVaultUIContent({
     } finally {
       setLoadingState(prev => ({ ...prev, ethBalance: false }));
     }
-  }, [vault, vaultService, setEthBalance, setPendingTxs, onError, _mock]);
+  }, [vault, vaultService, setEthBalance, setPendingTxs, onError]);
 
   // Get operations actions and state
   const {
