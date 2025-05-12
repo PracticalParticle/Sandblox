@@ -204,7 +204,7 @@ export default class SimpleVaultOperationsHandler extends BaseBloxOperationsHand
       
       // Approval phase
       approve: async (txId: bigint, options: TransactionOptions) => {
-        return contract.approveWithdrawalAfterDelay(Number(txId), options);
+        return contract.approveWithdrawalAfterDelay(txId, options);
       },
       
       approveWithMetaTx: async (metaTx: MetaTransaction, options: TransactionOptions) => {
@@ -213,7 +213,7 @@ export default class SimpleVaultOperationsHandler extends BaseBloxOperationsHand
       
       // Cancellation phase
       cancel: async (txId: bigint, options: TransactionOptions) => {
-        return contract.cancelWithdrawal(Number(txId), options);
+        return contract.cancelWithdrawal(txId, options);
       },
       
       cancelWithMetaTx: async (metaTx: MetaTransaction, options: TransactionOptions) => {
@@ -297,7 +297,7 @@ export default class SimpleVaultOperationsHandler extends BaseBloxOperationsHand
       
       // Approval phase
       approve: async (txId: bigint, options: TransactionOptions) => {
-        return contract.approveWithdrawalAfterDelay(Number(txId), options);
+        return contract.approveWithdrawalAfterDelay(txId, options);
       },
       
       approveWithMetaTx: async (metaTx: MetaTransaction, options: TransactionOptions) => {
@@ -306,7 +306,7 @@ export default class SimpleVaultOperationsHandler extends BaseBloxOperationsHand
       
       // Cancellation phase
       cancel: async (txId: bigint, options: TransactionOptions) => {
-        return contract.cancelWithdrawal(Number(txId), options);
+        return contract.cancelWithdrawal(txId, options);
       },
       
       cancelWithMetaTx: async (metaTx: MetaTransaction, options: TransactionOptions) => {

@@ -20,12 +20,12 @@ import { ContractInfo as BaseContractInfo } from "@/lib/verification/index";
 import { AddTokenDialog } from "./components/AddTokenDialog";
 import { PendingTransaction } from "./components/PendingTransaction";
 import type { TokenState, TokenBalanceState } from "./components/TokenList";
-import type { VaultTxRecord } from "./lib/operations";
+import type { VaultTxRecord } from "./lib/types";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Hex } from "viem";
-import { VaultMetaTxParams } from './SimpleVault';
+import { NotificationMessage, VaultMetaTxParams, TokenMetadata } from './lib/types';
 import { TransactionManagerProvider } from "@/contexts/MetaTransactionManager";
 import { useOperationTypes } from "@/hooks/useOperationTypes";
 import { VAULT_OPERATIONS } from "./hooks/useSimpleVaultOperations";
@@ -34,6 +34,7 @@ import { useTimeLockActions } from './hooks/useTimeLockActions';
 import { useMetaTxActions } from './hooks/useMetaTxActions';
 import { useActionPermissions } from '@/hooks/useActionPermissions';
 import { useRoleValidation } from "@/hooks/useRoleValidation";
+import { SimpleVaultService } from "./lib/services";
 import { getStoredMetaTxSettings } from "./lib/operations";
 
 // Extend the base ContractInfo interface to include broadcaster and other properties
@@ -47,6 +48,7 @@ interface ContractInfo extends BaseContractInfo {
 // State atoms following .cursorrules state management guidelines
 const pendingTxsAtom = atom<VaultTxRecord[]>([]);
 const vaultInstanceAtom = atom<SimpleVault | null>(null);
+const vaultServiceAtom = atom<SimpleVaultService | null>(null);
 
 // Add local storage persistence for tokens
 const STORAGE_KEY = 'simpleVault.trackedTokens';
@@ -552,12 +554,7 @@ const DepositForm = React.memo(({ onSubmit, isLoading, walletBalances, contractA
 
 DepositForm.displayName = 'DepositForm';
 
-// Add this type definition at the top with other interfaces
-type NotificationMessage = {
-  type: 'error' | 'warning' | 'info' | 'success';
-  title: string;
-  description: string;
-};
+
 
 interface SimpleVaultUIProps {
   contractAddress?: Address;  // Make contractAddress optional
@@ -581,11 +578,17 @@ interface SimpleVaultUIProps {
 // Add storage key for meta tx settings
 const META_TX_SETTINGS_KEY = 'simpleVault.metaTxSettings';
 
-// Update the settings atom to be writable with initial value from storage
-const metaTxSettingsAtom = atom<VaultMetaTxParams>(getStoredMetaTxSettings());
+// Update the settings atom to be writable with initial value from storage or default
+const defaultMetaTxSettings: VaultMetaTxParams = {
+  deadline: BigInt(3600), // 1 hour in seconds
+  maxGasPrice: BigInt(50000000000) // 50 gwei
+};
+
+const metaTxSettingsAtom = atom<VaultMetaTxParams>(defaultMetaTxSettings);
 
 // Add settings dialog component
 function MetaTxSettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const [vaultService] = useAtom(vaultServiceAtom);
   const [settings, setSettings] = useAtom(metaTxSettingsAtom);
   const [deadline, setDeadline] = useState(() => Number(settings.deadline / BigInt(3600)));
   const [maxGasPrice, setMaxGasPrice] = useState(() => Number(settings.maxGasPrice / BigInt(1000000000)));
@@ -593,10 +596,17 @@ function MetaTxSettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   // Reset form when dialog opens
   useEffect(() => {
     if (open) {
-      setDeadline(Number(settings.deadline / BigInt(3600)));
-      setMaxGasPrice(Number(settings.maxGasPrice / BigInt(1000000000)));
+      // Try to get stored settings from service if available
+      if (vaultService) {
+        const storedSettings = vaultService.getStoredMetaTxSettings();
+        setDeadline(Number(storedSettings.deadline / BigInt(3600)));
+        setMaxGasPrice(Number(storedSettings.maxGasPrice / BigInt(1000000000)));
+      } else {
+        setDeadline(Number(settings.deadline / BigInt(3600)));
+        setMaxGasPrice(Number(settings.maxGasPrice / BigInt(1000000000)));
+      }
     }
-  }, [open, settings]);
+  }, [open, settings, vaultService]);
 
   const handleSave = () => {
     // Convert hours to seconds and gwei to wei
@@ -608,14 +618,19 @@ function MetaTxSettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCha
     // Update state
     setSettings(newSettings);
     
-    // Save to local storage
-    try {
-      localStorage.setItem(META_TX_SETTINGS_KEY, JSON.stringify({
-        deadline: deadline * 3600,
-        maxGasPrice: maxGasPrice * 1000000000
-      }));
-    } catch (error) {
-      console.error('Failed to save settings to local storage:', error);
+    // Save to local storage via service if available
+    if (vaultService) {
+      vaultService.storeMetaTxSettings(newSettings);
+    } else {
+      // Fallback to direct localStorage if service not available
+      try {
+        localStorage.setItem(META_TX_SETTINGS_KEY, JSON.stringify({
+          deadline: deadline * 3600,
+          maxGasPrice: maxGasPrice * 1000000000
+        }));
+      } catch (error) {
+        console.error('Failed to save settings to local storage:', error);
+      }
     }
 
     // Close the dialog
@@ -761,23 +776,36 @@ function SimpleVaultUIContent({
   const [pendingTxs, setPendingTxs] = useAtom(pendingTxsAtom);
   const [loadingState, setLoadingState] = useAtom(loadingStateAtom);
   const [vault, setVault] = useAtom(vaultInstanceAtom);
+  const [vaultService, setVaultService] = useAtom(vaultServiceAtom);
   const [error, setError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Keep metaTxSettings since it's used in createVaultMetaTxParams
-  const [metaTxSettings] = useAtom(metaTxSettingsAtom);
+  const [metaTxSettings, setSettings] = useAtom(metaTxSettingsAtom);
+
+  // Load meta transaction settings from service when available
+  useEffect(() => {
+    if (vaultService) {
+      const storedSettings = vaultService.getStoredMetaTxSettings();
+      setSettings(storedSettings);
+    }
+  }, [vaultService]);
 
   // Save metaTxSettings to storage when they change
   useEffect(() => {
-    try {
-      localStorage.setItem(META_TX_SETTINGS_KEY, JSON.stringify({
-        deadline: metaTxSettings.deadline.toString(),
-        maxGasPrice: metaTxSettings.maxGasPrice.toString()
-      }));
-    } catch (error) {
-      console.error('Failed to save meta tx settings to storage:', error);
+    if (vaultService) {
+      vaultService.storeMetaTxSettings(metaTxSettings);
+    } else {
+      try {
+        localStorage.setItem(META_TX_SETTINGS_KEY, JSON.stringify({
+          deadline: metaTxSettings.deadline.toString(),
+          maxGasPrice: metaTxSettings.maxGasPrice.toString()
+        }));
+      } catch (error) {
+        console.error('Failed to save meta tx settings to storage:', error);
+      }
     }
-  }, [metaTxSettings]);
+  }, [metaTxSettings, vaultService]);
 
   // Add wallet balances hook after state declarations
   const trackedTokenAddresses = Object.keys(tokenBalances) as Address[];
@@ -791,7 +819,7 @@ function SimpleVaultUIContent({
 
   // Define handleRefresh before it's used
   const handleRefresh = useCallback(async () => {
-    if (!vault || _mock) {
+    if (!vault || !vaultService || _mock) {
       console.log("Cannot fetch: vault not initialized or using mock data");
       return;
     }
@@ -802,7 +830,7 @@ function SimpleVaultUIContent({
       const balance = await vault.getEthBalance();
       setEthBalance(balance);
       
-      const transactions = await vault.getPendingTransactions();
+      const transactions = await vaultService.getPendingTransactions();
       setPendingTxs(transactions);
       
       setError(null);
@@ -813,7 +841,7 @@ function SimpleVaultUIContent({
     } finally {
       setLoadingState(prev => ({ ...prev, ethBalance: false }));
     }
-  }, [vault, setEthBalance, setPendingTxs, onError, _mock]);
+  }, [vault, vaultService, setEthBalance, setPendingTxs, onError, _mock]);
 
   // Get meta transaction actions
   useMetaTxActions(
@@ -857,13 +885,22 @@ function SimpleVaultUIContent({
           chain
         );
         setVault(vaultInstance);
+        
+        // Create service instance
+        const serviceInstance = new SimpleVaultService(
+          publicClient,
+          walletClient,
+          validatedAddress,
+          chain
+        );
+        setVaultService(serviceInstance);
 
         // Fetch initial data only once
         const balance = await vaultInstance.getEthBalance();
         setEthBalance(balance);
 
         // Fetch initial transactions
-        const transactions = await vaultInstance.getPendingTransactions();
+        const transactions = await serviceInstance.getPendingTransactions();
         setPendingTxs(transactions);
         
         initialLoadDoneRef.current = true;
@@ -878,7 +915,7 @@ function SimpleVaultUIContent({
     };
 
     initialize();
-  }, [publicClient, walletClient, contractAddress, chain, contractInfo]); // Remove backgroundFetching and other unnecessary dependencies
+  }, [publicClient, walletClient, contractAddress, chain, contractInfo]);
 
   // Notification handler
   const handleNotification = React.useCallback((message: NotificationMessage): void => {
@@ -891,7 +928,7 @@ function SimpleVaultUIContent({
 
   // Add these functions before the return statement
   const handleDeposit = async (amount: bigint, token?: Address) => {
-    if (!vault || !address) {
+    if (!vault || !vaultService || !address) {
       throw new Error("Vault not initialized or wallet not connected");
     }
 
@@ -900,17 +937,17 @@ function SimpleVaultUIContent({
       let tx;
       if (token) {
         // For ERC20 tokens, first check and handle allowance
-        const allowance = await vault.getTokenAllowance(token, address);
+        const allowance = await vaultService.getTokenAllowance(token, address);
         if (allowance < amount) {
           // Request approval first
-          tx = await vault.approveTokenAllowance(token, amount, { from: address });
+          tx = await vaultService.approveTokenAllowance(token, amount, { from: address });
           await tx.wait();
         }
         // Now deposit the tokens
-        tx = await vault.depositToken(token, amount, { from: address });
+        tx = await vaultService.depositToken(token, amount, { from: address });
       } else {
         // For ETH deposits
-        tx = await vault.depositEth(amount, { from: address });
+        tx = await vaultService.depositEth(amount, { from: address });
       }
 
       // Wait for transaction confirmation
@@ -998,7 +1035,7 @@ function SimpleVaultUIContent({
   }, [timeLockLoadingStates]);
 
   const fetchTokenBalance = async (tokenAddress: Address): Promise<void> => {
-    if (!vault) return;
+    if (!vault || !vaultService) return;
     
     setLoadingState(prev => ({
       ...prev,
@@ -1007,7 +1044,7 @@ function SimpleVaultUIContent({
 
     try {
       const balance = await vault.getTokenBalance(tokenAddress);
-      const metadata = await vault.getTokenMetadata(tokenAddress);
+      const metadata = await vaultService.getTokenMetadata(tokenAddress);
       
       setTokenBalances(prev => ({
         ...prev,
