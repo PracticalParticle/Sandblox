@@ -53,9 +53,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
   // Get operation types for mapping hex values to human-readable names
   const { getOperationName, loading: loadingOperationTypes } = useOperationTypes(contractAddress);
 
-  // Replace useActionPermissions with useWorkflowManager
   const {
-    isOwner,
     isBroadcaster,
     canExecutePhase,
     isLoading: isLoadingPermissions
@@ -93,7 +91,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
     return canExecutePhase(operationName, OperationPhase.META_APPROVE, connectedAddress);
   }, [canExecutePhase, connectedAddress, getOperationName]);
 
-  const checkMetaTxBroadcast = React.useCallback((tx: VaultTxRecord): boolean => {
+  const checkMetaTxBroadcast = React.useCallback((_tx: VaultTxRecord): boolean => {
     // Generally only broadcasters can broadcast meta transactions
     return isBroadcaster && !!connectedAddress;
   }, [isBroadcaster, connectedAddress]);

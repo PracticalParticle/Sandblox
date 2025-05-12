@@ -31,7 +31,6 @@ import { useWalletBalances, TokenBalance } from '@/hooks/useWalletBalances';
 import { useOperations, VAULT_OPERATIONS } from './hooks/useOperations';
 import { SimpleVaultService } from "./lib/services";
 import { useWorkflowManager } from "@/hooks/useWorkflowManager";
-import { OperationType } from "@/types/OperationRegistry";
 
 // Extend the base ContractInfo interface to include broadcaster and other properties
 interface ContractInfo extends BaseContractInfo {
@@ -362,8 +361,6 @@ const DepositForm = React.memo(({ onSubmit, isLoading, walletBalances, contractA
   const [error, setError] = useState<string>("");
   const [selectedTokenAddress, setSelectedTokenAddress] = useState<string>("ETH");
   const [tokenBalances] = useAtom(tokenBalanceAtom);
-  const { address: connectedAddress } = useAccount();
-  const chain = useChain();
   const { isOwner } = useWorkflowManager(contractAddress);
 
   const selectedToken = selectedTokenAddress === "ETH" ? undefined : tokenBalances[selectedTokenAddress as Address];
@@ -687,9 +684,6 @@ const WithdrawalFormWrapper = React.memo(({
 }) => {
   const [selectedTokenAddress, setSelectedTokenAddress] = useState<string>("ETH");
   const lastFetchRef = useRef<string | undefined>(undefined);
-
-  // Use the address hook
-  const { address: connectedAddress } = useAccount();
   
   // Use workflow manager instead of useActionPermissions
   const { isOwner } = useWorkflowManager(contractAddress);
@@ -803,8 +797,7 @@ function SimpleVaultUIContent({
   
   // Use workflow manager for role validation with more comprehensive permission model
   const { 
-    isOwner,
-    canExecutePhase 
+    isOwner
   } = useWorkflowManager(contractAddress as Address);
   
   // Get operations actions and state
@@ -1242,9 +1235,6 @@ function SimpleVaultUIContent({
             <h3 className="font-medium">Pending Transactions</h3>
             <div className="space-y-2">
               {filteredPendingTxs.slice(0, 2).map((tx) => {
-                // Get the appropriate operation type from the transaction
-                const operationTypeHex = tx.params.operationType as Hex;
-                const operationName = getVaultOperationName(operationTypeHex);
                 
                 return (
                   <PendingTransaction
@@ -1411,9 +1401,6 @@ function SimpleVaultUIContent({
                     <h3 className="font-medium">Pending Transactions</h3>
                     <div className="space-y-2">
                       {filteredPendingTxs.slice(0, 2).map((tx) => {
-                        // Get the appropriate operation type from the transaction
-                        const operationTypeHex = tx.params.operationType as Hex;
-                        const operationName = getVaultOperationName(operationTypeHex);
                         
                         return (
                           <PendingTransaction
