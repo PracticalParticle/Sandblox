@@ -29,7 +29,7 @@ export function registerCoreOperations(contract: SecureOwnable): void {
 function registerOwnershipTransferOperation(contract: SecureOwnable): void {
   const functions: MultiPhaseOperationFunctions = {
     // Request phase
-    request: async (params: any, options: TransactionOptions) => {
+    request: async (_params: any, options: TransactionOptions) => {
       return contract.transferOwnershipRequest(options);
     },
     
