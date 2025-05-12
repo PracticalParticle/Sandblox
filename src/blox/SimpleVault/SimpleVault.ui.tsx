@@ -831,13 +831,9 @@ function SimpleVaultUIContent({
 
   // Get operations actions and state
   const {
-    handleMetaTxSign,
-    handleBroadcastMetaTx,
     handleApproveWithdrawal,
     handleCancelWithdrawal,
     loadingStates: operationsLoadingStates,
-    signedMetaTxStates,
-    vaultService: operationsVaultService
   } = useOperations({
     contractAddress: contractAddress as Address,
     onSuccess: addMessage,
@@ -1350,7 +1346,6 @@ function SimpleVaultUIContent({
                   <TabsList className="grid w-full grid-cols-2 bg-background p-1 rounded-lg">
                     <TabsTrigger value="deposit" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">Deposit</TabsTrigger>
                     <TabsTrigger value="withdraw" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">Withdraw</TabsTrigger>
-                    {/* <TabsTrigger value="pending" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">Pending</TabsTrigger> */}
                   </TabsList>
                   
                   <TabsContent value="deposit">
@@ -1395,63 +1390,6 @@ function SimpleVaultUIContent({
                       </CardContent>
                     </Card>
                   </TabsContent>
-
-                  {/* <TabsContent value="pending">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Pending Withdrawals</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <Tabs defaultValue="timelock" className="w-full" value={activeTab} onValueChange={(value) => setActiveTab(value as 'timelock' | 'metatx')}>
-                          <TabsList className="grid w-full grid-cols-2 bg-background p-1 rounded-lg">
-                            <TabsTrigger value="timelock" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
-                              TimeLock
-                            </TabsTrigger>
-                            <TabsTrigger value="metatx" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
-                              MetaTx
-                            </TabsTrigger>
-                          </TabsList>
-
-                          <TabsContent value="timelock" className="mt-4">
-                            <div className="space-y-4">
-                              <PendingTransactions
-                                transactions={filteredPendingTxs}
-                                isLoadingTx={loadingState.transactions}
-                                onRefresh={handleRefresh}
-                                onApprove={handleApproveWithdrawal}
-                                onCancel={handleCancelWithdrawal}
-                                isLoading={false}
-                                contractAddress={contractAddress as Address}
-                                mode="timelock"
-                                onNotification={addMessage}
-                                connectedAddress={address}
-                                timeLockPeriodInMinutes={contractInfo?.timeLockPeriodInMinutes || 0}
-                              />
-                            </div>
-                          </TabsContent>
-
-                          <TabsContent value="metatx" className="mt-4">
-                            <div className="space-y-4">
-                              <PendingTransactions
-                                transactions={filteredPendingTxs}
-                                isLoadingTx={loadingState.transactions}
-                                onRefresh={handleRefresh}
-                                onMetaTxSign={handleMetaTxSign}
-                                onBroadcastMetaTx={handleBroadcastMetaTx}
-                                signedMetaTxStates={signedMetaTxStates}
-                                isLoading={isMetaTxLoading}
-                                contractAddress={contractAddress as Address}
-                                mode="metatx"
-                                onNotification={addMessage}
-                                connectedAddress={address}
-                                timeLockPeriodInMinutes={contractInfo?.timeLockPeriodInMinutes || 0}
-                              />
-                            </div>
-                          </TabsContent>
-                        </Tabs>
-                      </CardContent>
-                    </Card>
-                  </TabsContent> */}
                 </Tabs>
               ) : (
                 /* Dashboard mode: Show simplified view */

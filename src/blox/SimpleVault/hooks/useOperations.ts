@@ -5,7 +5,7 @@ import { useChain } from '@/hooks/useChain';
 import { useMetaTransactionManager } from '@/hooks/useMetaTransactionManager';
 import { useOperationHistory } from '@/hooks/useOperationHistory';
 import { convertBigIntsToStrings } from '@/lib/utils';
-import { NotificationMessage, VaultMetaTxParams, VaultTxRecord } from '../lib/types';
+import { NotificationMessage, VaultTxRecord } from '../lib/types';
 import { createVaultMetaTxParams } from '../lib/operations';
 import { SimpleVaultService } from '../lib/services';
 import SimpleVault from '../SimpleVault';
