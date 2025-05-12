@@ -412,14 +412,14 @@ const TransactionHistory = ({
       </div>
     );
   }
-
+/* 
   if (transactions.length === 0) {
     return (
       <div className="text-center py-8">
         <p className="text-muted-foreground">No transactions found</p>
       </div>
     );
-  }
+  } */
 
   return (
     <div className="space-y-4">
@@ -791,44 +791,47 @@ function SimpleRWA20UIContent({
                 </TooltipProvider>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefresh}
-                disabled={loadingState.tokenInfo || !rwa20}
-              >
-                {loadingState.tokenInfo ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Refreshing...
-                  </>
-                ) : (
-                  'Refresh'
-                )}
-              </Button>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSettingsOpen(true)}
-                    >
-                      <Settings2 className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Configure meta-transaction settings</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
+            {!renderSidebar && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRefresh}
+                  disabled={loadingState.tokenInfo || !rwa20}
+                >
+                  {loadingState.tokenInfo ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Refreshing...
+                    </>
+                  ) : (
+                    'Refresh'
+                  )}
+                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSettingsOpen(true)}
+                      >
+                        <Settings2 className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Configure meta-transaction settings</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            )}
           </CardHeader>
 
           {/* Token metadata and balance */}
           <CardContent className="pt-2 pb-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div className={`grid gap-4 mb-6 ${renderSidebar ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'}`}>
+              {/* Token Info Section */}
               <div className="space-y-2">
                 <h3 className="text-sm font-medium text-muted-foreground">TOKEN INFO</h3>
                 <div className="grid grid-cols-2 gap-2">
@@ -837,7 +840,9 @@ function SimpleRWA20UIContent({
                     {loadingState.tokenInfo ? (
                       <Skeleton className="h-6 w-16 mt-1" />
                     ) : (
-                      <p className="text-xl font-bold">{tokenMetadata?.symbol || "---"}</p>
+                      <p className="text-xl font-bold truncate" title={tokenMetadata?.symbol || "---"}>
+                        {tokenMetadata?.symbol || "---"}
+                      </p>
                     )}
                   </div>
                   <div className="rounded-md border p-3">
@@ -851,6 +856,7 @@ function SimpleRWA20UIContent({
                 </div>
               </div>
               
+              {/* Balances Section */}
               <div className="space-y-2">
                 <h3 className="text-sm font-medium text-muted-foreground">BALANCES</h3>
                 <div className="grid grid-cols-2 gap-2">
@@ -859,7 +865,7 @@ function SimpleRWA20UIContent({
                     {loadingState.tokenInfo ? (
                       <Skeleton className="h-6 w-24 mt-1" />
                     ) : (
-                      <p className="text-xl font-bold">
+                      <p className="text-xl font-bold truncate" title={tokenMetadata?.totalSupply ? formatUnits(tokenMetadata.totalSupply, decimals) : "---"}>
                         {tokenMetadata?.totalSupply 
                           ? formatUnits(tokenMetadata.totalSupply, decimals)
                           : "---"
@@ -874,7 +880,9 @@ function SimpleRWA20UIContent({
                     ) : loadingState.balance ? (
                       <Skeleton className="h-6 w-24 mt-1" />
                     ) : (
-                      <p className="text-xl font-bold">{formatUnits(tokenBalance, decimals)}</p>
+                      <p className="text-xl font-bold truncate" title={formatUnits(tokenBalance, decimals)}>
+                        {formatUnits(tokenBalance, decimals)}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -882,69 +890,102 @@ function SimpleRWA20UIContent({
             </div>
 
             {/* Meta Transaction Settings Dialog */}
-            <MetaTxSettingsDialog
-              open={settingsOpen}
-              onOpenChange={setSettingsOpen}
-            />
+            {!renderSidebar && (
+              <MetaTxSettingsDialog
+                open={settingsOpen}
+                onOpenChange={setSettingsOpen}
+              />
+            )}
 
-            {/* Tabs for Mint, Burn, and Transactions */}
-            {isOwner ? (
-              <Tabs defaultValue="mint" className="w-full">
-                <TabsList className="grid w-full grid-cols-3 bg-background p-1 rounded-lg">
-                  <TabsTrigger value="mint" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
-                    Mint
-                  </TabsTrigger>
-                  <TabsTrigger value="burn" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
-                    Burn
-                  </TabsTrigger>
-                  <TabsTrigger value="transactions" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
-                    Transactions
-                  </TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="mint">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Mint Tokens</CardTitle>
-                      <CardDescription>
-                        Creates and signs a meta-transaction to mint new tokens
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <MintForm
-                        onSubmit={handleMint}
-                        isLoading={loadingState.minting || operationsLoadingStates.minting}
-                        decimals={decimals}
-                      />
-                    </CardContent>
-                  </Card>
-                </TabsContent>
+            {/* Only show mint/burn forms and transaction history in main content */}
+            {!renderSidebar && (
+              isOwner ? (
+                <Tabs defaultValue="mint" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2 bg-background p-1 rounded-lg">
+                    <TabsTrigger value="mint" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
+                      Mint
+                    </TabsTrigger>
+                    <TabsTrigger value="burn" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
+                      Burn
+                    </TabsTrigger>
+                  {/*   <TabsTrigger value="transactions" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
+                      Transactions
+                    </TabsTrigger> */}
+                  </TabsList>
+                  
+                  <TabsContent value="mint">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Mint Tokens</CardTitle>
+                        <CardDescription>
+                          Creates and signs a meta-transaction to mint new tokens
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <MintForm
+                          onSubmit={handleMint}
+                          isLoading={loadingState.minting || operationsLoadingStates.minting}
+                          decimals={decimals}
+                        />
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
 
-                <TabsContent value="burn">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Burn Tokens</CardTitle>
-                      <CardDescription>
-                        Creates and signs a meta-transaction to burn existing tokens
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <BurnForm
-                        onSubmit={handleBurn}
-                        isLoading={loadingState.burning || operationsLoadingStates.burning}
-                        decimals={decimals}
-                        maxAmount={tokenMetadata?.totalSupply || BigInt(0)}
-                      />
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="transactions">
+                  <TabsContent value="burn">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Burn Tokens</CardTitle>
+                        <CardDescription>
+                          Creates and signs a meta-transaction to burn existing tokens
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <BurnForm
+                          onSubmit={handleBurn}
+                          isLoading={loadingState.burning || operationsLoadingStates.burning}
+                          decimals={decimals}
+                          maxAmount={tokenMetadata?.totalSupply || BigInt(0)}
+                        />
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+{/* 
+                  <TabsContent value="transactions">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Transaction History</CardTitle>
+                        <CardDescription>
+                          View and manage token operations
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <TransactionHistory
+                          transactions={rwa20Operations}
+                          isLoading={isLoadingOperations}
+                          decimals={decimals}
+                          onBroadcast={handleBroadcast}
+                          isBroadcasting={operationsLoadingStates.broadcasting}
+                        />
+                      </CardContent>
+                    </Card>
+                  </TabsContent> */}
+                </Tabs>
+              ) : (
+                // Non-owner view
+                <div className="space-y-6">
+                  <Alert>
+                    <ShieldCheck className="h-4 w-4" />
+                    <AlertTitle>Token Information</AlertTitle>
+                    <AlertDescription>
+                      This is an RWA20 token. Only the owner can mint and burn tokens.
+                    </AlertDescription>
+                  </Alert>
+                 {/*  
                   <Card>
                     <CardHeader>
                       <CardTitle>Transaction History</CardTitle>
                       <CardDescription>
-                        View and manage token operations
+                        View token operations
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -956,38 +997,9 @@ function SimpleRWA20UIContent({
                         isBroadcasting={operationsLoadingStates.broadcasting}
                       />
                     </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
-            ) : (
-              // Non-owner view
-              <div className="space-y-6">
-                <Alert>
-                  <ShieldCheck className="h-4 w-4" />
-                  <AlertTitle>Token Information</AlertTitle>
-                  <AlertDescription>
-                    This is an RWA20 token. Only the owner can mint and burn tokens.
-                  </AlertDescription>
-                </Alert>
-                
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Transaction History</CardTitle>
-                    <CardDescription>
-                      View token operations
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <TransactionHistory
-                      transactions={rwa20Operations}
-                      isLoading={isLoadingOperations}
-                      decimals={decimals}
-                      onBroadcast={handleBroadcast}
-                      isBroadcasting={operationsLoadingStates.broadcasting}
-                    />
-                  </CardContent>
-                </Card>
-              </div>
+                  </Card> */}
+                </div>
+              )
             )}
           </CardContent>
         </Card>

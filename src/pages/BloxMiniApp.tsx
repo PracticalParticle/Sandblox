@@ -5,7 +5,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, ArrowLeft, Shield, ChevronUp, ChevronDown } from 'lucide-react';
 import { useSecureOwnable } from '@/hooks/useSecureOwnable';
 import { Button } from "@/components/ui/button";
-import { getContractDetails } from '@/lib/catalog';
+import { getContractDetails, loadBloxContractModule } from '@/lib/catalog';
 import type { BloxContract } from '@/lib/catalog/types';
 import { getUIComponent, initializeUIComponents } from '@/lib/catalog/bloxUIComponents';
 import type { BloxUIProps } from '@/lib/catalog/bloxUIComponents';
@@ -453,14 +453,8 @@ const BloxMiniApp: React.FC = () => {
     if (!type) return null;
 
     try {
-      // Convert hyphenated type to PascalCase (e.g., "simple-vault" -> "SimpleVault")
-      const pascalCaseType = type
-        .split('-')
-        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-        .join('');
-      
-      // Dynamically import the contract class based on type
-      const contractModule = await import(`@/blox/${pascalCaseType}/${pascalCaseType}.tsx`);
+      // Load the contract module using the catalog helper
+      const contractModule = await loadBloxContractModule(type);
       const ContractClass = contractModule.default;
       
       if (ContractClass) {
