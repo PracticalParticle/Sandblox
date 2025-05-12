@@ -12,15 +12,6 @@ export interface BloxMetadata {
       factory: string
     }
   }
-  deploymentCount: number
-  lastUpdated: string
-  libraries?: {
-    [key: string]: {
-      name: string
-      description: string
-      address?: string
-    }
-  }
 }
 
 export interface BloxContract extends BloxMetadata {

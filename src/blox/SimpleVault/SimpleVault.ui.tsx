@@ -27,12 +27,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Hex } from "viem";
 import { NotificationMessage, VaultMetaTxParams } from './lib/types';
 import { TransactionManagerProvider } from "@/contexts/MetaTransactionManager";
-import { useOperationTypes } from "@/hooks/useOperationTypes";
 import { useWalletBalances, TokenBalance } from '@/hooks/useWalletBalances';
 import { useOperations, VAULT_OPERATIONS } from './hooks/useOperations';
-import { useActionPermissions } from '@/hooks/useActionPermissions';
-import { useRoleValidation } from "@/hooks/useRoleValidation";
 import { SimpleVaultService } from "./lib/services";
+import { useWorkflowManager } from "@/hooks/useWorkflowManager";
 
 // Extend the base ContractInfo interface to include broadcaster and other properties
 interface ContractInfo extends BaseContractInfo {
@@ -363,9 +361,7 @@ const DepositForm = React.memo(({ onSubmit, isLoading, walletBalances, contractA
   const [error, setError] = useState<string>("");
   const [selectedTokenAddress, setSelectedTokenAddress] = useState<string>("ETH");
   const [tokenBalances] = useAtom(tokenBalanceAtom);
-  const { address: connectedAddress } = useAccount();
-  const chain = useChain();
-  const { isOwner } = useRoleValidation(contractAddress, connectedAddress, chain);
+  const { isOwner } = useWorkflowManager(contractAddress);
 
   const selectedToken = selectedTokenAddress === "ETH" ? undefined : tokenBalances[selectedTokenAddress as Address];
   const tokenDecimals = selectedToken?.metadata?.decimals ?? 18;
@@ -670,7 +666,7 @@ function MetaTxSettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   );
 }
 
-// Update the WithdrawalFormWrapper to include role validation
+// Update the WithdrawalFormWrapper to use workflow manager for permission checks
 const WithdrawalFormWrapper = React.memo(({ 
   handleWithdrawal, 
   loadingState, 
@@ -688,10 +684,14 @@ const WithdrawalFormWrapper = React.memo(({
 }) => {
   const [selectedTokenAddress, setSelectedTokenAddress] = useState<string>("ETH");
   const lastFetchRef = useRef<string | undefined>(undefined);
+  
+  // Use workflow manager instead of useActionPermissions
+  const { isOwner } = useWorkflowManager(contractAddress);
 
-  // Get role validation
-  const { address: connectedAddress } = useAccount();
-  const { canRequestWithdrawal } = useActionPermissions(contractAddress, connectedAddress);
+  // Check if user can request withdrawals
+  const canRequestWithdrawal = useMemo(() => {
+    return isOwner;
+  }, [isOwner]);
 
   // Memoize the token selection handler
   const handleTokenSelect = useCallback((token: Address | undefined) => {
@@ -753,9 +753,6 @@ function SimpleVaultUIContent({
   const chain = useChain();
   const navigate = useNavigate();
   
-  // Add useRoleValidation hook
-  const { isOwner } = useRoleValidation(contractAddress as Address, address, chain);
-  
   // State declarations
   const [ethBalance, setEthBalance] = useState<bigint>(BigInt(0));
   const [tokenBalances, setTokenBalances] = useAtom<TokenBalanceState>(tokenBalanceAtom);
@@ -768,6 +765,53 @@ function SimpleVaultUIContent({
 
   // Keep metaTxSettings since it's used in createVaultMetaTxParams
   const [metaTxSettings, setSettings] = useAtom(metaTxSettingsAtom);
+
+  // Add this near other refs/state
+  const initialLoadDoneRef = useRef(false);
+  
+  // Define handleRefresh before it's used
+  const handleRefresh = useCallback(async () => {
+    if (!vault || !vaultService) {
+      console.log("Cannot fetch: vault not initialized");
+      return;
+    }
+    
+    setLoadingState(prev => ({ ...prev, ethBalance: true }));
+    
+    try {
+      const balance = await vault.getEthBalance();
+      setEthBalance(balance);
+      
+      const transactions = await vaultService.getPendingTransactions();
+      setPendingTxs(transactions);
+      
+      setError(null);
+    } catch (err: any) {
+      console.error("Failed to fetch vault data:", err);
+      setError("Failed to fetch vault data: " + (err.message || String(err)));
+      onError?.(new Error("Failed to fetch vault data: " + (err.message || String(err))));
+    } finally {
+      setLoadingState(prev => ({ ...prev, ethBalance: false }));
+    }
+  }, [vault, vaultService, setEthBalance, setPendingTxs, onError]);
+  
+  // Use workflow manager for role validation with more comprehensive permission model
+  const { 
+    isOwner
+  } = useWorkflowManager(contractAddress as Address);
+  
+  // Get operations actions and state
+  const {
+    handleApproveWithdrawal,
+    handleCancelWithdrawal,
+    loadingStates: operationsLoadingStates,
+    getOperationName: getVaultOperationName
+  } = useOperations({
+    contractAddress: contractAddress as Address,
+    onSuccess: addMessage,
+    onError: addMessage, 
+    onRefresh: handleRefresh
+  });
 
   // Load meta transaction settings from service when available
   useEffect(() => {
@@ -797,59 +841,15 @@ function SimpleVaultUIContent({
   const trackedTokenAddresses = Object.keys(tokenBalances) as Address[];
   const walletBalances = useWalletBalances(trackedTokenAddresses);
 
-  // Add this near other refs/state
-  const initialLoadDoneRef = useRef(false);
-
-  // Remove unused loadingOperationTypes from destructuring
-  const { getOperationName } = useOperationTypes(contractAddress as Address);
-
-  // Define handleRefresh before it's used
-  const handleRefresh = useCallback(async () => {
-    if (!vault || !vaultService) {
-      console.log("Cannot fetch: vault not initialized");
-      return;
-    }
-    
-    setLoadingState(prev => ({ ...prev, ethBalance: true }));
-    
-    try {
-      const balance = await vault.getEthBalance();
-      setEthBalance(balance);
-      
-      const transactions = await vaultService.getPendingTransactions();
-      setPendingTxs(transactions);
-      
-      setError(null);
-    } catch (err: any) {
-      console.error("Failed to fetch vault data:", err);
-      setError("Failed to fetch vault data: " + (err.message || String(err)));
-      onError?.(new Error("Failed to fetch vault data: " + (err.message || String(err))));
-    } finally {
-      setLoadingState(prev => ({ ...prev, ethBalance: false }));
-    }
-  }, [vault, vaultService, setEthBalance, setPendingTxs, onError]);
-
-  // Get operations actions and state
-  const {
-    handleApproveWithdrawal,
-    handleCancelWithdrawal,
-    loadingStates: operationsLoadingStates,
-  } = useOperations({
-    contractAddress: contractAddress as Address,
-    onSuccess: addMessage,
-    onError: addMessage, 
-    onRefresh: handleRefresh
-  });
-
   // Filter transactions for withdrawals
   const filteredPendingTxs = React.useMemo(() => {
     return pendingTxs.filter(tx => {
       const operationTypeHex = tx.params.operationType as Hex;
-      const operationName = getOperationName(operationTypeHex);
+      const operationName = getVaultOperationName(operationTypeHex);
       return operationName === VAULT_OPERATIONS.WITHDRAW_ETH || 
              operationName === VAULT_OPERATIONS.WITHDRAW_TOKEN;
     });
-  }, [pendingTxs, getOperationName]);
+  }, [pendingTxs, getVaultOperationName]);
 
   // Modify the initialization effect to only run once
   useEffect(() => {
@@ -1234,20 +1234,23 @@ function SimpleVaultUIContent({
           <div className="space-y-2">
             <h3 className="font-medium">Pending Transactions</h3>
             <div className="space-y-2">
-              {filteredPendingTxs.slice(0, 2).map((tx) => (
-                <PendingTransaction
-                  key={tx.txId}
-                  tx={tx}
-                  onApprove={handleApproveWithdrawal}
-                  onCancel={handleCancelWithdrawal}
-                  isLoading={operationsLoadingStates.approval[Number(tx.txId)] || operationsLoadingStates.cancellation[Number(tx.txId)]}
-                  contractAddress={contractAddress as Address}
-                  onNotification={handleNotification}
-                  onRefresh={handleRefresh}
-                  mode="timelock"
-                  timeLockPeriodInMinutes={contractInfo?.timeLockPeriodInMinutes || 0}
-                />
-              ))}
+              {filteredPendingTxs.slice(0, 2).map((tx) => {
+                
+                return (
+                  <PendingTransaction
+                    key={tx.txId}
+                    tx={tx}
+                    onApprove={handleApproveWithdrawal}
+                    onCancel={handleCancelWithdrawal}
+                    isLoading={operationsLoadingStates.approval[Number(tx.txId)] || operationsLoadingStates.cancellation[Number(tx.txId)]}
+                    contractAddress={contractAddress as Address}
+                    onNotification={handleNotification}
+                    onRefresh={handleRefresh}
+                    mode="timelock"
+                    timeLockPeriodInMinutes={contractInfo?.timeLockPeriodInMinutes || 0}
+                  />
+                );
+              })}
               {filteredPendingTxs.length > 2 && (
                 <Button
                   variant="link"
@@ -1397,20 +1400,23 @@ function SimpleVaultUIContent({
                   <div className="space-y-4">
                     <h3 className="font-medium">Pending Transactions</h3>
                     <div className="space-y-2">
-                      {filteredPendingTxs.slice(0, 2).map((tx) => (
-                        <PendingTransaction
-                          key={tx.txId}
-                          tx={tx}
-                          onApprove={handleApproveWithdrawal}
-                          onCancel={handleCancelWithdrawal}
-                          isLoading={operationsLoadingStates.approval[Number(tx.txId)] || operationsLoadingStates.cancellation[Number(tx.txId)]}
-                          contractAddress={contractAddress as Address}
-                          onNotification={handleNotification}
-                          onRefresh={handleRefresh}
-                          mode="timelock"
-                          timeLockPeriodInMinutes={contractInfo?.timeLockPeriodInMinutes || 0}
-                        />
-                      ))}
+                      {filteredPendingTxs.slice(0, 2).map((tx) => {
+                        
+                        return (
+                          <PendingTransaction
+                            key={tx.txId}
+                            tx={tx}
+                            onApprove={handleApproveWithdrawal}
+                            onCancel={handleCancelWithdrawal}
+                            isLoading={operationsLoadingStates.approval[Number(tx.txId)] || operationsLoadingStates.cancellation[Number(tx.txId)]}
+                            contractAddress={contractAddress as Address}
+                            onNotification={handleNotification}
+                            onRefresh={handleRefresh}
+                            mode="timelock"
+                            timeLockPeriodInMinutes={contractInfo?.timeLockPeriodInMinutes || 0}
+                          />
+                        );
+                      })}
                       {filteredPendingTxs.length > 2 && (
                         <Button
                           variant="link"
