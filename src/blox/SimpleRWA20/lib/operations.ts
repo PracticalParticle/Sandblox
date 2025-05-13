@@ -1,4 +1,4 @@
-import { Address, Chain, Hex, PublicClient, WalletClient, keccak256, toHex } from 'viem';
+import { Address, Chain, Hex, PublicClient, WalletClient, keccak256, toHex, Abi } from 'viem';
 import { TransactionOptions } from '../../../particle-core/sdk/typescript/interfaces/base.index';
 import { BaseBloxOperationsHandler } from '../../../types/BloxOperationsHandler';
 import { MetaTransaction, TxRecord } from '../../../particle-core/sdk/typescript/interfaces/lib.index';
@@ -8,6 +8,10 @@ import { TxStatus } from '../../../particle-core/sdk/typescript/types/lib.index'
 import { SecureOwnable } from '../../../particle-core/sdk/typescript/SecureOwnable';
 import { RWA20TxRecord, TokenMetaTxParams } from './types';
 import { MetaTransactionManager } from '../../../services/MetaTransactionManager';
+import SimpleRWA20ABIJson from '../SimpleRWA20.abi.json';
+
+// Parse and type the ABI
+const SimpleRWA20ABI = SimpleRWA20ABIJson as Abi;
 
 /**
  * Get meta transaction settings from local storage
@@ -18,19 +22,24 @@ export const getStoredMetaTxSettings = (): TokenMetaTxParams => {
     const stored = localStorage.getItem('simpleRWA20.metaTxSettings');
     if (!stored) return {
       deadline: BigInt(3600), // 1 hour in seconds
-      maxGasPrice: BigInt(50000000000) // 50 gwei
+      maxGasPrice: BigInt(50000000000) // 50 gwei default
     };
     
     const parsed = JSON.parse(stored);
+    // Ensure maxGasPrice is at least 50 gwei
+    const maxGasPrice = BigInt(parsed.maxGasPrice) < BigInt(50000000000) 
+      ? BigInt(50000000000) 
+      : BigInt(parsed.maxGasPrice);
+    
     return {
       deadline: BigInt(parsed.deadline),
-      maxGasPrice: BigInt(parsed.maxGasPrice)
+      maxGasPrice
     };
   } catch (error) {
     console.error('Failed to load meta tx settings:', error);
     return {
       deadline: BigInt(3600),
-      maxGasPrice: BigInt(50000000000)
+      maxGasPrice: BigInt(50000000000) // 50 gwei default
     };
   }
 };
@@ -77,6 +86,8 @@ export default class SimpleRWA20OperationsHandler extends BaseBloxOperationsHand
   // Map to store operation type hashes by name
   private operationTypeMap: Map<string, Hex> = new Map();
 
+  protected client!: PublicClient;
+
   constructor() {
     super("simple-rwa20", ["SimpleRWA20"]);
   }
@@ -92,8 +103,9 @@ export default class SimpleRWA20OperationsHandler extends BaseBloxOperationsHand
     chain?: Chain,
     storeTransaction?: (txId: string, signedData: string, metadata?: Record<string, any>) => void
   ): Promise<void> {
-    // Initialize the handler
+    // Initialize the handler and set the client
     this.initialize(contract, contractAddress, publicClient, walletClient, chain);
+    this.client = publicClient; // Explicitly set the client
     this.storeTransaction = storeTransaction;
     
     // Load operation types
@@ -370,17 +382,52 @@ export default class SimpleRWA20OperationsHandler extends BaseBloxOperationsHand
   }
 
   /**
-   * Handle RWA20-specific meta-transaction broadcasting
+   * Get operation types for this handler
    */
+  private getOperationTypes(): Map<Hex, string> {
+    const types = new Map<Hex, string>();
+    types.set(this.getOperationTypeHash(SimpleRWA20OperationsHandler.MINT_TOKENS), SimpleRWA20OperationsHandler.MINT_TOKENS);
+    types.set(this.getOperationTypeHash(SimpleRWA20OperationsHandler.BURN_TOKENS), SimpleRWA20OperationsHandler.BURN_TOKENS);
+    return types;
+  }
+
+  /**
+   * Implementation of required handleBroadcast method from base class
+   * Maps to our custom RWA20 implementation with fixed parameters
+   */
+  async handleBroadcast(tx: TxRecord, type: 'approve' | 'cancel'): Promise<void> {
+    // Map approve/cancel to mint/burn for RWA20
+    const operationType = tx.params.operationType as Hex;
+    const operationTypes = this.getOperationTypes();
+    
+    if (!operationTypes.has(operationType)) {
+      throw new Error("Invalid operation type for broadcast");
+    }
+
+    const operationName = operationTypes.get(operationType);
+    if (operationName === SimpleRWA20OperationsHandler.MINT_TOKENS) {
+      await this.handleRWA20Broadcast(tx, 'mint');
+    } else if (operationName === SimpleRWA20OperationsHandler.BURN_TOKENS) {
+      await this.handleRWA20Broadcast(tx, 'burn');
+    } else {
+      throw new Error("Unsupported operation type for broadcast");
+    }
+  }
+
   async handleRWA20Broadcast(tx: TxRecord, type: 'mint' | 'burn'): Promise<void> {
     if (!this.contract || !this.contractAddress || !this.walletClient?.account) {
       throw new Error("Contract not initialized");
+    }
+
+    if (!this.client) {
+      throw new Error("Public client not initialized");
     }
 
     const contract = this.contract as SimpleRWA20;
     
     // Get the stored transaction data
     const txId = tx.txId.toString();
+    console.log(`Processing ${type} transaction #${txId}`);
     
     // Get the stored transaction from localStorage
     const storedTxKey = `dapp_signed_transactions`;
@@ -394,85 +441,225 @@ export default class SimpleRWA20OperationsHandler extends BaseBloxOperationsHand
     const contractTransactions = parsedData[this.contractAddress];
     
     if (!contractTransactions || !contractTransactions[txId]) {
-      throw new Error("No stored transaction found for this ID");
+      throw new Error(`No stored transaction found for ID: ${txId}`);
     }
 
     const storedTx = contractTransactions[txId];
-    const signedMetaTx = JSON.parse(storedTx.signedData);
-
-    // Broadcast the transaction
-    let result;
-    if (type === 'mint') {
-      result = await contract.mintWithMetaTx(
-        signedMetaTx,
-        { from: this.walletClient.account.address }
-      );
-    } else {
-      result = await contract.burnWithMetaTx(
-        signedMetaTx,
-        { from: this.walletClient.account.address }
-      );
-    }
+    console.log(`Found stored transaction:`, storedTx);
     
-    await result.wait();
-  }
-
-  /**
-   * Implementation of required handleBroadcast method from base class
-   * Maps to our custom RWA20 implementation with fixed parameters
-   */
-  async handleBroadcast(tx: TxRecord, type: 'approve' | 'cancel'): Promise<void> {
-    if (!this.contract || !this.contractAddress || !this.walletClient?.account) {
-      throw new Error("Contract not initialized");
-    }
-
-    const contract = this.contract as SimpleRWA20;
-    
-    // Get the stored transaction from localStorage
-    const storedTxKey = `dapp_signed_transactions`;
-    const storedData = localStorage.getItem(storedTxKey);
-    
-    if (!storedData) {
-      throw new Error("No stored transactions found");
-    }
-
-    // Parse stored transactions
-    const parsedData = JSON.parse(storedData);
-    const contractTransactions = parsedData[this.contractAddress];
-    
-    if (!contractTransactions) {
-      throw new Error("No transactions found for this contract");
-    }
-
-    // Find the transaction by operation type
-    const txId = tx.txId.toString();
-    const storedTx = contractTransactions[txId];
-    
-    if (!storedTx || !storedTx.signedData) {
-      throw new Error("No signed transaction found");
-    }
-
-    // Parse the signed meta transaction
-    const signedMetaTx = JSON.parse(storedTx.signedData);
-
-    // For RWA20, we map approve/cancel to mint/burn
-    const isMintOperation = type === 'approve';
+    let signedMetaTx;
+    let originalMetaTx;
     
     try {
-      // Broadcast using the appropriate contract method
-      const result = isMintOperation 
-        ? await contract.mintWithMetaTx(signedMetaTx, { from: this.walletClient.account.address })
-        : await contract.burnWithMetaTx(signedMetaTx, { from: this.walletClient.account.address });
+      // First parse the original signed data without any conversions
+      originalMetaTx = JSON.parse(storedTx.signedData);
+      
+      // Use bigIntReplacer for logging
+      console.log(`Original meta-tx structure:`, JSON.stringify(originalMetaTx, this.bigIntReplacer, 2));
+      
+      // Make a deep copy for safer manipulation
+      signedMetaTx = JSON.parse(JSON.stringify(originalMetaTx));
+      
+      // Validate required fields
+      if (!signedMetaTx.message || !signedMetaTx.signature || !signedMetaTx.params) {
+        throw new Error("Invalid meta transaction data structure");
+      }
+      
+      // Select the correct function selector based on operation type
+      const metaTxSelector = type === 'mint' 
+        ? SimpleRWA20OperationsHandler.FUNCTION_SELECTORS.MINT_TOKENS_META_TX
+        : SimpleRWA20OperationsHandler.FUNCTION_SELECTORS.BURN_TOKENS_META_TX;
+      
+      // Ensure the handler selector is correct
+      console.log(`Checking meta-tx selector: ${signedMetaTx.params.handlerSelector} vs expected: ${metaTxSelector}`);
+      if (signedMetaTx.params.handlerSelector !== metaTxSelector) {
+        console.warn(`Correcting handler selector from ${signedMetaTx.params.handlerSelector} to ${metaTxSelector}`);
+        signedMetaTx.params.handlerSelector = metaTxSelector;
+      }
+      
+      // Verify broadcaster role before proceeding
+      console.log(`Verifying broadcaster role for ${this.walletClient.account.address}`);
+      const secureOwnable = new SecureOwnable(
+        this.client,
+        this.walletClient,
+        this.contractAddress,
+        this.chain as Chain
+      );
+      
+      // Get the broadcaster address from the contract
+      const broadcasterAddress = await secureOwnable.getBroadcaster();
+      console.log(`Contract broadcaster address: ${broadcasterAddress}`);
+      
+      // Check if current wallet is the broadcaster
+      if (this.walletClient.account.address.toLowerCase() !== broadcasterAddress.toLowerCase()) {
+        throw new Error(`Only the broadcaster can execute this transaction. Current account (${this.walletClient.account.address}) is not the broadcaster (${broadcasterAddress})`);
+      }
+      
+      console.log(`Confirmed broadcaster role for account: ${this.walletClient.account.address}`);
+      
+      // Validate deadline first to avoid unnecessary gas price check if expired
+      const currentTimestamp = BigInt(Math.floor(Date.now() / 1000));
+      if (BigInt(signedMetaTx.params.deadline) < currentTimestamp) {
+        throw new Error(`Meta transaction has expired. Current time: ${currentTimestamp}, Deadline: ${signedMetaTx.params.deadline}`);
+      }
 
-      // Wait for confirmation
-      await result.wait();
+      // Get current gas price and validate
+      const currentGasPrice = await this.client.getGasPrice();
+      if (!currentGasPrice) {
+        throw new Error("Failed to get current gas price");
+      }
 
+      // Log the gas prices for debugging
+      console.log(`Current gas price: ${currentGasPrice} wei`);
+      console.log(`Max gas price in metaTx: ${signedMetaTx.params.maxGasPrice} wei`);
+      
+      if (currentGasPrice > BigInt(signedMetaTx.params.maxGasPrice)) {
+        throw new Error(`Current gas price (${currentGasPrice} wei) exceeds maximum allowed in meta-transaction (${signedMetaTx.params.maxGasPrice} wei)`);
+      }
+
+      // Get current chain ID to make sure we're on the right network
+      const currentChainId = await this.client.getChainId();
+      const expectedChainId = this.chain?.id;
+      console.log(`Current chain ID: ${currentChainId}, Expected chain ID: ${expectedChainId}`);
+      
+      if (expectedChainId && currentChainId !== expectedChainId) {
+        throw new Error(`Network mismatch: Connected to chain ID ${currentChainId} but expected ${expectedChainId}`);
+      }
+
+      // Set higher gas limit and explicit gas price
+      const gasLimit = BigInt(3000000); // 3M gas to be safe
+      const gasPrice = await this.client.getGasPrice();
+      const safeGasPrice = gasPrice * BigInt(12) / BigInt(10); // Add 20% buffer
+      
+      // Create a properly typed object by converting string values to BigInts
+      const metaTxWithBigInts = {
+        ...signedMetaTx,
+        params: {
+          ...signedMetaTx.params,
+          chainId: BigInt(signedMetaTx.params.chainId),
+          nonce: BigInt(signedMetaTx.params.nonce),
+          deadline: BigInt(signedMetaTx.params.deadline),
+          maxGasPrice: BigInt(signedMetaTx.params.maxGasPrice)
+        }
+      };
+
+      // Log the full meta transaction data for debugging using bigIntReplacer
+      console.log('Full meta transaction data:', JSON.stringify(metaTxWithBigInts, this.bigIntReplacer, 2));
+
+      // Prepare transaction options with explicit gas parameters
+      const transactionOptions = { 
+        from: this.walletClient.account.address,
+        gas: Number(gasLimit),
+        gasPrice: safeGasPrice.toString(),
+        chain: this.chain
+      };
+      
+      console.log('Transaction options:', transactionOptions);
+
+      // Execute the transaction through contract methods
+      let result;
+      if (type === 'mint') {
+        console.log('Executing mintWithMetaTx...');
+        result = await contract.mintWithMetaTx(
+          metaTxWithBigInts,
+          transactionOptions
+        );
+      } else {
+        console.log('Executing burnWithMetaTx...');
+        result = await contract.burnWithMetaTx(
+          metaTxWithBigInts,
+          transactionOptions
+        );
+      }
+      
+      console.log(`Transaction submitted: ${result.hash}`);
+      
+      // Wait for confirmation with timeout
+      const receipt = await Promise.race([
+        result.wait(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Transaction confirmation timeout')), 60000)
+        )
+      ]);
+      
+      console.log('Transaction receipt:', receipt);
+      
       // Remove the transaction after successful broadcast
-      const txManager = new MetaTransactionManager();
-      txManager.removeSignedTransaction(this.contractAddress, txId);
+      if (this.storeTransaction) {
+        console.log(`Removing transaction ${txId} from storage after successful broadcast`);
+        const txManager = new MetaTransactionManager();
+        txManager.removeSignedTransaction(this.contractAddress, txId);
+      }
     } catch (error) {
       console.error('Broadcast error:', error);
-      throw error;
+      
+      // Try to extract Solidity revert reason if possible
+      let revertReason = '';
+      try {
+        if (this.client && error instanceof Error && error.message.includes('0x')) {
+          // Try to find a transaction hash in the error message
+          const hashMatch = error.message.match(/0x[a-fA-F0-9]{64}/);
+          if (hashMatch && hashMatch[0]) {
+            const txHash = hashMatch[0] as `0x${string}`;
+            console.log(`Attempting to get revert reason for transaction: ${txHash}`);
+            
+            // Get transaction receipt
+            const receipt = await this.client.getTransactionReceipt({ hash: txHash });
+            
+            if (receipt && receipt.status === 'reverted') {
+              // Try to simulate to get revert reason
+              try {
+                const tx = await this.client.getTransaction({ hash: txHash });
+                if (tx) {
+                  console.log(`Simulating transaction to get revert reason`);
+                  await this.client.call({
+                    to: tx.to as `0x${string}`,
+                    data: tx.input,
+                    account: tx.from
+                  });
+                }
+              } catch (simulateError: any) {
+                if (typeof simulateError.message === 'string') {
+                  const reasonMatch = simulateError.message.match(/reason="([^"]+)"/);
+                  if (reasonMatch && reasonMatch[1]) {
+                    revertReason = reasonMatch[1];
+                    console.log(`Found revert reason: ${revertReason}`);
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (revertReasonError) {
+        console.error('Failed to get revert reason:', revertReasonError);
+      }
+      
+      let errorMessage = "Transaction failed: ";
+      
+      if (revertReason) {
+        errorMessage += revertReason;
+      } else if (error instanceof Error) {
+        // Check for common errors and provide more helpful messages
+        if (error.message.includes('UNPREDICTABLE_GAS_LIMIT')) {
+          errorMessage += "Gas estimation failed - contract execution would revert. Check parameters and contract state.";
+        } else if (error.message.includes('CALL_EXCEPTION')) {
+          errorMessage += "Contract execution reverted - check parameters and contract state.";
+        } else if (error.message.includes('MetaTransaction verification failed')) {
+          errorMessage += "Meta-transaction verification failed - signature or parameters invalid.";
+        } else if (error.message.includes('Invalid')) {
+          errorMessage += error.message;
+        } else if (error.message.includes('execution reverted')) {
+          // Extract the revert reason if available
+          const revertReason = error.message.match(/execution reverted: (.*?)(?:,|$)/);
+          errorMessage += revertReason ? revertReason[1] : "Execution reverted";
+        } else {
+          errorMessage += error.message;
+        }
+      } else {
+        errorMessage += String(error);
+      }
+      
+      throw new Error(errorMessage);
     }
   }
 
@@ -538,5 +725,13 @@ export default class SimpleRWA20OperationsHandler extends BaseBloxOperationsHand
       console.error('Error converting to RWA20TxRecord:', error);
       return null;
     }
+  }
+
+  // Add bigIntReplacer method
+  private bigIntReplacer(key: string, value: any): any {
+    if (typeof value === 'bigint') {
+      return value.toString();
+    }
+    return value;
   }
 }

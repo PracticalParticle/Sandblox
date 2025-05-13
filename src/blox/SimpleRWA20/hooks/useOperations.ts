@@ -379,21 +379,37 @@ export function useOperations({
         throw new Error('No transactions found for this contract');
       }
 
-      // Find the transaction by matching operation type and action
-      const storedTxId = Object.keys(contractTransactions).find(key => {
-        const txData = contractTransactions[key];
-        const metadata = txData.metadata || {};
-        return metadata.type === (type === 'mint' ? 'MINT_TOKENS' : 'BURN_TOKENS') &&
-               metadata.action === type &&
-               metadata.operationType === tx.params.operationType;
-      });
-
-      if (!storedTxId || !contractTransactions[storedTxId]) {
-        throw new Error('No matching signed transaction found');
+      // Use the txId directly to find the transaction
+      const storedTx = contractTransactions[txId];
+      if (!storedTx) {
+        console.error('Available transactions:', Object.keys(contractTransactions));
+        throw new Error(`No transaction found with ID ${txId}`);
       }
 
-      const storedTx = contractTransactions[storedTxId];
-      const signedMetaTx = JSON.parse(storedTx.signedData);
+      // Parse and validate the stored transaction data
+      let signedMetaTx;
+      try {
+        signedMetaTx = JSON.parse(storedTx.signedData);
+        
+        // Validate required fields
+        if (!signedMetaTx.message || !signedMetaTx.signature || !signedMetaTx.params) {
+          throw new Error("Invalid meta transaction data structure");
+        }
+        
+        // Convert string values back to BigInt where needed
+        signedMetaTx = JSON.parse(JSON.stringify(signedMetaTx), (_, value) => {
+          // Convert numeric strings back to BigInt for specific fields
+          if (typeof value === 'string' && /^\d+$/.test(value)) {
+            if (['chainId', 'nonce', 'deadline', 'maxGasPrice'].includes(_)) {
+              return BigInt(value);
+            }
+          }
+          return value;
+        });
+      } catch (error) {
+        console.error('Failed to parse stored transaction:', error);
+        throw new Error("Invalid stored transaction data");
+      }
 
       // Broadcast the meta transaction based on type
       let result;
@@ -413,7 +429,7 @@ export function useOperations({
       
       // Remove the transaction after successful broadcast
       if (storeTransaction) {
-        storeTransaction(storedTxId, '', { remove: true });
+        storeTransaction(txId, '', { remove: true });
       }
       
       onSuccess?.({
@@ -425,7 +441,7 @@ export function useOperations({
       // Clear the signed state and refresh transactions
       setSignedMetaTxStates(prev => {
         const newState = { ...prev };
-        delete newState[storedTxId];
+        delete newState[txId];
         return newState;
       });
       
@@ -442,7 +458,7 @@ export function useOperations({
     } finally {
       setLoadingStates(prev => ({ ...prev, broadcasting: false }));
     }
-  }, [rwa20, walletClient, address, contractAddress, refreshOperations, onSuccess, onError]);
+  }, [rwa20, walletClient, address, contractAddress, refreshOperations, onSuccess, onError, storeTransaction]);
 
   // Fix the type mismatch by creating wrapper functions
   const setStatusFilterWrapper = useCallback((filter: string | null) => {

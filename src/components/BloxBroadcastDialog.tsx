@@ -196,19 +196,20 @@ export function BloxBroadcastDialog({
         throw new Error('Blox operations handler not available')
       }
 
-      // For single-phase operations, we use the action from metadata
-      // For multi-phase operations, we use approve/cancel
-      const actionType = operationInfo.workflowType === 'single-phase' 
-        ? (transaction.metadata?.action || 'approve') 
-        : (transaction.metadata?.action || 'approve')
+      // Get the action type directly from the transaction metadata
+      // This could be any operation type supported by the blox (mint, burn, approve, cancel, etc.)
+      const actionType = transaction.metadata?.action
+      if (!actionType) {
+        throw new Error('Action type not found in transaction metadata')
+      }
       
       // Verify wallet connection again before broadcast
       if (!isConnectedWalletValid()) {
         throw new Error('Wallet connection lost before broadcast. Please reconnect and try again.')
       }
       
-      // Call the blox-specific broadcast handler with the appropriate action type
-      await bloxOperations.handleBroadcast(txRecord, actionType as 'approve' | 'cancel')
+      // Call the blox-specific broadcast handler with the action type from metadata
+      await bloxOperations.handleBroadcast(txRecord, actionType)
       
       // Verify wallet connection after broadcast
       if (!isConnectedWalletValid()) {
@@ -238,6 +239,8 @@ export function BloxBroadcastDialog({
           setError('Insufficient funds for gas. Please ensure your wallet has enough ETH.')
         } else if (error.message.includes('gas required exceeds allowance')) {
           setError('Transaction requires more gas than allowed. Please try again with higher gas limit.')
+        } else if (error.message.includes('Invalid handler selector')) {
+          setError('Invalid operation type. Please check the transaction metadata.')
         } else {
           setError(error.message)
         }
