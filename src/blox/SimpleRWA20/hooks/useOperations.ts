@@ -364,28 +364,35 @@ export function useOperations({
     try {
       const txId = tx.txId.toString();
       
-      // If we don't have the transaction record in the official transaction list,
-      // we might be broadcasting a freshly signed transaction that's not yet in the chain
-      let storedTx: { signedData: string; timestamp: number; metadata?: Record<string, unknown> } | undefined;
+      // Get the stored transaction from localStorage directly
+      const storedTxKey = `dapp_signed_transactions`;
+      const storedData = localStorage.getItem(storedTxKey);
       
-      // Type-cast transactions to the TransactionRecord interface
-      const txRecord = transactions as TransactionRecord;
-      storedTx = txRecord[txId];
-      
-      if (!storedTx) {
-        // Look for the transaction in our local signed states
-        const storedTxId = Object.keys(signedMetaTxStates).find(key => 
-          signedMetaTxStates[key].type === type && key.includes(txId)
-        );
-        
-        if (!storedTxId || !txRecord[storedTxId]) {
-          throw new Error('No signed transaction found');
-        }
-        
-        storedTx = txRecord[storedTxId];
+      if (!storedData) {
+        throw new Error('No stored transactions found');
       }
 
-      // Parse the signed transaction data
+      const parsedData = JSON.parse(storedData);
+      const contractTransactions = parsedData[contractAddress];
+      
+      if (!contractTransactions) {
+        throw new Error('No transactions found for this contract');
+      }
+
+      // Find the transaction by matching operation type and action
+      const storedTxId = Object.keys(contractTransactions).find(key => {
+        const txData = contractTransactions[key];
+        const metadata = txData.metadata || {};
+        return metadata.type === (type === 'mint' ? 'MINT_TOKENS' : 'BURN_TOKENS') &&
+               metadata.action === type &&
+               metadata.operationType === tx.params.operationType;
+      });
+
+      if (!storedTxId || !contractTransactions[storedTxId]) {
+        throw new Error('No matching signed transaction found');
+      }
+
+      const storedTx = contractTransactions[storedTxId];
       const signedMetaTx = JSON.parse(storedTx.signedData);
 
       // Broadcast the meta transaction based on type
@@ -404,6 +411,11 @@ export function useOperations({
 
       await result.wait();
       
+      // Remove the transaction after successful broadcast
+      if (storeTransaction) {
+        storeTransaction(storedTxId, '', { remove: true });
+      }
+      
       onSuccess?.({
         type: 'success',
         title: 'Transaction Broadcast',
@@ -413,12 +425,7 @@ export function useOperations({
       // Clear the signed state and refresh transactions
       setSignedMetaTxStates(prev => {
         const newState = { ...prev };
-        const keyToDelete = Object.keys(newState).find(key => 
-          newState[key].type === type && key.includes(txId)
-        );
-        if (keyToDelete) {
-          delete newState[keyToDelete];
-        }
+        delete newState[storedTxId];
         return newState;
       });
       
@@ -435,7 +442,7 @@ export function useOperations({
     } finally {
       setLoadingStates(prev => ({ ...prev, broadcasting: false }));
     }
-  }, [rwa20, walletClient, address, transactions, signedMetaTxStates, refreshOperations, onSuccess, onError]);
+  }, [rwa20, walletClient, address, contractAddress, refreshOperations, onSuccess, onError]);
 
   // Fix the type mismatch by creating wrapper functions
   const setStatusFilterWrapper = useCallback((filter: string | null) => {

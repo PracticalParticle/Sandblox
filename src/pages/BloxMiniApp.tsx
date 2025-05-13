@@ -27,7 +27,8 @@ import { useChain } from '@/hooks/useChain';
 import { MetaTransactionManager } from '@/services/MetaTransactionManager';
 import { OperationType } from '@/types/OperationRegistry';
 import { useWorkflowManager } from '@/hooks/useWorkflowManager';
-import { PublicClient, WalletClient, Chain } from 'viem';
+import { PublicClient, WalletClient, Chain, Address } from 'viem';
+import { BloxBroadcastDialog } from '@/components/BloxBroadcastDialog';
 
 
 // Interface for stored transactions
@@ -136,6 +137,8 @@ const BloxMiniApp: React.FC = () => {
   const { data: walletClient } = useWalletClient();
   const chain = useChain();
   const [tokenBalances, setTokenBalances] = useState<Record<string, { balance: bigint; metadata?: any; loading: boolean; error?: string }>>({});
+  const [selectedTransaction, setSelectedTransaction] = useState<ExtendedSignedTransaction | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   // Initialize workflow manager
   const {
@@ -600,6 +603,48 @@ const BloxMiniApp: React.FC = () => {
     setSignedTransactions(txArray);
   };
 
+  // Add handler for transaction broadcast
+  const handleBroadcastTransaction = async (transaction: ExtendedSignedTransaction) => {
+    if (!manager || !contractInfo) return;
+    
+    try {
+      const operationType = transaction.metadata?.operationType as OperationType;
+      if (!operationType) throw new Error("Operation type not found");
+
+      // Execute the meta transaction
+      await manager.executeMetaTransaction(
+        transaction.signedData,
+        operationType,
+        transaction.metadata?.action === 'requestAndApprove' ? 'requestAndApprove' : 'approve',
+        { from: walletClient?.account?.address as Address }
+      );
+      
+      // Clean up the transaction from storage
+      removeTransaction(transaction.txId);
+      
+      showNotification({
+        type: 'success',
+        title: "Success",
+        description: "Transaction broadcasted successfully",
+      });
+
+      await refreshAllData();
+    } catch (error) {
+      console.error('Failed to broadcast transaction:', error);
+      showNotification({
+        type: 'error',
+        title: "Error",
+        description: error instanceof Error ? error.message : 'Failed to broadcast transaction',
+      });
+    }
+  };
+
+  // Add handler for transaction click
+  const handleTransactionClick = (transaction: ExtendedSignedTransaction) => {
+    setSelectedTransaction(transaction);
+    setIsDialogOpen(true);
+  };
+
   return (
     <div className="container py-8">
       <motion.div variants={container} initial="hidden" animate="show">
@@ -742,7 +787,6 @@ const BloxMiniApp: React.FC = () => {
                 <motion.div variants={item} className="mt-6">
                   <SignedMetaTxTable
                     transactions={signedTransactions.filter(tx => {
-                      // Only show blox-specific operations
                       const coreOperations = [
                         'OWNERSHIP_TRANSFER',
                         'BROADCASTER_UPDATE',
@@ -754,6 +798,7 @@ const BloxMiniApp: React.FC = () => {
                     onClearAll={clearTransactions}
                     onRemoveTransaction={removeTransaction}
                     contractAddress={address as `0x${string}`}
+                    onTxClick={handleTransactionClick}
                   />
                 </motion.div>
               )}
@@ -795,6 +840,29 @@ const BloxMiniApp: React.FC = () => {
           </div>
         </div>
       </motion.div>
+
+      {/* Add the dialog component */}
+      {selectedTransaction && (
+        <BloxBroadcastDialog
+          isOpen={isDialogOpen}
+          onOpenChange={setIsDialogOpen}
+          title={`Broadcast ${selectedTransaction.metadata?.type || 'Operation'}`}
+          description={`Broadcast the pending ${selectedTransaction.metadata?.type || 'operation'} transaction to the blockchain.`}
+          contractInfo={{
+            chainId: contractInfo?.chainId || 0,
+            chainName: contractInfo?.chainName || '',
+            broadcaster: contractInfo?.broadcaster as string || '',
+            owner: contractInfo?.owner as string || '',
+            contractAddress: address,
+            ...contractInfo
+          }}
+          transaction={selectedTransaction}
+          onBroadcast={handleBroadcastTransaction}
+          isLoading={loading}
+          connectedAddress={connectedAddress}
+          requiredRole="broadcaster"
+        />
+      )}
     </div>
   );
 };

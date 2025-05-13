@@ -1,6 +1,6 @@
-import { Address } from 'viem';
+import { Address, Hex } from 'viem';
 import { TxStatus } from '../../../particle-core/sdk/typescript/types/lib.index';
-import { TxRecord } from '../../../particle-core/sdk/typescript/interfaces/lib.index';
+import { TxParams, TxRecord } from '../../../particle-core/sdk/typescript/interfaces/lib.index';
 
 export interface NotificationMessage {
   type: 'error' | 'warning' | 'info' | 'success';
@@ -19,12 +19,15 @@ export interface TokenMetaTxParams {
 /**
  * Represents a transaction record with RWA20-specific details
  */
-export interface RWA20TxRecord extends Omit<TxRecord, 'status'> {
+export interface RWA20TxRecord extends Omit<TxRecord, 'status' | 'params'> {
   status: TxStatus;
   amount: bigint;
   to: Address;
   from?: Address;
   type: "MINT" | "BURN";
+  params: TxParams & {
+    operationType: Hex;
+  };
 }
 
 /**

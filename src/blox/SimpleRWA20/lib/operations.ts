@@ -2,11 +2,12 @@ import { Address, Chain, Hex, PublicClient, WalletClient, keccak256, toHex } fro
 import { TransactionOptions } from '../../../particle-core/sdk/typescript/interfaces/base.index';
 import { BaseBloxOperationsHandler } from '../../../types/BloxOperationsHandler';
 import { MetaTransaction, TxRecord } from '../../../particle-core/sdk/typescript/interfaces/lib.index';
-import { MultiPhaseOperationFunctions } from '../../../types/OperationRegistry';
+import { MultiPhaseOperationFunctions, SinglePhaseOperationFunctions } from '../../../types/OperationRegistry';
 import SimpleRWA20 from '../SimpleRWA20';
 import { TxStatus } from '../../../particle-core/sdk/typescript/types/lib.index';
 import { SecureOwnable } from '../../../particle-core/sdk/typescript/SecureOwnable';
 import { RWA20TxRecord, TokenMetaTxParams } from './types';
+import { MetaTransactionManager } from '../../../services/MetaTransactionManager';
 
 /**
  * Get meta transaction settings from local storage
@@ -179,37 +180,18 @@ export default class SimpleRWA20OperationsHandler extends BaseBloxOperationsHand
    */
   private registerMintTokensOperation(contract: SimpleRWA20): void {
     // Define the functions for the mint tokens operation
-    const functions: MultiPhaseOperationFunctions = {
+    const functions: SinglePhaseOperationFunctions = {
       // For mint, we only have the meta transaction function, as minting is single-phase
-      request: async (params: { to: Address, amount: bigint }, options: TransactionOptions) => {
-        throw new Error("Direct minting not supported - use meta-transaction only");
+      requestAndApproveWithMetaTx: async (metaTx: MetaTransaction, options: TransactionOptions) => {
+        if (!this.walletClient?.account) {
+          throw new Error("Wallet not connected");
+        }
+        return contract.mintWithMetaTx(metaTx, { from: this.walletClient.account.address });
       },
       
-      // The mintWithMetaTx is a single-phase operation that directly executes the mint
-      approveWithMetaTx: async (metaTx: MetaTransaction, options: TransactionOptions) => {
-        return contract.mintWithMetaTx(metaTx, options);
-      },
-      
-      // These operations aren't applicable for minting with meta-transactions
-      approve: async (txId: bigint, options: TransactionOptions) => {
-        throw new Error("Approve phase not applicable for mint operations");
-      },
-      
-      cancel: async (txId: bigint, options: TransactionOptions) => {
-        throw new Error("Cancel phase not applicable for mint operations");
-      },
-      
-      cancelWithMetaTx: async (metaTx: MetaTransaction, options: TransactionOptions) => {
-        throw new Error("Cancel with meta-transaction not applicable for mint operations");
-      },
-      
-      // Meta-transaction preparation helpers
-      prepareMetaTxApprove: async (txId: bigint, options: TransactionOptions) => {
-        throw new Error("Meta-transaction approval not applicable for mint operations");
-      },
-      
-      prepareMetaTxCancel: async (txId: bigint, options: TransactionOptions) => {
-        throw new Error("Meta-transaction cancel not applicable for mint operations");
+      // Required by SinglePhaseOperationFunctions
+      getExecutionOptions: async (params: { to: Address, amount: bigint }) => {
+        return '0x' as `0x${string}`;
       }
     };
     
@@ -217,8 +199,8 @@ export default class SimpleRWA20OperationsHandler extends BaseBloxOperationsHand
       // Get operation hash from name
       const operationTypeHash = this.getOperationTypeHash(SimpleRWA20OperationsHandler.MINT_TOKENS);
       
-      // Register the operation
-      this.registerMultiPhaseOperation(
+      // Register the operation as single-phase
+      this.registerSinglePhaseOperation(
         SimpleRWA20OperationsHandler.MINT_TOKENS,
         operationTypeHash,
         "MINT_TOKENS",
@@ -226,11 +208,7 @@ export default class SimpleRWA20OperationsHandler extends BaseBloxOperationsHand
         SimpleRWA20OperationsHandler.FUNCTION_SELECTORS.MINT_TOKENS_META_TX,
         functions,
         {
-          request: 'owner',
-          approve: 'owner',
-          cancel: 'owner',
-          metaApprove: 'owner',
-          metaCancel: 'owner'
+          request: 'owner'
         }
       );
     } catch (error) {
@@ -243,37 +221,18 @@ export default class SimpleRWA20OperationsHandler extends BaseBloxOperationsHand
    */
   private registerBurnTokensOperation(contract: SimpleRWA20): void {
     // Define the functions for the burn tokens operation
-    const functions: MultiPhaseOperationFunctions = {
+    const functions: SinglePhaseOperationFunctions = {
       // For burn, we only have the meta transaction function, as burning is single-phase
-      request: async (params: { from: Address, amount: bigint }, options: TransactionOptions) => {
-        throw new Error("Direct burning not supported - use meta-transaction only");
+      requestAndApproveWithMetaTx: async (metaTx: MetaTransaction, options: TransactionOptions) => {
+        if (!this.walletClient?.account) {
+          throw new Error("Wallet not connected");
+        }
+        return contract.burnWithMetaTx(metaTx, { from: this.walletClient.account.address });
       },
       
-      // The burnWithMetaTx is a single-phase operation that directly executes the burn
-      approveWithMetaTx: async (metaTx: MetaTransaction, options: TransactionOptions) => {
-        return contract.burnWithMetaTx(metaTx, options);
-      },
-      
-      // These operations aren't applicable for burning with meta-transactions
-      approve: async (txId: bigint, options: TransactionOptions) => {
-        throw new Error("Approve phase not applicable for burn operations");
-      },
-      
-      cancel: async (txId: bigint, options: TransactionOptions) => {
-        throw new Error("Cancel phase not applicable for burn operations");
-      },
-      
-      cancelWithMetaTx: async (metaTx: MetaTransaction, options: TransactionOptions) => {
-        throw new Error("Cancel with meta-transaction not applicable for burn operations");
-      },
-      
-      // Meta-transaction preparation helpers
-      prepareMetaTxApprove: async (txId: bigint, options: TransactionOptions) => {
-        throw new Error("Meta-transaction approval not applicable for burn operations");
-      },
-      
-      prepareMetaTxCancel: async (txId: bigint, options: TransactionOptions) => {
-        throw new Error("Meta-transaction cancel not applicable for burn operations");
+      // Required by SinglePhaseOperationFunctions
+      getExecutionOptions: async (params: { from: Address, amount: bigint }) => {
+        return '0x' as `0x${string}`;
       }
     };
     
@@ -281,8 +240,8 @@ export default class SimpleRWA20OperationsHandler extends BaseBloxOperationsHand
       // Get operation hash from name
       const operationTypeHash = this.getOperationTypeHash(SimpleRWA20OperationsHandler.BURN_TOKENS);
       
-      // Register the operation
-      this.registerMultiPhaseOperation(
+      // Register the operation as single-phase
+      this.registerSinglePhaseOperation(
         SimpleRWA20OperationsHandler.BURN_TOKENS,
         operationTypeHash,
         "BURN_TOKENS",
@@ -290,11 +249,7 @@ export default class SimpleRWA20OperationsHandler extends BaseBloxOperationsHand
         SimpleRWA20OperationsHandler.FUNCTION_SELECTORS.BURN_TOKENS_META_TX,
         functions,
         {
-          request: 'owner',
-          approve: 'owner',
-          cancel: 'owner',
-          metaApprove: 'owner',
-          metaCancel: 'owner'
+          request: 'owner'
         }
       );
     } catch (error) {
@@ -467,11 +422,57 @@ export default class SimpleRWA20OperationsHandler extends BaseBloxOperationsHand
    * Maps to our custom RWA20 implementation with fixed parameters
    */
   async handleBroadcast(tx: TxRecord, type: 'approve' | 'cancel'): Promise<void> {
-    // We adapt the base class interface to our token-specific implementation
-    if (type === 'approve') {
-      await this.handleRWA20Broadcast(tx, 'mint');
-    } else {
-      await this.handleRWA20Broadcast(tx, 'burn');
+    if (!this.contract || !this.contractAddress || !this.walletClient?.account) {
+      throw new Error("Contract not initialized");
+    }
+
+    const contract = this.contract as SimpleRWA20;
+    
+    // Get the stored transaction from localStorage
+    const storedTxKey = `dapp_signed_transactions`;
+    const storedData = localStorage.getItem(storedTxKey);
+    
+    if (!storedData) {
+      throw new Error("No stored transactions found");
+    }
+
+    // Parse stored transactions
+    const parsedData = JSON.parse(storedData);
+    const contractTransactions = parsedData[this.contractAddress];
+    
+    if (!contractTransactions) {
+      throw new Error("No transactions found for this contract");
+    }
+
+    // Find the transaction by operation type
+    const txId = tx.txId.toString();
+    const storedTx = contractTransactions[txId];
+    
+    if (!storedTx || !storedTx.signedData) {
+      throw new Error("No signed transaction found");
+    }
+
+    // Parse the signed meta transaction
+    const signedMetaTx = JSON.parse(storedTx.signedData);
+
+    // For RWA20, we map approve/cancel to mint/burn
+    const isMintOperation = type === 'approve';
+    
+    try {
+      // Broadcast using the appropriate contract method
+      const result = isMintOperation 
+        ? await contract.mintWithMetaTx(signedMetaTx, { from: this.walletClient.account.address })
+        : await contract.burnWithMetaTx(signedMetaTx, { from: this.walletClient.account.address });
+
+      // Wait for confirmation
+      await result.wait();
+
+      // Remove the transaction after successful broadcast
+      const txManager = new MetaTransactionManager();
+      txManager.removeSignedTransaction(this.contractAddress, txId);
+    } catch (error) {
+      console.error('Broadcast error:', error);
+      throw error;
     }
   }
 
