@@ -66,7 +66,8 @@ export const createRWA20MetaTxParams = (settings: TokenMetaTxParams): TokenMetaT
  * Helper function to compute keccak256 of a string and take first 4 bytes (function selector)
  */
 const computeFunctionSelector = (signature: string): Hex => {
-  return (toHex(keccak256(new TextEncoder().encode(signature))).slice(0, 10)) as Hex;
+  const hash = keccak256(signature as `0x${string}`);
+  return `0x${hash.slice(2, 10)}` as Hex;
 };
 
 /**
