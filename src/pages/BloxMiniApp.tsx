@@ -27,7 +27,7 @@ import { useChain } from '@/hooks/useChain';
 import { MetaTransactionManager } from '@/services/MetaTransactionManager';
 import { OperationType } from '@/types/OperationRegistry';
 import { useWorkflowManager } from '@/hooks/useWorkflowManager';
-import { PublicClient, WalletClient, Chain, Address } from 'viem';
+import { PublicClient, WalletClient, Chain } from 'viem';
 import { BloxBroadcastDialog } from '@/components/BloxBroadcastDialog';
 
 
@@ -603,42 +603,6 @@ const BloxMiniApp: React.FC = () => {
     setSignedTransactions(txArray);
   };
 
-  // Add handler for transaction broadcast
-  const handleBroadcastTransaction = async (transaction: ExtendedSignedTransaction) => {
-    if (!manager || !contractInfo) return;
-    
-    try {
-      const operationType = transaction.metadata?.operationType as OperationType;
-      if (!operationType) throw new Error("Operation type not found");
-
-      // Execute the meta transaction
-      await manager.executeMetaTransaction(
-        transaction.signedData,
-        operationType,
-        transaction.metadata?.action === 'requestAndApprove' ? 'requestAndApprove' : 'approve',
-        { from: walletClient?.account?.address as Address }
-      );
-      
-      // Clean up the transaction from storage
-      removeTransaction(transaction.txId);
-      
-      showNotification({
-        type: 'success',
-        title: "Success",
-        description: "Transaction broadcasted successfully",
-      });
-
-      await refreshAllData();
-    } catch (error) {
-      console.error('Failed to broadcast transaction:', error);
-      showNotification({
-        type: 'error',
-        title: "Error",
-        description: error instanceof Error ? error.message : 'Failed to broadcast transaction',
-      });
-    }
-  };
-
   // Add handler for transaction click
   const handleTransactionClick = (transaction: ExtendedSignedTransaction) => {
     setSelectedTransaction(transaction);
@@ -857,7 +821,6 @@ const BloxMiniApp: React.FC = () => {
             ...contractInfo
           }}
           transaction={selectedTransaction}
-          onBroadcast={handleBroadcastTransaction}
           isLoading={loading}
           connectedAddress={connectedAddress}
           requiredRole="broadcaster"

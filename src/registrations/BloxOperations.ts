@@ -1,5 +1,5 @@
 import { Address, Chain, PublicClient, WalletClient } from 'viem';
-import { loadCatalog, loadBloxContractModule } from '../lib/catalog';
+import { loadCatalog } from '../lib/catalog';
 import { BaseBloxOperationsHandler } from '../types/BloxOperationsHandler';
 
 // Operations registry map - stores operations by blox ID
@@ -24,16 +24,6 @@ export interface BloxOperationsHandler {
   
   // Check if this handler can handle a given contract type
   canHandle(contractType: string): boolean;
-}
-
-/**
- * Convert kebab-case to PascalCase
- */
-function toPascalCase(str: string): string {
-  return str
-    .split('-')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join('');
 }
 
 /**

@@ -4,9 +4,7 @@ import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
 import { useChain } from '@/hooks/useChain';
 import { useMetaTransactionManager } from '@/hooks/useMetaTransactionManager';
 import { useOperationHistory } from '@/hooks/useOperationHistory';
-import { convertBigIntsToStrings } from '@/lib/utils';
-import { NotificationMessage, RWA20TxRecord, TokenMetaTxParams } from '../lib/types';
-import { createRWA20MetaTxParams } from '../lib/operations';
+import { NotificationMessage, RWA20TxRecord } from '../lib/types';
 import { SimpleRWA20Service } from '../lib/services';
 import SimpleRWA20 from '../SimpleRWA20';
 import { keccak256 } from 'viem';
@@ -18,15 +16,6 @@ export const RWA20_OPERATIONS = {
 } as const;
 
 export type RWA20OperationType = typeof RWA20_OPERATIONS[keyof typeof RWA20_OPERATIONS];
-
-// Type for the transactions record to match MetaTransactionManager
-interface TransactionRecord {
-  [key: string]: {
-    signedData: string;
-    timestamp: number;
-    metadata?: Record<string, unknown>;
-  };
-}
 
 interface UseOperationsProps {
   contractAddress: Address;
@@ -75,7 +64,7 @@ export function useOperations({
   const chain = useChain();
   
   // Meta transaction manager
-  const { transactions, storeTransaction, error: txManagerError } = useMetaTransactionManager(contractAddress);
+  const { storeTransaction, error: txManagerError } = useMetaTransactionManager(contractAddress);
   
   // States
   const [rwa20Service, setRWA20Service] = useState<SimpleRWA20Service | null>(null);
@@ -241,7 +230,6 @@ export function useOperations({
       setLoadingStates(prev => ({ ...prev, minting: true }));
       
       const signedTxString = await generateSignedMintMetaTx(to, amount);
-      const signedTx = JSON.parse(signedTxString);
       
       // Generate a numeric transaction ID using timestamp
       const timestamp = Date.now();
@@ -300,7 +288,6 @@ export function useOperations({
       setLoadingStates(prev => ({ ...prev, burning: true }));
       
       const signedTxString = await generateSignedBurnMetaTx(from, amount);
-      const signedTx = JSON.parse(signedTxString);
       
       // Generate a numeric transaction ID using timestamp
       const timestamp = Date.now();

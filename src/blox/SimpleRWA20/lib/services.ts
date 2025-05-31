@@ -1,7 +1,6 @@
 import { Address, PublicClient, WalletClient, Chain, Hex } from 'viem';
 import { TransactionOptions, TransactionResult } from '../../../particle-core/sdk/typescript/interfaces/base.index';
 import { TxRecord, MetaTransaction } from '../../../particle-core/sdk/typescript/interfaces/lib.index';
-import { TxStatus } from '../../../particle-core/sdk/typescript/types/lib.index';
 import { ContractValidations } from '../../../particle-core/sdk/typescript/utils/validations';
 import SimpleRWA20 from '../SimpleRWA20';
 import { TokenMetadata, TokenMetaTxParams, RWA20TxRecord } from './types';
@@ -38,9 +37,9 @@ export class SimpleRWA20Service {
     this.walletClient = walletClient;
     this.contractAddress = contractAddress;
     this.chain = chain;
-    this.rwa20 = new SimpleRWA20(client, walletClient, contractAddress, chain);
-    this.validations = new ContractValidations(client);
-    this.secureOwnable = new SecureOwnable(client, walletClient, contractAddress, chain);
+    this.rwa20 = new SimpleRWA20(this.client, walletClient, this.contractAddress, this.chain);
+    this.validations = new ContractValidations(this.client);
+    this.secureOwnable = new SecureOwnable(this.client, walletClient, this.contractAddress, this.chain);
   }
 
   /**

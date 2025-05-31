@@ -1,17 +1,12 @@
-import { Address, Chain, Hex, PublicClient, WalletClient, keccak256, toHex, Abi } from 'viem';
+import { Address, Chain, Hex, PublicClient, WalletClient, keccak256 } from 'viem';
 import { TransactionOptions } from '../../../particle-core/sdk/typescript/interfaces/base.index';
 import { BaseBloxOperationsHandler } from '../../../types/BloxOperationsHandler';
 import { MetaTransaction, TxRecord } from '../../../particle-core/sdk/typescript/interfaces/lib.index';
-import { MultiPhaseOperationFunctions, SinglePhaseOperationFunctions } from '../../../types/OperationRegistry';
+import { SinglePhaseOperationFunctions } from '../../../types/OperationRegistry';
 import SimpleRWA20 from '../SimpleRWA20';
-import { TxStatus } from '../../../particle-core/sdk/typescript/types/lib.index';
 import { SecureOwnable } from '../../../particle-core/sdk/typescript/SecureOwnable';
 import { RWA20TxRecord, TokenMetaTxParams } from './types';
 import { MetaTransactionManager } from '../../../services/MetaTransactionManager';
-import SimpleRWA20ABIJson from '../SimpleRWA20.abi.json';
-
-// Parse and type the ABI
-const SimpleRWA20ABI = SimpleRWA20ABIJson as Abi;
 
 /**
  * Get meta transaction settings from local storage
@@ -199,12 +194,7 @@ export default class SimpleRWA20OperationsHandler extends BaseBloxOperationsHand
         if (!this.walletClient?.account) {
           throw new Error("Wallet not connected");
         }
-        return contract.mintWithMetaTx(metaTx, { from: this.walletClient.account.address });
-      },
-      
-      // Required by SinglePhaseOperationFunctions
-      getExecutionOptions: async (params: { to: Address, amount: bigint }) => {
-        return '0x' as `0x${string}`;
+        return contract.mintWithMetaTx(metaTx, options);
       }
     };
     
@@ -240,12 +230,7 @@ export default class SimpleRWA20OperationsHandler extends BaseBloxOperationsHand
         if (!this.walletClient?.account) {
           throw new Error("Wallet not connected");
         }
-        return contract.burnWithMetaTx(metaTx, { from: this.walletClient.account.address });
-      },
-      
-      // Required by SinglePhaseOperationFunctions
-      getExecutionOptions: async (params: { from: Address, amount: bigint }) => {
-        return '0x' as `0x${string}`;
+        return contract.burnWithMetaTx(metaTx, options);
       }
     };
     
@@ -274,7 +259,7 @@ export default class SimpleRWA20OperationsHandler extends BaseBloxOperationsHand
    * Handler for approval actions - Required by BaseBloxOperationsHandler
    * Not applicable for RWA20 tokens, but must be implemented
    */
-  async handleApprove(txId: number): Promise<void> {
+  async handleApprove(_txId: number): Promise<void> {
     throw new Error("Direct approval not applicable for SimpleRWA20. Use mint or burn operations instead.");
   }
 
@@ -282,7 +267,7 @@ export default class SimpleRWA20OperationsHandler extends BaseBloxOperationsHand
    * Handler for cancellation actions - Required by BaseBloxOperationsHandler
    * Not applicable for RWA20 tokens, but must be implemented
    */
-  async handleCancel(txId: number): Promise<void> {
+  async handleCancel(_txId: number): Promise<void> {
     throw new Error("Direct cancellation not applicable for SimpleRWA20. Use mint or burn operations instead.");
   }
 
@@ -396,7 +381,7 @@ export default class SimpleRWA20OperationsHandler extends BaseBloxOperationsHand
    * Implementation of required handleBroadcast method from base class
    * Maps to our custom RWA20 implementation with fixed parameters
    */
-  async handleBroadcast(tx: TxRecord, type: 'approve' | 'cancel'): Promise<void> {
+  async handleBroadcast(tx: TxRecord, _type: 'approve' | 'cancel'): Promise<void> {
     // Map approve/cancel to mint/burn for RWA20
     const operationType = tx.params.operationType as Hex;
     const operationTypes = this.getOperationTypes();
@@ -729,7 +714,7 @@ export default class SimpleRWA20OperationsHandler extends BaseBloxOperationsHand
   }
 
   // Add bigIntReplacer method
-  private bigIntReplacer(key: string, value: any): any {
+  private bigIntReplacer(value: any): any {
     if (typeof value === 'bigint') {
       return value.toString();
     }

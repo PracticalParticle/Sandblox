@@ -15,28 +15,14 @@ import SimpleRWA20 from "./SimpleRWA20";
 import { useChain } from "@/hooks/useChain";
 import { atom, useAtom } from "jotai";
 import { AlertCircle, Loader2, Coins, Settings2, ShieldCheck, Info } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import { ContractInfo as BaseContractInfo } from "@/lib/verification/index";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { NotificationMessage, TokenMetaTxParams, RWA20TxRecord } from './lib/types';
+import { NotificationMessage, TokenMetaTxParams } from './lib/types';
 import { TransactionManagerProvider } from "@/contexts/MetaTransactionManager";
-import { useOperations, RWA20_OPERATIONS } from './hooks/useOperations';
+import { useOperations } from './hooks/useOperations';
 import { SimpleRWA20Service } from "./lib/services";
 import { useWorkflowManager } from "@/hooks/useWorkflowManager";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-
-// Define TxStatus constants directly to avoid import issues
-const TX_STATUS = {
-  UNDEFINED: 0,
-  PENDING: 1,
-  CANCELLED: 2,
-  COMPLETED: 3,
-  FAILED: 4,
-  REJECTED: 5
-} as const;
 
 // Extend the base ContractInfo interface to include broadcaster and other properties
 interface ContractInfo extends BaseContractInfo {
@@ -359,120 +345,6 @@ const BurnForm = ({ onSubmit, isLoading, decimals, maxAmount }: BurnFormProps) =
   );
 };
 
-// Transaction History Component
-interface TransactionHistoryProps {
-  transactions: RWA20TxRecord[];
-  isLoading: boolean;
-  decimals: number;
-  onBroadcast: (tx: RWA20TxRecord, type: 'mint' | 'burn') => Promise<void>;
-  isBroadcasting: boolean;
-}
-
-const TransactionHistory = ({ 
-  transactions, 
-  isLoading, 
-  decimals,
-  onBroadcast,
-  isBroadcasting
-}: TransactionHistoryProps) => {
-  // Define status badge variants for numeric status
-  const getStatusVariant = (status: number): "default" | "secondary" | "destructive" | "outline" => {
-    // Map numeric status values to appropriate variants
-    switch (status) {
-      case TX_STATUS.PENDING:
-        return "outline";
-      case TX_STATUS.COMPLETED:
-        return "default";
-      case TX_STATUS.FAILED:
-        return "destructive";
-      default:
-        return "secondary";
-    }
-  };
-
-  // Define mapping function for status to display text
-  const getStatusText = (status: number): string => {
-    switch (status) {
-      case TX_STATUS.UNDEFINED: return "UNDEFINED";
-      case TX_STATUS.PENDING: return "PENDING";
-      case TX_STATUS.CANCELLED: return "CANCELLED";
-      case TX_STATUS.COMPLETED: return "COMPLETED";
-      case TX_STATUS.FAILED: return "FAILED";
-      case TX_STATUS.REJECTED: return "REJECTED";
-      default: return "UNKNOWN";
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-20 w-full" />
-        <Skeleton className="h-20 w-full" />
-      </div>
-    );
-  }
-/* 
-  if (transactions.length === 0) {
-    return (
-      <div className="text-center py-8">
-        <p className="text-muted-foreground">No transactions found</p>
-      </div>
-    );
-  } */
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Operation</TableHead>
-              <TableHead>Address</TableHead>
-              <TableHead>Amount</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {transactions.map((tx) => (
-              <TableRow key={tx.txId.toString()}>
-                <TableCell>
-                  <Badge variant="outline">{tx.type}</Badge>
-                </TableCell>
-                <TableCell className="font-mono text-xs">
-                  {tx.type === "MINT" 
-                    ? `${tx.to.substring(0, 6)}...${tx.to.substring(tx.to.length - 4)}`
-                    : `${tx.from?.substring(0, 6)}...${tx.from?.substring(tx.from.length - 4)}`
-                  }
-                </TableCell>
-                <TableCell>{formatUnits(tx.amount, decimals)}</TableCell>
-                <TableCell>
-                  <Badge variant={getStatusVariant(tx.status)}>
-                    {getStatusText(tx.status)}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  {tx.status === TX_STATUS.PENDING && (
-                    <Button 
-                      variant="secondary" 
-                      size="sm"
-                      onClick={() => onBroadcast(tx, tx.type.toLowerCase() as 'mint' | 'burn')}
-                      disabled={isBroadcasting}
-                    >
-                      {isBroadcasting ? "Broadcasting..." : "Broadcast"}
-                    </Button>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
-  );
-};
-
 // Main Component Interface
 interface SimpleRWA20UIProps {
   contractAddress?: Address;
@@ -496,7 +368,6 @@ function SimpleRWA20UIContent({
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const chain = useChain();
-  const navigate = useNavigate();
   
   // State declarations
   const [tokenBalance, setTokenBalance] = useState<bigint>(BigInt(0));
@@ -511,30 +382,13 @@ function SimpleRWA20UIContent({
   const {
     handleMetaTxMint,
     handleMetaTxBurn,
-    handleBroadcastMetaTx,
     loadingStates: operationsLoadingStates,
-    rwa20Operations,
-    isLoading: isLoadingOperations,
-    rwa20Service: operationsService,
-    statusFilter,
-    operationTypeFilter,
-    setStatusFilter: setStatusFilterOriginal,
-    setOperationTypeFilter: setOperationTypeFilterOriginal
   } = useOperations({
     contractAddress: contractAddress as Address,
     onSuccess: addMessage,
     onError: addMessage,
     onRefresh: () => handleRefresh()
   });
-  
-  // Status filter functions - Simply pass the filter values through without trying to convert types
-  const setStatusFilter = useCallback((filter: string | null) => {
-    setStatusFilterOriginal(filter || "all");
-  }, [setStatusFilterOriginal]);
-  
-  const setOperationTypeFilter = useCallback((filter: string | null) => {
-    setOperationTypeFilterOriginal(filter || "all");
-  }, [setOperationTypeFilterOriginal]);
   
   // Workflow manager for role validation
   const { isOwner } = useWorkflowManager(contractAddress as Address);
@@ -675,24 +529,6 @@ function SimpleRWA20UIContent({
       setLoadingState(prev => ({ ...prev, burning: false }));
     }
   }, [handleMetaTxBurn, addMessage, decimals]);
-
-  const handleBroadcast = useCallback(async (tx: RWA20TxRecord, type: 'mint' | 'burn') => {
-    try {
-      await handleBroadcastMetaTx(tx, type);
-      addMessage?.({
-        type: 'success',
-        title: 'Transaction Broadcast',
-        description: `Successfully broadcasted ${type} transaction`
-      });
-    } catch (error: any) {
-      console.error('Broadcast error:', error);
-      addMessage?.({
-        type: 'error',
-        title: 'Broadcast Failed',
-        description: error.message || 'Failed to broadcast transaction'
-      });
-    }
-  }, [handleBroadcastMetaTx, addMessage]);
 
   // Loading state
   if (loadingState.initialization) {
@@ -908,9 +744,6 @@ function SimpleRWA20UIContent({
                     <TabsTrigger value="burn" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
                       Burn
                     </TabsTrigger>
-                  {/*   <TabsTrigger value="transactions" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
-                      Transactions
-                    </TabsTrigger> */}
                   </TabsList>
                   
                   <TabsContent value="mint">
@@ -949,26 +782,6 @@ function SimpleRWA20UIContent({
                       </CardContent>
                     </Card>
                   </TabsContent>
-{/* 
-                  <TabsContent value="transactions">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Transaction History</CardTitle>
-                        <CardDescription>
-                          View and manage token operations
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <TransactionHistory
-                          transactions={rwa20Operations}
-                          isLoading={isLoadingOperations}
-                          decimals={decimals}
-                          onBroadcast={handleBroadcast}
-                          isBroadcasting={operationsLoadingStates.broadcasting}
-                        />
-                      </CardContent>
-                    </Card>
-                  </TabsContent> */}
                 </Tabs>
               ) : (
                 // Non-owner view
@@ -980,24 +793,6 @@ function SimpleRWA20UIContent({
                       This is an RWA20 token. Only the owner can mint and burn tokens.
                     </AlertDescription>
                   </Alert>
-                 {/*  
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Transaction History</CardTitle>
-                      <CardDescription>
-                        View token operations
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <TransactionHistory
-                        transactions={rwa20Operations}
-                        isLoading={isLoadingOperations}
-                        decimals={decimals}
-                        onBroadcast={handleBroadcast}
-                        isBroadcasting={operationsLoadingStates.broadcasting}
-                      />
-                    </CardContent>
-                  </Card> */}
                 </div>
               )
             )}

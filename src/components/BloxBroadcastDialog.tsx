@@ -31,11 +31,9 @@ interface BloxBroadcastDialogProps {
     [key: string]: any
   }
   transaction: ExtendedSignedTransaction
-  onBroadcast: (transaction: ExtendedSignedTransaction) => Promise<void>
   isLoading?: boolean
   connectedAddress?: string
   requiredRole?: 'broadcaster'
-  transactionRecord?: TxRecord
 }
 
 export function BloxBroadcastDialog({
@@ -45,11 +43,9 @@ export function BloxBroadcastDialog({
   description,
   contractInfo,
   transaction,
-  onBroadcast,
   isLoading = false,
   connectedAddress,
-  requiredRole = 'broadcaster',
-  transactionRecord
+  requiredRole = 'broadcaster'
 }: BloxBroadcastDialogProps) {
   const [isBroadcasting, setIsBroadcasting] = useState(false)
   const [hasBroadcasted, setHasBroadcasted] = useState(false)
