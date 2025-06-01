@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 // Particle imports
-import "../../particle-core/contracts/GuardianAccountAbstraction.sol";
+import "../GuardianAccountAbstraction.sol";
 
 contract SimpleVault is GuardianAccountAbstraction {
     using SafeERC20 for IERC20;
@@ -234,7 +234,7 @@ contract SimpleVault is GuardianAccountAbstraction {
     function generateUnsignedWithdrawalMetaTxApproval(uint256 txId, VaultMetaTxParams memory metaTxParams) public view returns (MultiPhaseSecureOperation.MetaTransaction memory) {
         // Create meta-transaction parameters using the parent contract's function
         MultiPhaseSecureOperation.MetaTxParams memory params = createMetaTxParams(
-            getBroadcaster(), // Use broadcaster address as handler instead of contract address
+            address(this),
             this.approveWithdrawalWithMetaTx.selector,
             metaTxParams.deadline,
             metaTxParams.maxGasPrice,
