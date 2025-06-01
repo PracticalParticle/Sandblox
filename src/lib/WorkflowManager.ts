@@ -302,7 +302,7 @@ export class WorkflowManager {
 
     // Generate meta-transaction parameters
     const metaTxParams = await this.contract.createMetaTxParams(
-      this.broadcaster,
+      this.contractAddress,
       functionSelector,
       BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
       BigInt(0), // No max gas price
@@ -383,7 +383,7 @@ export class WorkflowManager {
 
     // Generate meta-transaction parameters
     const metaTxParams = await this.contract.createMetaTxParams(
-      this.broadcaster,
+      this.contractAddress,
       functionSelector,
       BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
       BigInt(0), // No max gas price
@@ -556,7 +556,7 @@ export class WorkflowManager {
 
     // Generate meta-transaction parameters
     const metaTxParams = await this.contract.createMetaTxParams(
-      this.broadcaster,
+      this.contractAddress,
       functionSelector,
       BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
       BigInt(0), // No max gas price
