@@ -329,7 +329,7 @@ function GuardianSafeUIContent({
   const [delegatedCallEnabled, setDelegatedCallEnabled] = useAtom(delegatedCallEnabledAtom);
   const [error, setError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [signedMetaTxStates, setSignedMetaTxStates] = useState<Record<string, { type: 'approve' | 'cancel' }>>({});
+  const [signedMetaTxStates] = useState<Record<string, { type: 'approve' | 'cancel' }>>({});
   
   // Operations hook
   const {
@@ -339,10 +339,7 @@ function GuardianSafeUIContent({
     handleMetaTxSign,
     handleBroadcastMetaTx,
     loadingStates: operationsLoadingStates,
-    isDelegatedCallEnabled,
     handleDelegatedCallToggle,
-    safeOperations,
-    getOperationName
   } = useOperations({
     contractAddress: contractAddress as Address,
     onSuccess: addMessage,
