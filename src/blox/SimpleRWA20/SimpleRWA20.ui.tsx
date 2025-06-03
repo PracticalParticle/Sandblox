@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import SimpleRWA20 from "./SimpleRWA20";
 import { useChain } from "@/hooks/useChain";
 import { atom, useAtom } from "jotai";
-import { AlertCircle, Loader2, Coins, Settings2, ShieldCheck, Info } from "lucide-react";
+import { AlertCircle, Loader2, Coins, Settings2, ShieldCheck, Info, ArrowUpDown, Check } from "lucide-react";
 import { ContractInfo as BaseContractInfo } from "@/lib/verification/index";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -49,6 +49,8 @@ const loadingStateAtom = atom<{
   burning: boolean;
   initialization: boolean;
   operations: boolean;
+  transferring: boolean;
+  approving: boolean;
 }>({
   tokenInfo: false,
   balance: false,
@@ -56,6 +58,8 @@ const loadingStateAtom = atom<{
   burning: false,
   initialization: true,
   operations: false,
+  transferring: false,
+  approving: false,
 });
 
 // Add storage key for meta tx settings
@@ -345,6 +349,204 @@ const BurnForm = ({ onSubmit, isLoading, decimals, maxAmount }: BurnFormProps) =
   );
 };
 
+// Transfer Form Component
+interface TransferFormProps {
+  onSubmit: (to: Address, amount: bigint) => Promise<void>;
+  isLoading: boolean;
+  decimals: number;
+  maxAmount: bigint;
+}
+
+const TransferForm = ({ onSubmit, isLoading, decimals, maxAmount }: TransferFormProps) => {
+  const [to, setTo] = useState<string>("");
+  const [amount, setAmount] = useState<string>("");
+  const [error, setError] = useState<string>("");
+  
+  // Format the max amount based on decimals
+  const formattedMaxAmount = formatUnits(maxAmount, decimals);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError("");
+    
+    try {
+      // Validate address
+      if (!/^0x[a-fA-F0-9]{40}$/.test(to)) {
+        throw new Error("Invalid recipient address");
+      }
+
+      // Parse amount with appropriate decimals
+      const parsedAmount = parseUnits(amount, decimals);
+      
+      if (parsedAmount > maxAmount) {
+        throw new Error("Amount exceeds your balance");
+      }
+      
+      await onSubmit(to as Address, parsedAmount);
+      setTo("");
+      setAmount("");
+    } catch (error: any) {
+      console.error('Form submission error:', error);
+      setError(error.message);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="to">Recipient Address</Label>
+        <Input
+          id="to"
+          placeholder="0x..."
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+          required
+          pattern="^0x[a-fA-F0-9]{40}$"
+          aria-label="Recipient address input"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="amount">Amount</Label>
+        <Input
+          id="amount"
+          type="number"
+          step="any"
+          min="0"
+          placeholder="0.0"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          required
+          aria-label="Token amount input"
+        />
+        <div className="flex justify-between text-sm text-muted-foreground">
+          <div>Your balance: {Number(formattedMaxAmount).toFixed(4)}</div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-auto p-0 text-primary"
+            onClick={() => setAmount(formattedMaxAmount)}
+          >
+            Max
+          </Button>
+        </div>
+      </div>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      <Button type="submit" disabled={isLoading} className="w-full">
+        {isLoading ? "Processing..." : "Transfer Tokens"}
+      </Button>
+    </form>
+  );
+};
+
+// Allowance Form Component
+interface AllowanceFormProps {
+  onSubmit: (spender: Address, amount: bigint) => Promise<void>;
+  isLoading: boolean;
+  decimals: number;
+  maxAmount: bigint;
+}
+
+const AllowanceForm = ({ onSubmit, isLoading, decimals, maxAmount }: AllowanceFormProps) => {
+  const [spender, setSpender] = useState<string>("");
+  const [amount, setAmount] = useState<string>("");
+  const [error, setError] = useState<string>("");
+  
+  // Format the max amount based on decimals
+  const formattedMaxAmount = formatUnits(maxAmount, decimals);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError("");
+    
+    try {
+      // Validate address
+      if (!/^0x[a-fA-F0-9]{40}$/.test(spender)) {
+        throw new Error("Invalid spender address");
+      }
+
+      // Parse amount with appropriate decimals
+      const parsedAmount = parseUnits(amount, decimals);
+      
+      if (parsedAmount > maxAmount) {
+        throw new Error("Amount exceeds your balance");
+      }
+      
+      await onSubmit(spender as Address, parsedAmount);
+      setSpender("");
+      setAmount("");
+    } catch (error: any) {
+      console.error('Form submission error:', error);
+      setError(error.message);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="spender">Spender Address</Label>
+        <Input
+          id="spender"
+          placeholder="0x..."
+          value={spender}
+          onChange={(e) => setSpender(e.target.value)}
+          required
+          pattern="^0x[a-fA-F0-9]{40}$"
+          aria-label="Spender address input"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="amount">Amount</Label>
+        <Input
+          id="amount"
+          type="number"
+          step="any"
+          min="0"
+          placeholder="0.0"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          required
+          aria-label="Token amount input"
+        />
+        <div className="flex justify-between text-sm text-muted-foreground">
+          <div>Your balance: {Number(formattedMaxAmount).toFixed(4)}</div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-auto p-0 text-primary"
+            onClick={() => setAmount(formattedMaxAmount)}
+          >
+            Max
+          </Button>
+        </div>
+      </div>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      <Button type="submit" disabled={isLoading} className="w-full">
+        {isLoading ? "Processing..." : "Approve Allowance"}
+      </Button>
+    </form>
+  );
+};
+
 // Main Component Interface
 interface SimpleRWA20UIProps {
   contractAddress?: Address;
@@ -529,6 +731,68 @@ function SimpleRWA20UIContent({
       setLoadingState(prev => ({ ...prev, burning: false }));
     }
   }, [handleMetaTxBurn, addMessage, decimals]);
+  
+  // Add new action handlers for transfer and approve
+  const handleTransfer = useCallback(async (to: Address, amount: bigint) => {
+    if (!rwa20Service || !address) {
+      console.error("Cannot transfer: service not initialized or wallet not connected");
+      return;
+    }
+    
+    try {
+      setLoadingState(prev => ({ ...prev, transferring: true }));
+      
+      const result = await rwa20Service.transfer(to, amount, { from: address });
+      await result.wait();
+      
+      // Refresh token data after transfer
+      await handleRefresh();
+      
+      addMessage?.({
+        type: 'success',
+        title: 'Transfer Successful',
+        description: `Successfully transferred ${formatUnits(amount, decimals)} tokens to ${to}`
+      });
+    } catch (error: any) {
+      console.error('Transfer error:', error);
+      addMessage?.({
+        type: 'error',
+        title: 'Transfer Failed',
+        description: error.message || 'Failed to transfer tokens'
+      });
+    } finally {
+      setLoadingState(prev => ({ ...prev, transferring: false }));
+    }
+  }, [rwa20Service, address, handleRefresh, addMessage, decimals]);
+
+  const handleApprove = useCallback(async (spender: Address, amount: bigint) => {
+    if (!rwa20Service || !address) {
+      console.error("Cannot approve: service not initialized or wallet not connected");
+      return;
+    }
+    
+    try {
+      setLoadingState(prev => ({ ...prev, approving: true }));
+      
+      const result = await rwa20Service.approve(spender, amount, { from: address });
+      await result.wait();
+      
+      addMessage?.({
+        type: 'success',
+        title: 'Approval Successful',
+        description: `Successfully approved ${formatUnits(amount, decimals)} tokens for ${spender}`
+      });
+    } catch (error: any) {
+      console.error('Approval error:', error);
+      addMessage?.({
+        type: 'error',
+        title: 'Approval Failed',
+        description: error.message || 'Failed to approve tokens'
+      });
+    } finally {
+      setLoadingState(prev => ({ ...prev, approving: false }));
+    }
+  }, [rwa20Service, address, addMessage, decimals]);
 
   // Loading state
   if (loadingState.initialization) {
@@ -733,16 +997,22 @@ function SimpleRWA20UIContent({
               />
             )}
 
-            {/* Only show mint/burn forms and transaction history in main content */}
+            {/* Only show forms and transaction history in main content */}
             {!renderSidebar && (
               isOwner ? (
                 <Tabs defaultValue="mint" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 bg-background p-1 rounded-lg">
+                  <TabsList className="grid w-full grid-cols-4 bg-background p-1 rounded-lg">
                     <TabsTrigger value="mint" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
                       Mint
                     </TabsTrigger>
                     <TabsTrigger value="burn" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
                       Burn
+                    </TabsTrigger>
+                    <TabsTrigger value="transfer" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
+                      Transfer
+                    </TabsTrigger>
+                    <TabsTrigger value="approve" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
+                      Approve
                     </TabsTrigger>
                   </TabsList>
                   
@@ -782,18 +1052,95 @@ function SimpleRWA20UIContent({
                       </CardContent>
                     </Card>
                   </TabsContent>
+                  
+                  <TabsContent value="transfer">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Transfer Tokens</CardTitle>
+                        <CardDescription>
+                          Send tokens from your account to another address
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <TransferForm
+                          onSubmit={handleTransfer}
+                          isLoading={loadingState.transferring}
+                          decimals={decimals}
+                          maxAmount={tokenBalance}
+                        />
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                  
+                  <TabsContent value="approve">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Approve Tokens</CardTitle>
+                        <CardDescription>
+                          Allow another address to spend tokens on your behalf
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <AllowanceForm
+                          onSubmit={handleApprove}
+                          isLoading={loadingState.approving}
+                          decimals={decimals}
+                          maxAmount={tokenBalance}
+                        />
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
                 </Tabs>
               ) : (
-                // Non-owner view
-                <div className="space-y-6">
-                  <Alert>
-                    <ShieldCheck className="h-4 w-4" />
-                    <AlertTitle>Token Information</AlertTitle>
-                    <AlertDescription>
-                      This is an RWA20 token. Only the owner can mint and burn tokens.
-                    </AlertDescription>
-                  </Alert>
-                </div>
+                // Non-owner view - regular token holder functions
+                <Tabs defaultValue="transfer" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2 bg-background p-1 rounded-lg">
+                    <TabsTrigger value="transfer" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
+                      Transfer
+                    </TabsTrigger>
+                    <TabsTrigger value="approve" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
+                      Approve
+                    </TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="transfer">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Transfer Tokens</CardTitle>
+                        <CardDescription>
+                          Send tokens from your account to another address
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <TransferForm
+                          onSubmit={handleTransfer}
+                          isLoading={loadingState.transferring}
+                          decimals={decimals}
+                          maxAmount={tokenBalance}
+                        />
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                  
+                  <TabsContent value="approve">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Approve Tokens</CardTitle>
+                        <CardDescription>
+                          Allow another address to spend tokens on your behalf
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <AllowanceForm
+                          onSubmit={handleApprove}
+                          isLoading={loadingState.approving}
+                          decimals={decimals}
+                          maxAmount={tokenBalance}
+                        />
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                </Tabs>
               )
             )}
           </CardContent>
