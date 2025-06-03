@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, useContext, createContext } from "react";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import { Address, formatUnits, parseUnits } from "viem";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import SimpleRWA20 from "./SimpleRWA20";
 import { useChain } from "@/hooks/useChain";
 import { atom, useAtom } from "jotai";
-import { AlertCircle, Loader2, Coins, Settings2, ShieldCheck, Info, ArrowUpDown, Check } from "lucide-react";
+import { AlertCircle, Loader2, Coins, Settings2, Info } from "lucide-react";
 import { ContractInfo as BaseContractInfo } from "@/lib/verification/index";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -73,6 +73,9 @@ const defaultMetaTxSettings: TokenMetaTxParams = {
 
 // Settings atom
 const metaTxSettingsAtom = atom<TokenMetaTxParams>(defaultMetaTxSettings);
+
+// Create a context for the contract address
+const ContractAddressContext = createContext<Address | undefined>(undefined);
 
 // Component for Meta Transaction Settings Dialog
 function MetaTxSettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -262,9 +265,42 @@ const BurnForm = ({ onSubmit, isLoading, decimals, maxAmount }: BurnFormProps) =
   const [from, setFrom] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
   const [error, setError] = useState<string>("");
+  const [allowance, setAllowance] = useState<bigint>(BigInt(0));
+  const [loadingAllowance, setLoadingAllowance] = useState<boolean>(false);
+  const [rwa20] = useAtom(rwa20InstanceAtom);
+  
+  // Get the contract address from context
+  const contractAddress = useContext(ContractAddressContext);
   
   // Format the max amount based on decimals
-  const formattedMaxAmount = formatUnits(maxAmount, decimals);
+  const formattedAllowance = formatUnits(allowance, decimals);
+
+  // Fetch allowance when the from address changes
+  useEffect(() => {
+    const fetchAllowance = async () => {
+      if (!rwa20 || !from || !contractAddress || !/^0x[a-fA-F0-9]{40}$/.test(from)) {
+        setAllowance(BigInt(0));
+        return;
+      }
+
+      try {
+        setLoadingAllowance(true);
+        // Check the allowance the "from" address has given to the token contract itself
+        // The allowance function takes (owner, spender) where:
+        // - owner is the address owning the tokens (from address)
+        // - spender is the contract address that's allowed to burn tokens
+        const allowanceAmount = await rwa20.allowance(from as Address, contractAddress);
+        setAllowance(allowanceAmount);
+      } catch (err) {
+        console.error('Failed to fetch allowance:', err);
+        setAllowance(BigInt(0));
+      } finally {
+        setLoadingAllowance(false);
+      }
+    };
+
+    fetchAllowance();
+  }, [from, rwa20, contractAddress]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -279,8 +315,8 @@ const BurnForm = ({ onSubmit, isLoading, decimals, maxAmount }: BurnFormProps) =
       // Parse amount with appropriate decimals
       const parsedAmount = parseUnits(amount, decimals);
       
-      if (parsedAmount > maxAmount) {
-        throw new Error("Amount exceeds total supply");
+      if (parsedAmount > allowance) {
+        throw new Error("Amount exceeds allowance");
       }
       
       await onSubmit(from as Address, parsedAmount);
@@ -321,13 +357,20 @@ const BurnForm = ({ onSubmit, isLoading, decimals, maxAmount }: BurnFormProps) =
           aria-label="Token amount input"
         />
         <div className="flex justify-between text-sm text-muted-foreground">
-          <div>Total supply: {Number(formattedMaxAmount).toFixed(4)}</div>
+          <div>
+            {loadingAllowance ? (
+              <span>Loading allowance...</span>
+            ) : (
+              <span>Address Allowance: {Number(formattedAllowance).toFixed(4)}</span>
+            )}
+          </div>
           <Button
             type="button"
             variant="ghost"
             size="sm"
             className="h-auto p-0 text-primary"
-            onClick={() => setAmount(formattedMaxAmount)}
+            onClick={() => setAmount(formattedAllowance)}
+            disabled={loadingAllowance || allowance === BigInt(0)}
           >
             Max
           </Button>
@@ -541,7 +584,7 @@ const AllowanceForm = ({ onSubmit, isLoading, decimals, maxAmount }: AllowanceFo
       )}
 
       <Button type="submit" disabled={isLoading} className="w-full">
-        {isLoading ? "Processing..." : "Approve Allowance"}
+        {isLoading ? "Processing..." : "Set Allowance"}
       </Button>
     </form>
   );
@@ -853,300 +896,302 @@ function SimpleRWA20UIContent({
 
   // Render main content
   return (
-    <div className="h-full overflow-auto">
-      {chain?.id && contractInfo?.chainId && chain.id !== contractInfo.chainId && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Wrong Network</AlertTitle>
-          <AlertDescription>
-            This token was deployed on {contractInfo?.chainName || 'unknown network'}. Please switch to the correct network to perform operations.
-          </AlertDescription>
-        </Alert>
-      )}
-      
-      <div className={dashboardMode ? "p-0" : "container mx-auto p-4"}>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <Coins className="h-4 w-4 text-primary" />
-              </div>
+    <ContractAddressContext.Provider value={contractAddress}>
+      <div className="h-full overflow-auto">
+        {chain?.id && contractInfo?.chainId && chain.id !== contractInfo.chainId && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Wrong Network</AlertTitle>
+            <AlertDescription>
+              This token was deployed on {contractInfo?.chainName || 'unknown network'}. Please switch to the correct network to perform operations.
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        <div className={dashboardMode ? "p-0" : "container mx-auto p-4"}>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-semibold">
-                  {loadingState.tokenInfo ? (
-                    <Skeleton className="h-6 w-32" />
-                  ) : (
-                    tokenMetadata?.name || "RWA20 Token"
-                  )}
-                </h2>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <Info className="h-4 w-4 text-muted-foreground" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Real-World Asset Token with meta-transaction capabilities</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Coins className="h-4 w-4 text-primary" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-semibold">
+                    {loadingState.tokenInfo ? (
+                      <Skeleton className="h-6 w-32" />
+                    ) : (
+                      tokenMetadata?.name || "RWA20 Token"
+                    )}
+                  </h2>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Info className="h-4 w-4 text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Real-World Asset Token with meta-transaction capabilities</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
               </div>
-            </div>
-            {!renderSidebar && (
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRefresh}
-                  disabled={loadingState.tokenInfo || !rwa20}
-                >
-                  {loadingState.tokenInfo ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Refreshing...
-                    </>
-                  ) : (
-                    'Refresh'
-                  )}
-                </Button>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSettingsOpen(true)}
-                      >
-                        <Settings2 className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Configure meta-transaction settings</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-            )}
-          </CardHeader>
+              {!renderSidebar && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRefresh}
+                    disabled={loadingState.tokenInfo || !rwa20}
+                  >
+                    {loadingState.tokenInfo ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Refreshing...
+                      </>
+                    ) : (
+                      'Refresh'
+                    )}
+                  </Button>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSettingsOpen(true)}
+                        >
+                          <Settings2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Configure meta-transaction settings</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              )}
+            </CardHeader>
 
-          {/* Token metadata and balance */}
-          <CardContent className="pt-2 pb-4">
-            <div className={`grid gap-4 mb-6 ${renderSidebar ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'}`}>
-              {/* Token Info Section */}
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium text-muted-foreground">TOKEN INFO</h3>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-md border p-3">
-                    <p className="text-sm font-medium text-muted-foreground">Symbol</p>
-                    {loadingState.tokenInfo ? (
-                      <Skeleton className="h-6 w-16 mt-1" />
-                    ) : (
-                      <p className="text-xl font-bold truncate" title={tokenMetadata?.symbol || "---"}>
-                        {tokenMetadata?.symbol || "---"}
-                      </p>
-                    )}
+            {/* Token metadata and balance */}
+            <CardContent className="pt-2 pb-4">
+              <div className={`grid gap-4 mb-6 ${renderSidebar ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'}`}>
+                {/* Token Info Section */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-muted-foreground">TOKEN INFO</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-md border p-3">
+                      <p className="text-sm font-medium text-muted-foreground">Symbol</p>
+                      {loadingState.tokenInfo ? (
+                        <Skeleton className="h-6 w-16 mt-1" />
+                      ) : (
+                        <p className="text-xl font-bold truncate" title={tokenMetadata?.symbol || "---"}>
+                          {tokenMetadata?.symbol || "---"}
+                        </p>
+                      )}
+                    </div>
+                    <div className="rounded-md border p-3">
+                      <p className="text-sm font-medium text-muted-foreground">Decimals</p>
+                      {loadingState.tokenInfo ? (
+                        <Skeleton className="h-6 w-16 mt-1" />
+                      ) : (
+                        <p className="text-xl font-bold">{tokenMetadata?.decimals || "---"}</p>
+                      )}
+                    </div>
                   </div>
-                  <div className="rounded-md border p-3">
-                    <p className="text-sm font-medium text-muted-foreground">Decimals</p>
-                    {loadingState.tokenInfo ? (
-                      <Skeleton className="h-6 w-16 mt-1" />
-                    ) : (
-                      <p className="text-xl font-bold">{tokenMetadata?.decimals || "---"}</p>
-                    )}
+                </div>
+                
+                {/* Balances Section */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-muted-foreground">BALANCES</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-md border p-3">
+                      <p className="text-sm font-medium text-muted-foreground">Total Supply</p>
+                      {loadingState.tokenInfo ? (
+                        <Skeleton className="h-6 w-24 mt-1" />
+                      ) : (
+                        <p className="text-xl font-bold truncate" title={tokenMetadata?.totalSupply ? formatUnits(tokenMetadata.totalSupply, decimals) : "---"}>
+                          {tokenMetadata?.totalSupply 
+                            ? formatUnits(tokenMetadata.totalSupply, decimals)
+                            : "---"
+                          }
+                        </p>
+                      )}
+                    </div>
+                    <div className="rounded-md border p-3">
+                      <p className="text-sm font-medium text-muted-foreground">Your Balance</p>
+                      {!address ? (
+                        <p className="text-xs text-muted-foreground mt-1">Connect wallet to view</p>
+                      ) : loadingState.balance ? (
+                        <Skeleton className="h-6 w-24 mt-1" />
+                      ) : (
+                        <p className="text-xl font-bold truncate" title={formatUnits(tokenBalance, decimals)}>
+                          {formatUnits(tokenBalance, decimals)}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
-              
-              {/* Balances Section */}
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium text-muted-foreground">BALANCES</h3>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-md border p-3">
-                    <p className="text-sm font-medium text-muted-foreground">Total Supply</p>
-                    {loadingState.tokenInfo ? (
-                      <Skeleton className="h-6 w-24 mt-1" />
-                    ) : (
-                      <p className="text-xl font-bold truncate" title={tokenMetadata?.totalSupply ? formatUnits(tokenMetadata.totalSupply, decimals) : "---"}>
-                        {tokenMetadata?.totalSupply 
-                          ? formatUnits(tokenMetadata.totalSupply, decimals)
-                          : "---"
-                        }
-                      </p>
-                    )}
-                  </div>
-                  <div className="rounded-md border p-3">
-                    <p className="text-sm font-medium text-muted-foreground">Your Balance</p>
-                    {!address ? (
-                      <p className="text-xs text-muted-foreground mt-1">Connect wallet to view</p>
-                    ) : loadingState.balance ? (
-                      <Skeleton className="h-6 w-24 mt-1" />
-                    ) : (
-                      <p className="text-xl font-bold truncate" title={formatUnits(tokenBalance, decimals)}>
-                        {formatUnits(tokenBalance, decimals)}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
 
-            {/* Meta Transaction Settings Dialog */}
-            {!renderSidebar && (
-              <MetaTxSettingsDialog
-                open={settingsOpen}
-                onOpenChange={setSettingsOpen}
-              />
-            )}
+              {/* Meta Transaction Settings Dialog */}
+              {!renderSidebar && (
+                <MetaTxSettingsDialog
+                  open={settingsOpen}
+                  onOpenChange={setSettingsOpen}
+                />
+              )}
 
-            {/* Only show forms and transaction history in main content */}
-            {!renderSidebar && (
-              isOwner ? (
-                <Tabs defaultValue="mint" className="w-full">
-                  <TabsList className="grid w-full grid-cols-4 bg-background p-1 rounded-lg">
-                    <TabsTrigger value="mint" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
-                      Mint
-                    </TabsTrigger>
-                    <TabsTrigger value="burn" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
-                      Burn
-                    </TabsTrigger>
-                    <TabsTrigger value="transfer" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
-                      Transfer
-                    </TabsTrigger>
-                    <TabsTrigger value="approve" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
-                      Approve
-                    </TabsTrigger>
-                  </TabsList>
-                  
-                  <TabsContent value="mint">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Mint Tokens</CardTitle>
-                        <CardDescription>
-                          Creates and signs a meta-transaction to mint new tokens
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <MintForm
-                          onSubmit={handleMint}
-                          isLoading={loadingState.minting || operationsLoadingStates.minting}
-                          decimals={decimals}
-                        />
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
+              {/* Only show forms and transaction history in main content */}
+              {!renderSidebar && (
+                isOwner ? (
+                  <Tabs defaultValue="mint" className="w-full">
+                    <TabsList className="grid w-full grid-cols-4 bg-background p-1 rounded-lg">
+                      <TabsTrigger value="mint" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
+                        Mint
+                      </TabsTrigger>
+                      <TabsTrigger value="burn" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
+                        Burn
+                      </TabsTrigger>
+                      <TabsTrigger value="transfer" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
+                        Transfer
+                      </TabsTrigger>
+                      <TabsTrigger value="approve" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
+                        Allowance
+                      </TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="mint">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Mint Tokens</CardTitle>
+                          <CardDescription>
+                            Creates and signs a meta-transaction to mint new tokens
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <MintForm
+                            onSubmit={handleMint}
+                            isLoading={loadingState.minting || operationsLoadingStates.minting}
+                            decimals={decimals}
+                          />
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
 
-                  <TabsContent value="burn">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Burn Tokens</CardTitle>
-                        <CardDescription>
-                          Creates and signs a meta-transaction to burn existing tokens
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <BurnForm
-                          onSubmit={handleBurn}
-                          isLoading={loadingState.burning || operationsLoadingStates.burning}
-                          decimals={decimals}
-                          maxAmount={tokenMetadata?.totalSupply || BigInt(0)}
-                        />
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
-                  
-                  <TabsContent value="transfer">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Transfer Tokens</CardTitle>
-                        <CardDescription>
-                          Send tokens from your account to another address
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <TransferForm
-                          onSubmit={handleTransfer}
-                          isLoading={loadingState.transferring}
-                          decimals={decimals}
-                          maxAmount={tokenBalance}
-                        />
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
-                  
-                  <TabsContent value="approve">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Approve Tokens</CardTitle>
-                        <CardDescription>
-                          Allow another address to spend tokens on your behalf
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <AllowanceForm
-                          onSubmit={handleApprove}
-                          isLoading={loadingState.approving}
-                          decimals={decimals}
-                          maxAmount={tokenBalance}
-                        />
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
-                </Tabs>
-              ) : (
-                // Non-owner view - regular token holder functions
-                <Tabs defaultValue="transfer" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 bg-background p-1 rounded-lg">
-                    <TabsTrigger value="transfer" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
-                      Transfer
-                    </TabsTrigger>
-                    <TabsTrigger value="approve" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
-                      Approve
-                    </TabsTrigger>
-                  </TabsList>
-                  
-                  <TabsContent value="transfer">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Transfer Tokens</CardTitle>
-                        <CardDescription>
-                          Send tokens from your account to another address
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <TransferForm
-                          onSubmit={handleTransfer}
-                          isLoading={loadingState.transferring}
-                          decimals={decimals}
-                          maxAmount={tokenBalance}
-                        />
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
-                  
-                  <TabsContent value="approve">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Approve Tokens</CardTitle>
-                        <CardDescription>
-                          Allow another address to spend tokens on your behalf
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <AllowanceForm
-                          onSubmit={handleApprove}
-                          isLoading={loadingState.approving}
-                          decimals={decimals}
-                          maxAmount={tokenBalance}
-                        />
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
-                </Tabs>
-              )
-            )}
-          </CardContent>
-        </Card>
+                    <TabsContent value="burn">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Burn Tokens</CardTitle>
+                          <CardDescription>
+                            Creates and signs a meta-transaction to burn existing tokens
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <BurnForm
+                            onSubmit={handleBurn}
+                            isLoading={loadingState.burning || operationsLoadingStates.burning}
+                            decimals={decimals}
+                            maxAmount={tokenMetadata?.totalSupply || BigInt(0)}
+                          />
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                    
+                    <TabsContent value="transfer">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Transfer Tokens</CardTitle>
+                          <CardDescription>
+                            Send tokens from your account to another address
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <TransferForm
+                            onSubmit={handleTransfer}
+                            isLoading={loadingState.transferring}
+                            decimals={decimals}
+                            maxAmount={tokenBalance}
+                          />
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                    
+                    <TabsContent value="approve">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Set Token Allowance</CardTitle>
+                          <CardDescription>
+                            Allow another address to spend tokens on your behalf
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <AllowanceForm
+                            onSubmit={handleApprove}
+                            isLoading={loadingState.approving}
+                            decimals={decimals}
+                            maxAmount={tokenBalance}
+                          />
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                  </Tabs>
+                ) : (
+                  // Non-owner view - regular token holder functions
+                  <Tabs defaultValue="transfer" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2 bg-background p-1 rounded-lg">
+                      <TabsTrigger value="transfer" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
+                        Transfer
+                      </TabsTrigger>
+                      <TabsTrigger value="approve" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
+                        Allowance
+                      </TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="transfer">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Transfer Tokens</CardTitle>
+                          <CardDescription>
+                            Send tokens from your account to another address
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <TransferForm
+                            onSubmit={handleTransfer}
+                            isLoading={loadingState.transferring}
+                            decimals={decimals}
+                            maxAmount={tokenBalance}
+                          />
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                    
+                    <TabsContent value="approve">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Set Token Allowance</CardTitle>
+                          <CardDescription>
+                            Allow another address to spend tokens on your behalf
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <AllowanceForm
+                            onSubmit={handleApprove}
+                            isLoading={loadingState.approving}
+                            decimals={decimals}
+                            maxAmount={tokenBalance}
+                          />
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                  </Tabs>
+                )
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
-    </div>
+    </ContractAddressContext.Provider>
   );
 }
 
