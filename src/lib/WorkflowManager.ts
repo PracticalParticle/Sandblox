@@ -38,7 +38,6 @@ export class WorkflowManager {
   private walletClient?: WalletClient;
   private contractAddress: Address;
   private chain: Chain;
-  private broadcaster: Address = '0x0000000000000000000000000000000000000000' as Address;
   private contractInfo?: SecureContractInfo;
   private storeTransaction?: (txId: string, signedData: string, metadata?: Record<string, unknown>) => void;
   private contractType?: string;
@@ -107,7 +106,6 @@ export class WorkflowManager {
   async initialize(): Promise<SecureContractInfo> {
     // Load contract info and set broadcaster
     this.contractInfo = await this.loadContractInfo();
-    this.broadcaster = this.contractInfo.broadcaster as Address;
     return this.contractInfo;
   }
 

@@ -65,7 +65,7 @@ export function DeploymentForm({ onDeploy, isLoading }: DeploymentFormProps) {
       type: 'checkbox',
       description: 'Allow execution of delegated calls (advanced feature)',
       defaultValue: 'false',
-      validate: (value) => {
+      validate: (_value) => {
         // No validation needed for boolean
         return undefined;
       }

@@ -258,10 +258,9 @@ interface BurnFormProps {
   onSubmit: (from: Address, amount: bigint) => Promise<void>;
   isLoading: boolean;
   decimals: number;
-  maxAmount: bigint;
 }
 
-const BurnForm = ({ onSubmit, isLoading, decimals, maxAmount }: BurnFormProps) => {
+const BurnForm = ({ onSubmit, isLoading, decimals }: BurnFormProps) => {
   const [from, setFrom] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
   const [error, setError] = useState<string>("");
@@ -272,7 +271,7 @@ const BurnForm = ({ onSubmit, isLoading, decimals, maxAmount }: BurnFormProps) =
   // Get the contract address from context
   const contractAddress = useContext(ContractAddressContext);
   
-  // Format the max amount based on decimals
+  // Format allowance based on decimals
   const formattedAllowance = formatUnits(allowance, decimals);
 
   // Fetch allowance when the from address changes
@@ -1091,7 +1090,6 @@ function SimpleRWA20UIContent({
                             onSubmit={handleBurn}
                             isLoading={loadingState.burning || operationsLoadingStates.burning}
                             decimals={decimals}
-                            maxAmount={tokenMetadata?.totalSupply || BigInt(0)}
                           />
                         </CardContent>
                       </Card>
