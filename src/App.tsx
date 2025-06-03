@@ -10,8 +10,6 @@ import { SecurityDetails } from './pages/SecurityDetails';
 import { Navbar } from './components/navigation/Navbar';
 import { Footer } from './components/navigation/Footer';
 import BloxMiniApp from './pages/BloxMiniApp';
-import Blockchains from './pages/Blockchains';
-import BlockchainDetails from './pages/BlockchainDetails';
 import Documentation from './pages/Documentation';
 import { Terms } from './pages/Terms';
 import { Privacy } from './pages/Privacy';
@@ -33,8 +31,6 @@ export default function App() {
               <Route path="/contracts/:contractId" element={<ContractDetails />} />
               <Route path="/blox-security/:address" element={<SecurityDetails />} />
               <Route path="/blox/:type/:address" element={<BloxMiniApp />} />
-              <Route path="/blockchains" element={<Blockchains />} />
-              <Route path="/blockchains/:id" element={<BlockchainDetails />} />
               <Route path="/docs" element={<Documentation />} />
               <Route path="/docs/:slug" element={<Documentation />} />
               <Route path="/terms" element={<Terms />} />

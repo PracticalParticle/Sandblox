@@ -1,0 +1,30 @@
+{
+  "id": "guardian-safe",
+  "name": "Guardian Safe",
+  "description": "A secure wrapper for Safe wallet functionality using GuardianAccountAbstraction security framework for enhanced transaction security and controls.",
+  "category": "Wallet",
+  "securityLevel": "Advanced",
+  "features": [
+    "Time-locked transaction security with configurable delay",
+    "Meta-transaction support for gasless approvals and cancellations",
+    "Transaction guard integration with Safe contracts",
+    "Role-based access control (owner, broadcaster, recovery)",
+    "Delegated call controls for enhanced security"
+  ],
+  "requirements": [
+    "Ethereum wallet",
+    "ETH for gas fees",
+    "Existing Safe wallet contract",
+    "Broadcaster account for meta-transactions"
+  ],
+  "deployments": {
+    "11155111": {
+      "name": "Sepolia",
+      "factory": ""
+    },
+    "1337": {
+      "name": "Particle-DevNet",
+      "factory": ""
+    }
+  }
+}

@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 // Particle imports
-import "../../particle-core/contracts/GuardianAccountAbstraction.sol";
+import "../GuardianAccountAbstraction.sol";
 
 contract SimpleVault is GuardianAccountAbstraction {
     using SafeERC20 for IERC20;
@@ -20,7 +20,7 @@ contract SimpleVault is GuardianAccountAbstraction {
     bytes4 private constant WITHDRAW_TOKEN_SELECTOR = bytes4(keccak256("executeWithdrawToken(address,address,uint256)"));
 
     // Timelock period constants (in minutes)
-    uint256 private constant MIN_TIMELOCK_PERIOD = 24 * 60; // 1 day
+    uint256 private constant MIN_TIMELOCK_PERIOD = 1 * 24 * 60; // 1 day
     uint256 private constant MAX_TIMELOCK_PERIOD = 90 * 24 * 60; // 90 days
 
     // Struct for meta-transaction parameters
@@ -175,9 +175,6 @@ contract SimpleVault is GuardianAccountAbstraction {
      * @param txId The ID of the withdrawal transaction to cancel
      */
     function cancelWithdrawal(uint256 txId) public onlyOwner returns (MultiPhaseSecureOperation.TxRecord memory) {
-        MultiPhaseSecureOperation.TxRecord memory currentTxRecord = MultiPhaseSecureOperation.getTxRecord(_getSecureState(), txId);
-        require(block.timestamp >= currentTxRecord.releaseTime - (_getSecureState().timeLockPeriodInMinutes * 1 minutes) + 1 hours, "Cannot cancel within first hour");
-
         MultiPhaseSecureOperation.TxRecord memory txRecord = MultiPhaseSecureOperation.txCancellation(
             _getSecureState(),
             txId
@@ -237,7 +234,7 @@ contract SimpleVault is GuardianAccountAbstraction {
     function generateUnsignedWithdrawalMetaTxApproval(uint256 txId, VaultMetaTxParams memory metaTxParams) public view returns (MultiPhaseSecureOperation.MetaTransaction memory) {
         // Create meta-transaction parameters using the parent contract's function
         MultiPhaseSecureOperation.MetaTxParams memory params = createMetaTxParams(
-            getBroadcaster(), // Use broadcaster address as handler instead of contract address
+            address(this),
             this.approveWithdrawalWithMetaTx.selector,
             metaTxParams.deadline,
             metaTxParams.maxGasPrice,

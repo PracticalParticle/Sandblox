@@ -12,16 +12,14 @@ import { Clock, Info } from "lucide-react";
 import { TxInfoCard } from "./TxInfoCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
-import { 
-  PendingTransactions, 
-  VaultTxRecord 
-} from "../blox/SimpleVault/components/PendingTransaction";
-import { NotificationMessage } from "../blox/SimpleVault/lib/types";
-import { useMetaTxActions } from '../blox/SimpleVault/hooks/useMetaTxActions';
-import { useTimeLockActions } from '../blox/SimpleVault/hooks/useTimeLockActions';
+import { NotificationMessage } from "@/lib/catalog/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatAddress } from "@/lib/utils";
-import { useTransactionManager } from "@/hooks/useTransactionManager";
+import { useMetaTransactionManager } from "@/hooks/useMetaTransactionManager";
+import { TxRecord } from "@/particle-core/sdk/typescript/interfaces/lib.index";
+import { useOperationRegistry } from "../hooks/useOperationRegistry";
+import { useBloxOperations } from "../hooks/useBloxOperations";
+import { useEffect, useState } from "react";
 
 interface PendingTransactionDialogProps {
   isOpen: boolean;
@@ -37,11 +35,11 @@ interface PendingTransactionDialogProps {
     owner?: Address;
     recoveryAddress?: Address;
   };
-  transaction: VaultTxRecord;
+  transaction: TxRecord;
   onApprove?: (txId: number) => Promise<void>;
   onCancel?: (txId: number) => Promise<void>;
-  onMetaTxSign?: (tx: VaultTxRecord, type: 'approve' | 'cancel') => Promise<void>;
-  onBroadcastMetaTx?: (tx: VaultTxRecord, type: 'approve' | 'cancel') => Promise<void>;
+  onMetaTxSign?: (tx: TxRecord, type: 'approve' | 'cancel') => Promise<void>;
+  onBroadcastMetaTx?: (tx: TxRecord, type: 'approve' | 'cancel') => Promise<void>;
   onNotification?: (message: NotificationMessage) => void;
   isLoading?: boolean;
   connectedAddress?: Address;
@@ -65,41 +63,84 @@ export function PendingTransactionDialog({
   mode = 'timelock',
   signedMetaTxStates = {},
   hasSignedApproval: propHasSignedApproval,
+  onApprove,
+  onCancel,
+  onBroadcastMetaTx,
 }: PendingTransactionDialogProps): JSX.Element {
   // State to track the active tab
   const [activeTab, setActiveTab] = React.useState<'timelock' | 'metatx'>(mode);
   
   // Add transaction manager
-  const { removeTransaction } = useTransactionManager(contractInfo.contractAddress);
+  const { removeTransaction } = useMetaTransactionManager(contractInfo.contractAddress);
+
+  // Get operation registry hooks
+  const { getOperationInfo } = useOperationRegistry();
+  const { getBloxOperations, getBloxComponents } = useBloxOperations();
+
+  // State for blox-specific components and operations
+  const [BloxPendingTransactions, setBloxPendingTransactions] = useState<React.ComponentType<any> | null>(null);
+  const [bloxOperations, setBloxOperations] = useState<any>(null);
+  const [, setIsLoadingComponents] = useState(true);
+
+  // Load blox-specific components and operations
+  useEffect(() => {
+    async function loadBloxComponents() {
+      setIsLoadingComponents(true);
+      try {
+        // Get operation info to determine the blox type
+        const operationInfo = await getOperationInfo(transaction.params.operationType);
+        if (!operationInfo) {
+          console.error('No operation info found for transaction');
+          return;
+        }
+
+        // Handle the case where bloxId is optional
+        if (operationInfo.bloxId) {
+          // Get blox components and operations
+          const [components, operations] = await Promise.all([
+            getBloxComponents(operationInfo.bloxId, 'PendingTransaction'),
+            getBloxOperations(operationInfo.bloxId, contractInfo.contractAddress)
+          ]);
+
+          if (components) {
+            // Access the PendingTransactions component from the loaded module
+            const PendingTransactionsComponent = components.PendingTransactions || components.default;
+            if (PendingTransactionsComponent) {
+              setBloxPendingTransactions(() => PendingTransactionsComponent);
+            } else {
+              console.error('PendingTransactions component not found in loaded module');
+            }
+          }
+          
+          if (operations) {
+            setBloxOperations(operations);
+          }
+        } else {
+          // bloxId is optional, so this isn't an error case
+          console.log('Operation does not have a bloxId, skipping blox-specific components');
+        }
+      } catch (error) {
+        console.error('Failed to load blox components:', error);
+        onNotification?.({
+          type: 'error',
+          title: 'Component Load Error',
+          description: 'Failed to load transaction components'
+        });
+      } finally {
+        setIsLoadingComponents(false);
+      }
+    }
+
+    if (transaction && contractInfo.contractAddress) {
+      loadBloxComponents();
+    }
+  }, [transaction, contractInfo.contractAddress, getOperationInfo, getBloxComponents, getBloxOperations]);
 
   // Handle refresh to make sure it calls refreshData
   const handleRefresh = React.useCallback(() => {
     console.log("Refresh called in dialog");
     refreshData?.();
   }, [refreshData]);
-
-  // Get meta transaction actions using the same hooks as SimpleVault.ui.tsx
-  const {
-    handleMetaTxSign,
-    handleBroadcastMetaTx,
-    signedMetaTxStates: hookSignedMetaTxStates,
-    isLoading: isMetaTxLoading
-  } = useMetaTxActions(
-    contractInfo.contractAddress,
-    onNotification,  // onSuccess
-    onNotification,  // onError
-    handleRefresh    // onRefresh
-  );
-
-  // Get timelock actions using the same hooks as SimpleVault.ui.tsx
-  const {
-    handleApproveWithdrawal,
-    handleCancelWithdrawal  } = useTimeLockActions(
-    contractInfo.contractAddress,
-    onNotification,  // onSuccess
-    onNotification,  // onError
-    handleRefresh    // onRefresh
-  );
 
   const handleApproveWrapper = async (txId: number) => {
     try {
@@ -109,7 +150,12 @@ export function PendingTransactionDialog({
         description: 'Please wait while the transaction is being approved...'
       });
 
-      await handleApproveWithdrawal(txId);
+      // Use blox operations if available, otherwise fall back to default
+      if (bloxOperations?.handleApprove) {
+        await bloxOperations.handleApprove(txId);
+      } else if (onApprove) {
+        await onApprove(txId);
+      }
 
       // Remove from local storage after successful approval
       removeTransaction(txId.toString());
@@ -141,7 +187,12 @@ export function PendingTransactionDialog({
         description: 'Please wait while the transaction is being cancelled...'
       });
 
-      await handleCancelWithdrawal(txId);
+      // Use blox operations if available, otherwise fall back to default
+      if (bloxOperations?.handleCancel) {
+        await bloxOperations.handleCancel(txId);
+      } else if (onCancel) {
+        await onCancel(txId);
+      }
 
       // Remove from local storage after successful cancellation
       removeTransaction(txId.toString());
@@ -165,7 +216,7 @@ export function PendingTransactionDialog({
     }
   };
 
-  const handleBroadcastWrapper = async (tx: VaultTxRecord, type: 'approve' | 'cancel') => {
+  const handleBroadcastWrapper = async (tx: TxRecord, type: 'approve' | 'cancel'): Promise<void> => {
     try {
       onNotification?.({
         type: 'info',
@@ -173,7 +224,12 @@ export function PendingTransactionDialog({
         description: 'Please wait while the transaction is being broadcast...'
       });
 
-      await handleBroadcastMetaTx(tx, type);
+      // Use blox operations if available, otherwise fall back to default
+      if (bloxOperations?.handleBroadcast) {
+        await bloxOperations.handleBroadcast(tx, type);
+      } else if (onBroadcastMetaTx) {
+        await onBroadcastMetaTx(tx, type);
+      }
 
       // Remove from local storage after successful broadcast
       removeTransaction(tx.txId.toString());
@@ -199,18 +255,11 @@ export function PendingTransactionDialog({
 
   // Add style once on mount
   React.useEffect(() => {
-    // Only add the style tag if it doesn't exist yet
     if (!document.getElementById('dialog-styles')) {
       const style = document.createElement('style');
       style.id = 'dialog-styles';
-  
       document.head.appendChild(style);
     }
-    
-    return () => {
-      // We could remove the style on unmount, but it's okay to leave it
-      // since it's scoped to the dialog and won't affect other components
-    };
   }, []);
 
   if (!transaction) {
@@ -228,12 +277,12 @@ export function PendingTransactionDialog({
     );
   }
 
-  // Check if the transaction is already signed - either from hook state or from props
-  const hasSignedApprovalFromHook = hookSignedMetaTxStates?.[`${transaction.txId}-approve`]?.type === 'approve' 
-                                || signedMetaTxStates?.[`${transaction.txId}-approve`]?.type === 'approve';
-  
-  // Combine all sources to determine if the transaction has a signature
-  const hasSignedApproval = hasSignedApprovalFromHook || propHasSignedApproval;
+  // Check if the transaction is already signed
+  const hasSignedApproval = propHasSignedApproval || 
+    signedMetaTxStates[`${transaction.txId}-approve`]?.type === 'approve';
+
+  // Get formatted broadcaster address
+  const formattedBroadcasterAddress = contractInfo.broadcaster ? formatAddress(contractInfo.broadcaster) : 'Unknown';
 
   // Determine if the time delay has expired
   const now = Math.floor(Date.now() / 1000);
@@ -244,14 +293,10 @@ export function PendingTransactionDialog({
   const isOwner = connectedAddress?.toLowerCase() === contractInfo.owner?.toLowerCase();
   const isBroadcaster = connectedAddress?.toLowerCase() === contractInfo.broadcaster?.toLowerCase();
 
-  // Get formatted broadcaster address
-  const formattedBroadcasterAddress = contractInfo.broadcaster ? formatAddress(contractInfo.broadcaster) : 'Unknown';
-
   // Determine alert message and guidance based on roles and time delay
   const renderAlert = () => {
     if (!hasSignedApproval) return null;
     
-    // Determine the appropriate guidance message
     let alertMessage = "";
     
     if (isTimeDelayExpired) {
@@ -287,7 +332,7 @@ export function PendingTransactionDialog({
       <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
         <DialogHeader className="sticky top-0 bg-background z-10 pb-4 border-b mb-4">
           <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
               <DialogTitle>{title}</DialogTitle>
               <div className="flex items-center gap-2">
                 <Badge 
@@ -308,12 +353,11 @@ export function PendingTransactionDialog({
         <div className="space-y-4">
           <TxInfoCard 
             record={transaction}
-            operationName={transaction.type === "ETH" ? "ETH Withdrawal" : "Token Withdrawal"}
+            operationName={bloxOperations?.getOperationName?.(transaction) || 'Custom Operation'}
             showExecutionType={true}
             showStatus={true}
           />
 
-          {/* Enhanced alert with contextual guidance */}
           {renderAlert()}
 
           <Card>
@@ -328,36 +372,48 @@ export function PendingTransactionDialog({
               </TabsList>
 
               <TabsContent value="timelock" className="mt-4">
-                <PendingTransactions
-                  transactions={[transaction]}
-                  isLoadingTx={false}
-                  onRefresh={handleRefresh}
-                  onApprove={handleApproveWrapper}
-                  onCancel={handleCancelWrapper}
-                  isLoading={false}
-                  contractAddress={contractInfo.contractAddress}
-                  mode="timelock"
-                  onNotification={onNotification}
-                  connectedAddress={connectedAddress}
-                  timeLockPeriodInMinutes={contractInfo.timeLockPeriodInMinutes}
-                />
+                {BloxPendingTransactions ? (
+                  <BloxPendingTransactions
+                    transactions={[transaction]}
+                    isLoadingTx={false}
+                    onRefresh={handleRefresh}
+                    onApprove={handleApproveWrapper}
+                    onCancel={handleCancelWrapper}
+                    isLoading={false}
+                    contractAddress={contractInfo.contractAddress}
+                    mode="timelock"
+                    onNotification={onNotification}
+                    connectedAddress={connectedAddress}
+                    timeLockPeriodInMinutes={contractInfo.timeLockPeriodInMinutes}
+                  />
+                ) : (
+                  <div className="text-center py-4 text-muted-foreground">
+                    Loading transaction components...
+                  </div>
+                )}
               </TabsContent>
 
-              <TabsContent value="metatx" className="mt-4 ">
-                <PendingTransactions
-                  transactions={[transaction]}
-                  isLoadingTx={false}
-                  onRefresh={handleRefresh}
-                  onMetaTxSign={handleMetaTxSign}
-                  onBroadcastMetaTx={handleBroadcastWrapper}
-                  signedMetaTxStates={{...signedMetaTxStates, ...hookSignedMetaTxStates}}
-                  isLoading={isMetaTxLoading}
-                  contractAddress={contractInfo.contractAddress}
-                  mode="metatx"
-                  onNotification={onNotification}
-                  connectedAddress={connectedAddress}
-                  timeLockPeriodInMinutes={contractInfo.timeLockPeriodInMinutes}
-                />
+              <TabsContent value="metatx" className="mt-4">
+                {BloxPendingTransactions ? (
+                  <BloxPendingTransactions
+                    transactions={[transaction]}
+                    isLoadingTx={false}
+                    onRefresh={handleRefresh}
+                    onMetaTxSign={bloxOperations?.handleMetaTxSign}
+                    onBroadcastMetaTx={handleBroadcastWrapper}
+                    signedMetaTxStates={signedMetaTxStates}
+                    isLoading={false}
+                    contractAddress={contractInfo.contractAddress}
+                    mode="metatx"
+                    onNotification={onNotification}
+                    connectedAddress={connectedAddress}
+                    timeLockPeriodInMinutes={contractInfo.timeLockPeriodInMinutes}
+                  />
+                ) : (
+                  <div className="text-center py-4 text-muted-foreground">
+                    Loading transaction components...
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           </Card>

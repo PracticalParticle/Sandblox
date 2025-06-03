@@ -3,8 +3,20 @@ import { BloxCatalog, BloxContract, BloxMetadata } from './types'
 // Use Vite's glob import to get all .blox.json files
 const bloxMetadataFiles = import.meta.glob('/src/blox/**/*.blox.json', { eager: true })
 
-// Use Vite's glob import to get all config.ts files
-const bloxConfigFiles = import.meta.glob('/src/blox/**/config.ts', { eager: true })
+// Pre-load contract modules and component modules with glob imports
+const contractModules = import.meta.glob([
+  '/src/blox/**/*.tsx',
+  '/src/blox/**/*.jsx',
+  '/src/blox/**/*.ts',
+  '/src/blox/**/*.js'
+], { eager: false })
+
+const componentModules = import.meta.glob([
+  '/src/blox/**/components/**/*.tsx',
+  '/src/blox/**/components/**/*.jsx',
+  '/src/blox/**/components/**/*.ts',
+  '/src/blox/**/components/**/*.js'
+], { eager: false })
 
 // Map to store folder names by contract ID
 const contractFolderMap = new Map<string, string>()
@@ -41,17 +53,6 @@ async function loadBloxMetadata(contractId: string): Promise<BloxMetadata> {
   const metadata = bloxMetadataFiles[metadataPath] as BloxMetadata
   if (!metadata) {
     throw new Error(`Failed to load metadata for contract ${contractId}`)
-  }
-
-  // Try to load dynamic configuration
-  const configPath = `/src/blox/${folderName}/config.ts`
-  const configModule = bloxConfigFiles[configPath]
-  if (configModule && typeof configModule === 'object' && 'getSimpleVaultConfig' in configModule) {
-    const dynamicConfig = await (configModule as { getSimpleVaultConfig: () => Partial<BloxContract> }).getSimpleVaultConfig()
-    return {
-      ...metadata,
-      ...dynamicConfig
-    }
   }
 
   return metadata
@@ -168,3 +169,72 @@ export async function getContractABI(contractId: string): Promise<any> {
   
   return response.json()
 }
+
+/**
+ * Dynamically load a blox contract module
+ * @param bloxId The ID of the blox to load the contract module for
+ * @returns Promise resolving to the contract module
+ */
+export async function loadBloxContractModule(bloxId: string): Promise<any> {
+  const folderName = contractFolderMap.get(bloxId);
+  if (!folderName) {
+    throw new Error(`No folder found for blox ${bloxId}`);
+  }
+  
+  // Try different possible extensions
+  const possiblePaths = [
+    `/src/blox/${folderName}/${folderName}.tsx`,
+    `/src/blox/${folderName}/${folderName}.jsx`,
+    `/src/blox/${folderName}/${folderName}.ts`,
+    `/src/blox/${folderName}/${folderName}.js`,
+  ];
+  
+  const modulePath = possiblePaths.find(path => contractModules[path]);
+  
+  if (!modulePath) {
+    throw new Error(`Contract module not found for blox: ${bloxId}`);
+  }
+
+  try {
+    return await contractModules[modulePath]();
+  } catch (error) {
+    console.error(`Failed to load contract module for blox: ${bloxId}`, error);
+    throw error;
+  }
+}
+
+/**
+ * Dynamically load a blox component module
+ * @param bloxId The ID of the blox to load
+ * @param componentName The name of the component folder/file to load
+ * @returns Promise resolving to the component module
+ */
+export async function loadBloxComponentModule(bloxId: string, componentName: string): Promise<any> {
+  const folderName = contractFolderMap.get(bloxId);
+  if (!folderName) {
+    throw new Error(`No folder found for blox ${bloxId}`);
+  }
+  
+  // Try different possible extensions
+  const possiblePaths = [
+    `/src/blox/${folderName}/components/${componentName}.tsx`,
+    `/src/blox/${folderName}/components/${componentName}.jsx`,
+    `/src/blox/${folderName}/components/${componentName}.ts`,
+    `/src/blox/${folderName}/components/${componentName}.js`,
+  ];
+  
+  const modulePath = possiblePaths.find(path => componentModules[path]);
+  
+  if (!modulePath) {
+    throw new Error(`Component module not found for blox: ${bloxId}, component: ${componentName}`);
+  }
+  
+  try {
+    return await componentModules[modulePath]();
+  } catch (error) {
+    console.error(`Failed to load component module for blox: ${bloxId}`, error);
+    throw error;
+  }
+}
+// Export additional utilities
+export { contractFolderMap }

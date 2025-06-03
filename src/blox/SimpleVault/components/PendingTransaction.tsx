@@ -7,20 +7,13 @@ import { Loader2, X, CheckCircle2, Clock, XCircle, RefreshCw, Radio } from "luci
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
 import { TxStatus } from "../../../particle-core/sdk/typescript/types/lib.index";
-import { TxRecord } from "../../../particle-core/sdk/typescript/interfaces/lib.index";
-import { VAULT_OPERATIONS } from "../hooks/useSimpleVaultOperations";
+import { VAULT_OPERATIONS } from "../hooks/useOperations";
 import { useOperationTypes } from "@/hooks/useOperationTypes";
 import { NotificationMessage } from "../lib/types";
-import { useActionPermissions } from "@/hooks/useActionPermissions";
+import { useWorkflowManager } from "@/hooks/useWorkflowManager";
+import { OperationPhase } from "@/types/OperationRegistry";
 import { usePublicClient } from "wagmi"
-
-export interface VaultTxRecord extends Omit<TxRecord, 'status'> {
-  status: TxStatus;
-  amount: bigint;
-  to: Address;
-  token?: Address;
-  type: "ETH" | "TOKEN";
-}
+import { VaultTxRecord } from "../lib/operations";
 
 export interface PendingTransactionsProps {
   transactions: VaultTxRecord[];
@@ -60,14 +53,48 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
   // Get operation types for mapping hex values to human-readable names
   const { getOperationName, loading: loadingOperationTypes } = useOperationTypes(contractAddress);
 
-  // Get action permissions
   const {
-    canTimeLockApprove,
-    canTimeLockCancel,
-    canMetaTxSign,
-    canMetaTxBroadcast,
+    isBroadcaster,
+    canExecutePhase,
     isLoading: isLoadingPermissions
-  } = useActionPermissions(contractAddress, connectedAddress);
+  } = useWorkflowManager(contractAddress);
+
+  // Create permission check functions using canExecutePhase for more precise control
+  // These memoized functions check permissions for each transaction based on its operation type
+  const checkTimeLockApprove = React.useCallback((tx: VaultTxRecord): boolean => {
+    if (!connectedAddress) return false;
+    
+    const operationTypeHex = tx.params.operationType as Hex;
+    const operationName = getOperationName(operationTypeHex);
+    
+    // For vault operations, owner can approve after timelock
+    return canExecutePhase(operationName, OperationPhase.APPROVE, connectedAddress);
+  }, [canExecutePhase, connectedAddress, getOperationName]);
+
+  const checkTimeLockCancel = React.useCallback((tx: VaultTxRecord): boolean => {
+    if (!connectedAddress) return false;
+    
+    const operationTypeHex = tx.params.operationType as Hex;
+    const operationName = getOperationName(operationTypeHex);
+    
+    // For vault operations, owner can cancel pending transactions
+    return canExecutePhase(operationName, OperationPhase.CANCEL, connectedAddress);
+  }, [canExecutePhase, connectedAddress, getOperationName]);
+
+  const checkMetaTxSign = React.useCallback((tx: VaultTxRecord): boolean => {
+    if (!connectedAddress) return false;
+    
+    const operationTypeHex = tx.params.operationType as Hex;
+    const operationName = getOperationName(operationTypeHex);
+    
+    // For meta transactions, owner can sign approvals
+    return canExecutePhase(operationName, OperationPhase.META_APPROVE, connectedAddress);
+  }, [canExecutePhase, connectedAddress, getOperationName]);
+
+  const checkMetaTxBroadcast = React.useCallback((_tx: VaultTxRecord): boolean => {
+    // Generally only broadcasters can broadcast meta transactions
+    return isBroadcaster && !!connectedAddress;
+  }, [isBroadcaster, connectedAddress]);
 
   const publicClient = usePublicClient()
 
@@ -143,19 +170,6 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
     try {
       if (!publicClient) {
         throw new Error("Blockchain client not initialized")
-      }
-
-      // Check if we're within the first hour of transaction creation
-      if (transactions[txId]?.releaseTime) {
-        const block = await publicClient.getBlock()
-        const now = Number(block.timestamp)
-        const timeLockPeriodInSeconds = timeLockPeriodInMinutes * 60
-        const startTime = Number(transactions[txId].releaseTime) - timeLockPeriodInSeconds
-        const elapsedTime = now - startTime
-        
-        if (elapsedTime < 3600) { // 3600 seconds = 1 hour
-          throw new Error("Cannot cancel within first hour of creation")
-        }
       }
 
       if (onCancel) {
@@ -245,9 +259,6 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
             const elapsedTime = now - startTime;
             const progress = Math.min((elapsedTime / timeLockPeriodInSeconds) * 100, 100);
             const isTimeLockComplete = progress >= 100;
-            
-            // Calculate if within first hour
-            const isWithinFirstHour = elapsedTime < 3600;
 
             // Key for meta transaction state
             const approveKey = `${tx.txId}-approve`;
@@ -315,7 +326,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                   <Button
                                     onClick={() => handleApproveAction(Number(tx.txId))}
                                     disabled={
-                                      !canTimeLockApprove || 
+                                      !checkTimeLockApprove(tx) || 
                                       !isReady || 
                                       isLoading || 
                                       tx.status !== TxStatus.PENDING || 
@@ -336,7 +347,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                 </div>
                               </TooltipTrigger>
                               <TooltipContent side="bottom">
-                                {!canTimeLockApprove
+                                {!checkTimeLockApprove(tx)
                                   ? "Only the owner can approve transactions"
                                   : !isTimeLockComplete 
                                     ? "Time lock period not complete" 
@@ -353,7 +364,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                 <div className="flex-1">
                                   <Button
                                     onClick={() => handleCancelAction(Number(tx.txId))}
-                                    disabled={!canTimeLockCancel || isLoading || tx.status !== TxStatus.PENDING || isWithinFirstHour}
+                                    disabled={!checkTimeLockCancel(tx) || isLoading || tx.status !== TxStatus.PENDING }
                                     variant="outline"
                                     className="w-full transition-all duration-200 flex items-center justify-center
                                       bg-rose-50 text-rose-700 hover:bg-rose-100 
@@ -368,15 +379,6 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                   </Button>
                                 </div>
                               </TooltipTrigger>
-                              <TooltipContent side="bottom">
-                                {!canTimeLockCancel
-                                  ? "Only the owner can cancel transactions"
-                                  : isWithinFirstHour
-                                    ? "Cannot cancel within first hour of creation"
-                                    : tx.status !== TxStatus.PENDING 
-                                      ? "This transaction cannot be cancelled" 
-                                      : "Cancel this withdrawal request"}
-                              </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
                         </>
@@ -390,7 +392,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                     <Button
                                       onClick={() => handleMetaTxSign(tx, 'approve')}
                                       disabled={
-                                        !canMetaTxSign ||
+                                        !checkMetaTxSign(tx) ||
                                         isLoading || 
                                         tx.status !== TxStatus.PENDING || 
                                         hasSignedApproval
@@ -420,7 +422,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                   </div>
                                 </TooltipTrigger>
                                 <TooltipContent side="bottom">
-                                  {!canMetaTxSign
+                                  {!checkMetaTxSign(tx)
                                     ? "Only the owner can sign approval meta-transactions"
                                     : hasSignedApproval
                                       ? "Transaction is already signed"
@@ -436,7 +438,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                     <Button
                                       onClick={() => handleBroadcastMetaTx(tx, 'approve')}
                                       disabled={
-                                        !canMetaTxBroadcast ||
+                                        !checkMetaTxBroadcast(tx) ||
                                         isLoading || 
                                         !hasSignedApproval
                                       }
@@ -459,7 +461,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                 <TooltipContent side="bottom">
                                   {!hasSignedApproval
                                     ? "Transaction must be signed before broadcasting"
-                                    : !canMetaTxBroadcast
+                                    : !checkMetaTxBroadcast(tx)
                                       ? "Only the broadcaster can broadcast meta-transactions"
                                       : "Broadcast the signed meta-transaction"}
                                 </TooltipContent>

@@ -254,7 +254,7 @@ export class SecureOwnableManager {
     // Generate meta transaction parameters
     console.log('broadcaster', this.broadcaster);
     const metaTxParams = await this.contract.createMetaTxParams(
-      this.broadcaster,
+      this.address,
       FUNCTION_SELECTORS.UPDATE_RECOVERY as Hex,
       BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
       BigInt(0), // No max gas price
@@ -335,7 +335,7 @@ export class SecureOwnableManager {
     // Generate meta transaction parameters
     console.log('broadcaster', this.broadcaster);
     const metaTxParams = await this.contract.createMetaTxParams(
-      this.broadcaster,
+      this.address,
       FUNCTION_SELECTORS.UPDATE_TIMELOCK as Hex,
       BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
       BigInt(0), // No max gas price
@@ -402,7 +402,7 @@ export class SecureOwnableManager {
 
       // Generate meta transaction parameters
       const metaTxParams = await this.contract.createMetaTxParams(
-        this.broadcaster,
+        this.address,
         FUNCTION_SELECTORS.TRANSFER_OWNERSHIP_APPROVE_META as Hex,
         BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
         BigInt(0), // No max gas price
@@ -466,7 +466,7 @@ export class SecureOwnableManager {
 
       // Generate meta transaction parameters
       const metaTxParams = await this.contract.createMetaTxParams(
-        this.broadcaster,
+        this.address,
         FUNCTION_SELECTORS.TRANSFER_OWNERSHIP_CANCEL_META as Hex,
         BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
         BigInt(0), // No max gas price
@@ -530,7 +530,7 @@ export class SecureOwnableManager {
 
       // Generate meta transaction parameters
       const metaTxParams = await this.contract.createMetaTxParams(
-        this.broadcaster,
+        this.address,
         FUNCTION_SELECTORS.UPDATE_BROADCASTER_APPROVE_META as Hex,
         BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
         BigInt(0), // No max gas price
@@ -598,7 +598,7 @@ export class SecureOwnableManager {
 
       // Generate meta transaction parameters
       const metaTxParams = await this.contract.createMetaTxParams(
-        this.broadcaster,
+        this.address,
         FUNCTION_SELECTORS.UPDATE_BROADCASTER_CANCEL_META as Hex,
         BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
         BigInt(0), // No max gas price
