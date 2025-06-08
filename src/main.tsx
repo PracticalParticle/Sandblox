@@ -13,6 +13,11 @@ const initializeTheme = () => {
   }
 };
 
+// Note: BloxOperations are now loaded on-demand within the OpHistory component
+// and other relevant components rather than all at once during initialization.
+// This improves performance by only loading the specific Blox operations needed.
+
+// Run initializations
 initializeTheme();
 
 // Import styles in correct order

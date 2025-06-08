@@ -12,15 +12,6 @@ export interface BloxMetadata {
       factory: string
     }
   }
-  deploymentCount: number
-  lastUpdated: string
-  libraries?: {
-    [key: string]: {
-      name: string
-      description: string
-      address?: string
-    }
-  }
 }
 
 export interface BloxContract extends BloxMetadata {
@@ -36,3 +27,10 @@ export interface BloxContract extends BloxMetadata {
 }
 
 export type BloxCatalog = Record<string, BloxContract>
+
+
+export interface NotificationMessage {
+  type: 'error' | 'warning' | 'info' | 'success';
+  title: string;
+  description: string;
+}

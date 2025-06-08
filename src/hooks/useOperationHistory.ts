@@ -50,6 +50,7 @@ export function useOperationHistory({
     Array.from(rawOperationTypes.entries()).map(([key, value]) => [key as Hex, value])
   )
 
+  // Update sorted operations when operations change
   useEffect(() => {
     // Sort operations by txId in descending order (newest first)
     const sorted = [...operations].sort((a, b) => 
@@ -58,6 +59,7 @@ export function useOperationHistory({
     setSortedOperations(sorted)
   }, [operations])
 
+  // Update filtered operations when filters or sorted operations change
   useEffect(() => {
     // Apply filters
     let filtered = [...sortedOperations]

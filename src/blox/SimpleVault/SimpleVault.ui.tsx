@@ -17,23 +17,20 @@ import { atom, useAtom } from "jotai";
 import { AlertCircle, Loader2, Wallet, Coins, X, Shield, Info, Settings2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ContractInfo as BaseContractInfo } from "@/lib/verification/index";
-import { AddTokenDialog } from "./components";
+import { AddTokenDialog } from "./components/AddTokenDialog";
 import { PendingTransaction } from "./components/PendingTransaction";
-import type { TokenState, TokenBalanceState } from "./components";
-import type { VaultTxRecord } from "./components/PendingTransaction";
+import type { TokenState, TokenBalanceState } from "./components/TokenList";
+import type { VaultTxRecord } from "./lib/types";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Hex } from "viem";
-import { VaultMetaTxParams } from './SimpleVault';
-import { TransactionManagerProvider } from "@/contexts/TransactionManager";
-import { useOperationTypes } from "@/hooks/useOperationTypes";
-import { VAULT_OPERATIONS } from "./hooks/useSimpleVaultOperations";
+import { NotificationMessage, VaultMetaTxParams } from './lib/types';
+import { TransactionManagerProvider } from "@/contexts/MetaTransactionManager";
 import { useWalletBalances, TokenBalance } from '@/hooks/useWalletBalances';
-import { useTimeLockActions } from './hooks/useTimeLockActions';
-import { useMetaTxActions } from './hooks/useMetaTxActions';
-import { useActionPermissions } from '@/hooks/useActionPermissions';
-import { useRoleValidation } from "@/hooks/useRoleValidation";
+import { useOperations, VAULT_OPERATIONS } from './hooks/useOperations';
+import { SimpleVaultService } from "./lib/services";
+import { useWorkflowManager } from "@/hooks/useWorkflowManager";
 
 // Extend the base ContractInfo interface to include broadcaster and other properties
 interface ContractInfo extends BaseContractInfo {
@@ -46,6 +43,7 @@ interface ContractInfo extends BaseContractInfo {
 // State atoms following .cursorrules state management guidelines
 const pendingTxsAtom = atom<VaultTxRecord[]>([]);
 const vaultInstanceAtom = atom<SimpleVault | null>(null);
+const vaultServiceAtom = atom<SimpleVaultService | null>(null);
 
 // Add local storage persistence for tokens
 const STORAGE_KEY = 'simpleVault.trackedTokens';
@@ -363,9 +361,7 @@ const DepositForm = React.memo(({ onSubmit, isLoading, walletBalances, contractA
   const [error, setError] = useState<string>("");
   const [selectedTokenAddress, setSelectedTokenAddress] = useState<string>("ETH");
   const [tokenBalances] = useAtom(tokenBalanceAtom);
-  const { address: connectedAddress } = useAccount();
-  const chain = useChain();
-  const { isOwner } = useRoleValidation(contractAddress, connectedAddress, chain);
+  const { isOwner } = useWorkflowManager(contractAddress);
 
   const selectedToken = selectedTokenAddress === "ETH" ? undefined : tokenBalances[selectedTokenAddress as Address];
   const tokenDecimals = selectedToken?.metadata?.decimals ?? 18;
@@ -551,27 +547,12 @@ const DepositForm = React.memo(({ onSubmit, isLoading, walletBalances, contractA
 
 DepositForm.displayName = 'DepositForm';
 
-// Add this type definition at the top with other interfaces
-type NotificationMessage = {
-  type: 'error' | 'warning' | 'info' | 'success';
-  title: string;
-  description: string;
-};
+
 
 interface SimpleVaultUIProps {
   contractAddress?: Address;  // Make contractAddress optional
   contractInfo?: ContractInfo;  // Make contractInfo optional
   onError?: (error: Error) => void;
-  _mock?: {
-    account: { address: Address; isConnected: boolean };
-    publicClient: any;
-    walletClient: { data: any };
-    chain: any;
-    initialData?: {
-      ethBalance: bigint;
-      pendingTransactions: any[];
-    };
-  };
   dashboardMode?: boolean;
   renderSidebar?: boolean;
   addMessage?: (message: NotificationMessage) => void;
@@ -580,47 +561,17 @@ interface SimpleVaultUIProps {
 // Add storage key for meta tx settings
 const META_TX_SETTINGS_KEY = 'simpleVault.metaTxSettings';
 
-// Default values for meta tx settings
-const DEFAULT_META_TX_SETTINGS: VaultMetaTxParams = {
+// Update the settings atom to be writable with initial value from storage or default
+const defaultMetaTxSettings: VaultMetaTxParams = {
   deadline: BigInt(3600), // 1 hour in seconds
   maxGasPrice: BigInt(50000000000) // 50 gwei
 };
 
-// Initialize settings from local storage
-export const getStoredMetaTxSettings = (): VaultMetaTxParams => {
-  try {
-    const stored = localStorage.getItem(META_TX_SETTINGS_KEY);
-    if (!stored) return DEFAULT_META_TX_SETTINGS;
-    const parsed = JSON.parse(stored);
-    return {
-      deadline: BigInt(parsed.deadline),
-      maxGasPrice: BigInt(parsed.maxGasPrice)
-    };
-  } catch (error) {
-    console.error('Failed to load meta tx settings:', error);
-    return DEFAULT_META_TX_SETTINGS;
-  }
-};
-
-// Create VaultMetaTxParams from settings
-export const createVaultMetaTxParams = (settings: VaultMetaTxParams): VaultMetaTxParams => {
-  // Get current timestamp in seconds
-  const currentTimestamp = BigInt(Math.floor(Date.now() / 1000));
-  
-  // Convert deadline from seconds to actual timestamp by adding to current time
-  const deadlineTimestamp = currentTimestamp + BigInt(settings.deadline);
-  
-  return {
-    deadline: deadlineTimestamp,
-    maxGasPrice: settings.maxGasPrice
-  };
-};
-
-// Update the settings atom to be writable with initial value from storage
-const metaTxSettingsAtom = atom<VaultMetaTxParams>(getStoredMetaTxSettings());
+const metaTxSettingsAtom = atom<VaultMetaTxParams>(defaultMetaTxSettings);
 
 // Add settings dialog component
 function MetaTxSettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const [vaultService] = useAtom(vaultServiceAtom);
   const [settings, setSettings] = useAtom(metaTxSettingsAtom);
   const [deadline, setDeadline] = useState(() => Number(settings.deadline / BigInt(3600)));
   const [maxGasPrice, setMaxGasPrice] = useState(() => Number(settings.maxGasPrice / BigInt(1000000000)));
@@ -628,10 +579,17 @@ function MetaTxSettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   // Reset form when dialog opens
   useEffect(() => {
     if (open) {
-      setDeadline(Number(settings.deadline / BigInt(3600)));
-      setMaxGasPrice(Number(settings.maxGasPrice / BigInt(1000000000)));
+      // Try to get stored settings from service if available
+      if (vaultService) {
+        const storedSettings = vaultService.getStoredMetaTxSettings();
+        setDeadline(Number(storedSettings.deadline / BigInt(3600)));
+        setMaxGasPrice(Number(storedSettings.maxGasPrice / BigInt(1000000000)));
+      } else {
+        setDeadline(Number(settings.deadline / BigInt(3600)));
+        setMaxGasPrice(Number(settings.maxGasPrice / BigInt(1000000000)));
+      }
     }
-  }, [open, settings]);
+  }, [open, settings, vaultService]);
 
   const handleSave = () => {
     // Convert hours to seconds and gwei to wei
@@ -643,14 +601,19 @@ function MetaTxSettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCha
     // Update state
     setSettings(newSettings);
     
-    // Save to local storage
-    try {
-      localStorage.setItem(META_TX_SETTINGS_KEY, JSON.stringify({
-        deadline: deadline * 3600,
-        maxGasPrice: maxGasPrice * 1000000000
-      }));
-    } catch (error) {
-      console.error('Failed to save settings to local storage:', error);
+    // Save to local storage via service if available
+    if (vaultService) {
+      vaultService.storeMetaTxSettings(newSettings);
+    } else {
+      // Fallback to direct localStorage if service not available
+      try {
+        localStorage.setItem(META_TX_SETTINGS_KEY, JSON.stringify({
+          deadline: deadline * 3600,
+          maxGasPrice: maxGasPrice * 1000000000
+        }));
+      } catch (error) {
+        console.error('Failed to save settings to local storage:', error);
+      }
     }
 
     // Close the dialog
@@ -703,7 +666,7 @@ function MetaTxSettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   );
 }
 
-// Update the WithdrawalFormWrapper to include role validation
+// Update the WithdrawalFormWrapper to use workflow manager for permission checks
 const WithdrawalFormWrapper = React.memo(({ 
   handleWithdrawal, 
   loadingState, 
@@ -721,10 +684,14 @@ const WithdrawalFormWrapper = React.memo(({
 }) => {
   const [selectedTokenAddress, setSelectedTokenAddress] = useState<string>("ETH");
   const lastFetchRef = useRef<string | undefined>(undefined);
+  
+  // Use workflow manager instead of useActionPermissions
+  const { isOwner } = useWorkflowManager(contractAddress);
 
-  // Get role validation
-  const { address: connectedAddress } = useAccount();
-  const { canRequestWithdrawal } = useActionPermissions(contractAddress, connectedAddress);
+  // Check if user can request withdrawals
+  const canRequestWithdrawal = useMemo(() => {
+    return isOwner;
+  }, [isOwner]);
 
   // Memoize the token selection handler
   const handleTokenSelect = useCallback((token: Address | undefined) => {
@@ -776,58 +743,36 @@ function SimpleVaultUIContent({
   contractAddress, 
   contractInfo, 
   onError,
-  _mock,
   dashboardMode = false,
   renderSidebar = false,
   addMessage
 }: SimpleVaultUIProps): JSX.Element {
   const { address } = useAccount();
   const publicClient = usePublicClient();
-  const { data: walletClient } = _mock?.walletClient || useWalletClient();
-  const chain = _mock?.chain || useChain();
+  const { data: walletClient } = useWalletClient();
+  const chain = useChain();
   const navigate = useNavigate();
   
-  // Add useRoleValidation hook
-  const { isOwner } = useRoleValidation(contractAddress as Address, address, chain);
-  
   // State declarations
-  const [ethBalance, setEthBalance] = useState<bigint>(_mock?.initialData?.ethBalance || BigInt(0));
+  const [ethBalance, setEthBalance] = useState<bigint>(BigInt(0));
   const [tokenBalances, setTokenBalances] = useAtom<TokenBalanceState>(tokenBalanceAtom);
   const [pendingTxs, setPendingTxs] = useAtom(pendingTxsAtom);
   const [loadingState, setLoadingState] = useAtom(loadingStateAtom);
   const [vault, setVault] = useAtom(vaultInstanceAtom);
+  const [vaultService, setVaultService] = useAtom(vaultServiceAtom);
   const [error, setError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Keep metaTxSettings since it's used in createVaultMetaTxParams
-  const [metaTxSettings] = useAtom(metaTxSettingsAtom);
-
-  // Save metaTxSettings to storage when they change
-  useEffect(() => {
-    try {
-      localStorage.setItem(META_TX_SETTINGS_KEY, JSON.stringify({
-        deadline: metaTxSettings.deadline.toString(),
-        maxGasPrice: metaTxSettings.maxGasPrice.toString()
-      }));
-    } catch (error) {
-      console.error('Failed to save meta tx settings to storage:', error);
-    }
-  }, [metaTxSettings]);
-
-  // Add wallet balances hook after state declarations
-  const trackedTokenAddresses = Object.keys(tokenBalances) as Address[];
-  const walletBalances = useWalletBalances(trackedTokenAddresses);
+  const [metaTxSettings, setSettings] = useAtom(metaTxSettingsAtom);
 
   // Add this near other refs/state
   const initialLoadDoneRef = useRef(false);
-
-  // Remove unused loadingOperationTypes from destructuring
-  const { getOperationName } = useOperationTypes(contractAddress as Address);
-
+  
   // Define handleRefresh before it's used
   const handleRefresh = useCallback(async () => {
-    if (!vault || _mock) {
-      console.log("Cannot fetch: vault not initialized or using mock data");
+    if (!vault || !vaultService) {
+      console.log("Cannot fetch: vault not initialized");
       return;
     }
     
@@ -837,7 +782,7 @@ function SimpleVaultUIContent({
       const balance = await vault.getEthBalance();
       setEthBalance(balance);
       
-      const transactions = await vault.getPendingTransactions();
+      const transactions = await vaultService.getPendingTransactions();
       setPendingTxs(transactions);
       
       setError(null);
@@ -848,27 +793,63 @@ function SimpleVaultUIContent({
     } finally {
       setLoadingState(prev => ({ ...prev, ethBalance: false }));
     }
-  }, [vault, setEthBalance, setPendingTxs, onError, _mock]);
+  }, [vault, vaultService, setEthBalance, setPendingTxs, onError]);
+  
+  // Use workflow manager for role validation with more comprehensive permission model
+  const { 
+    isOwner
+  } = useWorkflowManager(contractAddress as Address);
+  
+  // Get operations actions and state
+  const {
+    handleApproveWithdrawal,
+    handleCancelWithdrawal,
+    loadingStates: operationsLoadingStates,
+    getOperationName: getVaultOperationName
+  } = useOperations({
+    contractAddress: contractAddress as Address,
+    onSuccess: addMessage,
+    onError: addMessage, 
+    onRefresh: handleRefresh
+  });
 
-  // Get meta transaction actions
-  useMetaTxActions(
-    contractAddress as Address,
-    addMessage, // onSuccess
-    addMessage, // onError
-    handleRefresh // onRefresh
-  );
+  // Load meta transaction settings from service when available
+  useEffect(() => {
+    if (vaultService) {
+      const storedSettings = vaultService.getStoredMetaTxSettings();
+      setSettings(storedSettings);
+    }
+  }, [vaultService]);
 
-  // Wrap the base function to include metaTxSettings
+  // Save metaTxSettings to storage when they change
+  useEffect(() => {
+    if (vaultService) {
+      vaultService.storeMetaTxSettings(metaTxSettings);
+    } else {
+      try {
+        localStorage.setItem(META_TX_SETTINGS_KEY, JSON.stringify({
+          deadline: metaTxSettings.deadline.toString(),
+          maxGasPrice: metaTxSettings.maxGasPrice.toString()
+        }));
+      } catch (error) {
+        console.error('Failed to save meta tx settings to storage:', error);
+      }
+    }
+  }, [metaTxSettings, vaultService]);
+
+  // Add wallet balances hook after state declarations
+  const trackedTokenAddresses = Object.keys(tokenBalances) as Address[];
+  const walletBalances = useWalletBalances(trackedTokenAddresses);
 
   // Filter transactions for withdrawals
   const filteredPendingTxs = React.useMemo(() => {
     return pendingTxs.filter(tx => {
       const operationTypeHex = tx.params.operationType as Hex;
-      const operationName = getOperationName(operationTypeHex);
+      const operationName = getVaultOperationName(operationTypeHex);
       return operationName === VAULT_OPERATIONS.WITHDRAW_ETH || 
              operationName === VAULT_OPERATIONS.WITHDRAW_TOKEN;
     });
-  }, [pendingTxs, getOperationName]);
+  }, [pendingTxs, getVaultOperationName]);
 
   // Modify the initialization effect to only run once
   useEffect(() => {
@@ -880,27 +861,30 @@ function SimpleVaultUIContent({
       try {
         setLoadingState(prev => ({ ...prev, initialization: true }));
         
-        // Ensure contractAddress is valid before creating vault instance
-        if (typeof contractAddress !== 'string' || !contractAddress.startsWith('0x')) {
-          throw new Error('Invalid contract address');
-        }
-
         // Create vault instance with validated address
-        const validatedAddress = contractAddress as `0x${string}`;
         const vaultInstance = new SimpleVault(
           publicClient, 
           walletClient, 
-          validatedAddress, 
+          contractAddress, 
           chain
         );
         setVault(vaultInstance);
+        
+        // Create service instance
+        const serviceInstance = new SimpleVaultService(
+          publicClient,
+          walletClient,
+          contractAddress,
+          chain
+        );
+        setVaultService(serviceInstance);
 
         // Fetch initial data only once
         const balance = await vaultInstance.getEthBalance();
         setEthBalance(balance);
 
         // Fetch initial transactions
-        const transactions = await vaultInstance.getPendingTransactions();
+        const transactions = await serviceInstance.getPendingTransactions();
         setPendingTxs(transactions);
         
         initialLoadDoneRef.current = true;
@@ -915,7 +899,7 @@ function SimpleVaultUIContent({
     };
 
     initialize();
-  }, [publicClient, walletClient, contractAddress, chain, contractInfo]); // Remove backgroundFetching and other unnecessary dependencies
+  }, [publicClient, walletClient, contractAddress, chain, contractInfo]);
 
   // Notification handler
   const handleNotification = React.useCallback((message: NotificationMessage): void => {
@@ -928,7 +912,7 @@ function SimpleVaultUIContent({
 
   // Add these functions before the return statement
   const handleDeposit = async (amount: bigint, token?: Address) => {
-    if (!vault || !address) {
+    if (!vault || !vaultService || !address) {
       throw new Error("Vault not initialized or wallet not connected");
     }
 
@@ -937,17 +921,17 @@ function SimpleVaultUIContent({
       let tx;
       if (token) {
         // For ERC20 tokens, first check and handle allowance
-        const allowance = await vault.getTokenAllowance(token, address);
+        const allowance = await vaultService.getTokenAllowance(token, address);
         if (allowance < amount) {
           // Request approval first
-          tx = await vault.approveTokenAllowance(token, amount, { from: address });
+          tx = await vaultService.approveTokenAllowance(token, amount, { from: address });
           await tx.wait();
         }
         // Now deposit the tokens
-        tx = await vault.depositToken(token, amount, { from: address });
+        tx = await vaultService.depositToken(token, amount, { from: address });
       } else {
         // For ETH deposits
-        tx = await vault.depositEth(amount, { from: address });
+        tx = await vaultService.depositEth(amount, { from: address });
       }
 
       // Wait for transaction confirmation
@@ -974,20 +958,20 @@ function SimpleVaultUIContent({
     }
   };
 
-  const handleWithdrawal = async (to: Address, amount: bigint, token?: Address) => {
-    if (!vault || !address) {
-      throw new Error("Vault not initialized or wallet not connected");
+  const handleWithdrawal = async (to: Address, amount: bigint, token?: Address): Promise<void> => {
+    if (!vaultService || !address) {
+      throw new Error("Service not initialized or wallet not connected");
     }
 
     setLoadingState(prev => ({ ...prev, withdrawal: true }));
     try {
       let tx;
       if (token) {
-        // Request token withdrawal
-        tx = await vault.withdrawTokenRequest(token, to, amount, { from: address });
+        // Request token withdrawal via service
+        tx = await vaultService.withdrawTokenRequest(token, to, amount, { from: address });
       } else {
-        // Request ETH withdrawal
-        tx = await vault.withdrawEthRequest(to, amount, { from: address });
+        // Request ETH withdrawal via service
+        tx = await vaultService.withdrawEthRequest(to, amount, { from: address });
       }
 
       // Wait for transaction confirmation
@@ -1014,28 +998,17 @@ function SimpleVaultUIContent({
     }
   };
 
-  // Add hooks
-  const {
-    handleApproveWithdrawal,
-    handleCancelWithdrawal,
-    loadingStates: timeLockLoadingStates
-  } = useTimeLockActions(
-    contractAddress as Address,
-    addMessage,
-    handleRefresh
-  );
-
   // Update loadingState to include timeLockLoadingStates
   useEffect(() => {
     setLoadingState(prev => ({
       ...prev,
-      approval: timeLockLoadingStates.approval,
-      cancellation: timeLockLoadingStates.cancellation
+      approval: operationsLoadingStates.approval,
+      cancellation: operationsLoadingStates.cancellation
     }));
-  }, [timeLockLoadingStates]);
+  }, [operationsLoadingStates]);
 
   const fetchTokenBalance = async (tokenAddress: Address): Promise<void> => {
-    if (!vault) return;
+    if (!vault || !vaultService) return;
     
     setLoadingState(prev => ({
       ...prev,
@@ -1044,7 +1017,7 @@ function SimpleVaultUIContent({
 
     try {
       const balance = await vault.getTokenBalance(tokenAddress);
-      const metadata = await vault.getTokenMetadata(tokenAddress);
+      const metadata = await vaultService.getTokenMetadata(tokenAddress);
       
       setTokenBalances(prev => ({
         ...prev,
@@ -1088,9 +1061,6 @@ function SimpleVaultUIContent({
       return newBalances;
     });
   };
-
-  // Ensure contractAddress is properly typed at the start
-  const typedContractAddress = contractAddress as Address;
 
   // Render sidebar content
   if (renderSidebar) {
@@ -1254,7 +1224,7 @@ function SimpleVaultUIContent({
                 onSubmit={handleDeposit}
                 isLoading={loadingState.deposit}
                 walletBalances={walletBalances}
-                contractAddress={typedContractAddress}
+                contractAddress={contractAddress as Address}
               />
             </CardContent>
           </Card>
@@ -1264,20 +1234,23 @@ function SimpleVaultUIContent({
           <div className="space-y-2">
             <h3 className="font-medium">Pending Transactions</h3>
             <div className="space-y-2">
-              {filteredPendingTxs.slice(0, 2).map((tx) => (
-                <PendingTransaction
-                  key={tx.txId}
-                  tx={tx}
-                  onApprove={handleApproveWithdrawal}
-                  onCancel={handleCancelWithdrawal}
-                  isLoading={loadingState.approval[Number(tx.txId)] || loadingState.cancellation[Number(tx.txId)]}
-                  contractAddress={typedContractAddress}
-                  onNotification={handleNotification}
-                  onRefresh={handleRefresh}
-                  mode="timelock"
-                  timeLockPeriodInMinutes={contractInfo?.timeLockPeriodInMinutes || 0}
-                />
-              ))}
+              {filteredPendingTxs.slice(0, 2).map((tx) => {
+                
+                return (
+                  <PendingTransaction
+                    key={tx.txId}
+                    tx={tx}
+                    onApprove={handleApproveWithdrawal}
+                    onCancel={handleCancelWithdrawal}
+                    isLoading={operationsLoadingStates.approval[Number(tx.txId)] || operationsLoadingStates.cancellation[Number(tx.txId)]}
+                    contractAddress={contractAddress as Address}
+                    onNotification={handleNotification}
+                    onRefresh={handleRefresh}
+                    mode="timelock"
+                    timeLockPeriodInMinutes={contractInfo?.timeLockPeriodInMinutes || 0}
+                  />
+                );
+              })}
               {filteredPendingTxs.length > 2 && (
                 <Button
                   variant="link"
@@ -1376,7 +1349,6 @@ function SimpleVaultUIContent({
                   <TabsList className="grid w-full grid-cols-2 bg-background p-1 rounded-lg">
                     <TabsTrigger value="deposit" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">Deposit</TabsTrigger>
                     <TabsTrigger value="withdraw" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">Withdraw</TabsTrigger>
-                    {/* <TabsTrigger value="pending" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">Pending</TabsTrigger> */}
                   </TabsList>
                   
                   <TabsContent value="deposit">
@@ -1421,63 +1393,6 @@ function SimpleVaultUIContent({
                       </CardContent>
                     </Card>
                   </TabsContent>
-
-                  {/* <TabsContent value="pending">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Pending Withdrawals</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <Tabs defaultValue="timelock" className="w-full" value={activeTab} onValueChange={(value) => setActiveTab(value as 'timelock' | 'metatx')}>
-                          <TabsList className="grid w-full grid-cols-2 bg-background p-1 rounded-lg">
-                            <TabsTrigger value="timelock" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
-                              TimeLock
-                            </TabsTrigger>
-                            <TabsTrigger value="metatx" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
-                              MetaTx
-                            </TabsTrigger>
-                          </TabsList>
-
-                          <TabsContent value="timelock" className="mt-4">
-                            <div className="space-y-4">
-                              <PendingTransactions
-                                transactions={filteredPendingTxs}
-                                isLoadingTx={loadingState.transactions}
-                                onRefresh={handleRefresh}
-                                onApprove={handleApproveWithdrawal}
-                                onCancel={handleCancelWithdrawal}
-                                isLoading={false}
-                                contractAddress={typedContractAddress}
-                                mode="timelock"
-                                onNotification={addMessage}
-                                connectedAddress={address}
-                                timeLockPeriodInMinutes={contractInfo?.timeLockPeriodInMinutes || 0}
-                              />
-                            </div>
-                          </TabsContent>
-
-                          <TabsContent value="metatx" className="mt-4">
-                            <div className="space-y-4">
-                              <PendingTransactions
-                                transactions={filteredPendingTxs}
-                                isLoadingTx={loadingState.transactions}
-                                onRefresh={handleRefresh}
-                                onMetaTxSign={handleMetaTxSign}
-                                onBroadcastMetaTx={handleBroadcastMetaTx}
-                                signedMetaTxStates={signedMetaTxStates}
-                                isLoading={isMetaTxLoading}
-                                contractAddress={typedContractAddress}
-                                mode="metatx"
-                                onNotification={addMessage}
-                                connectedAddress={address}
-                                timeLockPeriodInMinutes={contractInfo?.timeLockPeriodInMinutes || 0}
-                              />
-                            </div>
-                          </TabsContent>
-                        </Tabs>
-                      </CardContent>
-                    </Card>
-                  </TabsContent> */}
                 </Tabs>
               ) : (
                 /* Dashboard mode: Show simplified view */
@@ -1485,20 +1400,23 @@ function SimpleVaultUIContent({
                   <div className="space-y-4">
                     <h3 className="font-medium">Pending Transactions</h3>
                     <div className="space-y-2">
-                      {filteredPendingTxs.slice(0, 2).map((tx) => (
-                        <PendingTransaction
-                          key={tx.txId}
-                          tx={tx}
-                          onApprove={handleApproveWithdrawal}
-                          onCancel={handleCancelWithdrawal}
-                          isLoading={loadingState.approval[Number(tx.txId)] || loadingState.cancellation[Number(tx.txId)]}
-                          contractAddress={typedContractAddress}
-                          onNotification={handleNotification}
-                          onRefresh={handleRefresh}
-                          mode="timelock"
-                          timeLockPeriodInMinutes={contractInfo?.timeLockPeriodInMinutes || 0}
-                        />
-                      ))}
+                      {filteredPendingTxs.slice(0, 2).map((tx) => {
+                        
+                        return (
+                          <PendingTransaction
+                            key={tx.txId}
+                            tx={tx}
+                            onApprove={handleApproveWithdrawal}
+                            onCancel={handleCancelWithdrawal}
+                            isLoading={operationsLoadingStates.approval[Number(tx.txId)] || operationsLoadingStates.cancellation[Number(tx.txId)]}
+                            contractAddress={contractAddress as Address}
+                            onNotification={handleNotification}
+                            onRefresh={handleRefresh}
+                            mode="timelock"
+                            timeLockPeriodInMinutes={contractInfo?.timeLockPeriodInMinutes || 0}
+                          />
+                        );
+                      })}
                       {filteredPendingTxs.length > 2 && (
                         <Button
                           variant="link"

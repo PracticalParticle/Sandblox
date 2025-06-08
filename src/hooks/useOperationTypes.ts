@@ -18,6 +18,7 @@ const CACHE_EXPIRATION = 24 * 60 * 60 * 1000;
 
 export function useOperationTypes(contractAddress?: Address) {
   const [operationTypes, setOperationTypes] = useState<Map<string, string>>(new Map())
+  const [nameToTypeMap, setNameToTypeMap] = useState<Map<string, Hex>>(new Map())
   const [loading, setLoading] = useState(true)
   const publicClient = usePublicClient()
   const { data: walletClient } = useWalletClient()
@@ -40,10 +41,13 @@ export function useOperationTypes(contractAddress?: Address) {
         if (cachedEntry && (Date.now() - cachedEntry.timestamp) < CACHE_EXPIRATION) {
           console.log('Using cached operation types for contract:', contractAddress)
           const typeMap = new Map<string, string>()
+          const reverseMap = new Map<string, Hex>()
           cachedEntry.types.forEach(({ operationType, name }) => {
             typeMap.set(operationType, name)
+            reverseMap.set(name, operationType as Hex)
           })
           setOperationTypes(typeMap)
+          setNameToTypeMap(reverseMap)
           setLoading(false)
           return
         }
@@ -59,8 +63,10 @@ export function useOperationTypes(contractAddress?: Address) {
         
         // Create a map of operation type hex to name
         const typeMap = new Map<string, string>()
+        const reverseMap = new Map<string, Hex>()
         types.forEach(({ operationType, name }) => {
           typeMap.set(operationType, name)
+          reverseMap.set(name, operationType as Hex)
         })
         
         // Update cache
@@ -71,6 +77,7 @@ export function useOperationTypes(contractAddress?: Address) {
         localStorage.setItem(OPERATION_TYPES_CACHE_KEY, JSON.stringify(cache))
         
         setOperationTypes(typeMap)
+        setNameToTypeMap(reverseMap)
       } catch (error) {
         console.error('Failed to load operation types:', error)
       } finally {
@@ -83,7 +90,9 @@ export function useOperationTypes(contractAddress?: Address) {
 
   return {
     operationTypes,
+    nameToTypeMap,
     loading,
-    getOperationName: (type: Hex) => operationTypes.get(type) || 'Unknown Operation'
+    getOperationName: (type: Hex) => operationTypes.get(type) || 'Unknown Operation',
+    getOperationType: (name: string) => nameToTypeMap.get(name) || null
   }
 } 
