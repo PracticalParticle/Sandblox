@@ -1,6 +1,11 @@
 import { useAccount } from 'wagmi'
 import { Address } from 'viem'
 import { BaseDeploymentForm, type FormField } from '@/components/BaseDeploymentForm'
+import { useState } from 'react'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Button } from "@/components/ui/button"
+import { ChevronDown, ChevronUp } from "lucide-react"
+import { Label } from "@/components/ui/label"
 
 interface DeploymentFormProps {
   onDeploy: (params: {
@@ -16,8 +21,20 @@ interface DeploymentFormProps {
 
 export function DeploymentForm({ onDeploy, isLoading }: DeploymentFormProps) {
   const { address } = useAccount()
+  const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [delegatedCallEnabled, setDelegatedCallEnabled] = useState(false)
 
   const fields: FormField[] = [
+    {
+      id: 'safeAddress',
+      label: 'Safe Address',
+      placeholder: '0x...',
+      description: 'The address of the underlying Safe contract to manage',
+      validate: (value) => {
+        if (!value || !value.startsWith('0x')) return 'Must be a valid Ethereum address'
+        return undefined;
+      }
+    },
     {
       id: 'initialOwner',
       label: 'Initial Owner Address',
@@ -50,27 +67,6 @@ export function DeploymentForm({ onDeploy, isLoading }: DeploymentFormProps) {
       }
     },
     {
-      id: 'safeAddress',
-      label: 'Safe Address',
-      placeholder: '0x...',
-      description: 'The address of the underlying Safe contract to manage',
-      validate: (value) => {
-        if (!value || !value.startsWith('0x')) return 'Must be a valid Ethereum address'
-        return undefined;
-      }
-    },
-    {
-      id: 'delegatedCallEnabled',
-      label: 'Enable Delegated Calls',
-      type: 'checkbox',
-      description: 'Allow execution of delegated calls (advanced feature)',
-      defaultValue: 'false',
-      validate: (_value) => {
-        // No validation needed for boolean
-        return undefined;
-      }
-    },
-    {
       id: 'timeLockPeriodInDays',
       label: 'Time Lock Period (Days)',
       type: 'number',
@@ -88,9 +84,9 @@ export function DeploymentForm({ onDeploy, isLoading }: DeploymentFormProps) {
     }
   ]
 
-  // Custom onDeploy handler to convert delegatedCallEnabled to boolean
+  // Custom onDeploy handler to pass delegatedCallEnabled separately
   const handleDeploy = async (params: Record<string, any>) => {
-    // Convert delegatedCallEnabled from string to boolean
+    // Prepare the parameters with delegatedCallEnabled from our state
     const processedParams = {
       ...params,
       initialOwner: params.initialOwner as Address,
@@ -98,12 +94,42 @@ export function DeploymentForm({ onDeploy, isLoading }: DeploymentFormProps) {
       recovery: params.recovery as Address,
       safeAddress: params.safeAddress as Address,
       timeLockPeriodInDays: parseInt(params.timeLockPeriodInDays),
-      delegatedCallEnabled: params.delegatedCallEnabled === 'true' || params.delegatedCallEnabled === true
+      delegatedCallEnabled: delegatedCallEnabled
     };
     
     // Call the provided onDeploy function with processed parameters
     await onDeploy(processedParams);
   };
+
+  const customContent = (
+    <div className="pt-2">
+      <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="w-full">
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" size="sm" className="flex items-center p-0 h-auto">
+            <span className="text-sm font-medium">Advanced Options</span>
+            {advancedOpen ? <ChevronUp className="h-4 w-4 ml-2" /> : <ChevronDown className="h-4 w-4 ml-2" />}
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-2">
+          <div className="flex items-center space-x-2 py-1">
+            <input
+              type="checkbox"
+              id="delegatedCallEnabled"
+              checked={delegatedCallEnabled}
+              onChange={(e) => setDelegatedCallEnabled(e.target.checked)}
+              className="h-4 w-4"
+            />
+            <Label htmlFor="delegatedCallEnabled" className="text-sm font-normal cursor-pointer">
+              Enable Delegated Calls
+            </Label>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Allow execution of delegated calls (advanced feature)
+          </p>
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
+  );
 
   return (
     <BaseDeploymentForm
@@ -112,6 +138,7 @@ export function DeploymentForm({ onDeploy, isLoading }: DeploymentFormProps) {
       fields={fields}
       onDeploy={handleDeploy}
       isLoading={isLoading}
+      customContent={customContent}
     />
   )
 }
