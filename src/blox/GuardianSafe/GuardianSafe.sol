@@ -127,6 +127,14 @@ contract GuardianSafe is GuardianAccountAbstraction, ITransactionGuard {
     }
 
     /**
+     * @notice Gets the underlying Safe contract address
+     * @return The address of the Safe contract
+     */
+    function getSafeAddress() external view returns (address) {
+        return address(safe);
+    }
+
+    /**
      * @notice Enable or disable delegated calls
      * @param enabled True to enable delegated calls, false to disable
      */
