@@ -67,11 +67,11 @@ export default class GuardianSafe {
    * @notice Gets the Safe contract address
    * @return The Safe contract address
    */
-  async safe(): Promise<Address> {
+  async getSafeAddress(): Promise<Address> {
     return await this.client.readContract({
       address: this.contractAddress,
       abi: GuardianSafeABI,
-      functionName: 'safe'
+      functionName: 'getSafeAddress'
     }) as Address;
   }
 

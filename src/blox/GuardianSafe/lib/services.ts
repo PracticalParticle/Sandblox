@@ -99,7 +99,7 @@ export class GuardianSafeService {
    * Get the address of the underlying Safe contract
    */
   async getSafeAddress(): Promise<Address> {
-    return this.safe.safe();
+    return this.safe.getSafeAddress();
   }
 
   /**
