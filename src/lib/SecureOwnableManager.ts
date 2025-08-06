@@ -1,9 +1,9 @@
 import { Address, Chain, Hash, Hex, PublicClient, WalletClient } from 'viem';
-import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index';
-import { FUNCTION_SELECTORS, OPERATION_TYPES } from '../particle-core/sdk/typescript/types/core.access.index';
-import { TransactionResult } from '../particle-core/sdk/typescript/interfaces/base.index';
-import { MetaTransaction } from '../particle-core/sdk/typescript/interfaces/lib.index';
-import { ExecutionType } from '../particle-core/sdk/typescript/types/lib.index';
+import { TxRecord } from '../Guardian/sdk/typescript/interfaces/lib.index';
+import { FUNCTION_SELECTORS, OPERATION_TYPES } from '../Guardian/sdk/typescript/types/core.access.index';
+import { TransactionResult } from '../Guardian/sdk/typescript/interfaces/base.index';
+import { MetaTransaction } from '../Guardian/sdk/typescript/interfaces/lib.index';
+import { ExecutionType } from '../Guardian/sdk/typescript/types/lib.index';
 import { 
   SecureContractInfo, 
   SecurityOperationEvent, 
@@ -11,8 +11,8 @@ import {
   OperationType
 } from './types';
 import { getChainName } from './utils';
-import SecureOwnable from '../particle-core/sdk/typescript/SecureOwnable';
-import { TxStatus } from '../particle-core/sdk/typescript/types/lib.index';
+import SecureOwnable from '../Guardian/sdk/typescript/SecureOwnable';
+import { TxStatus } from '../Guardian/sdk/typescript/types/lib.index';
 
 export class SecureOwnableManager {
   private contract: SecureOwnable;

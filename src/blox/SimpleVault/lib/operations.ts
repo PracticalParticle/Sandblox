@@ -1,11 +1,11 @@
 import { Address, Chain, Hex, PublicClient, WalletClient, keccak256, toHex } from 'viem';
-import { TransactionOptions } from '../../../particle-core/sdk/typescript/interfaces/base.index';
+import { TransactionOptions } from '../../../Guardian/sdk/typescript/interfaces/base.index';
 import { BaseBloxOperationsHandler } from '../../../types/BloxOperationsHandler';
-import { MetaTransaction, TxRecord } from '../../../particle-core/sdk/typescript/interfaces/lib.index';
+import { MetaTransaction, TxRecord } from '../../../Guardian/sdk/typescript/interfaces/lib.index';
 import { MultiPhaseOperationFunctions } from '../../../types/OperationRegistry';
 import SimpleVault from '../SimpleVault';
-import { TxStatus } from '../../../particle-core/sdk/typescript/types/lib.index';
-import { SecureOwnable } from '../../../particle-core/sdk/typescript/SecureOwnable';
+import { TxStatus } from '../../../Guardian/sdk/typescript/types/lib.index';
+import { SecureOwnable } from '../../../Guardian/sdk/typescript/SecureOwnable';
 import { VaultMetaTxParams } from '../SimpleVault';
 
 /**

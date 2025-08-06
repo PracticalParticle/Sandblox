@@ -22,7 +22,7 @@ import { TransactionManagerProvider } from "@/contexts/MetaTransactionManager";
 import { useOperations } from "./hooks/useOperations";
 import { GuardianSafeService } from "./lib/services";
 import { useWorkflowManager } from "@/hooks/useWorkflowManager";
-import { TxStatus } from "../../particle-core/sdk/typescript/types/lib.index";
+import { TxStatus } from "../../Guardian/sdk/typescript/types/lib.index";
 
 // Extend the base ContractInfo interface to include broadcaster and other properties
 interface ContractInfo extends BaseContractInfo {

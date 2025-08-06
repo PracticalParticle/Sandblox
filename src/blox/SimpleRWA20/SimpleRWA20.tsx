@@ -1,7 +1,7 @@
 import { Address, PublicClient, WalletClient, Chain, Abi } from 'viem';
 import SimpleRWA20ABIJson from './SimpleRWA20.abi.json';
-import { MetaTransaction } from '../../particle-core/sdk/typescript/interfaces/lib.index';
-import { TransactionOptions, TransactionResult } from '../../particle-core/sdk/typescript/interfaces/base.index';
+import { MetaTransaction } from '../../Guardian/sdk/typescript/interfaces/lib.index';
+import { TransactionOptions, TransactionResult } from '../../Guardian/sdk/typescript/interfaces/base.index';
 
 // Parse and type the ABI
 const SimpleRWA20ABI = SimpleRWA20ABIJson as Abi;

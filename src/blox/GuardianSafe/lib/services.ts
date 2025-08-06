@@ -1,11 +1,11 @@
 import { Address, PublicClient, WalletClient, Chain, Hex } from 'viem';
-import { TransactionOptions, TransactionResult } from '../../../particle-core/sdk/typescript/interfaces/base.index';
-import { TxRecord, MetaTransaction } from '../../../particle-core/sdk/typescript/interfaces/lib.index';
-import { TxStatus } from '../../../particle-core/sdk/typescript/types/lib.index';
-import { ContractValidations } from '../../../particle-core/sdk/typescript/utils/validations';
+import { TransactionOptions, TransactionResult } from '../../../Guardian/sdk/typescript/interfaces/base.index';
+import { TxRecord, MetaTransaction } from '../../../Guardian/sdk/typescript/interfaces/lib.index';
+import { TxStatus } from '../../../Guardian/sdk/typescript/types/lib.index';
+import { ContractValidations } from '../../../Guardian/sdk/typescript/utils/validations';
 import GuardianSafe, { SafeTx, SafeMetaTxParams } from '../GuardianSafe';
 import { SafeTxRecord, EnhancedSafeTx } from './types';
-import SecureOwnable from '../../../particle-core/sdk/typescript/SecureOwnable';
+import SecureOwnable from '../../../Guardian/sdk/typescript/SecureOwnable';
 
 // Storage key for meta tx settings
 const META_TX_SETTINGS_KEY = 'guardianSafe.metaTxSettings';

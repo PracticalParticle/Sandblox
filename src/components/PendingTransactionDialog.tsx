@@ -16,7 +16,7 @@ import { NotificationMessage } from "@/lib/catalog/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatAddress } from "@/lib/utils";
 import { useMetaTransactionManager } from "@/hooks/useMetaTransactionManager";
-import { TxRecord } from "@/particle-core/sdk/typescript/interfaces/lib.index";
+import { TxRecord } from "@/Guardian/sdk/typescript/interfaces/lib.index";
 import { useOperationRegistry } from "../hooks/useOperationRegistry";
 import { useBloxOperations } from "../hooks/useBloxOperations";
 import { useEffect, useState } from "react";

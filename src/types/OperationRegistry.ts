@@ -1,6 +1,6 @@
 import { Address, Hex } from 'viem';
-import { TransactionOptions, TransactionResult } from '../particle-core/sdk/typescript/interfaces/base.index';
-import { MetaTransaction } from '../particle-core/sdk/typescript/interfaces/lib.index';
+import { TransactionOptions, TransactionResult } from '../Guardian/sdk/typescript/interfaces/base.index';
+import { MetaTransaction } from '../Guardian/sdk/typescript/interfaces/lib.index';
 
 /**
  * Represents the execution phase of an operation

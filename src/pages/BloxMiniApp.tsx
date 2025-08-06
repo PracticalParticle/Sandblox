@@ -21,7 +21,7 @@ import { OpHistory } from '@/components/OpHistory';
 import { useMetaTransactionManager } from '@/hooks/useMetaTransactionManager';
 import { useOperationTypes } from '@/hooks/useOperationTypes';
 import { Hex } from 'viem';
-import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index';
+import { TxRecord } from '@/Guardian/sdk/typescript/interfaces/lib.index';
 import { useChain } from '@/hooks/useChain';
 
 import { MetaTransactionManager } from '@/services/MetaTransactionManager';

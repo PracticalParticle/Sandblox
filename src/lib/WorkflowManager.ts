@@ -1,10 +1,10 @@
 import { Address, Chain, Hash, Hex, PublicClient, WalletClient } from 'viem';
-import { MetaTransaction } from '../particle-core/sdk/typescript/interfaces/lib.index';
-import { TransactionOptions } from '../particle-core/sdk/typescript/interfaces/base.index';
-import { SecureOwnable } from '../particle-core/sdk/typescript/SecureOwnable';
+import { MetaTransaction } from '../Guardian/sdk/typescript/interfaces/lib.index';
+import { TransactionOptions } from '../Guardian/sdk/typescript/interfaces/base.index';
+import { SecureOwnable } from '../Guardian/sdk/typescript/SecureOwnable';
 import { registerCoreOperations } from '../registrations/CoreOperations';
 import { registerBloxOperations, hasOperationsForContractType } from '../registrations/BloxOperations';
-import { ExecutionType } from '../particle-core/sdk/typescript/types/lib.index';
+import { ExecutionType } from '../Guardian/sdk/typescript/types/lib.index';
 import { 
   operationRegistry, 
   CoreOperationType,
@@ -16,7 +16,7 @@ import {
   canExecuteOperationPhase
 } from '../types/OperationRegistry';
 import { SecureContractInfo } from './types';
-import { OPERATION_TYPES, FUNCTION_SELECTORS } from '../particle-core/sdk/typescript/types/core.access.index';
+import { OPERATION_TYPES, FUNCTION_SELECTORS } from '../Guardian/sdk/typescript/types/core.access.index';
 
 /**
  * Maps human-readable operation types to contract-level hashes

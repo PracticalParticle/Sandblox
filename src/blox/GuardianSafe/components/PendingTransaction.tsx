@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, X, CheckCircle2, Clock, XCircle, RefreshCw, Radio } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
-import { TxStatus } from "../../../particle-core/sdk/typescript/types/lib.index";
+import { TxStatus } from "../../../Guardian/sdk/typescript/types/lib.index";
 import { SAFE_OPERATIONS } from "../hooks/useOperations";
 import { useOperationTypes } from "@/hooks/useOperationTypes";
 import { NotificationMessage, SafeTxRecord, EnhancedSafeTx } from "../lib/types";

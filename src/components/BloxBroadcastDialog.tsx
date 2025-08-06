@@ -8,12 +8,12 @@ import { Badge } from "@/components/ui/badge"
 import { TxInfoCard } from "./TxInfoCard"
 import { useState, useEffect } from "react"
 import { formatAddress } from "@/lib/utils"
-import { TxStatus } from '@/particle-core/sdk/typescript/types/lib.index'
+import { TxStatus } from '@/Guardian/sdk/typescript/types/lib.index'
 import { Address, Hex, keccak256 } from "viem"
 import { ExtendedSignedTransaction } from "./SignedMetaTxTable"
 import { useBloxOperations } from "@/hooks/useBloxOperations"
 import { useOperationRegistry } from "@/hooks/useOperationRegistry"
-import { TxRecord } from "@/particle-core/sdk/typescript/interfaces/lib.index"
+import { TxRecord } from "@/Guardian/sdk/typescript/interfaces/lib.index"
 import { useMetaTransactionManager } from "@/hooks/useMetaTransactionManager"
 
 interface BloxBroadcastDialogProps {

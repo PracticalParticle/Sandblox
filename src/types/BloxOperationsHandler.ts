@@ -7,7 +7,7 @@ import {
   SinglePhaseOperationFunctions,
   OperationType
 } from './OperationRegistry';
-import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index';
+import { TxRecord } from '../Guardian/sdk/typescript/interfaces/lib.index';
 
 /**
  * Base abstract class for Blox operations handlers

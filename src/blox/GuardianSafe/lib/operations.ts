@@ -1,10 +1,10 @@
 import { Address, Chain, Hex, PublicClient, WalletClient, keccak256 } from 'viem';
-import { TransactionOptions } from '../../../particle-core/sdk/typescript/interfaces/base.index';
+import { TransactionOptions } from '../../../Guardian/sdk/typescript/interfaces/base.index';
 import { BaseBloxOperationsHandler } from '../../../types/BloxOperationsHandler';
-import { MetaTransaction, TxRecord } from '../../../particle-core/sdk/typescript/interfaces/lib.index';
+import { MetaTransaction, TxRecord } from '../../../Guardian/sdk/typescript/interfaces/lib.index';
 import { MultiPhaseOperationFunctions, SinglePhaseOperationFunctions } from '../../../types/OperationRegistry';
 import GuardianSafe, { SafeTx } from '../GuardianSafe';
-import { SecureOwnable } from '../../../particle-core/sdk/typescript/SecureOwnable';
+import { SecureOwnable } from '../../../Guardian/sdk/typescript/SecureOwnable';
 import { SafeMetaTxParams, SafeTxRecord } from './types';
 import { MetaTransactionManager } from '../../../services/MetaTransactionManager';
 

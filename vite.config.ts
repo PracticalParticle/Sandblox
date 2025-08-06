@@ -184,7 +184,7 @@ export default defineConfig(({ mode }) => {
       esbuildOptions: {
         target: 'es2020',
       },
-      include: ['particle-core']
+      include: ['Guardian']
     },
     server: {
       port: 5173,
