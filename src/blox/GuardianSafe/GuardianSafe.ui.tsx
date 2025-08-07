@@ -23,7 +23,8 @@ import { useOperations } from "./hooks/useOperations";
 import { GuardianSafeService } from "./lib/services";
 import { useWorkflowManager } from "@/hooks/useWorkflowManager";
 import { TxStatus } from "../../Guardian/sdk/typescript/types/lib.index";
-import { useSafeOwners } from "./hooks/useSafeCoreInterface";
+import { useSafeOwners, useSafeCoreInterface } from "../../blox/GuardianSafe/hooks/useSafeCoreInterface";
+import { GuardInfo } from "./lib/safe/SafeCoreInterface";
 
 // Extend the base ContractInfo interface to include broadcaster and other properties
 interface ContractInfo extends BaseContractInfo {
@@ -366,6 +367,20 @@ function GuardianSafeUIContent({
     refetch: refetchOwners 
   } = useSafeOwners(safeAddress || undefined);
   
+  // Safe guard hook for guard management
+  const {
+    getGuardInfo,
+    setGuard,
+    removeGuard,
+    isOwner: isSafeOwner,
+    isLoading: isLoadingGuard,
+    error: guardError
+  } = useSafeCoreInterface(safeAddress || undefined);
+  
+  // Guard state
+  const [guardInfo, setGuardInfo] = useState<GuardInfo | null>(null);
+  const [isConnectedWalletSafeOwner, setIsConnectedWalletSafeOwner] = useState<boolean>(false);
+  
   // Initialization flag
   const initialLoadDoneRef = useRef(false);
 
@@ -376,6 +391,36 @@ function GuardianSafeUIContent({
       console.log('Loaded meta tx settings:', storedSettings);
     }
   }, [safeService]);
+
+  // Load guard info when Safe address is available
+  useEffect(() => {
+    if (safeAddress && getGuardInfo) {
+      getGuardInfo()
+        .then(setGuardInfo)
+        .catch(error => {
+          console.error('Failed to load guard info:', error);
+          addMessage?.({
+            type: 'error',
+            title: 'Failed to Load Guard Info',
+            description: error instanceof Error ? error.message : 'Unknown error occurred'
+          });
+        });
+    }
+  }, [safeAddress, getGuardInfo, addMessage]);
+
+  // Check if connected wallet is a Safe owner
+  useEffect(() => {
+    if (safeAddress && address && isSafeOwner) {
+      isSafeOwner(address)
+        .then(setIsConnectedWalletSafeOwner)
+        .catch(error => {
+          console.error('Failed to check if connected wallet is Safe owner:', error);
+          setIsConnectedWalletSafeOwner(false);
+        });
+    } else {
+      setIsConnectedWalletSafeOwner(false);
+    }
+  }, [safeAddress, address, isSafeOwner]);
 
   // Refresh function to update data
   const refreshData = useCallback(async () => {
@@ -647,9 +692,14 @@ function GuardianSafeUIContent({
             <h3 className="font-medium text-sm text-muted-foreground">SAFE OWNERS</h3>
             <Card className="p-3">
               <div className="space-y-2">
-                {safeOwners.map((owner, index) => (
+                {safeOwners.map((owner: Address, index: number) => (
                   <div key={owner} className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">Owner {index + 1}:</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground">Owner {index + 1}:</span>
+                      {address && owner.toLowerCase() === address.toLowerCase() && (
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-500" title="Connected wallet"></div>
+                      )}
+                    </div>
                     <span className="text-xs font-mono truncate max-w-[120px]" title={owner}>
                       {owner.slice(0, 6)}...{owner.slice(-4)}
                     </span>
@@ -839,30 +889,33 @@ function GuardianSafeUIContent({
                 <div className="rounded-md border p-4">
                   {safeOwners.length > 0 ? (
                     <div className="space-y-3">
-                      {safeOwners.map((owner, index) => (
-                        <div key={owner} className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-medium">
-                              {index + 1}
-                            </div>
-                            <span className="text-sm font-medium">Owner {index + 1}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-sm" title={owner}>
-                              {owner.slice(0, 6)}...{owner.slice(-4)}
-                            </span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0"
-                              onClick={() => navigator.clipboard.writeText(owner)}
-                              title="Copy address"
-                            >
-                              📋
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
+                                             {safeOwners.map((owner: Address, index: number) => (
+                         <div key={owner} className="flex items-center justify-between">
+                           <div className="flex items-center gap-2">
+                             <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-medium">
+                               {index + 1}
+                             </div>
+                             <span className="text-sm font-medium">Owner {index + 1}</span>
+                             {address && owner.toLowerCase() === address.toLowerCase() && (
+                               <div className="w-2 h-2 rounded-full bg-green-500" title="Connected wallet"></div>
+                             )}
+                           </div>
+                           <div className="flex items-center gap-2">
+                             <span className="font-mono text-sm" title={owner}>
+                               {owner.slice(0, 6)}...{owner.slice(-4)}
+                             </span>
+                             <Button
+                               variant="ghost"
+                               size="sm"
+                               className="h-6 w-6 p-0"
+                               onClick={() => navigator.clipboard.writeText(owner)}
+                               title="Copy address"
+                             >
+                               📋
+                             </Button>
+                           </div>
+                         </div>
+                       ))}
                     </div>
                   ) : isLoadingOwners ? (
                     <div className="text-center py-4">
@@ -889,6 +942,145 @@ function GuardianSafeUIContent({
                   )}
                 </div>
               </div>
+
+              {/* Guard Management Section */}
+              {isOwner && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-medium text-muted-foreground">TRANSACTION GUARD</h3>
+                    {isLoadingGuard && (
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
+                    {guardError && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <AlertCircle className="h-4 w-4 text-destructive" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Error loading guard info: {guardError}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
+                  <div className="rounded-md border p-4">
+                    <div className="space-y-4">
+                      {/* Current Guard Status */}
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">Current Guard</p>
+                          <p className="text-xs text-muted-foreground">
+                            {guardInfo ? (
+                              guardInfo.isEnabled ? (
+                                <>
+                                  {guardInfo.guard.slice(0, 6)}...{guardInfo.guard.slice(-4)}
+                                  {guardInfo.guard === contractAddress && (
+                                    <span className="ml-2 text-green-600">(GuardianSafe)</span>
+                                  )}
+                                </>
+                              ) : (
+                                'No guard set'
+                              )
+                            ) : isLoadingGuard ? (
+                              'Loading...'
+                            ) : (
+                              'Unknown'
+                            )}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {guardInfo?.isEnabled && guardInfo.guard === contractAddress ? (
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={async () => {
+                                try {
+                                  await removeGuard();
+                                  addMessage?.({
+                                    type: 'success',
+                                    title: 'Guard Removed',
+                                    description: 'GuardianSafe has been removed as the transaction guard.'
+                                  });
+                                  // Refresh guard info
+                                  const newGuardInfo = await getGuardInfo();
+                                  setGuardInfo(newGuardInfo);
+                                } catch (error) {
+                                  addMessage?.({
+                                    type: 'error',
+                                    title: 'Failed to Remove Guard',
+                                    description: error instanceof Error ? error.message : 'Unknown error occurred'
+                                  });
+                                }
+                              }}
+                              disabled={isLoadingGuard || !isConnectedWalletSafeOwner}
+                            >
+                              Remove Guard
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={async () => {
+                                if (!contractAddress) {
+                                  addMessage?.({
+                                    type: 'error',
+                                    title: 'Error',
+                                    description: 'Contract address not available'
+                                  });
+                                  return;
+                                }
+                                try {
+                                  await setGuard(contractAddress);
+                                  addMessage?.({
+                                    type: 'success',
+                                    title: 'Guard Set',
+                                    description: 'GuardianSafe has been set as the transaction guard.'
+                                  });
+                                  // Refresh guard info
+                                  const newGuardInfo = await getGuardInfo();
+                                  setGuardInfo(newGuardInfo);
+                                } catch (error) {
+                                  addMessage?.({
+                                    type: 'error',
+                                    title: 'Failed to Set Guard',
+                                    description: error instanceof Error ? error.message : 'Unknown error occurred'
+                                  });
+                                }
+                              }}
+                              disabled={isLoadingGuard || !contractAddress || !isConnectedWalletSafeOwner}
+                            >
+                              Set GuardianSafe as Guard
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      
+                                             {/* Guard Information */}
+                       {guardInfo?.isEnabled && (
+                         <div className="pt-4 border-t">
+                           <p className="text-xs text-muted-foreground">
+                             <strong>Note:</strong> When GuardianSafe is set as a transaction guard, 
+                             all Safe transactions will be validated by the GuardianSafe contract 
+                             before execution. This provides an additional layer of security 
+                             and enables time-locked operations.
+                           </p>
+                         </div>
+                       )}
+                       
+                       {/* Permission Information */}
+                       {!isConnectedWalletSafeOwner && (
+                         <div className="pt-4 border-t">
+                           <p className="text-xs text-muted-foreground">
+                             <strong>Permission Required:</strong> Only Safe owners can set or remove transaction guards. 
+                             Please connect with a wallet that is an owner of this Safe.
+                           </p>
+                         </div>
+                       )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Role Information */}
               <div className="space-y-2">

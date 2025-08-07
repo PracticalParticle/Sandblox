@@ -113,6 +113,150 @@ This layered approach ensures that even if multiple signers are compromised, fun
 
 2. Set GuardianSafe as a transaction guard on your Safe wallet
 
+### Setting GuardianSafe as Transaction Guard
+
+After deploying your GuardianSafe contract, you need to set it as a transaction guard on your Safe wallet to enable the enhanced security features. The GuardianSafe extension provides a `SafeCoreInterface` with methods to manage transaction guards.
+
+**⚠️ Important**: Only Safe owners can set or remove transaction guards. The connected wallet must be one of the Safe owners to perform guard management operations.
+
+#### Permission Requirements
+
+- ✅ **Safe Owner**: Can set and remove transaction guards
+- ❌ **Non-Owner**: Cannot modify guard settings (buttons will be disabled)
+- 🔍 **Visual Indicators**: Connected Safe owners are marked with a green dot in the UI
+
+#### Using the SafeCoreInterface
+
+```typescript
+import { createPublicClient, createWalletClient, http } from 'viem';
+import { mainnet } from 'viem/chains';
+import { createSafeCoreInterface } from './lib/safe/SafeCoreInterface';
+
+// Initialize clients
+const publicClient = createPublicClient({
+  chain: mainnet,
+  transport: http()
+});
+
+const walletClient = createWalletClient({
+  chain: mainnet,
+  transport: http()
+});
+
+// Create Safe interface
+const safeInterface = createSafeCoreInterface(
+  publicClient,
+  walletClient,
+  safeAddress,
+  mainnet
+);
+
+// Check current guard status
+const currentGuard = await safeInterface.getGuard();
+console.log('Current guard:', currentGuard);
+
+// Set GuardianSafe as transaction guard
+const txHash = await safeInterface.setGuard(guardianSafeAddress);
+console.log('Transaction hash:', txHash);
+
+// Verify the guard was set correctly
+const isGuardianSafeGuard = await safeInterface.isGuard(guardianSafeAddress);
+console.log('Is GuardianSafe the guard?', isGuardianSafeGuard);
+```
+
+#### Using the React Hook
+
+```typescript
+import { useSafeCoreInterface } from './hooks/useSafeCoreInterface';
+import { useAccount } from 'wagmi';
+
+function GuardianSafeSetup({ safeAddress, guardianSafeAddress }) {
+  const { address } = useAccount();
+  
+  const {
+    getGuard,
+    isGuard,
+    setGuard,
+    removeGuard,
+    getGuardInfo,
+    isOwner,
+    isLoading,
+    error
+  } = useSafeCoreInterface(safeAddress);
+
+  const [isConnectedWalletSafeOwner, setIsConnectedWalletSafeOwner] = useState(false);
+
+  // Check if connected wallet is a Safe owner
+  useEffect(() => {
+    if (safeAddress && address && isOwner) {
+      isOwner(address)
+        .then(setIsConnectedWalletSafeOwner)
+        .catch(() => setIsConnectedWalletSafeOwner(false));
+    }
+  }, [safeAddress, address, isOwner]);
+
+  const handleSetGuard = async () => {
+    if (!isConnectedWalletSafeOwner) {
+      alert('Only Safe owners can set guards');
+      return;
+    }
+    
+    try {
+      const txHash = await setGuard(guardianSafeAddress);
+      console.log('Guard set successfully:', txHash);
+    } catch (error) {
+      console.error('Failed to set guard:', error);
+    }
+  };
+
+  return (
+    <div>
+      <button 
+        onClick={handleSetGuard} 
+        disabled={isLoading || !isConnectedWalletSafeOwner}
+      >
+        Set GuardianSafe as Guard
+        {!isConnectedWalletSafeOwner && ' (Safe Owner Required)'}
+      </button>
+      {error && <p>Error: {error}</p>}
+      {!isConnectedWalletSafeOwner && (
+        <p className="text-sm text-muted">
+          ⚠️ Only Safe owners can manage transaction guards. 
+          Please connect with a wallet that is an owner of this Safe.
+        </p>
+      )}
+    </div>
+  );
+}
+```
+
+#### Available Guard Management Methods
+
+The `SafeCoreInterface` provides the following methods for managing transaction guards:
+
+- **`getGuard()`**: Get the current transaction guard address
+- **`isGuard(guardAddress)`**: Check if a specific address is set as the transaction guard
+- **`setGuard(guardAddress)`**: Set a transaction guard on the Safe wallet (Safe owner only)
+- **`removeGuard()`**: Remove the transaction guard from the Safe wallet (Safe owner only)
+- **`getGuardInfo()`**: Get comprehensive guard information including enabled status
+- **`hasGuard()`**: Check if the Safe has any transaction guard enabled
+- **`isOwner(address)`**: Check if an address is a Safe owner (required for permission validation)
+
+#### Guard Management Workflow
+
+1. **Check Owner Status**: Verify the connected wallet is a Safe owner using `isOwner()`
+2. **Check Current Status**: Use `getGuard()` or `getGuardInfo()` to see if a guard is already set
+2. **Set GuardianSafe**: Use `setGuard(guardianSafeAddress)` to enable the GuardianSafe module
+3. **Verify Setup**: Use `isGuard(guardianSafeAddress)` to confirm the guard was set correctly
+4. **Monitor Status**: Use `hasGuard()` to check if any guard is active
+
+#### Security Considerations
+
+- **Multisig Requirements**: Setting a transaction guard requires multisig approval from the Safe wallet owners
+- **GuardianSafe Address**: Ensure you're setting the correct GuardianSafe contract address
+- **Guard Removal**: Only remove the guard if you're certain you want to disable the enhanced security features
+- **Testing**: Test the guard setup on a testnet before deploying to mainnet
+
 ### Managing Your Transactions
 
 1. **Multisig Approval**: Safe signers first approve transactions through the standard multisig process

@@ -1,5 +1,5 @@
 import Safe from '@safe-global/protocol-kit';
-import { Address, Chain, PublicClient, WalletClient } from 'viem';
+import { Address, Chain, PublicClient, WalletClient, Hash } from 'viem';
 
 /**
  * Configuration for Safe interface
@@ -26,6 +26,14 @@ export interface SafeInfo {
   threshold: number;
   nonce: number;
   version: string;
+}
+
+/**
+ * Transaction guard information
+ */
+export interface GuardInfo {
+  guard: Address;
+  isEnabled: boolean;
 }
 
 /**
@@ -197,6 +205,136 @@ export class SafeCoreInterface {
     } catch (error) {
       console.error('Error getting Safe version:', error);
       throw new Error(`Failed to get Safe version: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * Get the current transaction guard address
+   * @returns Address of the current guard or zero address if no guard is set
+   */
+  async getGuard(): Promise<Address> {
+    try {
+      const safe = await this.createSafeInstance();
+      const guard = await safe.getGuard();
+      return guard as Address;
+    } catch (error) {
+      console.error('Error getting Safe guard:', error);
+      throw new Error(`Failed to get Safe guard: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * Check if a specific address is set as the transaction guard
+   * @param guardAddress Address to check
+   * @returns True if the address is the current guard
+   */
+  async isGuard(guardAddress: Address): Promise<boolean> {
+    try {
+      const currentGuard = await this.getGuard();
+      return currentGuard.toLowerCase() === guardAddress.toLowerCase();
+    } catch (error) {
+      console.error('Error checking if address is guard:', error);
+      throw new Error(`Failed to check guard status: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * Set a transaction guard on the Safe wallet
+   * @param guardAddress Address of the guard contract to set
+   * @returns Transaction hash
+   */
+  async setGuard(guardAddress: Address): Promise<Hash> {
+    if (!this.walletClient?.account?.address) {
+      throw new Error('Wallet client with account is required to set guard');
+    }
+
+    try {
+      // Execute the transaction directly using walletClient
+      const hash = await this.walletClient.writeContract({
+        chain: this.publicClient.chain,
+        address: this.safeAddress,
+        abi: [{
+          name: 'setGuard',
+          type: 'function',
+          inputs: [{ name: 'guard', type: 'address' }],
+          outputs: [],
+          stateMutability: 'nonpayable'
+        }] as const,
+        functionName: 'setGuard',
+        args: [guardAddress],
+        account: this.walletClient.account.address
+      });
+      
+      return hash;
+    } catch (error) {
+      console.error('Error setting Safe guard:', error);
+      throw new Error(`Failed to set Safe guard: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * Remove the transaction guard from the Safe wallet
+   * @returns Transaction hash
+   */
+  async removeGuard(): Promise<Hash> {
+    if (!this.walletClient?.account?.address) {
+      throw new Error('Wallet client with account is required to remove guard');
+    }
+
+    try {
+      // Execute the transaction directly using walletClient to set guard to zero address
+      const hash = await this.walletClient.writeContract({
+        chain: this.publicClient.chain,
+        address: this.safeAddress,
+        abi: [{
+          name: 'setGuard',
+          type: 'function',
+          inputs: [{ name: 'guard', type: 'address' }],
+          outputs: [],
+          stateMutability: 'nonpayable'
+        }] as const,
+        functionName: 'setGuard',
+        args: ['0x0000000000000000000000000000000000000000' as Address],
+        account: this.walletClient.account.address
+      });
+      
+      return hash;
+    } catch (error) {
+      console.error('Error removing Safe guard:', error);
+      throw new Error(`Failed to remove Safe guard: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * Get comprehensive guard information
+   * @returns Guard information including address and enabled status
+   */
+  async getGuardInfo(): Promise<GuardInfo> {
+    try {
+      const guardAddress = await this.getGuard();
+      const isEnabled = guardAddress !== '0x0000000000000000000000000000000000000000';
+      
+      return {
+        guard: guardAddress,
+        isEnabled
+      };
+    } catch (error) {
+      console.error('Error getting guard info:', error);
+      throw new Error(`Failed to get guard info: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * Check if the Safe has any transaction guard enabled
+   * @returns True if a guard is set and enabled
+   */
+  async hasGuard(): Promise<boolean> {
+    try {
+      const guardInfo = await this.getGuardInfo();
+      return guardInfo.isEnabled;
+    } catch (error) {
+      console.error('Error checking if Safe has guard:', error);
+      throw new Error(`Failed to check if Safe has guard: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 }

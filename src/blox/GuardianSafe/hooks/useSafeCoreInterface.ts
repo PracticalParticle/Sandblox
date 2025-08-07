@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { usePublicClient, useWalletClient } from 'wagmi';
-import { Address } from 'viem';
-import { SafeCoreInterface, SafeInfo, createSafeCoreInterface } from '../lib/safe/SafeCoreInterface';
-import { useChain } from '@/hooks/useChain';
+import { Address, Hash } from 'viem';
+import { SafeCoreInterface, SafeInfo, GuardInfo, createSafeCoreInterface } from '../lib/safe/SafeCoreInterface';
+import { useChain } from '../../../hooks/useChain';
 
 /**
  * Hook state for Safe interface operations
@@ -235,6 +235,156 @@ export function useSafeCoreInterface(safeAddress?: Address, rpcUrl?: string) {
     setState(prev => ({ ...prev, error: null }));
   }, []);
 
+  /**
+   * Get the current transaction guard address
+   */
+  const getGuard = useCallback(async (): Promise<Address> => {
+    if (!state.SafeCoreInterface) {
+      throw new Error('Safe interface not initialized');
+    }
+
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    
+    try {
+      const guard = await state.SafeCoreInterface.getGuard();
+      setState(prev => ({ ...prev, isLoading: false }));
+      return guard;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to get guard';
+      setState(prev => ({ 
+        ...prev, 
+        isLoading: false, 
+        error: errorMessage 
+      }));
+      throw error;
+    }
+  }, [state.SafeCoreInterface]);
+
+  /**
+   * Check if a specific address is set as the transaction guard
+   */
+  const isGuard = useCallback(async (guardAddress: Address): Promise<boolean> => {
+    if (!state.SafeCoreInterface) {
+      throw new Error('Safe interface not initialized');
+    }
+
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    
+    try {
+      const result = await state.SafeCoreInterface.isGuard(guardAddress);
+      setState(prev => ({ ...prev, isLoading: false }));
+      return result;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to check guard status';
+      setState(prev => ({ 
+        ...prev, 
+        isLoading: false, 
+        error: errorMessage 
+      }));
+      throw error;
+    }
+  }, [state.SafeCoreInterface]);
+
+  /**
+   * Set a transaction guard on the Safe wallet
+   */
+  const setGuard = useCallback(async (guardAddress: Address): Promise<Hash> => {
+    if (!state.SafeCoreInterface) {
+      throw new Error('Safe interface not initialized');
+    }
+
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    
+    try {
+      const hash = await state.SafeCoreInterface.setGuard(guardAddress);
+      setState(prev => ({ ...prev, isLoading: false }));
+      return hash;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to set guard';
+      setState(prev => ({ 
+        ...prev, 
+        isLoading: false, 
+        error: errorMessage 
+      }));
+      throw error;
+    }
+  }, [state.SafeCoreInterface]);
+
+  /**
+   * Remove the transaction guard from the Safe wallet
+   */
+  const removeGuard = useCallback(async (): Promise<Hash> => {
+    if (!state.SafeCoreInterface) {
+      throw new Error('Safe interface not initialized');
+    }
+
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    
+    try {
+      const hash = await state.SafeCoreInterface.removeGuard();
+      setState(prev => ({ ...prev, isLoading: false }));
+      return hash;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to remove guard';
+      setState(prev => ({ 
+        ...prev, 
+        isLoading: false, 
+        error: errorMessage 
+      }));
+      throw error;
+    }
+  }, [state.SafeCoreInterface]);
+
+  /**
+   * Get comprehensive guard information
+   */
+  const getGuardInfo = useCallback(async (): Promise<GuardInfo> => {
+    if (!state.SafeCoreInterface) {
+      throw new Error('Safe interface not initialized');
+    }
+
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    
+    try {
+      const guardInfo = await state.SafeCoreInterface.getGuardInfo();
+      setState(prev => ({ ...prev, isLoading: false }));
+      return guardInfo;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to get guard info';
+      setState(prev => ({ 
+        ...prev, 
+        isLoading: false, 
+        error: errorMessage 
+      }));
+      throw error;
+    }
+  }, [state.SafeCoreInterface]);
+
+  /**
+   * Check if the Safe has any transaction guard enabled
+   */
+  const hasGuard = useCallback(async (): Promise<boolean> => {
+    if (!state.SafeCoreInterface) {
+      throw new Error('Safe interface not initialized');
+    }
+
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    
+    try {
+      const result = await state.SafeCoreInterface.hasGuard();
+      setState(prev => ({ ...prev, isLoading: false }));
+      return result;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to check if Safe has guard';
+      setState(prev => ({ 
+        ...prev, 
+        isLoading: false, 
+        error: errorMessage 
+      }));
+      throw error;
+    }
+  }, [state.SafeCoreInterface]);
+
   return {
     // State
     SafeCoreInterface: state.SafeCoreInterface,
@@ -250,6 +400,12 @@ export function useSafeCoreInterface(safeAddress?: Address, rpcUrl?: string) {
     isOwner,
     getNonce,
     getVersion,
+    getGuard,
+    isGuard,
+    setGuard,
+    removeGuard,
+    getGuardInfo,
+    hasGuard,
     clearError,
     
     // Computed
