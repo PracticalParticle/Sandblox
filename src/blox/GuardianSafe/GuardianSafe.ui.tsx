@@ -23,6 +23,7 @@ import { useOperations } from "./hooks/useOperations";
 import { GuardianSafeService } from "./lib/services";
 import { useWorkflowManager } from "@/hooks/useWorkflowManager";
 import { TxStatus } from "../../Guardian/sdk/typescript/types/lib.index";
+import { useSafeOwners } from "./hooks/useSafeCoreInterface";
 
 // Extend the base ContractInfo interface to include broadcaster and other properties
 interface ContractInfo extends BaseContractInfo {
@@ -357,6 +358,14 @@ function GuardianSafeUIContent({
   // Safe address ref for display
   const [safeAddress, setSafeAddress] = useState<Address | null>(null);
   
+  // Safe owners hook
+  const { 
+    owners: safeOwners, 
+    isLoading: isLoadingOwners, 
+    error: ownersError,
+    refetch: refetchOwners 
+  } = useSafeOwners(safeAddress || undefined);
+  
   // Initialization flag
   const initialLoadDoneRef = useRef(false);
 
@@ -632,6 +641,24 @@ function GuardianSafeUIContent({
             </div>
           </div>
         )}
+
+        {safeOwners.length > 0 && (
+          <div className="space-y-2">
+            <h3 className="font-medium text-sm text-muted-foreground">SAFE OWNERS</h3>
+            <Card className="p-3">
+              <div className="space-y-2">
+                {safeOwners.map((owner, index) => (
+                  <div key={owner} className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Owner {index + 1}:</span>
+                    <span className="text-xs font-mono truncate max-w-[120px]" title={owner}>
+                      {owner.slice(0, 6)}...{owner.slice(-4)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+        )}
       </div>
     );
   }
@@ -787,6 +814,80 @@ function GuardianSafeUIContent({
                   connectedAddress={address}
                   timeLockPeriodInMinutes={timeLockPeriodInMinutes}
                 />
+              </div>
+
+              {/* Safe Owners Information */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium text-muted-foreground">SAFE OWNERS</h3>
+                  {isLoadingOwners && (
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
+                  {ownersError && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <AlertCircle className="h-4 w-4 text-destructive" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Error loading owners: {ownersError}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
+                <div className="rounded-md border p-4">
+                  {safeOwners.length > 0 ? (
+                    <div className="space-y-3">
+                      {safeOwners.map((owner, index) => (
+                        <div key={owner} className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-medium">
+                              {index + 1}
+                            </div>
+                            <span className="text-sm font-medium">Owner {index + 1}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm" title={owner}>
+                              {owner.slice(0, 6)}...{owner.slice(-4)}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0"
+                              onClick={() => navigator.clipboard.writeText(owner)}
+                              title="Copy address"
+                            >
+                              📋
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : isLoadingOwners ? (
+                    <div className="text-center py-4">
+                      <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">Loading Safe owners...</p>
+                    </div>
+                  ) : ownersError ? (
+                    <div className="text-center py-4">
+                      <AlertCircle className="h-6 w-6 text-destructive mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">Failed to load Safe owners</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2"
+                        onClick={() => refetchOwners()}
+                      >
+                        Retry
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No owners found
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Role Information */}
