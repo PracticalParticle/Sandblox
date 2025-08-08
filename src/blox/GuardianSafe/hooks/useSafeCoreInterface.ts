@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { usePublicClient, useWalletClient } from 'wagmi';
-import { Address, Hash } from 'viem';
+import { Address } from 'viem';
 import { SafeCoreInterface, SafeInfo, GuardInfo, createSafeCoreInterface } from '../lib/safe/SafeCoreInterface';
 import { useChain } from '../../../hooks/useChain';
 
@@ -288,7 +288,7 @@ export function useSafeCoreInterface(safeAddress?: Address, rpcUrl?: string) {
   /**
    * Set a transaction guard on the Safe wallet
    */
-  const setGuard = useCallback(async (guardAddress: Address): Promise<Hash> => {
+  const setGuard = useCallback(async (guardAddress: Address): Promise<string> => {
     if (!state.SafeCoreInterface) {
       throw new Error('Safe interface not initialized');
     }
@@ -296,9 +296,9 @@ export function useSafeCoreInterface(safeAddress?: Address, rpcUrl?: string) {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
     
     try {
-      const hash = await state.SafeCoreInterface.setGuard(guardAddress);
+      const safeTxHash = await state.SafeCoreInterface.setGuard(guardAddress);
       setState(prev => ({ ...prev, isLoading: false }));
-      return hash;
+      return safeTxHash;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to set guard';
       setState(prev => ({ 
@@ -313,7 +313,7 @@ export function useSafeCoreInterface(safeAddress?: Address, rpcUrl?: string) {
   /**
    * Remove the transaction guard from the Safe wallet
    */
-  const removeGuard = useCallback(async (): Promise<Hash> => {
+  const removeGuard = useCallback(async (): Promise<string> => {
     if (!state.SafeCoreInterface) {
       throw new Error('Safe interface not initialized');
     }
@@ -321,9 +321,9 @@ export function useSafeCoreInterface(safeAddress?: Address, rpcUrl?: string) {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
     
     try {
-      const hash = await state.SafeCoreInterface.removeGuard();
+      const safeTxHash = await state.SafeCoreInterface.removeGuard();
       setState(prev => ({ ...prev, isLoading: false }));
-      return hash;
+      return safeTxHash;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to remove guard';
       setState(prev => ({ 

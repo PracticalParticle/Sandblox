@@ -1031,19 +1031,25 @@ function GuardianSafeUIContent({
                                   return;
                                 }
                                 try {
-                                  await setGuard(contractAddress);
+                                  const safeTxHash = await setGuard(contractAddress);
                                   addMessage?.({
                                     type: 'success',
-                                    title: 'Guard Set',
-                                    description: 'GuardianSafe has been set as the transaction guard.'
+                                    title: 'Guard Transaction Proposed',
+                                    description: `Transaction proposed successfully! Safe TX Hash: ${safeTxHash}. The transaction is now pending in the Safe interface. Please go to https://app.safe.global/transactions/queue?safe=${contractAddress} to review and approve the transaction.`
                                   });
-                                  // Refresh guard info
-                                  const newGuardInfo = await getGuardInfo();
-                                  setGuardInfo(newGuardInfo);
+                                  // Refresh guard info after a short delay to check if it was executed immediately
+                                  setTimeout(async () => {
+                                    try {
+                                      const newGuardInfo = await getGuardInfo();
+                                      setGuardInfo(newGuardInfo);
+                                    } catch (refreshError) {
+                                      console.warn('Failed to refresh guard info:', refreshError);
+                                    }
+                                  }, 3000);
                                 } catch (error) {
                                   addMessage?.({
                                     type: 'error',
-                                    title: 'Failed to Set Guard',
+                                    title: 'Failed to Propose Guard Transaction',
                                     description: error instanceof Error ? error.message : 'Unknown error occurred'
                                   });
                                 }

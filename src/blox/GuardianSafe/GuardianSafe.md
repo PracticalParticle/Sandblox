@@ -156,6 +156,7 @@ const currentGuard = await safeInterface.getGuard();
 console.log('Current guard:', currentGuard);
 
 // Set GuardianSafe as transaction guard
+// Note: This creates a Safe transaction that requires multisig approval
 const txHash = await safeInterface.setGuard(guardianSafeAddress);
 console.log('Transaction hash:', txHash);
 
@@ -163,6 +164,12 @@ console.log('Transaction hash:', txHash);
 const isGuardianSafeGuard = await safeInterface.isGuard(guardianSafeAddress);
 console.log('Is GuardianSafe the guard?', isGuardianSafeGuard);
 ```
+
+**Important Notes:**
+- The `setGuard` method creates a Safe transaction that requires multisig approval from Safe owners
+- The transaction will be pending until enough Safe owners sign it (based on the Safe's threshold)
+- Only Safe owners can propose and execute guard management transactions
+- The GuardianSafe contract must be deployed and implement the `ITransactionGuard` interface correctly
 
 #### Using the React Hook
 
@@ -256,6 +263,65 @@ The `SafeCoreInterface` provides the following methods for managing transaction 
 - **GuardianSafe Address**: Ensure you're setting the correct GuardianSafe contract address
 - **Guard Removal**: Only remove the guard if you're certain you want to disable the enhanced security features
 - **Testing**: Test the guard setup on a testnet before deploying to mainnet
+
+## Troubleshooting
+
+### Common Errors
+
+#### GS031 Error
+**Problem**: "GS031" error when calling `setGuard` on a Safe contract.
+
+**Cause**: This error indicates a guard-related failure within the Safe smart account execution, typically due to:
+- Incorrect transaction construction
+- Missing or invalid signatures
+- Safe version incompatibility
+- Guard contract deployment issues
+
+**Solution**: The implementation now uses the proper Safe transaction workflow:
+1. Creates an `execTransaction` proposal with correct EIP-712 typed data signing
+2. Submits the transaction to the Safe Transaction Service API with proper signature formatting
+3. The transaction appears as "pending" in the Safe UI (safe.global)
+4. For single-owner Safes, also attempts immediate execution
+5. For multi-owner Safes, requires approval through the Safe interface
+
+#### Safe Transaction Service API 404 Error
+**Problem**: "404 Not Found" error when calling the Safe Transaction Service API.
+
+**Cause**: The API endpoint URL was incorrect. The Safe Transaction Service API requires the Safe address to be included in the URL path.
+
+**Solution**: Updated the API endpoint from `/api/v1/multisig-transactions/` to `/api/v1/safes/{safeAddress}/multisig-transactions/` to match the correct Safe Transaction Service API specification.
+
+#### GS020 Error
+**Problem**: "GS020" error - "There cannot be an owner with address 0".
+
+**Cause**: This error occurs when the Safe detects an invalid owner address (zero address) during signature validation.
+
+**Solution**: The implementation now properly formats signatures with owner index prefixes and uses EIP-712 typed data signing to ensure correct signature validation.
+
+#### getGuard Function Revert Error
+**Problem**: "ContractFunctionExecutionError: The contract function 'getGuard' reverted" when loading guard information.
+
+**Cause**: Standard Gnosis Safe contracts do not expose a `getGuard` function in their ABI. The guard address is stored in a specific storage slot.
+
+**Solution**: The implementation now reads the guard address directly from storage slot 4 (the standard storage location for guard addresses in Safe contracts) using `getStorageAt` instead of calling a non-existent contract function.
+
+### Important Notes
+
+- **Safe Transaction Workflow**: All `setGuard` operations use the Safe's `execTransaction` method
+- **Pending Transactions**: Transactions are proposed to the Safe Transaction Service API and appear as pending in the Safe UI
+- **API Integration**: Uses proper EIP-712 typed data signing and signature formatting
+- **Single vs Multi-Owner**: Single-owner Safes get immediate execution, multi-owner Safes require approval
+- **Safe UI Integration**: Transactions appear at `https://app.safe.global/transactions/queue?safe={safeAddress}`
+
+### Workflow
+
+1. **Transaction Creation**: Creates an `execTransaction` proposal with `setGuard` call data
+2. **EIP-712 Signing**: Signs the transaction using EIP-712 typed data format
+3. **API Submission**: Submits the transaction to Safe Transaction Service API with proper signature formatting
+4. **Pending State**: Transaction appears as "pending" in the Safe UI website
+5. **Execution**: 
+   - Single-owner Safes: Attempts immediate execution
+   - Multi-owner Safes: Requires approval through safe.global interface
 
 ### Managing Your Transactions
 
