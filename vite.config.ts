@@ -66,7 +66,8 @@ export default defineConfig(({ mode }) => {
       'https://*.drpc.org',  // Add DRPC
       'https://ethereum-sepolia-rpc.publicnode.com',
       'https://sepolia.era.zksync.dev',
-      'https://sepolia-rollup.arbitrum.io/rpc'
+      'https://sepolia-rollup.arbitrum.io/rpc',
+      'https://*.safe.global'  // Generalized Safe Transaction Service endpoints
     ],
     'connect-src': [
       "'self'",
@@ -107,7 +108,9 @@ export default defineConfig(({ mode }) => {
       "https://*.alchemyapi.io",
       "wss://*.alchemyapi.io",
       "https://eth-mainnet.g.alchemy.com",
-      "https://polygon-mainnet.g.alchemy.com"
+      "https://polygon-mainnet.g.alchemy.com",
+      // Generalized Safe Transaction Service endpoints
+      "https://*.safe.global"
     ],
     'script-src': [
       "'self'",
