@@ -20,7 +20,7 @@
   "deployments": {
     "11155111": {
       "name": "Sepolia",
-      "factory": "0xeBdD2857289Ab642a9eA1b5388476189a6338eDe"
+      "factory": "0x41BB8826acC3D8839ebA9e24AEF49D68B03D06C2"
     },
     "1337": {
       "name": "Particle-DevNet",

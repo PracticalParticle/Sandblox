@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 pragma solidity ^0.8.2;
 
-import "../../GuardianAccountAbstraction.sol";
+import "../../Guardian/contracts/GuardianAccountAbstraction.sol";
 // import "../../lib/MultiPhaseSecureOperation.sol";
 
 interface ISafe {
@@ -91,6 +91,8 @@ contract GuardianSafe is GuardianAccountAbstraction, ITransactionGuard {
         uint256 maxGasPrice;
     }
 
+    bool private isExecutingThroughGuardian = false;
+    
     /**
      * @notice Constructor to initialize the GuardianSafe
      * @param _safe The Safe contract address
@@ -270,6 +272,9 @@ contract GuardianSafe is GuardianAccountAbstraction, ITransactionGuard {
      */
     function executeTransaction(SafeTx memory safeTx) external {
         _validateInternal();
+        
+        isExecutingThroughGuardian = true;
+        
         bool success = safe.execTransaction(
             safeTx.to,
             safeTx.value,
@@ -282,6 +287,9 @@ contract GuardianSafe is GuardianAccountAbstraction, ITransactionGuard {
             safeTx.refundReceiver,
             safeTx.signatures
         );
+        
+        isExecutingThroughGuardian = false;
+        
         require(success, "Safe transaction execution failed");
     }
 
@@ -308,7 +316,9 @@ contract GuardianSafe is GuardianAccountAbstraction, ITransactionGuard {
      * @return bool True if the interface is supported
      */
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
-        return super.supportsInterface(interfaceId);
+        return 
+            interfaceId == type(ITransactionGuard).interfaceId ||
+            super.supportsInterface(interfaceId);
     }
 
     /**
@@ -423,12 +433,44 @@ contract GuardianSafe is GuardianAccountAbstraction, ITransactionGuard {
         bytes memory signatures,
         address msgSender
     ) external override {
-        _validateInternal();
-        
         // Check if this is a delegated call and validate if needed
         if (operation == Operation.DelegateCall) {
             _validateDelegation();
         }
+        
+        // Handle setGuard calls specially
+        if (to == address(safe) && data.length >= 4) {
+            bytes4 selector;
+            assembly {
+                selector := mload(add(data, 0x20))
+            }
+            
+            if (selector == bytes4(keccak256("setGuard(address)"))) {
+                // Extract the guard address being set (skip first 4 bytes for function selector)
+                address newGuardAddress;
+                assembly {
+                    newGuardAddress := mload(add(data, 0x24))
+                }
+                
+                // If setting this GuardianSafe as guard, allow from any user (initial setup)
+                if (newGuardAddress == address(this)) {
+                    return; // Allow initial guard setup
+                }
+                
+                // For guard changes after setup, only allow through GuardianSafe system
+                require(
+                    isExecutingThroughGuardian,
+                    "GuardianSafe: Guard changes must be executed through GuardianSafe system"
+                );
+                return;
+            }
+        }
+        
+        // For all other transactions, ensure they come through GuardianSafe system
+        require(
+            isExecutingThroughGuardian, 
+            "GuardianSafe: Transactions must be executed through GuardianSafe system"
+        );
     }
 
     function checkAfterExecution(bytes32 hash, bool success) external override {

@@ -1,447 +1,243 @@
-import { useState, useEffect, useCallback } from 'react';
-import { usePublicClient, useWalletClient } from 'wagmi';
+import { useCallback, useEffect, useState } from 'react';
 import { Address } from 'viem';
-import { SafeCoreInterface, SafeInfo, GuardInfo, createSafeCoreInterface } from '../lib/safe/SafeCoreInterface';
-import { useChain } from '../../../hooks/useChain';
+import { usePublicClient, useWalletClient } from 'wagmi';
+import { SafeCoreInterface } from '../lib/safe/SafeCoreInterface';
 
-/**
- * Hook state for Safe interface operations
- */
-interface SafeCoreInterfaceState {
+export interface SafeCoreInterfaceState {
   SafeCoreInterface: SafeCoreInterface | null;
   isLoading: boolean;
-  error: string | null;
-  safeInfo: SafeInfo | null;
-  owners: Address[];
+  error: Error | null;
+  isInitialized: boolean;
 }
 
-/**
- * Hook for interacting with Safe wallets using the Safe Protocol Kit
- * @param safeAddress The Safe wallet address
- * @param rpcUrl Optional custom RPC URL
- * @returns Safe interface operations and state
- */
-export function useSafeCoreInterface(safeAddress?: Address, rpcUrl?: string) {
+export function useSafeCoreInterface(safeAddress?: Address) {
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
-  const chain = useChain();
-  
   const [state, setState] = useState<SafeCoreInterfaceState>({
     SafeCoreInterface: null,
     isLoading: false,
     error: null,
-    safeInfo: null,
-    owners: []
+    isInitialized: false
   });
 
-  // Initialize Safe interface when dependencies are available
   useEffect(() => {
-    if (!publicClient || !chain || !safeAddress) {
-      setState(prev => ({
-        ...prev,
-        SafeCoreInterface: null,
-        error: safeAddress ? 'Missing required dependencies' : null
-      }));
+    if (!safeAddress || !publicClient || !walletClient || !publicClient.chain) {
+      setState(prev => ({ ...prev, SafeCoreInterface: null, isInitialized: false }));
       return;
     }
 
+    setState(prev => ({ ...prev, isLoading: true, error: null, isInitialized: false }));
+
     try {
-      const SafeCoreInterface = createSafeCoreInterface(
+      const safeInterface = new SafeCoreInterface(
+        {
+          safeAddress,
+          chainId: publicClient.chain.id
+        },
         publicClient,
-        walletClient,
-        safeAddress,
-        chain,
-        rpcUrl
+        walletClient
       );
-      
-      setState(prev => ({
-        ...prev,
-        SafeCoreInterface,
-        error: null
-      }));
+
+      // Initialize the Safe SDK
+      safeInterface.init().then(() => {
+        setState(prev => ({
+          ...prev,
+          SafeCoreInterface: safeInterface,
+          isLoading: false,
+          error: null,
+          isInitialized: true
+        }));
+      }).catch(error => {
+        setState(prev => ({
+          ...prev,
+          isLoading: false,
+          error: error as Error,
+          isInitialized: false
+        }));
+      });
+
     } catch (error) {
-      console.error('Failed to initialize Safe interface:', error);
       setState(prev => ({
         ...prev,
-        SafeCoreInterface: null,
-        error: error instanceof Error ? error.message : 'Failed to initialize Safe interface'
+        isLoading: false,
+        error: error as Error,
+        isInitialized: false
       }));
     }
-  }, [publicClient, walletClient, chain, safeAddress, rpcUrl]);
+  }, [safeAddress, publicClient, walletClient]);
 
   /**
    * Get Safe owners/signers
    */
   const getOwners = useCallback(async (): Promise<Address[]> => {
-    if (!state.SafeCoreInterface) {
+    if (!state.SafeCoreInterface || !state.isInitialized) {
       throw new Error('Safe interface not initialized');
     }
-
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
-    
-    try {
-      const owners = await state.SafeCoreInterface.getOwners();
-      setState(prev => ({ 
-        ...prev, 
-        owners,
-        isLoading: false 
-      }));
-      return owners;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to get owners';
-      setState(prev => ({ 
-        ...prev, 
-        isLoading: false, 
-        error: errorMessage 
-      }));
-      throw error;
-    }
-  }, [state.SafeCoreInterface]);
+    return await state.SafeCoreInterface.getOwners();
+  }, [state.SafeCoreInterface, state.isInitialized]);
 
   /**
-   * Get comprehensive Safe information
-   */
-  const getSafeInfo = useCallback(async (): Promise<SafeInfo> => {
-    if (!state.SafeCoreInterface) {
-      throw new Error('Safe interface not initialized');
-    }
-
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
-    
-    try {
-      const safeInfo = await state.SafeCoreInterface.getSafeInfo();
-      setState(prev => ({ 
-        ...prev, 
-        safeInfo,
-        owners: safeInfo.owners,
-        isLoading: false 
-      }));
-      return safeInfo;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to get Safe info';
-      setState(prev => ({ 
-        ...prev, 
-        isLoading: false, 
-        error: errorMessage 
-      }));
-      throw error;
-    }
-  }, [state.SafeCoreInterface]);
-
-  /**
-   * Get Safe threshold (minimum signatures required)
-   */
-  const getThreshold = useCallback(async (): Promise<number> => {
-    if (!state.SafeCoreInterface) {
-      throw new Error('Safe interface not initialized');
-    }
-
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
-    
-    try {
-      const threshold = await state.SafeCoreInterface.getThreshold();
-      setState(prev => ({ ...prev, isLoading: false }));
-      return threshold;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to get threshold';
-      setState(prev => ({ 
-        ...prev, 
-        isLoading: false, 
-        error: errorMessage 
-      }));
-      throw error;
-    }
-  }, [state.SafeCoreInterface]);
-
-  /**
-   * Check if an address is an owner of the Safe
+   * Check if an address is an owner
    */
   const isOwner = useCallback(async (address: Address): Promise<boolean> => {
-    if (!state.SafeCoreInterface) {
+    if (!state.SafeCoreInterface || !state.isInitialized) {
       throw new Error('Safe interface not initialized');
     }
-
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
-    
-    try {
-      const result = await state.SafeCoreInterface.isOwner(address);
-      setState(prev => ({ ...prev, isLoading: false }));
-      return result;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to check owner status';
-      setState(prev => ({ 
-        ...prev, 
-        isLoading: false, 
-        error: errorMessage 
-      }));
-      throw error;
-    }
-  }, [state.SafeCoreInterface]);
+    return await state.SafeCoreInterface.isOwner(address);
+  }, [state.SafeCoreInterface, state.isInitialized]);
 
   /**
    * Get Safe nonce
    */
   const getNonce = useCallback(async (): Promise<number> => {
-    if (!state.SafeCoreInterface) {
+    if (!state.SafeCoreInterface || !state.isInitialized) {
       throw new Error('Safe interface not initialized');
     }
-
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
-    
-    try {
-      const nonce = await state.SafeCoreInterface.getNonce();
-      setState(prev => ({ ...prev, isLoading: false }));
-      return nonce;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to get nonce';
-      setState(prev => ({ 
-        ...prev, 
-        isLoading: false, 
-        error: errorMessage 
-      }));
-      throw error;
-    }
-  }, [state.SafeCoreInterface]);
+    return await state.SafeCoreInterface.getNonce();
+  }, [state.SafeCoreInterface, state.isInitialized]);
 
   /**
-   * Get Safe version
+   * Get Safe guard info
    */
-  const getVersion = useCallback(async (): Promise<string> => {
-    if (!state.SafeCoreInterface) {
+  const getGuardInfo = useCallback(async () => {
+    if (!state.SafeCoreInterface || !state.isInitialized) {
       throw new Error('Safe interface not initialized');
     }
-
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
-    
-    try {
-      const version = await state.SafeCoreInterface.getVersion();
-      setState(prev => ({ ...prev, isLoading: false }));
-      return version;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to get version';
-      setState(prev => ({ 
-        ...prev, 
-        isLoading: false, 
-        error: errorMessage 
-      }));
-      throw error;
-    }
-  }, [state.SafeCoreInterface]);
-
-  /**
-   * Clear error state
-   */
-  const clearError = useCallback(() => {
-    setState(prev => ({ ...prev, error: null }));
-  }, []);
-
-  /**
-   * Get the current transaction guard address
-   */
-  const getGuard = useCallback(async (): Promise<Address> => {
-    if (!state.SafeCoreInterface) {
-      throw new Error('Safe interface not initialized');
-    }
-
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
-    
-    try {
-      const guard = await state.SafeCoreInterface.getGuard();
-      setState(prev => ({ ...prev, isLoading: false }));
-      return guard;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to get guard';
-      setState(prev => ({ 
-        ...prev, 
-        isLoading: false, 
-        error: errorMessage 
-      }));
-      throw error;
-    }
-  }, [state.SafeCoreInterface]);
-
-  /**
-   * Check if a specific address is set as the transaction guard
-   */
-  const isGuard = useCallback(async (guardAddress: Address): Promise<boolean> => {
-    if (!state.SafeCoreInterface) {
-      throw new Error('Safe interface not initialized');
-    }
-
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
-    
-    try {
-      const result = await state.SafeCoreInterface.isGuard(guardAddress);
-      setState(prev => ({ ...prev, isLoading: false }));
-      return result;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to check guard status';
-      setState(prev => ({ 
-        ...prev, 
-        isLoading: false, 
-        error: errorMessage 
-      }));
-      throw error;
-    }
-  }, [state.SafeCoreInterface]);
+    return await state.SafeCoreInterface.getGuardInfo();
+  }, [state.SafeCoreInterface, state.isInitialized]);
 
   /**
    * Set a transaction guard on the Safe wallet
    */
   const setGuard = useCallback(async (guardAddress: Address): Promise<string> => {
-    if (!state.SafeCoreInterface) {
+    if (!state.SafeCoreInterface || !state.isInitialized) {
       throw new Error('Safe interface not initialized');
     }
+
+    if (!walletClient?.account?.address) {
+      throw new Error('Wallet not connected');
+    }
+
+    // Validate the guard address format early
+    if (!guardAddress || typeof guardAddress !== 'string') {
+      throw new Error('Invalid guard address: address must be a string');
+    }
+
+    // Ensure address is properly formatted (42 characters including 0x)
+    if (!/^0x[a-fA-F0-9]{40}$/.test(guardAddress)) {
+      throw new Error(`Invalid guard address format: ${guardAddress}. Expected 42-character hex string starting with 0x, got ${guardAddress.length} characters`);
+    }
+
+    console.log('🔍 Setting guard with address:', guardAddress);
+    console.log('🔍 Address length:', guardAddress.length);
+    console.log('🔍 Address format valid:', /^0x[a-fA-F0-9]{40}$/.test(guardAddress));
 
     setState(prev => ({ ...prev, isLoading: true, error: null }));
     
     try {
+      // First check if the connected wallet is an owner
+      const isOwnerResult = await state.SafeCoreInterface.isOwner(walletClient.account.address);
+      if (!isOwnerResult) {
+        throw new Error('Connected wallet is not a Safe owner');
+      }
+
       const safeTxHash = await state.SafeCoreInterface.setGuard(guardAddress);
       setState(prev => ({ ...prev, isLoading: false }));
       return safeTxHash;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to set guard';
-      setState(prev => ({ 
-        ...prev, 
-        isLoading: false, 
-        error: errorMessage 
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: error as Error
       }));
       throw error;
     }
-  }, [state.SafeCoreInterface]);
+  }, [state.SafeCoreInterface, state.isInitialized, walletClient?.account?.address]);
 
   /**
    * Remove the transaction guard from the Safe wallet
    */
   const removeGuard = useCallback(async (): Promise<string> => {
-    if (!state.SafeCoreInterface) {
+    if (!state.SafeCoreInterface || !state.isInitialized) {
       throw new Error('Safe interface not initialized');
+    }
+
+    if (!walletClient?.account?.address) {
+      throw new Error('Wallet not connected');
     }
 
     setState(prev => ({ ...prev, isLoading: true, error: null }));
     
     try {
+      // First check if the connected wallet is an owner
+      const isOwnerResult = await state.SafeCoreInterface.isOwner(walletClient.account.address);
+      if (!isOwnerResult) {
+        throw new Error('Connected wallet is not a Safe owner');
+      }
+
       const safeTxHash = await state.SafeCoreInterface.removeGuard();
       setState(prev => ({ ...prev, isLoading: false }));
       return safeTxHash;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to remove guard';
-      setState(prev => ({ 
-        ...prev, 
-        isLoading: false, 
-        error: errorMessage 
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: error as Error
       }));
       throw error;
     }
-  }, [state.SafeCoreInterface]);
-
-  /**
-   * Get comprehensive guard information
-   */
-  const getGuardInfo = useCallback(async (): Promise<GuardInfo> => {
-    if (!state.SafeCoreInterface) {
-      throw new Error('Safe interface not initialized');
-    }
-
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
-    
-    try {
-      const guardInfo = await state.SafeCoreInterface.getGuardInfo();
-      setState(prev => ({ ...prev, isLoading: false }));
-      return guardInfo;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to get guard info';
-      setState(prev => ({ 
-        ...prev, 
-        isLoading: false, 
-        error: errorMessage 
-      }));
-      throw error;
-    }
-  }, [state.SafeCoreInterface]);
-
-  /**
-   * Check if the Safe has any transaction guard enabled
-   */
-  const hasGuard = useCallback(async (): Promise<boolean> => {
-    if (!state.SafeCoreInterface) {
-      throw new Error('Safe interface not initialized');
-    }
-
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
-    
-    try {
-      const result = await state.SafeCoreInterface.hasGuard();
-      setState(prev => ({ ...prev, isLoading: false }));
-      return result;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to check if Safe has guard';
-      setState(prev => ({ 
-        ...prev, 
-        isLoading: false, 
-        error: errorMessage 
-      }));
-      throw error;
-    }
-  }, [state.SafeCoreInterface]);
+  }, [state.SafeCoreInterface, state.isInitialized, walletClient?.account?.address]);
 
   return {
-    // State
-    SafeCoreInterface: state.SafeCoreInterface,
-    isLoading: state.isLoading,
-    error: state.error,
-    safeInfo: state.safeInfo,
-    owners: state.owners,
-    
-    // Methods
     getOwners,
-    getSafeInfo,
-    getThreshold,
     isOwner,
     getNonce,
-    getVersion,
-    getGuard,
-    isGuard,
+    getGuardInfo,
     setGuard,
     removeGuard,
-    getGuardInfo,
-    hasGuard,
-    clearError,
-    
-    // Computed
-    isInitialized: !!state.SafeCoreInterface,
-    hasOwners: state.owners.length > 0
+    isLoading: state.isLoading,
+    error: state.error,
+    isInitialized: state.isInitialized
   };
 }
 
 /**
  * Hook to get Safe owners directly (simplified version)
- * @param safeAddress The Safe wallet address
- * @param rpcUrl Optional custom RPC URL
- * @returns Owners and loading state
  */
-export function useSafeOwners(safeAddress?: Address, rpcUrl?: string) {
-  const {
-    owners,
-    isLoading,
-    error,
-    getOwners,
-    clearError,
-    isInitialized
-  } = useSafeCoreInterface(safeAddress, rpcUrl);
+export function useSafeOwners(safeAddress?: Address) {
+  const [owners, setOwners] = useState<Address[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  
+  const safeInterface = useSafeCoreInterface(safeAddress);
 
-  // Automatically fetch owners when Safe interface is initialized
-  useEffect(() => {
-    if (isInitialized && safeAddress && owners.length === 0 && !isLoading && !error) {
-      getOwners().catch(console.error);
+  const fetchOwners = useCallback(async () => {
+    if (!safeInterface.isInitialized) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const ownersResult = await safeInterface.getOwners();
+      setOwners(ownersResult);
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setIsLoading(false);
     }
-  }, [isInitialized, safeAddress, owners.length, isLoading, error, getOwners]);
+  }, [safeInterface.getOwners, safeInterface.isInitialized]);
+
+  useEffect(() => {
+    if (safeAddress && safeInterface.isInitialized && !safeInterface.isLoading && !safeInterface.error) {
+      fetchOwners();
+    }
+  }, [safeAddress, safeInterface.isInitialized, safeInterface.isLoading, safeInterface.error, fetchOwners]);
 
   return {
     owners,
-    isLoading,
-    error,
-    refetch: getOwners,
-    clearError
+    isLoading: isLoading || safeInterface.isLoading,
+    error: error || safeInterface.error,
+    refetch: fetchOwners,
+    clearError: () => setError(null)
   };
 }
