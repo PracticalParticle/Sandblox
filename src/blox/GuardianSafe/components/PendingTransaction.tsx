@@ -402,42 +402,40 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <div className="flex-1">
-                                  <Button
-                                    onClick={() => handleApproveAction(Number(tx.txId))}
-                                    disabled={
-                                      // !checkTimeLockApprove(tx) ||  // Temporarily disabled for testing
-                                      // !isReady ||  // Temporarily disabled for testing
-                                      isLoading || 
-                                      tx.status !== TxStatus.PENDING || 
-                                      !isTimeLockComplete
+                                <Button
+                                  onClick={() => handleApproveAction(Number(tx.txId))}
+                                  disabled={
+                                    // !checkTimeLockApprove(tx) ||  // Temporarily disabled for testing
+                                    // !isReady ||  // Temporarily disabled for testing
+                                    isLoading || 
+                                    tx.status !== TxStatus.PENDING || 
+                                    !isTimeLockComplete
+                                  }
+                                  className={`w-full transition-all duration-200 flex items-center justify-center
+                                    ${isTimeLockComplete 
+                                      ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800'
+                                      : 'bg-slate-50 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
                                     }
-                                    className={`w-full transition-all duration-200 flex items-center justify-center
-                                      ${isTimeLockComplete 
-                                        ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800'
-                                        : 'bg-slate-50 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
-                                      }
-                                      disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 disabled:dark:bg-slate-900 disabled:dark:text-slate-500
-                                    `}
-                                    variant="outline"
-                                    onMouseEnter={() => {
-                                      // Debug logging
-                                      console.log('🔍 Approve button debug:', {
-                                        txId: tx.txId,
-                                        checkTimeLockApprove: checkTimeLockApprove(tx),
-                                        isReady,
-                                        isLoading,
-                                        txStatus: tx.status,
-                                        isTimeLockComplete,
-                                        connectedAddress,
-                                        operationType: tx.params.operationType
-                                      });
-                                    }}
-                                  >
-                                    {isTimeLockComplete && <CheckCircle2 className="h-4 w-4 mr-2" />}
-                                    <span>Approve</span>
-                                  </Button>
-                                </div>
+                                    disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 disabled:dark:bg-slate-900 disabled:dark:text-slate-500
+                                  `}
+                                  variant="outline"
+                                  onMouseEnter={() => {
+                                    // Debug logging
+                                    console.log('🔍 Approve button debug:', {
+                                      txId: tx.txId,
+                                      checkTimeLockApprove: checkTimeLockApprove(tx),
+                                      isReady,
+                                      isLoading,
+                                      txStatus: tx.status,
+                                      isTimeLockComplete,
+                                      connectedAddress,
+                                      operationType: tx.params.operationType
+                                    });
+                                  }}
+                                >
+                                  {isTimeLockComplete && <CheckCircle2 className="h-4 w-4 mr-2" />}
+                                  <span>Approve</span>
+                                </Button>
                               </TooltipTrigger>
                               <TooltipContent side="bottom">
                                 {!checkTimeLockApprove(tx)
@@ -454,23 +452,21 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <div className="flex-1">
-                                  <Button
-                                    onClick={() => handleCancelAction(Number(tx.txId))}
-                                    disabled={!checkTimeLockCancel(tx) || isLoading || tx.status !== TxStatus.PENDING }
-                                    variant="outline"
-                                    className="w-full transition-all duration-200 flex items-center justify-center
-                                      bg-rose-50 text-rose-700 hover:bg-rose-100 
-                                      dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
-                                      border border-rose-200 dark:border-rose-800
-                                      disabled:opacity-50 disabled:cursor-not-allowed 
-                                      disabled:bg-slate-50 disabled:text-slate-400 
-                                      disabled:dark:bg-slate-900 disabled:dark:text-slate-500"
-                                  >
-                                    <X className="h-4 w-4 mr-2" />
-                                    <span>Cancel</span>
-                                  </Button>
-                                </div>
+                                <Button
+                                  onClick={() => handleCancelAction(Number(tx.txId))}
+                                  disabled={!checkTimeLockCancel(tx) || isLoading || tx.status !== TxStatus.PENDING }
+                                  variant="outline"
+                                  className="w-full transition-all duration-200 flex items-center justify-center
+                                    bg-rose-50 text-rose-700 hover:bg-rose-100 
+                                    dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
+                                    border border-rose-200 dark:border-rose-800
+                                    disabled:opacity-50 disabled:cursor-not-allowed 
+                                    disabled:bg-slate-50 disabled:text-slate-400 
+                                    disabled:dark:bg-slate-900 disabled:dark:text-slate-500"
+                                >
+                                  <X className="h-4 w-4 mr-2" />
+                                  <span>Cancel</span>
+                                </Button>
                               </TooltipTrigger>
                               <TooltipContent side="bottom">
                                 {!checkTimeLockCancel(tx)
@@ -486,38 +482,36 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <div className="w-1/2">
-                                    <Button
-                                      onClick={() => handleMetaTxSign(tx, 'approve')}
-                                      disabled={
-                                        !checkMetaTxSign(tx) ||
-                                        isLoading || 
-                                        tx.status !== TxStatus.PENDING || 
-                                        hasSignedApproval
-                                      }
-                                      className={`w-full transition-all duration-200 flex items-center justify-center
-                                        bg-emerald-50 text-emerald-700 hover:bg-emerald-100 
-                                        dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 
-                                        border border-emerald-200 dark:border-emerald-800
-                                        disabled:opacity-50 disabled:cursor-not-allowed 
-                                        disabled:bg-slate-50 disabled:text-slate-400 
-                                        disabled:dark:bg-slate-900 disabled:dark:text-slate-500
-                                      `}
-                                      variant="outline"
-                                    >
-                                      {hasSignedApproval ? (
-                                        <>
-                                          <CheckCircle2 className="h-4 w-4 mr-2" />
-                                          <span>Signed</span>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <CheckCircle2 className="h-4 w-4 mr-2" />
-                                          <span>Sign Approval</span>
-                                        </>
-                                      )}
-                                    </Button>
-                                  </div>
+                                  <Button
+                                    onClick={() => handleMetaTxSign(tx, 'approve')}
+                                    disabled={
+                                      !checkMetaTxSign(tx) ||
+                                      isLoading || 
+                                      tx.status !== TxStatus.PENDING || 
+                                      hasSignedApproval
+                                    }
+                                    className={`w-full transition-all duration-200 flex items-center justify-center
+                                      bg-emerald-50 text-emerald-700 hover:bg-emerald-100 
+                                      dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 
+                                      border border-emerald-200 dark:border-emerald-800
+                                      disabled:opacity-50 disabled:cursor-not-allowed 
+                                      disabled:bg-slate-50 disabled:text-slate-400 
+                                      disabled:dark:bg-slate-900 disabled:dark:text-slate-500
+                                    `}
+                                    variant="outline"
+                                  >
+                                    {hasSignedApproval ? (
+                                      <>
+                                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                                        <span>Signed</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                                        <span>Sign Approval</span>
+                                      </>
+                                    )}
+                                  </Button>
                                 </TooltipTrigger>
                                 <TooltipContent side="bottom">
                                   {!checkMetaTxSign(tx)
@@ -532,29 +526,27 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <div className="w-1/2">
-                                    <Button
-                                      onClick={() => handleBroadcastMetaTx(tx, 'approve')}
-                                      disabled={
-                                        !checkMetaTxBroadcast(tx) ||
-                                        isLoading || 
-                                        !hasSignedApproval
+                                  <Button
+                                    onClick={() => handleBroadcastMetaTx(tx, 'approve')}
+                                    disabled={
+                                      !checkMetaTxBroadcast(tx) ||
+                                      isLoading || 
+                                      !hasSignedApproval
+                                    }
+                                    className={`w-full transition-all duration-200 flex items-center justify-center
+                                      ${hasSignedApproval 
+                                        ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800'
+                                        : 'bg-slate-50 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
                                       }
-                                      className={`w-full transition-all duration-200 flex items-center justify-center
-                                        ${hasSignedApproval 
-                                          ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800'
-                                          : 'bg-slate-50 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
-                                        }
-                                        disabled:opacity-50 disabled:cursor-not-allowed 
-                                        disabled:bg-slate-50 disabled:text-slate-400 
-                                        disabled:dark:bg-slate-900 disabled:dark:text-slate-500
-                                      `}
-                                      variant="outline"
-                                    >
-                                      <Radio className="h-4 w-4 mr-2" />
-                                      <span>Broadcast</span>
-                                    </Button>
-                                  </div>
+                                      disabled:opacity-50 disabled:cursor-not-allowed 
+                                      disabled:bg-slate-50 disabled:text-slate-400 
+                                      disabled:dark:bg-slate-900 disabled:dark:text-slate-500
+                                    `}
+                                    variant="outline"
+                                  >
+                                    <Radio className="h-4 w-4 mr-2" />
+                                    <span>Broadcast</span>
+                                  </Button>
                                 </TooltipTrigger>
                                 <TooltipContent side="bottom">
                                   {!hasSignedApproval
