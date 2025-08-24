@@ -1,9 +1,8 @@
 "use client";
 
-import * as React from "react";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
-import { Address, parseEther, Hex } from "viem";
+import { Address, Hex } from "viem";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -168,138 +167,7 @@ function MetaTxSettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   );
 }
 
-// TransactionForm Component
-interface TransactionFormProps {
-  onSubmit: (to: Address, value: bigint, data: string, operation: number) => Promise<void>;
-  isLoading: boolean;
-  isDelegatedCallEnabled: boolean;
-}
 
-const TransactionForm = ({ onSubmit, isLoading, isDelegatedCallEnabled }: TransactionFormProps) => {
-  const [to, setTo] = useState<string>("");
-  const [value, setValue] = useState<string>("");
-  const [data, setData] = useState<string>("0x");
-  const [operation, setOperation] = useState<number>(0);
-  const [error, setError] = useState<string>("");
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError("");
-    
-    try {
-      // Validate address
-      if (!/^0x[a-fA-F0-9]{40}$/.test(to)) {
-        throw new Error("Invalid target address");
-      }
-
-      // Validate value
-      let parsedValue: bigint;
-      try {
-        parsedValue = value ? parseEther(value) : BigInt(0);
-      } catch {
-        throw new Error("Invalid ETH value");
-      }
-
-      // Validate data
-      if (data !== "0x" && !/^0x[a-fA-F0-9]*$/.test(data)) {
-        throw new Error("Invalid transaction data - must be hex");
-      }
-
-      // Validate operation
-      if (operation === 1 && !isDelegatedCallEnabled) {
-        throw new Error("Delegated call is not enabled");
-      }
-      
-      await onSubmit(to as Address, parsedValue, data, operation);
-      setTo("");
-      setValue("");
-      setData("0x");
-      setOperation(0);
-    } catch (error: any) {
-      console.error('Form submission error:', error);
-      setError(error.message);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="to">Target Address</Label>
-        <Input
-          id="to"
-          placeholder="0x..."
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
-          required
-          pattern="^0x[a-fA-F0-9]{40}$"
-          aria-label="Target address input"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="value">ETH Value</Label>
-        <Input
-          id="value"
-          type="text"
-          placeholder="0.0"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          aria-label="ETH value input"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="data">Transaction Data (Hex)</Label>
-        <Input
-          id="data"
-          placeholder="0x"
-          value={data}
-          onChange={(e) => setData(e.target.value)}
-          aria-label="Transaction data input"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="operation">Operation Type</Label>
-                             <TooltipProvider>
-                     <Tooltip>
-                       <TooltipTrigger asChild>
-                         <Info className="h-4 w-4 text-muted-foreground" />
-                       </TooltipTrigger>
-                       <TooltipContent>
-                         Call (0): Standard call to contract or address<br/>
-                         DelegateCall (1): Delegate call to another contract, executing in the context of the Safe
-                       </TooltipContent>
-                     </Tooltip>
-                   </TooltipProvider>
-        </div>
-        <select
-          id="operation"
-          value={operation}
-          onChange={(e) => setOperation(Number(e.target.value))}
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-          aria-label="Operation type selection"
-        >
-          <option value={0}>Call (0)</option>
-          <option value={1} disabled={!isDelegatedCallEnabled}>DelegateCall (1) {!isDelegatedCallEnabled && '- Disabled'}</option>
-        </select>
-      </div>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      <Button type="submit" disabled={isLoading} className="w-full">
-        {isLoading ? "Processing..." : "Request Transaction"}
-      </Button>
-    </form>
-  );
-};
 
 // Main Component Interface
 interface GuardianSafeUIProps {
@@ -337,7 +205,6 @@ function GuardianSafeUIContent({
   
   // Operations hook
   const {
-    handleRequestTransaction,
     handleApproveTransaction,
     handleCancelTransaction,
     handleMetaTxSign,
@@ -542,43 +409,7 @@ function GuardianSafeUIContent({
     }
   }, [handleDelegatedCallToggle, addMessage]);
 
-  // Handle transaction request
-  const handleTransactionRequest = useCallback(async (to: Address, value: bigint, data: string, operation: number) => {
-    try {
-      setLoadingState(prev => ({ ...prev, requestTx: true }));
-      
-      // Create SafeTx object
-      const safeTx: SafeTx = {
-        to,
-        value,
-        data: data as Hex,
-        operation,
-        safeTxGas: BigInt(0),
-        baseGas: BigInt(0),
-        gasPrice: BigInt(0),
-        gasToken: "0x0000000000000000000000000000000000000000" as Address,
-        refundReceiver: "0x0000000000000000000000000000000000000000" as Address,
-        signatures: "0x" as Hex
-      };
-      
-      await handleRequestTransaction(safeTx);
-      
-      addMessage?.({
-        type: 'success',
-        title: 'Transaction Requested',
-        description: `Successfully requested transaction to ${to}`
-      });
-    } catch (error: any) {
-      console.error('Transaction request error:', error);
-      addMessage?.({
-        type: 'error',
-        title: 'Request Failed',
-        description: error.message || 'Failed to request transaction'
-      });
-    } finally {
-      setLoadingState(prev => ({ ...prev, requestTx: false }));
-    }
-  }, [handleRequestTransaction, addMessage]);
+
 
   // Filter pending transactions
   const pendingTransactions = useMemo(() => {
@@ -855,19 +686,18 @@ function GuardianSafeUIContent({
                 </div>
               )}
 
-              {/* Transaction Request Form (Only for owner) */}
-              {isOwner && (
+              {/* Safe Pending Transactions */}
+              {safeAddress && (
                 <div className="space-y-2">
-                  <h3 className="text-sm font-medium text-muted-foreground">REQUEST TRANSACTION</h3>
-                  <Card>
-                    <CardContent className="pt-6">
-                      <TransactionForm
-                        onSubmit={handleTransactionRequest}
-                        isLoading={loadingState.requestTx || operationsLoadingStates.request}
-                        isDelegatedCallEnabled={delegatedCallEnabled}
-                      />
-                    </CardContent>
-                  </Card>
+                  <SafePendingTransactions
+                    pendingTransactions={safePendingTxs}
+                    isLoading={isLoadingSafeTxs}
+                    error={safeTxsError}
+                    onRefresh={refreshSafeTxs}
+                    safeAddress={safeAddress}
+                    chainId={chain?.id}
+                    connectedAddress={address}
+                  />
                 </div>
               )}
 
@@ -890,21 +720,6 @@ function GuardianSafeUIContent({
                   timeLockPeriodInMinutes={timeLockPeriodInMinutes}
                 />
               </div>
-
-              {/* Safe Pending Transactions */}
-              {safeAddress && (
-                <div className="space-y-2">
-                  <SafePendingTransactions
-                    pendingTransactions={safePendingTxs}
-                    isLoading={isLoadingSafeTxs}
-                    error={safeTxsError}
-                    onRefresh={refreshSafeTxs}
-                    safeAddress={safeAddress}
-                    chainId={chain?.id}
-                    connectedAddress={address}
-                  />
-                </div>
-              )}
 
               {/* Safe Owners Information */}
               <div className="space-y-2">
