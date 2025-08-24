@@ -1,6 +1,5 @@
 import { PublicClient, WalletClient, Address, encodeFunctionData } from 'viem';
 import Safe from '@safe-global/protocol-kit';
-import { env } from '../../../../config/env';
 
 /**
  * Configuration for Safe interface

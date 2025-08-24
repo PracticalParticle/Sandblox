@@ -24,6 +24,8 @@ import { GuardianSafeService } from "./lib/services";
 import { useWorkflowManager } from "@/hooks/useWorkflowManager";
 import { TxStatus } from "../../Guardian/sdk/typescript/types/lib.index";
 import { useSafeOwners, useSafeCoreInterface } from "../../blox/GuardianSafe/hooks/useSafeCoreInterface";
+import { useSafeTx } from "./hooks/useSafeTx";
+import { SafePendingTransactions } from "./components/SafePendingTransactions";
 import { GuardInfo } from "./lib/safe/SafeCoreInterface";
 
 // Extend the base ContractInfo interface to include broadcaster and other properties
@@ -367,6 +369,19 @@ function GuardianSafeUIContent({
     refetch: refetchOwners 
   } = useSafeOwners(safeAddress || undefined);
   
+  // Safe pending transactions hook
+  const {
+    pendingTransactions: safePendingTxs,
+    isLoading: isLoadingSafeTxs,
+    error: safeTxsError,
+    refreshPendingTransactions: refreshSafeTxs
+  } = useSafeTx({
+    safeAddress: safeAddress || undefined,
+    chainId: chain?.id,
+    autoRefresh: true,
+    refreshInterval: 30000 // 30 seconds
+  });
+  
   // Safe guard hook for guard management
   const {
     getGuardInfo,
@@ -688,6 +703,15 @@ function GuardianSafeUIContent({
           </div>
         )}
 
+        {safePendingTxs.length > 0 && (
+          <div className="space-y-2">
+            <h3 className="font-medium text-sm text-muted-foreground">SAFE PENDING TRANSACTIONS</h3>
+            <div className="text-sm text-muted-foreground">
+              {safePendingTxs.length} transaction{safePendingTxs.length !== 1 ? 's' : ''} pending
+            </div>
+          </div>
+        )}
+
         {safeOwners.length > 0 && (
           <div className="space-y-2">
             <h3 className="font-medium text-sm text-muted-foreground">SAFE OWNERS</h3>
@@ -866,6 +890,21 @@ function GuardianSafeUIContent({
                   timeLockPeriodInMinutes={timeLockPeriodInMinutes}
                 />
               </div>
+
+              {/* Safe Pending Transactions */}
+              {safeAddress && (
+                <div className="space-y-2">
+                  <SafePendingTransactions
+                    pendingTransactions={safePendingTxs}
+                    isLoading={isLoadingSafeTxs}
+                    error={safeTxsError}
+                    onRefresh={refreshSafeTxs}
+                    safeAddress={safeAddress}
+                    chainId={chain?.id}
+                    connectedAddress={address}
+                  />
+                </div>
+              )}
 
               {/* Safe Owners Information */}
               <div className="space-y-2">
