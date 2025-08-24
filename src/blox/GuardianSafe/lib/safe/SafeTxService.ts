@@ -87,7 +87,8 @@ export interface SafeTxServiceConfig {
 }
 
 /**
- * Safe Transaction Service for fetching pending transactions
+ * Safe Transaction Service for fetching pending transactions and Safe information
+ * Uses Safe Transaction Service API for transactions and Safe SDK for Safe info
  */
 export class SafeTxService {
   private safeSdk: Safe | null = null;
@@ -129,7 +130,7 @@ export class SafeTxService {
   }
 
   /**
-   * Initialize the Safe SDK
+   * Initialize the Safe SDK (for Safe info and owner checks)
    */
   async init(): Promise<void> {
     try {
@@ -144,33 +145,14 @@ export class SafeTxService {
       console.log('✅ Safe SDK initialized successfully');
     } catch (error) {
       console.error('❌ Failed to initialize Safe SDK:', error);
-      // Don't throw error, we can still use the API fallback
+      // Don't throw error, we can still use the API for pending transactions and basic Safe info
     }
   }
 
-  /**
-   * Get pending transactions using Safe SDK (primary method)
-   */
-  private async getPendingTransactionsFromSDK(): Promise<SafePendingTx[]> {
-    if (!this.safeSdk) {
-      throw new Error('Safe SDK not initialized');
-    }
 
-    try {
-      console.log('🔍 Fetching pending transactions from Safe SDK...');
-      
-      // Note: Safe SDK doesn't have getPendingTransactions method, so we'll use API
-      // This method is kept for future SDK updates
-      console.log('⚠️ Safe SDK getPendingTransactions not available, using API fallback');
-      throw new Error('SDK method not available');
-    } catch (error) {
-      console.error('❌ Failed to fetch pending transactions from SDK:', error);
-      throw error;
-    }
-  }
 
   /**
-   * Get pending transactions using Safe Transaction Service API (fallback method)
+   * Get pending transactions using Safe Transaction Service API
    */
   private async getPendingTransactionsFromAPI(): Promise<SafePendingTx[]> {
     try {
@@ -196,19 +178,9 @@ export class SafeTxService {
   }
 
   /**
-   * Get all pending transactions, trying SDK first, then API as fallback
+   * Get all pending transactions using Safe Transaction Service API
    */
   async getPendingTransactions(): Promise<SafePendingTx[]> {
-    try {
-      // Try SDK first
-      if (this.safeSdk) {
-        return await this.getPendingTransactionsFromSDK();
-      }
-    } catch (error) {
-      console.log('⚠️ SDK failed, falling back to API...');
-    }
-
-    // Fallback to API
     return await this.getPendingTransactionsFromAPI();
   }
 
@@ -235,32 +207,7 @@ export class SafeTxService {
     }
   }
 
-  /**
-   * Map Safe SDK transaction to our pending transaction format
-   */
-  private mapSDKTransactionToPendingTx(sdkTx: any): SafePendingTx {
-    return {
-      safeTxHash: sdkTx.data.safeTxHash || sdkTx.safeTxHash,
-      to: sdkTx.data.to as Address,
-      value: BigInt(sdkTx.data.value || '0'),
-      data: sdkTx.data.data || '0x',
-      operation: sdkTx.data.operation || 0,
-      safeTxGas: BigInt(sdkTx.data.safeTxGas || '0'),
-      baseGas: BigInt(sdkTx.data.baseGas || '0'),
-      gasPrice: BigInt(sdkTx.data.gasPrice || '0'),
-      gasToken: sdkTx.data.gasToken as Address || '0x0000000000000000000000000000000000000000' as Address,
-      refundReceiver: sdkTx.data.refundReceiver as Address || '0x0000000000000000000000000000000000000000' as Address,
-      nonce: sdkTx.data.nonce || 0,
-      submissionDate: sdkTx.data.submissionDate || new Date().toISOString(),
-      confirmationsRequired: sdkTx.data.confirmationsRequired || 1,
-      confirmations: sdkTx.data.confirmations || [],
-      signatures: sdkTx.data.signatures || '0x',
-      isExecuted: sdkTx.data.isExecuted || false,
-      executor: sdkTx.data.executor as Address,
-      blockNumber: sdkTx.data.blockNumber,
-      transactionHash: sdkTx.data.transactionHash
-    };
-  }
+
 
   /**
    * Map API transaction to our pending transaction format
@@ -290,7 +237,7 @@ export class SafeTxService {
   }
 
   /**
-   * Get Safe information
+   * Get Safe information (requires SDK initialization)
    */
   async getSafeInfo(): Promise<{
     address: Address;
@@ -325,7 +272,7 @@ export class SafeTxService {
   }
 
   /**
-   * Check if an address is an owner
+   * Check if an address is an owner (requires SDK initialization)
    */
   async isOwner(address: Address): Promise<boolean> {
     if (!this.safeSdk) {
@@ -341,7 +288,7 @@ export class SafeTxService {
   }
 
   /**
-   * Get current Safe nonce
+   * Get current Safe nonce (requires SDK initialization)
    */
   async getNonce(): Promise<number> {
     if (!this.safeSdk) {

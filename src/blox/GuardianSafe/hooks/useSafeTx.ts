@@ -42,7 +42,7 @@ export function useSafeTx({
   safeAddress,
   chainId,
   autoRefresh = true,
-  refreshInterval = 30000 // 30 seconds default
+  refreshInterval = 60000 // 60 seconds default
 }: UseSafeTxProps): UseSafeTxReturn {
   const publicClient = usePublicClient();
   const [safeTxService, setSafeTxService] = useState<SafeTxService | null>(null);
