@@ -22,6 +22,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SafePendingTx } from "../lib/safe/SafeTxService";
 import { useAccount } from "wagmi";
 import { useOperations } from "../hooks/useOperations";
+import { useMetaTransactionManager } from "@/hooks/useMetaTransactionManager";
+
 
 export interface SafePendingTransactionsProps {
   pendingTransactions: SafePendingTx[];
@@ -66,6 +68,11 @@ export function SafePendingTransactions({
     onError: onNotification,
     onRefresh
   });
+
+  // Get transactions from parent context (TransactionManagerProvider)
+  // We don't need to call useMetaTransactionManager here since we're inside GuardianSafe UI
+  // which already provides the TransactionManagerProvider context
+  const { transactions } = useMetaTransactionManager(contractAddress || "0x0000000000000000000000000000000000000000" as Address);
 
   // Handle refresh with loading state
   const handleRefresh = async () => {
@@ -196,8 +203,8 @@ export function SafePendingTransactions({
       
       // For single-phase meta-transaction, we use the request type
       if (type === 'request') {
-        // Use Safe nonce as the custom ID for predictable storage
-        const customId = `temp_${safeTx.nonce}`;
+        // Use Safe nonce as the numeric ID for consistent storage
+        const customId = safeTx.nonce.toString();
         await handleSinglePhaseMetaTxSign(safeTxData, customId);
       } else {
         console.warn('Approval/cancellation meta-transactions require the GuardianSafe transaction ID');
@@ -210,19 +217,32 @@ export function SafePendingTransactions({
   const handleGuardianMetaTxBroadcast = async (safeTx: SafePendingTx, _type: 'request' | 'approve' | 'cancel') => {
     try {
       // For single-phase meta-transaction, we need to find the stored transaction
-      // We'll use a temporary ID based on the Safe nonce
-      const tempId = `temp_${safeTx.nonce}`;
-      await handleBroadcastSinglePhaseMetaTx(tempId);
+      // Use Safe nonce as the numeric ID for consistent storage
+      const txId = safeTx.nonce.toString();
+      
+      // Check if the transaction exists in storage
+      if (!transactions[Number(txId)]) {
+        throw new Error('No signed meta-transaction found. Please sign the transaction first.');
+      }
+      
+      await handleBroadcastSinglePhaseMetaTx(txId);
     } catch (error) {
       console.error('Failed to broadcast meta transaction:', error);
+      // Show error to user
+      onNotification?.({
+        type: 'error',
+        title: 'Broadcast Failed',
+        description: error instanceof Error ? error.message : 'Failed to broadcast meta transaction'
+      });
     }
   };
 
   // Check if meta transaction is signed
   const isMetaTxSigned = (safeTx: SafePendingTx, _type: 'request' | 'approve' | 'cancel'): boolean => {
-    // Use a temporary ID based on the Safe nonce
-    const tempId = `temp_${safeTx.nonce}`;
-    return !!signedMetaTxStates[tempId];
+    // Use Safe nonce as the numeric ID for consistent storage
+    const txId = safeTx.nonce.toString();
+    // Check both the signed states and the actual stored transactions
+    return !!signedMetaTxStates[txId] && !!transactions[Number(txId)];
   };
 
   if (error) {
@@ -563,6 +583,8 @@ export function SafePendingTransactions({
           })}
         </div>
       )}
+
+
     </div>
   );
 }
