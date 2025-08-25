@@ -274,8 +274,28 @@ export function SafePendingTransactions({
         <div className="flex items-center gap-2">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="view" className="text-xs">View</TabsTrigger>
-              <TabsTrigger value="guardian" className="text-xs">Guardian</TabsTrigger>
+              <TabsTrigger 
+                value="view" 
+                className={`text-xs transition-all duration-200 ${
+                  activeTab === "view" 
+                    ? "bg-primary text-primary-foreground shadow-sm" 
+                    : "hover:bg-muted"
+                }`}
+              >
+                {activeTab === "view" && <div className="w-2 h-2 bg-primary-foreground rounded-full mr-2" />}
+                View
+              </TabsTrigger>
+              <TabsTrigger 
+                value="guardian" 
+                className={`text-xs transition-all duration-200 ${
+                  activeTab === "guardian" 
+                    ? "bg-primary text-primary-foreground shadow-sm" 
+                    : "hover:bg-muted"
+                }`}
+              >
+                {activeTab === "guardian" && <div className="w-2 h-2 bg-primary-foreground rounded-full mr-2" />}
+                Guardian
+              </TabsTrigger>
             </TabsList>
           </Tabs>
           
@@ -431,8 +451,21 @@ export function SafePendingTransactions({
                   {tx.data && tx.data !== '0x' && (
                     <div>
                       <span className="text-muted-foreground text-sm">Data:</span>
-                      <div className="mt-1 p-2 bg-muted rounded text-xs font-mono break-all">
-                        {tx.data}
+                      <div className="mt-1 p-2 bg-muted rounded text-xs font-mono">
+                        <div className="flex items-center justify-between">
+                          <span className="truncate max-w-[300px]" title={tx.data}>
+                            {tx.data.length > 66 ? `${tx.data.slice(0, 32)}...${tx.data.slice(-32)}` : tx.data}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 ml-2 flex-shrink-0"
+                            onClick={() => copyToClipboard(tx.data, "Transaction data")}
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+
                       </div>
                     </div>
                   )}
