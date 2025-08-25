@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
-import { Address, Hex } from "viem";
+import { Address } from "viem";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import GuardianSafe, { SafeTx } from "./GuardianSafe";
+import GuardianSafe from "./GuardianSafe";
 import { useChain } from "@/hooks/useChain";
 import { atom, useAtom } from "jotai";
 import { AlertCircle, Loader2, Shield, Info, Settings2, Radio } from "lucide-react";
@@ -201,22 +201,6 @@ function GuardianSafeUIContent({
   const [delegatedCallEnabled, setDelegatedCallEnabled] = useAtom(delegatedCallEnabledAtom);
   const [error, setError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [signedMetaTxStates] = useState<Record<string, { type: 'approve' | 'cancel' }>>({});
-  
-  // Operations hook
-  const {
-    handleApproveTransaction,
-    handleCancelTransaction,
-    handleMetaTxSign,
-    handleBroadcastMetaTx,
-    loadingStates: operationsLoadingStates,
-    handleDelegatedCallToggle,
-  } = useOperations({
-    contractAddress: contractAddress as Address,
-    onSuccess: addMessage,
-    onError: addMessage,
-    onRefresh: () => refreshData()
-  });
   
   // Workflow manager for role validation
   const { 
@@ -336,6 +320,23 @@ function GuardianSafeUIContent({
       setLoadingState(prev => ({ ...prev, transactions: false }));
     }
   }, [safe, safeService, setPendingTxs, onError]);
+
+  // Operations hook - moved after refreshData definition
+  const {
+    handleApproveTransaction,
+    handleCancelTransaction,
+    handleMetaTxSign,
+    handleBroadcastMetaTx,
+    loadingStates: operationsLoadingStates,
+    handleDelegatedCallToggle,
+    formatSafeTxForDisplay,
+    signedMetaTxStates,
+  } = useOperations({
+    contractAddress: contractAddress as Address,
+    onSuccess: addMessage,
+    onError: addMessage,
+    onRefresh: () => refreshData()
+  });
 
   // Initialize the component
   useEffect(() => {
@@ -686,20 +687,22 @@ function GuardianSafeUIContent({
                 </div>
               )}
 
-              {/* Safe Pending Transactions */}
-              {safeAddress && (
-                <div className="space-y-2">
-                  <SafePendingTransactions
-                    pendingTransactions={safePendingTxs}
-                    isLoading={isLoadingSafeTxs}
-                    error={safeTxsError}
-                    onRefresh={refreshSafeTxs}
-                    safeAddress={safeAddress}
-                    chainId={chain?.id}
-                    connectedAddress={address}
-                  />
-                </div>
-              )}
+                             {/* Safe Pending Transactions */}
+               {safeAddress && (
+                 <div className="space-y-2">
+                   <SafePendingTransactions
+                     pendingTransactions={safePendingTxs}
+                     isLoading={isLoadingSafeTxs}
+                     error={safeTxsError}
+                     onRefresh={refreshSafeTxs}
+                     safeAddress={safeAddress}
+                     chainId={chain?.id}
+                     connectedAddress={address}
+                     contractAddress={contractAddress}
+                     onNotification={addMessage}
+                   />
+                 </div>
+               )}
 
               {/* Pending Transactions */}
               <div className="space-y-2">
@@ -714,10 +717,10 @@ function GuardianSafeUIContent({
                   signedMetaTxStates={signedMetaTxStates}
                   isLoading={operationsLoadingStates.approval[0] || operationsLoadingStates.cancellation[0]}
                   contractAddress={contractAddress as Address}
-                  mode="timelock"
                   onNotification={handleNotification}
                   connectedAddress={address}
                   timeLockPeriodInMinutes={timeLockPeriodInMinutes}
+                  formatSafeTxForDisplay={formatSafeTxForDisplay}
                 />
               </div>
 

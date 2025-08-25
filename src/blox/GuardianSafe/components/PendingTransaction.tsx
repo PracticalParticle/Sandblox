@@ -3,9 +3,10 @@ import { Address, Hex } from "viem";
 import { formatEther } from "viem";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, X, CheckCircle2, Clock, XCircle, RefreshCw, Radio } from "lucide-react";
+import { Loader2, X, CheckCircle2, Clock, XCircle, RefreshCw, Radio, Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TxStatus } from "../../../Guardian/sdk/typescript/types/lib.index";
 import { SAFE_OPERATIONS } from "../hooks/useOperations";
 import { useOperationTypes } from "@/hooks/useOperationTypes";
@@ -52,6 +53,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
   formatSafeTxForDisplay
 }) => {
   const [isRefreshing, setIsRefreshing] = React.useState<boolean>(false);
+  const [activeMode, setActiveMode] = React.useState<'timelock' | 'metatx'>(mode);
   
   // Get operation types for mapping hex values to human-readable names
   const { getOperationName, loading: loadingOperationTypes } = useOperationTypes(contractAddress);
@@ -320,27 +322,6 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
             // Create readable description of the transaction
             const txDescription = createTransactionDescription(tx);
             
-            // Debug logging for approve button state
-            const approveDebugInfo = {
-              txId: tx.txId,
-              checkTimeLockApprove: checkTimeLockApprove(tx),
-              isReady,
-              isLoading,
-              txStatus: tx.status,
-              isTimeLockComplete,
-              connectedAddress,
-              operationType: tx.params.operationType,
-              operationName: getOperationName(tx.params.operationType as Hex),
-              // Add time debug info
-              now: now,
-              releaseTime: Number(tx.releaseTime),
-              timeLockPeriodInSeconds,
-              timeLockPeriodInMinutes,
-              releaseTimeReadable: new Date(Number(tx.releaseTime) * 1000).toLocaleString(),
-              nowReadable: new Date(now * 1000).toLocaleString()
-            };
-            console.log(`🔍 Transaction #${tx.txId} approve button debug:`, approveDebugInfo);
-            
             return (
               <Card key={tx.txId.toString()}>
                 <CardContent className="pt-6">
@@ -379,34 +360,53 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                       </div>
                     </div>
 
-                    {mode === 'timelock' && (
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Time Lock Progress</span>
-                          <span>{Math.round(progress)}%</span>
+                    {/* Tabs for switching between temporal and meta-transaction modes */}
+                    <Tabs value={activeMode} onValueChange={(value) => setActiveMode(value as 'timelock' | 'metatx')} className="w-full">
+                      <TabsList className="grid w-full grid-cols-2 bg-background p-1 rounded-lg">
+                        <TabsTrigger value="timelock" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
+                          Temporal (Time Lock)
+                        </TabsTrigger>
+                        <TabsTrigger value="metatx" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
+                          Meta Transaction (Immediate)
+                        </TabsTrigger>
+                      </TabsList>
+                      
+                      <TabsContent value="timelock" className="space-y-4">
+                        {/* Time Lock Progress */}
+                        <div className="space-y-2">
+                          {/* Info about temporal approval timing */}
+                          <div className="rounded-md bg-amber-50 p-3 dark:bg-amber-950/30">
+                            <p className="text-sm text-amber-700 dark:text-amber-300">
+                              <Clock className="h-4 w-4 inline mr-2" />
+                              Temporal approval requires waiting for the time lock period to complete. 
+                              This provides security by ensuring transactions cannot be executed immediately.
+                            </p>
+                          </div>
+                          
+                          <div className="flex justify-between text-sm">
+                            <span>Time Lock Progress</span>
+                            <span>{Math.round(progress)}%</span>
+                          </div>
+                          <Progress 
+                            value={progress} 
+                            className={`h-2 ${isTimeLockComplete ? 'bg-muted' : ''}`}
+                            aria-label="Time lock progress"
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={Math.round(progress)}
+                          />
                         </div>
-                        <Progress 
-                          value={progress} 
-                          className={`h-2 ${isTimeLockComplete ? 'bg-muted' : ''}`}
-                          aria-label="Time lock progress"
-                          aria-valuemin={0}
-                          aria-valuemax={100}
-                          aria-valuenow={Math.round(progress)}
-                        />
-                      </div>
-                    )}
 
-                    <div className="flex space-x-2">
-                      {mode === 'timelock' ? (
-                        <>
+                        {/* Temporal Action Buttons */}
+                        <div className="flex space-x-2">
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
                                   onClick={() => handleApproveAction(Number(tx.txId))}
                                   disabled={
-                                    // !checkTimeLockApprove(tx) ||  // Temporarily disabled for testing
-                                    // !isReady ||  // Temporarily disabled for testing
+                                    !checkTimeLockApprove(tx) || 
+                                    !isReady || 
                                     isLoading || 
                                     tx.status !== TxStatus.PENDING || 
                                     !isTimeLockComplete
@@ -419,19 +419,6 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                     disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 disabled:dark:bg-slate-900 disabled:dark:text-slate-500
                                   `}
                                   variant="outline"
-                                  onMouseEnter={() => {
-                                    // Debug logging
-                                    console.log('🔍 Approve button debug:', {
-                                      txId: tx.txId,
-                                      checkTimeLockApprove: checkTimeLockApprove(tx),
-                                      isReady,
-                                      isLoading,
-                                      txStatus: tx.status,
-                                      isTimeLockComplete,
-                                      connectedAddress,
-                                      operationType: tx.params.operationType
-                                    });
-                                  }}
                                 >
                                   {isTimeLockComplete && <CheckCircle2 className="h-4 w-4 mr-2" />}
                                   <span>Approve</span>
@@ -475,50 +462,65 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
-                        </>
-                      ) : (
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent value="metatx" className="space-y-4">
+                        {/* Meta Transaction Action Buttons */}
                         <div className="w-full space-y-2">
+                          {/* Info about meta-transaction timing */}
+                          <div className="rounded-md bg-blue-50 p-3 dark:bg-blue-950/30">
+                            <p className="text-sm text-blue-700 dark:text-blue-300">
+                              <Info className="h-4 w-4 inline mr-2" />
+                              Meta-transactions can be signed immediately after the request phase, 
+                              regardless of the time lock period. The time delay only applies to 
+                              temporal (timelock) approvals.
+                            </p>
+                          </div>
+                          
                           <div className="flex space-x-2">
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button
-                                    onClick={() => handleMetaTxSign(tx, 'approve')}
-                                    disabled={
-                                      !checkMetaTxSign(tx) ||
-                                      isLoading || 
-                                      tx.status !== TxStatus.PENDING || 
-                                      hasSignedApproval
-                                    }
-                                    className={`w-full transition-all duration-200 flex items-center justify-center
-                                      bg-emerald-50 text-emerald-700 hover:bg-emerald-100 
-                                      dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 
-                                      border border-emerald-200 dark:border-emerald-800
-                                      disabled:opacity-50 disabled:cursor-not-allowed 
-                                      disabled:bg-slate-50 disabled:text-slate-400 
-                                      disabled:dark:bg-slate-900 disabled:dark:text-slate-500
-                                    `}
-                                    variant="outline"
-                                  >
-                                    {hasSignedApproval ? (
-                                      <>
-                                        <CheckCircle2 className="h-4 w-4 mr-2" />
-                                        <span>Signed</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <CheckCircle2 className="h-4 w-4 mr-2" />
-                                        <span>Sign Approval</span>
-                                      </>
-                                    )}
-                                  </Button>
+                                  <div className="w-1/2">
+                                    <Button
+                                      onClick={() => handleMetaTxSign(tx, 'approve')}
+                                      disabled={
+                                        !checkMetaTxSign(tx) ||
+                                        isLoading || 
+                                        tx.status !== TxStatus.PENDING || 
+                                        hasSignedApproval
+                                      }
+                                      className={`w-full transition-all duration-200 flex items-center justify-center
+                                        bg-emerald-50 text-emerald-700 hover:bg-emerald-100 
+                                        dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 
+                                        border border-emerald-200 dark:border-emerald-800
+                                        disabled:opacity-50 disabled:cursor-not-allowed 
+                                        disabled:bg-slate-50 disabled:text-slate-400 
+                                        disabled:bg-slate-900 disabled:text-slate-500
+                                      `}
+                                      variant="outline"
+                                    >
+                                      {hasSignedApproval ? (
+                                        <>
+                                          <CheckCircle2 className="h-4 w-4 mr-2" />
+                                          <span>Signed</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <CheckCircle2 className="h-4 w-4 mr-2" />
+                                          <span>Sign Approval</span>
+                                        </>
+                                      )}
+                                    </Button>
+                                  </div>
                                 </TooltipTrigger>
                                 <TooltipContent side="bottom">
                                   {!checkMetaTxSign(tx)
                                     ? "Only the owner can sign approval meta-transactions"
                                     : hasSignedApproval
                                       ? "Transaction is already signed"
-                                      : "Sign approval meta-transaction"}
+                                      : "Sign approval meta-transaction (available immediately)"}
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
@@ -526,27 +528,29 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button
-                                    onClick={() => handleBroadcastMetaTx(tx, 'approve')}
-                                    disabled={
-                                      !checkMetaTxBroadcast(tx) ||
-                                      isLoading || 
-                                      !hasSignedApproval
-                                    }
-                                    className={`w-full transition-all duration-200 flex items-center justify-center
-                                      ${hasSignedApproval 
-                                        ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800'
-                                        : 'bg-slate-50 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
+                                  <div className="w-1/2">
+                                    <Button
+                                      onClick={() => handleBroadcastMetaTx(tx, 'approve')}
+                                      disabled={
+                                        !checkMetaTxBroadcast(tx) ||
+                                        isLoading || 
+                                        !hasSignedApproval
                                       }
-                                      disabled:opacity-50 disabled:cursor-not-allowed 
-                                      disabled:bg-slate-50 disabled:text-slate-400 
-                                      disabled:dark:bg-slate-900 disabled:dark:text-slate-500
-                                    `}
-                                    variant="outline"
-                                  >
-                                    <Radio className="h-4 w-4 mr-2" />
-                                    <span>Broadcast</span>
-                                  </Button>
+                                      className={`w-full transition-all duration-200 flex items-center justify-center
+                                        ${hasSignedApproval 
+                                          ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800'
+                                          : 'bg-slate-50 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
+                                        }
+                                        disabled:opacity-50 disabled:cursor-not-allowed 
+                                        disabled:bg-slate-50 disabled:text-slate-400 
+                                        disabled:bg-slate-900 disabled:text-slate-500
+                                      `}
+                                      variant="outline"
+                                    >
+                                      <Radio className="h-4 w-4 mr-2" />
+                                      <span>Broadcast</span>
+                                    </Button>
+                                  </div>
                                 </TooltipTrigger>
                                 <TooltipContent side="bottom">
                                   {!hasSignedApproval
@@ -559,8 +563,8 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                             </TooltipProvider>
                           </div>
                         </div>
-                      )}
-                    </div>
+                      </TabsContent>
+                    </Tabs>
                   </div>
                 </CardContent>
               </Card>

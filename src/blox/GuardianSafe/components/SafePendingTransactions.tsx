@@ -10,12 +10,18 @@ import {
   CheckCircle2, 
   ExternalLink,
   Copy,
-  AlertCircle
+  AlertCircle,
+  Shield,
+  Radio,
+  Timer,
+  Zap
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SafePendingTx } from "../lib/safe/SafeTxService";
 import { useAccount } from "wagmi";
+import { useOperations } from "../hooks/useOperations";
 
 export interface SafePendingTransactionsProps {
   pendingTransactions: SafePendingTx[];
@@ -25,10 +31,12 @@ export interface SafePendingTransactionsProps {
   safeAddress?: Address;
   chainId?: number;
   connectedAddress?: Address;
+  contractAddress?: Address;
+  onNotification?: (message: any) => void;
 }
 
 /**
- * Component to display Safe pending transactions
+ * Component to display Safe pending transactions with Guardian protocol actions
  */
 export function SafePendingTransactions({
   pendingTransactions,
@@ -37,10 +45,27 @@ export function SafePendingTransactions({
   onRefresh,
   safeAddress,
   chainId,
-  connectedAddress
+  connectedAddress,
+  contractAddress,
+  onNotification
 }: SafePendingTransactionsProps) {
   const { address } = useAccount();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState("view");
+
+  // Guardian operations hook
+  const {
+    handleRequestTransaction,
+    handleSinglePhaseMetaTxSign,
+    handleBroadcastSinglePhaseMetaTx,
+    signedMetaTxStates,
+    loadingStates
+  } = useOperations({
+    contractAddress: contractAddress || "0x0000000000000000000000000000000000000000" as Address,
+    onSuccess: onNotification,
+    onError: onNotification,
+    onRefresh
+  });
 
   // Handle refresh with loading state
   const handleRefresh = async () => {
@@ -130,6 +155,76 @@ export function SafePendingTransactions({
     };
   };
 
+  // Handle Guardian protocol actions
+  const handleGuardianRequest = async (safeTx: SafePendingTx) => {
+    try {
+      // Convert SafePendingTx to SafeTx format for Guardian protocol
+      const safeTxData = {
+        to: safeTx.to,
+        value: safeTx.value,
+        data: safeTx.data as `0x${string}`,
+        operation: safeTx.operation,
+        safeTxGas: safeTx.safeTxGas,
+        baseGas: safeTx.baseGas,
+        gasPrice: safeTx.gasPrice,
+        gasToken: safeTx.gasToken,
+        refundReceiver: safeTx.refundReceiver,
+        signatures: safeTx.signatures as `0x${string}`
+      };
+      
+      await handleRequestTransaction(safeTxData);
+    } catch (error) {
+      console.error('Failed to request Safe transaction:', error);
+    }
+  };
+
+  const handleGuardianMetaTxSign = async (safeTx: SafePendingTx, type: 'request' | 'approve' | 'cancel') => {
+    try {
+      // Convert SafePendingTx to SafeTx format for Guardian protocol
+      const safeTxData = {
+        to: safeTx.to,
+        value: safeTx.value,
+        data: safeTx.data as `0x${string}`,
+        operation: safeTx.operation,
+        safeTxGas: safeTx.safeTxGas,
+        baseGas: safeTx.baseGas,
+        gasPrice: safeTx.gasPrice,
+        gasToken: safeTx.gasToken,
+        refundReceiver: safeTx.refundReceiver,
+        signatures: safeTx.signatures as `0x${string}`
+      };
+      
+      // For single-phase meta-transaction, we use the request type
+      if (type === 'request') {
+        // Use Safe nonce as the custom ID for predictable storage
+        const customId = `temp_${safeTx.nonce}`;
+        await handleSinglePhaseMetaTxSign(safeTxData, customId);
+      } else {
+        console.warn('Approval/cancellation meta-transactions require the GuardianSafe transaction ID');
+      }
+    } catch (error) {
+      console.error('Failed to sign meta transaction:', error);
+    }
+  };
+
+  const handleGuardianMetaTxBroadcast = async (safeTx: SafePendingTx, _type: 'request' | 'approve' | 'cancel') => {
+    try {
+      // For single-phase meta-transaction, we need to find the stored transaction
+      // We'll use a temporary ID based on the Safe nonce
+      const tempId = `temp_${safeTx.nonce}`;
+      await handleBroadcastSinglePhaseMetaTx(tempId);
+    } catch (error) {
+      console.error('Failed to broadcast meta transaction:', error);
+    }
+  };
+
+  // Check if meta transaction is signed
+  const isMetaTxSigned = (safeTx: SafePendingTx, _type: 'request' | 'approve' | 'cancel'): boolean => {
+    // Use a temporary ID based on the Safe nonce
+    const tempId = `temp_${safeTx.nonce}`;
+    return !!signedMetaTxStates[tempId];
+  };
+
   if (error) {
     return (
       <Alert variant="destructive">
@@ -156,19 +251,28 @@ export function SafePendingTransactions({
           )}
         </div>
         
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={isLoading || isRefreshing}
-        >
-          {isRefreshing ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4 mr-2" />
-          )}
-          {isRefreshing ? "Refreshing..." : "Refresh"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="view" className="text-xs">View</TabsTrigger>
+              <TabsTrigger value="guardian" className="text-xs">Guardian</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isLoading || isRefreshing}
+          >
+            {isRefreshing ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
+            {isRefreshing ? "Refreshing..." : "Refresh"}
+          </Button>
+        </div>
       </div>
 
       {/* Loading State */}
@@ -327,7 +431,7 @@ export function SafePendingTransactions({
                       <div 
                         className="bg-primary h-2 rounded-full transition-all duration-300"
                         style={{ 
-                          width: `${(confirmationStatus.confirmed / confirmationStatus.required) * 100}%` 
+                          width: `${(confirmationStatus.confirmed / confirmationStatus.confirmed) * 100}%` 
                         }}
                       />
                     </div>
@@ -347,8 +451,95 @@ export function SafePendingTransactions({
                     </div>
                   </div>
 
-                  {/* Sign Transaction Button */}
-                  {canSignTx && (
+                  {/* Guardian Protocol Actions */}
+                  {activeTab === "guardian" && (
+                    <div className="border-t pt-4 space-y-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Shield className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-medium text-muted-foreground">Guardian Protocol Actions</span>
+                      </div>
+                      
+                      {/* Temporal Workflow (Request/Approve with time delay) */}
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Timer className="h-4 w-4 text-blue-500" />
+                          <span className="text-sm font-medium">Temporal Workflow</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleGuardianRequest(tx)}
+                            disabled={loadingStates.request || !contractAddress}
+                            className="w-full"
+                          >
+                            {loadingStates.request ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Shield className="h-4 w-4 mr-2" />
+                            )}
+                            Request Transaction (Time-lock)
+                          </Button>
+                        </div>
+                        
+                        <p className="text-xs text-muted-foreground">
+                          Request this transaction through Guardian protocol with time-lock security
+                        </p>
+                      </div>
+
+                      {/* Meta Transaction (Direct signing for immediate broadcast) */}
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Zap className="h-4 w-4 text-green-500" />
+                          <span className="text-sm font-medium">Meta Transaction</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleGuardianMetaTxSign(tx, 'request')}
+                            disabled={loadingStates.metaTx || !contractAddress || isMetaTxSigned(tx, 'request')}
+                            className="w-full"
+                          >
+                            {loadingStates.metaTx ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : isMetaTxSigned(tx, 'request') ? (
+                              <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />
+                            ) : (
+                              <Radio className="h-4 w-4 mr-2" />
+                            )}
+                            {isMetaTxSigned(tx, 'request') ? 'Signed' : 'Sign Request Meta-Tx'}
+                          </Button>
+                          
+                          {isMetaTxSigned(tx, 'request') && (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => handleGuardianMetaTxBroadcast(tx, 'request')}
+                              disabled={loadingStates.metaTx}
+                              className="w-full"
+                            >
+                              {loadingStates.metaTx ? (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              ) : (
+                                <Radio className="h-4 w-4 mr-2" />
+                              )}
+                              Broadcast Meta-Transaction
+                            </Button>
+                          )}
+                        </div>
+                        
+                        <p className="text-xs text-muted-foreground">
+                          Sign and broadcast this transaction immediately through Guardian protocol
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sign Transaction Button (Safe UI) */}
+                  {activeTab === "view" && canSignTx && (
                     <div className="border-t pt-4">
                       <Alert>
                         <AlertCircle className="h-4 w-4" />

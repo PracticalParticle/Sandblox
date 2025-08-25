@@ -269,10 +269,12 @@ export class GuardianSafeService {
       throw new Error("Can only approve pending requests");
     }
 
-    const currentTimestamp = Math.floor(Date.now() / 1000);
-    if (currentTimestamp < Number(operation.releaseTime)) {
-      throw new Error("Current time is before release time");
-    }
+    // Note: Meta-transactions can be signed immediately after request phase
+    // Time delay only applies to temporal (timelock) approvals
+    // const currentTimestamp = Math.floor(Date.now() / 1000);
+    // if (currentTimestamp < Number(operation.releaseTime)) {
+    //   throw new Error("Current time is before release time");
+    // }
 
     // Get stored settings and create meta tx params
     const storedSettings = this.getStoredMetaTxSettings();
