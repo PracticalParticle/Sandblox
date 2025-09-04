@@ -166,6 +166,16 @@ export function SafePendingTransactions({
   const handleGuardianRequest = async (safeTx: SafePendingTx) => {
     try {
       // Convert SafePendingTx to SafeTx format for Guardian protocol
+      // Ensure data is properly formatted hex string
+      const formattedData = safeTx.data?.startsWith('0x') ? safeTx.data : `0x${safeTx.data || ''}`;
+
+      // Ensure signatures is properly formatted hex string
+      const formattedSignatures = extractedSignatures?.startsWith('0x') 
+        ? extractedSignatures 
+        : extractedSignatures 
+          ? `0x${extractedSignatures}` 
+          : '0x';
+      
       const safeTxData = {
         to: safeTx.to,
         value: safeTx.value,
@@ -176,7 +186,7 @@ export function SafePendingTransactions({
         gasPrice: safeTx.gasPrice,
         gasToken: safeTx.gasToken,
         refundReceiver: safeTx.refundReceiver,
-        signatures: safeTx.signatures as `0x${string}`
+        signatures: formattedSignatures as `0x${string}`
       };
       
       await handleRequestTransaction(safeTxData);
