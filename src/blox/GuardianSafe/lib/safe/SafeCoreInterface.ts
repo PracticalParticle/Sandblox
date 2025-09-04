@@ -1,7 +1,5 @@
 import { PublicClient, WalletClient, Address, encodeFunctionData } from 'viem';
 import Safe from '@safe-global/protocol-kit';
-import SafeApiKit from '@safe-global/api-kit';
-import { env } from '../../../../config/env';
 
 /**
  * Configuration for Safe interface
@@ -42,15 +40,12 @@ export interface GuardInfo {
  */
 export class SafeCoreInterface {
   private safeSdk: Safe | null = null;
-  private safeApiKit: SafeApiKit | null = null;
   private safeAddress: Address;
   private publicClient: PublicClient;
   private walletClient: WalletClient;
-  private chainId: number;
 
   constructor(config: SafeConfig, publicClient: PublicClient, walletClient: WalletClient) {
     this.safeAddress = config.safeAddress;
-    this.chainId = config.chainId;
     this.publicClient = publicClient;
     this.walletClient = walletClient;
   }
@@ -64,61 +59,19 @@ export class SafeCoreInterface {
     }
 
     try {
-      // Create an EIP-1193 compatible provider that uses the wallet client for signing
-      // and falls back to public client for read operations
-      const provider = {
-        request: async (args: { method: string; params?: any }) => {
-          // For signing methods, use the wallet client
-          if (args.method === 'personal_sign' || args.method === 'eth_sign' || args.method === 'eth_signTypedData_v4') {
-            return await this.walletClient.request(args as any);
-          }
-          // For read operations, use the public client
-          return await this.publicClient.request(args as any);
-        }
-      } as any;
+          // Initialize Safe SDK with provider URL and wallet address
+    const provider = this.walletClient.transport?.url || this.publicClient.transport.url;
+    console.log('🔗 Using provider:', provider);
       
-      console.log('🔗 Using custom provider with wallet client for signing');
-      
-      // Initialize Safe SDK
       this.safeSdk = await Safe.init({
         provider,
         signer: this.walletClient.account.address,
         safeAddress: this.safeAddress
       });
 
-      console.log('✅ Safe SDK initialized successfully');
-
-      // Initialize Safe API Kit with explicit transaction service URL and API key
-      try {
-        const apiKey = env.VITE_SAFE_API_KEY
-        
-        console.log('🔑 API Key available:', apiKey ? 'Yes' : 'No');
-        
-        // API Kit v4 configuration - use default services with API key
-        const apiKitConfig: any = {
-          chainId: BigInt(this.chainId)
-        };
-        
-        // Add API key (required for v4 default services)
-        if (apiKey) {
-          apiKitConfig.apiKey = apiKey;
-          console.log('✅ Using API key for Safe Transaction Service v4');
-          console.log('🔗 Using Safe default services for chain:', this.chainId);
-        } else {
-          console.error('⚠️ No API key provided - this will cause issues with v4');
-        }
-        
-        
-        this.safeApiKit = new SafeApiKit(apiKitConfig);
-        console.log('✅ Safe API Kit initialized successfully');
-      } catch (apiKitError) {
-        console.warn('⚠️ Failed to initialize Safe API Kit:', apiKitError);
-        console.warn('⚠️ This is likely due to CORS issues or missing API key');
-        console.warn('⚠️ Transaction proposals may not appear in Safe UI');
-        this.safeApiKit = null;
-      }
+      console.log('Safe SDK initialized successfully');
     } catch (error) {
-      console.error('❌ Failed to initialize Safe SDK:', error);
+      console.error('Failed to initialize Safe SDK:', error);
       throw error;
     }
   }
@@ -216,16 +169,37 @@ export class SafeCoreInterface {
     console.log('✅ Wallet is confirmed as Safe owner');
     console.log('✅ Guard address validation passed');
 
-    // Always propose transactions to Safe UI, regardless of threshold
-    console.log(`Proposing setGuard transaction to Safe UI (${owners.length} owners, ${threshold} signature${threshold > 1 ? 's' : ''} required)`);
-    return this.proposeSetGuardTransaction(guardAddress);
+    if (threshold === 1) {
+      console.log('Single owner Safe - using optimized signing approach');
+      
+      // Create Safe transaction using SDK
+      const safeTransaction = await this.safeSdk.createEnableGuardTx(guardAddress);
+      console.log('Safe transaction created:', safeTransaction.data);
+      
+      // Get the transaction hash that needs to be signed
+      const safeTxHash = await this.safeSdk.getTransactionHash(safeTransaction);
+      console.log('Safe transaction hash:', safeTxHash);
+
+      // Verify the current nonce matches
+      const currentNonce = await this.safeSdk.getNonce();
+      if (currentNonce !== safeTransaction.data.nonce) {
+        console.warn('⚠️ Nonce mismatch detected, refreshing transaction...');
+        // Recreate transaction with current nonce
+        const freshTransaction = await this.safeSdk.createEnableGuardTx(guardAddress);
+        const freshHash = await this.safeSdk.getTransactionHash(freshTransaction);
+        console.log('Refreshed transaction hash:', freshHash);
+        return this.executeWithProperSignature(freshTransaction, freshHash);
+      }
+
+      return this.executeWithProperSignature(safeTransaction, safeTxHash);
+    } else {
+      throw new Error('Multi-signature Safes not yet supported for setGuard operation');
+    }
   }
 
   /**
    * Execute Safe transaction with proper signature handling
-   * @deprecated - Now using proposal-only flow, kept for potential future use
    */
-  // @ts-ignore - Keeping for potential future use
   private async executeWithProperSignature(safeTransaction: any, safeTxHash: string): Promise<string> {
     if (!this.walletClient?.account) {
       throw new Error('Wallet client not available');
@@ -466,345 +440,41 @@ export class SafeCoreInterface {
   }
 
   /**
-   * Propose a setGuard transaction for multisig approval
-   */
-  private async proposeSetGuardTransaction(guardAddress: Address): Promise<string> {
-    if (!this.safeSdk || !this.walletClient?.account) {
-      throw new Error('Safe SDK not initialized or wallet not connected');
-    }
-
-    console.log('🔍 Removing guard from Safe...');
-    console.log('Connected wallet address:', this.walletClient.account.address);
-    console.log('Safe address:', this.safeAddress);
-
-    // Get Safe info
-    const owners = await this.safeSdk.getOwners();
-    const threshold = await this.safeSdk.getThreshold();
-    
-    console.log('Safe owners:', owners);
-    console.log('Safe threshold:', threshold);
-
-    // Check if wallet is an owner
-    const isOwner = owners.includes(this.walletClient.account.address);
-    if (!isOwner) {
-      throw new Error('Connected wallet is not an owner of this Safe');
-    }
-
-    console.log('✅ Wallet is confirmed as Safe owner');
-
-    // Always propose transactions to Safe UI, regardless of threshold
-    console.log(`Proposing removeGuard transaction to Safe UI (${owners.length} owners, ${threshold} signature${threshold > 1 ? 's' : ''} required)`);
-    return this.proposeRemoveGuardTransaction();
-  }
-
-    console.log('🔍 Removing guard from Safe...');
-    console.log('Connected wallet address:', this.walletClient.account.address);
-    console.log('Safe address:', this.safeAddress);
-
-    // Get Safe info
-    const owners = await this.safeSdk.getOwners();
-    const threshold = await this.safeSdk.getThreshold();
-    
-    console.log('Safe owners:', owners);
-    console.log('Safe threshold:', threshold);
-
-    // Check if wallet is an owner
-    const isOwner = owners.includes(this.walletClient.account.address);
-    if (!isOwner) {
-      throw new Error('Connected wallet is not an owner of this Safe');
-    }
-
-    console.log('✅ Wallet is confirmed as Safe owner');
-
-    // Always propose transactions to Safe UI, regardless of threshold
-    console.log(`Proposing removeGuard transaction to Safe UI (${owners.length} owners, ${threshold} signature${threshold > 1 ? 's' : ''} required)`);
-    return this.proposeRemoveGuardTransaction();
-  }
-
-    try {
-      console.log('🏗️ Creating setGuard transaction proposal for multisig Safe...');
-      
-      // Create Safe transaction using SDK
-      const safeTransaction = await this.safeSdk.createEnableGuardTx(guardAddress);
-      // Get the transaction hash that needs to be signed
-      const safeTxHash = await this.safeSdk.getTransactionHash(safeTransaction);
-      // Sign only the transaction hash for proposal (no MetaMask popup)
-      const senderSignature = await this.safeSdk.signHash(safeTxHash);
-      console.log('✅ Transaction hash signed successfully for proposal');
-
-      if (this.safeApiKit) {
-        try {
-          await this.safeApiKit.proposeTransaction({
-            safeAddress: this.safeAddress,
-            safeTransactionData: safeTransaction.data,
-            safeTxHash: safeTxHash,
-            senderAddress: this.walletClient.account.address,
-            senderSignature: senderSignature.data
-          });
-        } catch (apiError) {
-          console.warn('⚠️ Failed to propose to Safe Transaction Service:', apiError);
-          console.log('💡 Transaction created but not submitted to service. Users can manually create this transaction in Safe UI.');
-        }
-      } else {
-        console.log('⚠️ Safe API Kit not available. Transaction created but not submitted to service.');
-      }
-      
-      // Return the Safe transaction hash - this is what users can track
-      return safeTxHash;
-      
-    } catch (error) {
-      console.error('❌ Failed to create setGuard transaction proposal:', error);
-      throw new Error(`Failed to propose setGuard transaction: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  /**
-   * Propose a setGuard transaction for multisig approval
-   */
-  private async proposeSetGuardTransaction(guardAddress: Address): Promise<string> {
-    if (!this.safeSdk || !this.walletClient?.account) {
-      throw new Error('Safe SDK not initialized or wallet not connected');
-    }
-
-    try {
-      console.log('🏗️ Creating setGuard transaction proposal for multisig Safe...');
-      
-      // Create Safe transaction using SDK
-      const safeTransaction = await this.safeSdk.createEnableGuardTx(guardAddress);
-      // Get the transaction hash that needs to be signed
-      const safeTxHash = await this.safeSdk.getTransactionHash(safeTransaction);
-      // Sign only the transaction hash for proposal (no MetaMask popup)
-      const senderSignature = await this.safeSdk.signHash(safeTxHash);
-      console.log('✅ Transaction hash signed successfully for proposal');
-
-      if (this.safeApiKit) {
-        try {
-          await this.safeApiKit.proposeTransaction({
-            safeAddress: this.safeAddress,
-            safeTransactionData: safeTransaction.data,
-            safeTxHash: safeTxHash,
-            senderAddress: this.walletClient.account.address,
-            senderSignature: senderSignature.data
-          });
-        } catch (apiError) {
-          console.warn('⚠️ Failed to propose to Safe Transaction Service:', apiError);
-          console.log('💡 Transaction created but not submitted to service. Users can manually create this transaction in Safe UI.');
-        }
-      } else {
-        console.log('⚠️ Safe API Kit not available. Transaction created but not submitted to service.');
-      }
-      
-      // Return the Safe transaction hash - this is what users can track
-      return safeTxHash;
-      
-    } catch (error) {
-      console.error('❌ Failed to create setGuard transaction proposal:', error);
-      throw new Error(`Failed to propose setGuard transaction: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  /**
-   * Propose a setGuard transaction for multisig approval
-   */
-  private async proposeSetGuardTransaction(guardAddress: Address): Promise<string> {
-    if (!this.safeSdk || !this.walletClient?.account) {
-      throw new Error('Safe SDK not initialized or wallet not connected');
-    }
-
-    try {
-      console.log('🏗️ Creating setGuard transaction proposal for multisig Safe...');
-      
-      // Create Safe transaction using SDK
-      const safeTransaction = await this.safeSdk.createEnableGuardTx(guardAddress);
-      // Get the transaction hash that needs to be signed
-      const safeTxHash = await this.safeSdk.getTransactionHash(safeTransaction);
-      // Sign only the transaction hash for proposal (no MetaMask popup)
-      const senderSignature = await this.safeSdk.signHash(safeTxHash);
-      console.log('✅ Transaction hash signed successfully for proposal');
-
-      if (this.safeApiKit) {
-        try {
-          await this.safeApiKit.proposeTransaction({
-            safeAddress: this.safeAddress,
-            safeTransactionData: safeTransaction.data,
-            safeTxHash: safeTxHash,
-            senderAddress: this.walletClient.account.address,
-            senderSignature: senderSignature.data
-          });
-        } catch (apiError) {
-          console.warn('⚠️ Failed to propose to Safe Transaction Service:', apiError);
-          console.log('💡 Transaction created but not submitted to service. Users can manually create this transaction in Safe UI.');
-        }
-      } else {
-        console.log('⚠️ Safe API Kit not available. Transaction created but not submitted to service.');
-      }
-      
-      // Return the Safe transaction hash - this is what users can track
-      return safeTxHash;
-      
-    } catch (error) {
-      console.error('❌ Failed to create setGuard transaction proposal:', error);
-      throw new Error(`Failed to propose setGuard transaction: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  /**
    * Remove the transaction guard from the Safe wallet
    */
   async removeGuard(): Promise<string> {
-    if (!this.safeSdk || !this.walletClient?.account || !this.safeAddress) {
-      throw new Error('Safe SDK not initialized or wallet not connected');
+    if (!this.safeSdk) {
+      throw new Error('Safe SDK not initialized');
     }
 
-    console.log('🔍 Removing guard from Safe...');
-    console.log('Connected wallet address:', this.walletClient.account.address);
-    console.log('Safe address:', this.safeAddress);
-
-    // Get Safe info
-    const owners = await this.safeSdk.getOwners();
-    const threshold = await this.safeSdk.getThreshold();
-    
-    console.log('Safe owners:', owners);
-    console.log('Safe threshold:', threshold);
-
-    // Check if wallet is an owner
-    const isOwner = owners.includes(this.walletClient.account.address);
-    if (!isOwner) {
-      throw new Error('Connected wallet is not an owner of this Safe');
-    }
-
-    console.log('✅ Wallet is confirmed as Safe owner');
-
-    // Always propose transactions to Safe UI, regardless of threshold
-    console.log(`Proposing removeGuard transaction to Safe UI (${owners.length} owners, ${threshold} signature${threshold > 1 ? 's' : ''} required)`);
-    return this.proposeRemoveGuardTransaction();
-  }
-
-  /**
-   * Execute guard removal directly for single-signature Safes (threshold = 1)
-   * @deprecated - Now using proposal-only flow, kept for potential future use
-   */
-  // @ts-ignore - Keeping for potential future use
-  private async executeRemoveGuardDirectly(): Promise<string> {
-    if (!this.safeSdk || !this.walletClient?.account) {
-      throw new Error('Safe SDK not initialized or wallet not connected');
+    if (!this.walletClient?.account?.address) {
+      throw new Error('Wallet client with account is required to remove guard');
     }
 
     try {
+      // First verify that the connected wallet is a Safe owner
+      const isOwner = await this.isOwner(this.walletClient.account.address);
+      if (!isOwner) {
+        throw new Error('Connected wallet is not a Safe owner. Only Safe owners can remove guards.');
+      }
+
       // Create the disable guard transaction
       const safeTransaction = await this.safeSdk.createDisableGuardTx();
-      console.log('Disable guard transaction created:', safeTransaction.data);
       
-      // Get the transaction hash
-      const safeTxHash = await this.safeSdk.getTransactionHash(safeTransaction);
-      console.log('Safe transaction hash:', safeTxHash);
-
-      // Verify the current nonce matches
-      const currentNonce = await this.safeSdk.getNonce();
-      if (currentNonce !== safeTransaction.data.nonce) {
-        console.warn('⚠️ Nonce mismatch detected, refreshing transaction...');
-        // Recreate transaction with current nonce
-        const freshTransaction = await this.safeSdk.createDisableGuardTx();
-        const freshHash = await this.safeSdk.getTransactionHash(freshTransaction);
-        console.log('Refreshed transaction hash:', freshHash);
-        return this.executeRemoveGuardWithProperSignature(freshTransaction, freshHash);
+      // Sign the transaction
+      const signedSafeTx = await this.safeSdk.signTransaction(safeTransaction, 'ETH_SIGN');
+      
+      // Execute the transaction
+      const response = await this.safeSdk.executeTransaction(signedSafeTx);
+      
+      if (!response.hash) {
+        throw new Error('Failed to get transaction hash');
       }
 
-      return this.executeRemoveGuardWithProperSignature(safeTransaction, safeTxHash);
+      return response.hash;
     } catch (error) {
-      console.error('Error in direct guard removal:', error);
+      console.error('Error removing Safe guard:', error);
       throw error;
-    }
-  }
-
-  /**
-   * Execute remove guard transaction with proper signature handling
-   */
-  private async executeRemoveGuardWithProperSignature(safeTransaction: any, safeTxHash: string): Promise<string> {
-    if (!this.walletClient?.account) {
-      throw new Error('Wallet client not available');
-    }
-
-    // Try Safe SDK execution first
-    try {
-      console.log('🌐 Attempting Safe SDK execution for guard removal...');
-      
-      // Sign the transaction using Safe SDK
-      const signedTransaction = await this.safeSdk!.signTransaction(safeTransaction);
-      console.log('✅ Guard removal transaction signed successfully');
-      
-      // Execute using Safe SDK
-      const executionResult = await this.safeSdk!.executeTransaction(signedTransaction);
-      console.log('✅ Guard removal executed via Safe SDK:', executionResult);
-      
-      // Wait for confirmation
-      const receipt = await this.publicClient.waitForTransactionReceipt({
-        hash: executionResult.hash as `0x${string}`
-      });
-
-      if (receipt.status === 'success') {
-        console.log('✅ Guard removal execution confirmed!');
-        return executionResult.hash;
-      } else {
-        throw new Error(`Guard removal execution failed with status: ${receipt.status}`);
-      }
-      
-    } catch (sdkError) {
-      console.log('⚠️ Safe SDK execution failed for guard removal, trying manual approach...');
-      console.log('SDK Error:', sdkError);
-      
-      // Fallback to manual execution (reuse the existing pre-approval logic)
-      return this.executeWithPreApproval(safeTransaction, safeTxHash);
-    }
-  }
-
-  /**
-   * Propose a removeGuard transaction for multisig approval
-   */
-  private async proposeRemoveGuardTransaction(): Promise<string> {
-    if (!this.safeSdk || !this.walletClient?.account) {
-      throw new Error('Safe SDK not initialized or wallet not connected');
-    }
-
-    try {
-      console.log('🏗️ Creating removeGuard transaction proposal for multisig Safe...');
-      
-      // Create Safe transaction using SDK
-      const safeTransaction = await this.safeSdk.createDisableGuardTx();
-      // Get the transaction hash that needs to be signed
-      const safeTxHash = await this.safeSdk.getTransactionHash(safeTransaction);
-      // Sign only the transaction hash for proposal (no MetaMask popup)
-      const senderSignature = await this.safeSdk.signHash(safeTxHash);
-      console.log('✅ Transaction hash signed successfully for proposal');
-      
-      if (this.safeApiKit) {
-        try {
-          await this.safeApiKit.proposeTransaction({
-            safeAddress: this.safeAddress,
-            safeTransactionData: safeTransaction.data,
-            safeTxHash: safeTxHash,
-            senderAddress: this.walletClient.account.address,
-            senderSignature: senderSignature.data
-          });
-        
-        console.log('✅ Transaction proposed successfully to Safe Transaction Service');
-        console.log('🌐 Transaction should now appear in Safe UI at: https://app.safe.global/transactions/queue?safe=' + this.safeAddress);
-        
-        } catch (apiError) {
-          console.warn('⚠️ Failed to propose to Safe Transaction Service:', apiError);
-          console.log('💡 Transaction created but not submitted to service. Users can manually create this transaction in Safe UI.');
-        }
-      } else {
-        console.log('⚠️ Safe API Kit not available. Transaction created but not submitted to service.');
-        console.log('💡 Users can manually create this transaction in Safe UI using the transaction hash.');
-      }
-      
-      // Return the Safe transaction hash - this is what users can track
-      return safeTxHash;
-      
-    } catch (error) {
-      console.error('❌ Failed to create removeGuard transaction proposal:', error);
-      throw new Error(`Failed to propose removeGuard transaction: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 }

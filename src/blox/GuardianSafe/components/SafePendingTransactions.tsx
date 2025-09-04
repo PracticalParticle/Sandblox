@@ -166,16 +166,6 @@ export function SafePendingTransactions({
   const handleGuardianRequest = async (safeTx: SafePendingTx) => {
     try {
       // Convert SafePendingTx to SafeTx format for Guardian protocol
-      // Ensure data is properly formatted hex string
-      const formattedData = safeTx.data?.startsWith('0x') ? safeTx.data : `0x${safeTx.data || ''}`;
-
-      // Ensure signatures is properly formatted hex string
-      const formattedSignatures = extractedSignatures?.startsWith('0x') 
-        ? extractedSignatures 
-        : extractedSignatures 
-          ? `0x${extractedSignatures}` 
-          : '0x';
-      
       const safeTxData = {
         to: safeTx.to,
         value: safeTx.value,
@@ -186,7 +176,7 @@ export function SafePendingTransactions({
         gasPrice: safeTx.gasPrice,
         gasToken: safeTx.gasToken,
         refundReceiver: safeTx.refundReceiver,
-        signatures: formattedSignatures as `0x${string}`
+        signatures: safeTx.signatures as `0x${string}`
       };
       
       await handleRequestTransaction(safeTxData);
@@ -197,38 +187,7 @@ export function SafePendingTransactions({
 
   const handleGuardianMetaTxSign = async (safeTx: SafePendingTx, type: 'request' | 'approve' | 'cancel') => {
     try {
-      // Extract signatures from confirmations if safeTx.signatures is empty
-      let extractedSignatures = safeTx.signatures;
-      
-      if (!extractedSignatures || extractedSignatures === '0x') {
-        // Combine signatures from confirmations
-        const signatureArray: string[] = [];
-        
-        safeTx.confirmations?.forEach(confirmation => {
-          if (confirmation.signature) {
-            // Remove '0x' prefix if present
-            const cleanSig = confirmation.signature.startsWith('0x') 
-              ? confirmation.signature.slice(2) 
-              : confirmation.signature;
-            signatureArray.push(cleanSig);
-          }
-        });
-        
-        if (signatureArray.length > 0) {
-          extractedSignatures = '0x' + signatureArray.join('');
-        }
-      }
       // Convert SafePendingTx to SafeTx format for Guardian protocol
-      // Ensure data is properly formatted hex string
-      const formattedData = safeTx.data?.startsWith('0x') ? safeTx.data : `0x${safeTx.data || ''}`;
-
-      // Ensure signatures is properly formatted hex string
-      const formattedSignatures = extractedSignatures?.startsWith('0x') 
-        ? extractedSignatures 
-        : extractedSignatures 
-          ? `0x${extractedSignatures}` 
-          : '0x';
-      
       const safeTxData = {
         to: safeTx.to,
         value: safeTx.value,
@@ -239,9 +198,9 @@ export function SafePendingTransactions({
         gasPrice: safeTx.gasPrice,
         gasToken: safeTx.gasToken,
         refundReceiver: safeTx.refundReceiver,
-        signatures: formattedSignatures as `0x${string}`
+        signatures: safeTx.signatures as `0x${string}`
       };
-
+      
       // For single-phase meta-transaction, we use the request type
       if (type === 'request') {
         // Use Safe nonce as the numeric ID for consistent storage
