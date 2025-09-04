@@ -172,15 +172,10 @@ export default class GuardianSafe {
       account: options.from
     });
 
-      console.log('✅ Transaction submitted successfully:', hash);
-      return {
-        hash,
-        wait: () => this.client.waitForTransactionReceipt({ hash })
-      };
-    } catch (error) {
-      console.error('❌ Transaction failed:', error);
-      throw error;
-    }
+    return {
+      hash,
+      wait: () => this.client.waitForTransactionReceipt({ hash })
+    };
   }
 
   /**
@@ -205,15 +200,10 @@ export default class GuardianSafe {
       account: options.from
     });
 
-      console.log('✅ Transaction submitted successfully:', hash);
-      return {
-        hash,
-        wait: () => this.client.waitForTransactionReceipt({ hash })
-      };
-    } catch (error) {
-      console.error('❌ Transaction failed:', error);
-      throw error;
-    }
+    return {
+      hash,
+      wait: () => this.client.waitForTransactionReceipt({ hash })
+    };
   }
 
   /**
@@ -238,15 +228,10 @@ export default class GuardianSafe {
       account: options.from
     });
 
-      console.log('✅ Meta-transaction submitted successfully:', hash);
-      return {
-        hash,
-        wait: () => this.client.waitForTransactionReceipt({ hash })
-      };
-    } catch (error) {
-      console.error('❌ Meta-transaction failed:', error);
-      throw error;
-    }
+    return {
+      hash,
+      wait: () => this.client.waitForTransactionReceipt({ hash })
+    };
   }
 
   /**
@@ -271,15 +256,10 @@ export default class GuardianSafe {
       account: options.from
     });
 
-      console.log('✅ Meta-transaction submitted successfully:', hash);
-      return {
-        hash,
-        wait: () => this.client.waitForTransactionReceipt({ hash })
-      };
-    } catch (error) {
-      console.error('❌ Meta-transaction failed:', error);
-      throw error;
-    }
+    return {
+      hash,
+      wait: () => this.client.waitForTransactionReceipt({ hash })
+    };
   }
 
   /**
