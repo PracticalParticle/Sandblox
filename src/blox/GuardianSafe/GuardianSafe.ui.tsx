@@ -572,7 +572,8 @@ function GuardianSafeUIContent({
 
   // Fix the network warning JSX
   return (
-    <div className="h-full overflow-auto">
+    <TooltipProvider>
+      <div className="h-full overflow-auto">
       {chain?.id && contractInfo?.chainId && chain.id !== contractInfo.chainId && (
         <Alert variant="destructive" className="mb-4">
           <AlertCircle className="h-4 w-4" />
@@ -592,16 +593,14 @@ function GuardianSafeUIContent({
               </div>
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-semibold">Guardian Safe</h2>
-                                 <TooltipProvider>
-                   <Tooltip>
-                     <TooltipTrigger asChild>
-                       <Info className="h-4 w-4 text-muted-foreground" />
-                     </TooltipTrigger>
-                     <TooltipContent>
-                       <p>Secure transaction management with time-locked operations</p>
-                     </TooltipContent>
-                   </Tooltip>
-                 </TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-4 w-4 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Secure transaction management with time-locked operations</p>
+                  </TooltipContent>
+                </Tooltip>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -620,22 +619,20 @@ function GuardianSafeUIContent({
                   'Refresh'
                 )}
               </Button>
-                             <TooltipProvider>
-                 <Tooltip>
-                   <TooltipTrigger asChild>
-                     <Button
-                       variant="outline"
-                       size="sm"
-                       onClick={() => setSettingsOpen(true)}
-                     >
-                       <Settings2 className="h-4 w-4" />
-                     </Button>
-                   </TooltipTrigger>
-                   <TooltipContent>
-                     <p>Configure meta-transaction settings</p>
-                   </TooltipContent>
-                 </Tooltip>
-               </TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSettingsOpen(true)}
+                  >
+                    <Settings2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Configure meta-transaction settings</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
           </CardHeader>
 
@@ -732,16 +729,14 @@ function GuardianSafeUIContent({
                     <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                   )}
                   {ownersError && (
-                                         <TooltipProvider>
-                       <Tooltip>
-                         <TooltipTrigger asChild>
-                           <AlertCircle className="h-4 w-4 text-destructive" />
-                         </TooltipTrigger>
-                         <TooltipContent>
-                           <p>Error loading owners: {ownersError?.message || 'Unknown error'}</p>
-                         </TooltipContent>
-                       </Tooltip>
-                     </TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <AlertCircle className="h-4 w-4 text-destructive" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Error loading owners: {ownersError?.message || 'Unknown error'}</p>
+                      </TooltipContent>
+                    </Tooltip>
                   )}
                 </div>
                 <div className="rounded-md border p-4">
@@ -810,16 +805,14 @@ function GuardianSafeUIContent({
                       <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                     )}
                     {guardError && (
-                                           <TooltipProvider>
-                       <Tooltip>
-                         <TooltipTrigger asChild>
-                           <AlertCircle className="h-4 w-4 text-destructive" />
-                         </TooltipTrigger>
-                         <TooltipContent>
-                           <p>Error loading guard info: {guardError?.message || 'Unknown error'}</p>
-                         </TooltipContent>
-                       </Tooltip>
-                     </TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <AlertCircle className="h-4 w-4 text-destructive" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Error loading guard info: {guardError?.message || 'Unknown error'}</p>
+                        </TooltipContent>
+                      </Tooltip>
                     )}
                   </div>
                   <div className="rounded-md border p-4">
@@ -982,7 +975,8 @@ function GuardianSafeUIContent({
           </CardContent>
         </Card>
       </div>
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }
 
