@@ -128,19 +128,26 @@ export default class GuardianSafe {
     if (!this.walletClient) throw new Error("WalletClient required for write operations");
     if (!options.from) throw new Error("Sender address required");
 
-    const hash = await this.walletClient.writeContract({
-      chain: this.chain,
-      address: this.contractAddress,
-      abi: GuardianSafeABI,
-      functionName: 'requestTransaction',
-      args: [safeTx],
-      account: options.from
-    });
 
-    return {
-      hash,
-      wait: () => this.client.waitForTransactionReceipt({ hash })
-    };
+    try {
+      const hash = await this.walletClient.writeContract({
+        chain: this.chain,
+        address: this.contractAddress,
+        abi: GuardianSafeABI,
+        functionName: 'requestTransaction',
+        args: [safeTx],
+        account: options.from
+      });
+
+      console.log('✅ Transaction submitted successfully:', hash);
+      return {
+        hash,
+        wait: () => this.client.waitForTransactionReceipt({ hash })
+      };
+    } catch (error) {
+      console.error('❌ Transaction failed:', error);
+      throw error;
+    }
   }
 
   /**
@@ -165,10 +172,15 @@ export default class GuardianSafe {
       account: options.from
     });
 
-    return {
-      hash,
-      wait: () => this.client.waitForTransactionReceipt({ hash })
-    };
+      console.log('✅ Transaction submitted successfully:', hash);
+      return {
+        hash,
+        wait: () => this.client.waitForTransactionReceipt({ hash })
+      };
+    } catch (error) {
+      console.error('❌ Transaction failed:', error);
+      throw error;
+    }
   }
 
   /**
@@ -193,10 +205,15 @@ export default class GuardianSafe {
       account: options.from
     });
 
-    return {
-      hash,
-      wait: () => this.client.waitForTransactionReceipt({ hash })
-    };
+      console.log('✅ Transaction submitted successfully:', hash);
+      return {
+        hash,
+        wait: () => this.client.waitForTransactionReceipt({ hash })
+      };
+    } catch (error) {
+      console.error('❌ Transaction failed:', error);
+      throw error;
+    }
   }
 
   /**
@@ -221,10 +238,15 @@ export default class GuardianSafe {
       account: options.from
     });
 
-    return {
-      hash,
-      wait: () => this.client.waitForTransactionReceipt({ hash })
-    };
+      console.log('✅ Meta-transaction submitted successfully:', hash);
+      return {
+        hash,
+        wait: () => this.client.waitForTransactionReceipt({ hash })
+      };
+    } catch (error) {
+      console.error('❌ Meta-transaction failed:', error);
+      throw error;
+    }
   }
 
   /**
@@ -249,10 +271,15 @@ export default class GuardianSafe {
       account: options.from
     });
 
-    return {
-      hash,
-      wait: () => this.client.waitForTransactionReceipt({ hash })
-    };
+      console.log('✅ Meta-transaction submitted successfully:', hash);
+      return {
+        hash,
+        wait: () => this.client.waitForTransactionReceipt({ hash })
+      };
+    } catch (error) {
+      console.error('❌ Meta-transaction failed:', error);
+      throw error;
+    }
   }
 
   /**
@@ -268,19 +295,25 @@ export default class GuardianSafe {
     if (!this.walletClient) throw new Error("WalletClient required for write operations");
     if (!options.from) throw new Error("Sender address required");
 
-    const hash = await this.walletClient.writeContract({
-      chain: this.chain,
-      address: this.contractAddress,
-      abi: GuardianSafeABI,
-      functionName: 'requestAndApproveTransactionWithMetaTx',
-      args: [metaTx],
-      account: options.from
-    });
+    try {
+      const hash = await this.walletClient.writeContract({
+        chain: this.chain,
+        address: this.contractAddress,
+        abi: GuardianSafeABI,
+        functionName: 'requestAndApproveTransactionWithMetaTx',
+        args: [metaTx],
+        account: options.from
+      });
 
-    return {
-      hash,
-      wait: () => this.client.waitForTransactionReceipt({ hash })
-    };
+      console.log('✅ Meta-transaction submitted successfully:', hash);
+      return {
+        hash,
+        wait: () => this.client.waitForTransactionReceipt({ hash })
+      };
+    } catch (error) {
+      console.error('❌ Meta-transaction failed:', error);
+      throw error;
+    }
   }
 
   /**

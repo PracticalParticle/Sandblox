@@ -53,7 +53,7 @@ contract GuardianSafe is GuardianAccountAbstraction, ITransactionGuard {
 
     // Function selectors
     bytes4 private constant EXEC_SAFE_TX_SELECTOR = bytes4(keccak256("executeTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)"));
-    
+
     // Meta-transaction function selectors
     bytes4 private constant APPROVE_TX_META_SELECTOR = bytes4(keccak256("approveTransactionWithMetaTx((uint256,uint256,uint8,(address,address,uint256,uint256,bytes32,uint8,bytes),bytes32,bytes,(address,uint256,address,uint256),(uint256,uint256,address,bytes4,uint256,uint256,address),bytes,bytes))"));
     bytes4 private constant CANCEL_TX_META_SELECTOR = bytes4(keccak256("cancelTransactionWithMetaTx((uint256,uint256,uint8,(address,address,uint256,uint256,bytes32,uint8,bytes),bytes32,bytes,(address,uint256,address,uint256),(uint256,uint256,address,bytes4,uint256,uint256,address),bytes,bytes))"));
@@ -91,8 +91,9 @@ contract GuardianSafe is GuardianAccountAbstraction, ITransactionGuard {
         uint256 maxGasPrice;
     }
 
+    // Execution state tracking
     bool private isExecutingThroughGuardian = false;
-    
+
     /**
      * @notice Constructor to initialize the GuardianSafe
      * @param _safe The Safe contract address
@@ -149,10 +150,10 @@ contract GuardianSafe is GuardianAccountAbstraction, ITransactionGuard {
      * @notice Request execution of a Safe transaction with time-lock security
      * @param safeTx The Safe transaction parameters
      */
-    function requestTransaction(SafeTx calldata safeTx) 
-        external 
-        onlyOwner 
-        returns (MultiPhaseSecureOperation.TxRecord memory) 
+    function requestTransaction(SafeTx calldata safeTx)
+        external
+        onlyOwner
+        returns (MultiPhaseSecureOperation.TxRecord memory)
     {
         bytes memory executionOptions = createTransactionExecutionOptions(safeTx);
 
@@ -160,7 +161,7 @@ contract GuardianSafe is GuardianAccountAbstraction, ITransactionGuard {
             _getSecureState(),
             msg.sender,
             address(this),
-            safeTx.value,
+            0,
             safeTx.safeTxGas,
             EXEC_SAFE_TX,
             MultiPhaseSecureOperation.ExecutionType.STANDARD,
@@ -168,7 +169,7 @@ contract GuardianSafe is GuardianAccountAbstraction, ITransactionGuard {
         );
 
         addOperation(txRecord);
-        
+
         emit TransactionRequested(safeTx);
 
         return txRecord;
@@ -190,14 +191,14 @@ contract GuardianSafe is GuardianAccountAbstraction, ITransactionGuard {
      * @notice Approve a pending transaction with meta transaction
      * @param metaTx Meta transaction data
      */
-    function approveTransactionWithMetaTx(MultiPhaseSecureOperation.MetaTransaction memory metaTx) 
-        external 
-        onlyBroadcaster 
-        returns (MultiPhaseSecureOperation.TxRecord memory) 
+    function approveTransactionWithMetaTx(MultiPhaseSecureOperation.MetaTransaction memory metaTx)
+        external
+        onlyBroadcaster
+        returns (MultiPhaseSecureOperation.TxRecord memory)
     {
         MultiPhaseSecureOperation.checkPermission(_getSecureState(), APPROVE_TX_META_SELECTOR);
         _validateHandlerSelector(metaTx.params.handlerSelector, APPROVE_TX_META_SELECTOR);
-        
+
         MultiPhaseSecureOperation.TxRecord memory updatedRecord = MultiPhaseSecureOperation.txApprovalWithMetaTx(
             _getSecureState(),
             metaTx
@@ -225,14 +226,14 @@ contract GuardianSafe is GuardianAccountAbstraction, ITransactionGuard {
      * @notice Cancel a pending transaction with meta transaction
      * @param metaTx Meta transaction data
      */
-    function cancelTransactionWithMetaTx(MultiPhaseSecureOperation.MetaTransaction memory metaTx) 
-        external 
-        onlyBroadcaster 
-        returns (MultiPhaseSecureOperation.TxRecord memory) 
+    function cancelTransactionWithMetaTx(MultiPhaseSecureOperation.MetaTransaction memory metaTx)
+        external
+        onlyBroadcaster
+        returns (MultiPhaseSecureOperation.TxRecord memory)
     {
         MultiPhaseSecureOperation.checkPermission(_getSecureState(), CANCEL_TX_META_SELECTOR);
         _validateHandlerSelector(metaTx.params.handlerSelector, CANCEL_TX_META_SELECTOR);
-        
+
         MultiPhaseSecureOperation.TxRecord memory updatedRecord = MultiPhaseSecureOperation.txCancellationWithMetaTx(
             _getSecureState(),
             metaTx
@@ -267,31 +268,44 @@ contract GuardianSafe is GuardianAccountAbstraction, ITransactionGuard {
     }
 
     /**
-     * @notice Execute a Safe transaction through execTransaction
-     * @param safeTx The Safe transaction parameters
+     * @notice Execute a Safe transaction through execTransaction (Guardian protocol version)
+     * @dev This function signature matches the Guardian protocol's expected interface
      */
-    function executeTransaction(SafeTx memory safeTx) external {
-        _validateInternal();
-        
-        isExecutingThroughGuardian = true;
-        
-        bool success = safe.execTransaction(
-            safeTx.to,
-            safeTx.value,
-            safeTx.data,
-            safeTx.operation,
-            safeTx.safeTxGas,
-            safeTx.baseGas,
-            safeTx.gasPrice,
-            safeTx.gasToken,
-            safeTx.refundReceiver,
-            safeTx.signatures
-        );
-        
-        isExecutingThroughGuardian = false;
-        
-        require(success, "Safe transaction execution failed");
+    function executeTransaction(
+        address to,
+        uint256 value,
+        bytes memory data,
+        uint8 operation,
+        uint256 safeTxGas,
+        uint256 baseGas,
+        uint256 gasPrice,
+        address gasToken,
+        address payable refundReceiver,
+        bytes memory signatures
+    ) external {
+         _validateInternal();
+
+         // Set flag to indicate we're executing through GuardianSafe
+         isExecutingThroughGuardian = true;
+         bool success =  safe.execTransaction(
+            to,
+            value,
+            data,
+            operation,
+            safeTxGas,
+            baseGas,
+            gasPrice,
+            gasToken,
+            refundReceiver,
+            signatures
+         );
+         // Reset flag after execution
+         isExecutingThroughGuardian = false;
+
+         require(success, "Safe transaction execution failed");
     }
+
+
 
     /**
      * @dev Internal function to add an operation to history
@@ -316,7 +330,7 @@ contract GuardianSafe is GuardianAccountAbstraction, ITransactionGuard {
      * @return bool True if the interface is supported
      */
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
-        return 
+        return
             interfaceId == type(ITransactionGuard).interfaceId ||
             super.supportsInterface(interfaceId);
     }
@@ -354,7 +368,7 @@ contract GuardianSafe is GuardianAccountAbstraction, ITransactionGuard {
         return generateUnsignedMetaTransactionForNew(
             owner(),
             address(this),
-            safeTx.value,
+            0,
             safeTx.safeTxGas,
             EXEC_SAFE_TX,
             MultiPhaseSecureOperation.ExecutionType.STANDARD,
@@ -437,26 +451,26 @@ contract GuardianSafe is GuardianAccountAbstraction, ITransactionGuard {
         if (operation == Operation.DelegateCall) {
             _validateDelegation();
         }
-        
+
         // Handle setGuard calls specially
         if (to == address(safe) && data.length >= 4) {
             bytes4 selector;
             assembly {
                 selector := mload(add(data, 0x20))
             }
-            
+
             if (selector == bytes4(keccak256("setGuard(address)"))) {
                 // Extract the guard address being set (skip first 4 bytes for function selector)
                 address newGuardAddress;
                 assembly {
                     newGuardAddress := mload(add(data, 0x24))
                 }
-                
+
                 // If setting this GuardianSafe as guard, allow from any user (initial setup)
                 if (newGuardAddress == address(this)) {
                     return; // Allow initial guard setup
                 }
-                
+
                 // For guard changes after setup, only allow through GuardianSafe system
                 require(
                     isExecutingThroughGuardian,
@@ -465,10 +479,10 @@ contract GuardianSafe is GuardianAccountAbstraction, ITransactionGuard {
                 return;
             }
         }
-        
+
         // For all other transactions, ensure they come through GuardianSafe system
         require(
-            isExecutingThroughGuardian, 
+            isExecutingThroughGuardian,
             "GuardianSafe: Transactions must be executed through GuardianSafe system"
         );
     }
