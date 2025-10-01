@@ -61,7 +61,6 @@
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.5.2",
     "remark-gfm": "^4.0.1",
-    "solc": "^0.8.25",
     "tailwind-merge": "^3.0.1",
     "tailwindcss-animate": "^1.0.7",
     "viem": "^2.23.3",
