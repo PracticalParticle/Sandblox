@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
-import { TxRecord } from '../Guardian/sdk/typescript/interfaces/lib.index'
-import { TxStatus } from '../Guardian/sdk/typescript/types/lib.index'
+import { TxRecord, TxStatus } from '../Guardian/sdk/typescript'
 import { Address, Hex } from 'viem'
 import { useOperationTypes } from './useOperationTypes'
 

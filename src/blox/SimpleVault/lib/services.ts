@@ -1,11 +1,9 @@
 import { Address, PublicClient, WalletClient, Chain, Hex } from 'viem';
-import { TransactionOptions, TransactionResult } from '../../../Guardian/sdk/typescript/interfaces/base.index';
-import { TxRecord, MetaTransaction } from '../../../Guardian/sdk/typescript/interfaces/lib.index';
-import { TxStatus } from '../../../Guardian/sdk/typescript/types/lib.index';
+import { TransactionOptions, TransactionResult, TxRecord, MetaTransaction, TxStatus, SecureOwnable, OPERATION_TYPES } from '../../../Guardian/sdk/typescript';
 import { ContractValidations } from '../../../Guardian/sdk/typescript/utils/validations';
 import SimpleVault from '../SimpleVault';
 import { TokenMetadata, VaultMetaTxParams, VaultTxRecord } from './types';
-import SecureOwnable from '../../../Guardian/sdk/typescript/SecureOwnable';
+// Using unified SDK export for SecureOwnable above
 
 // Storage key for meta tx settings
 const META_TX_SETTINGS_KEY = 'simpleVault.metaTxSettings';
@@ -153,7 +151,7 @@ export class SimpleVaultService {
     const owner = await this.secureOwnable.owner();
     await this.validations.validateRole(options.from, owner, "owner");
 
-    const operation = await this.secureOwnable.getOperation(BigInt(txId));
+    const operation = await this.secureOwnable.getTransaction(BigInt(txId));
     if (operation.status !== TxStatus.PENDING) {
       throw new Error("Can only approve pending requests");
     }
@@ -179,14 +177,14 @@ export class SimpleVaultService {
     const owner = await this.secureOwnable.owner();
     await this.validations.validateRole(options.from, owner, "owner");
 
-    const operation = await this.secureOwnable.getOperation(BigInt(txId));
+    const operation = await this.secureOwnable.getTransaction(BigInt(txId));
     if (operation.status !== TxStatus.PENDING) {
       throw new Error("Can only cancel pending requests");
     }
 
-    const timeLockPeriod = await this.secureOwnable.getTimeLockPeriodInMinutes();
+    const timeLockPeriodSec = await this.secureOwnable.getTimeLockPeriodSec();
     const currentTimestamp = BigInt(Math.floor(Date.now() / 1000));
-    if (currentTimestamp < operation.releaseTime - (BigInt(timeLockPeriod) * 24n * 60n * 60n) + 3600n) {
+    if (currentTimestamp < operation.releaseTime - (BigInt(timeLockPeriodSec)) + 3600n) {
       throw new Error("Cannot cancel within first hour");
     }
 
@@ -215,7 +213,7 @@ export class SimpleVaultService {
    */
   async getTransaction(txId: number): Promise<VaultTxRecord> {
     try {
-      const tx = await this.secureOwnable.getOperation(BigInt(txId));
+      const tx = await this.secureOwnable.getTransaction(BigInt(txId));
       if (!tx) throw new Error("Transaction not found");
 
       // Map the status directly from the transaction
@@ -272,8 +270,8 @@ export class SimpleVaultService {
    */
   async getOperationHistory(): Promise<TxRecord[]> {
     try {
-      console.log("Reading operation history from contract...");
-      const result = await this.secureOwnable.getOperationHistory();
+      console.log("Reading transaction history from contract...");
+      const result = await this.secureOwnable.getTransactionHistory(BigInt(0), BigInt(100));
       
       console.log("Raw operation history result:", result);
       
@@ -588,7 +586,22 @@ export class SimpleVaultService {
    * Gets a mapping of operation type hashes to names
    */
   async getVaultOperationTypes(): Promise<Map<Hex, string>> {
-    const operations = await this.secureOwnable.getSupportedOperationTypes();
-    return new Map(operations.map(op => [op.operationType as Hex, op.name]));
+    const operationTypeHashes = await this.secureOwnable.getSupportedOperationTypes();
+    
+    // Create a reverse mapping from hash to name
+    const hashToNameMap = new Map<string, string>()
+    Object.entries(OPERATION_TYPES).forEach(([name, hash]) => {
+      hashToNameMap.set(hash.toLowerCase(), name)
+    })
+    
+    const result = new Map<Hex, string>()
+    operationTypeHashes.forEach((hash) => {
+      const name = hashToNameMap.get(hash.toLowerCase())
+      if (name) {
+        result.set(hash as Hex, name)
+      }
+    })
+    
+    return result
   }
 }

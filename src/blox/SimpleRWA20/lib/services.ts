@@ -1,10 +1,9 @@
 import { Address, PublicClient, WalletClient, Chain, Hex } from 'viem';
-import { TransactionOptions, TransactionResult } from '../../../Guardian/sdk/typescript/interfaces/base.index';
-import { TxRecord, MetaTransaction } from '../../../Guardian/sdk/typescript/interfaces/lib.index';
+import { TransactionOptions, TransactionResult, TxRecord, MetaTransaction, SecureOwnable, OPERATION_TYPES } from '../../../Guardian/sdk/typescript';
 import { ContractValidations } from '../../../Guardian/sdk/typescript/utils/validations';
 import SimpleRWA20 from '../SimpleRWA20';
 import { TokenMetadata, TokenMetaTxParams, RWA20TxRecord } from './types';
-import SecureOwnable from '../../../Guardian/sdk/typescript/SecureOwnable';
+// Using unified SDK export for SecureOwnable above
 
 // Storage key for meta tx settings
 const META_TX_SETTINGS_KEY = 'simpleRWA20.metaTxSettings';
@@ -289,8 +288,8 @@ export class SimpleRWA20Service {
    */
   async getOperationHistory(): Promise<TxRecord[]> {
     try {
-      console.log("Reading operation history from contract...");
-      const result = await this.secureOwnable.getOperationHistory();
+      console.log("Reading transaction history from contract...");
+      const result = await this.secureOwnable.getTransactionHistory(BigInt(0), BigInt(100));
       
       console.log("Raw operation history result:", result);
       
@@ -338,7 +337,7 @@ export class SimpleRWA20Service {
    */
   async getTransaction(txId: number): Promise<RWA20TxRecord> {
     try {
-      const tx = await this.secureOwnable.getOperation(BigInt(txId));
+      const tx = await this.secureOwnable.getTransaction(BigInt(txId));
       if (!tx) throw new Error("Transaction not found");
 
       // Map the status directly from the transaction
@@ -451,8 +450,23 @@ export class SimpleRWA20Service {
    * Gets a mapping of operation type hashes to names
    */
   async getRWA20OperationTypes(): Promise<Map<Hex, string>> {
-    const operations = await this.secureOwnable.getSupportedOperationTypes();
-    return new Map(operations.map(op => [op.operationType as Hex, op.name]));
+    const operationTypeHashes = await this.secureOwnable.getSupportedOperationTypes();
+    
+    // Create a reverse mapping from hash to name
+    const hashToNameMap = new Map<string, string>()
+    Object.entries(OPERATION_TYPES).forEach(([name, hash]) => {
+      hashToNameMap.set(hash.toLowerCase(), name)
+    })
+    
+    const result = new Map<Hex, string>()
+    operationTypeHashes.forEach((hash) => {
+      const name = hashToNameMap.get(hash.toLowerCase())
+      if (name) {
+        result.set(hash as Hex, name)
+      }
+    })
+    
+    return result
   }
 
   /**

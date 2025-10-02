@@ -1,5 +1,5 @@
 import { Address, Hex } from 'viem';
-import { SecureOwnable } from '../Guardian/sdk/typescript/SecureOwnable';
+import { SecureOwnable } from '../Guardian/sdk/typescript';
 import { OPERATION_TYPES, FUNCTION_SELECTORS } from '../Guardian/sdk/typescript/types/core.access.index';
 import { TransactionOptions } from '../Guardian/sdk/typescript/interfaces/base.index';
 import { 

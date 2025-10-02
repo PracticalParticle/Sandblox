@@ -38,10 +38,9 @@ import { TIMELOCK_PERIODS } from '@/constants/contract'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { OpHistory } from '@/components/OpHistory'
 import { useMetaTransactionManager } from '@/hooks/useMetaTransactionManager'
-import { SecureOwnable } from '../Guardian/sdk/typescript/SecureOwnable'
+import { SecureOwnable } from '../Guardian/sdk/typescript'
 import { TemporalActionDialog } from '@/components/security/TemporalActionDialog'
-import { TxRecord } from '@/Guardian/sdk/typescript/interfaces/lib.index'
-import { TxStatus } from '@/Guardian/sdk/typescript/types/lib.index'
+import { TxRecord, TxStatus } from '@/Guardian/sdk/typescript'
 import { MetaTxActionDialog } from '@/components/security/MetaTxActionDialog'
 import { TransactionManagerProvider } from '@/contexts/MetaTransactionManager'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -56,8 +55,9 @@ import { Hex } from 'viem'
 import { useOperationTypes } from '@/hooks/useOperationTypes'
 import { CoreOperationType, operationRegistry } from '@/types/OperationRegistry'
 import type { BroadcastActionType } from '@/components/security/BroadcastDialog'
-import { OPERATION_TYPES } from '@/Guardian/sdk/typescript/types/core.access.index'
+import { OPERATION_TYPES } from '@/Guardian/sdk/typescript'
 import { Address } from 'viem'
+import { useTransactionDebugger } from '@/hooks/useTransactionDebugger'
 
 const container = {
   hidden: { opacity: 0 },
@@ -113,6 +113,7 @@ export function SecurityDetails() {
   const { address: connectedAddress, isConnected } = useAccount()
   const { disconnect } = useDisconnect()
   const navigate = useNavigate()
+  const { debugger: txDebugger } = useTransactionDebugger()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { transactions = {}, storeTransaction, clearTransactions, removeTransaction } = useMetaTransactionManager(contractAddress || '')
@@ -184,14 +185,25 @@ export function SecurityDetails() {
       );
 
       // Get operation history directly from contract
-      const operationHistory = await contract.getOperationHistory();
+      // Start from 1 since 0 gets converted to 1 anyway, and we need fromTxId < toTxId
+      const operationHistory = await contract.getTransactionHistory(BigInt(1), BigInt(100));
       console.log('Fresh operation history:', operationHistory);
 
       // Update contract info with fresh operation history
-      setContractInfo(prevInfo => ({
-        ...prevInfo!,
-        operationHistory: operationHistory || []
-      }));
+      setContractInfo(prevInfo => {
+        if (!prevInfo) return prevInfo;
+        // Only update if the operation history actually changed
+        const currentLength = prevInfo.operationHistory?.length || 0;
+        const newLength = operationHistory?.length || 0;
+        if (currentLength === newLength && 
+            JSON.stringify(prevInfo.operationHistory) === JSON.stringify(operationHistory)) {
+          return prevInfo; // Return same reference if no change
+        }
+        return {
+          ...prevInfo,
+          operationHistory: operationHistory || []
+        };
+      });
 
       // Find pending transactions in operation history
       if (operationHistory) {
@@ -215,19 +227,40 @@ export function SecurityDetails() {
       }
     } catch (error) {
       console.error('Error fetching operation history:', error);
+      
+      // If contract call fails due to permission issues, show empty history
+      // This is expected behavior when the caller doesn't have the required roles
+      console.log('Contract call failed - likely due to missing role permissions. Showing empty history.');
+      
+      // Update contract info with empty operation history
+      setContractInfo(prevInfo => {
+        if (!prevInfo) return prevInfo;
+        // Only update if the operation history actually changed
+        const currentLength = prevInfo.operationHistory?.length || 0;
+        if (currentLength === 0) {
+          return prevInfo; // Return same reference if already empty
+        }
+        return {
+          ...prevInfo,
+          operationHistory: []
+        };
+      });
+      
+      setPendingOwnershipTx(null);
+      setPendingBroadcasterTx(null);
     }
   };
 
   // Add effect to refresh data periodically
   useEffect(() => {
-    if (!contractAddress || !contractInfo) return;
+    if (!contractAddress) return;
 
     const refreshInterval = setInterval(() => {
       fetchOperationHistory();
     }, 5000); // Refresh every 5 seconds
 
     return () => clearInterval(refreshInterval);
-  }, [contractAddress, contractInfo]);
+  }, [contractAddress]);
 
   // Update the loadContractInfo function to use fetchOperationHistory
   const loadContractInfo = async () => {
@@ -273,7 +306,7 @@ export function SecurityDetails() {
       pendingBroadcasterTx,
       contractInfo: contractInfo?.operationHistory?.length
     });
-  }, [loading, isLoadingHistory, pendingOwnershipTx, pendingBroadcasterTx, contractInfo]);
+  }, [loading, isLoadingHistory, pendingOwnershipTx, pendingBroadcasterTx, contractInfo?.operationHistory?.length]);
 
   // Add an effect to handle transactions updates
   useEffect(() => {
@@ -292,6 +325,15 @@ export function SecurityDetails() {
     if (!contractInfo || !connectedAddress || !publicClient || !walletClient) return;
 
     try {
+      // Log transaction start
+      if (txDebugger) {
+        await txDebugger.logContractState(contractInfo.address as `0x${string}`, 'Ownership Transfer Request')
+        txDebugger.logTransactionStart('Ownership Transfer Request', {
+          from: connectedAddress,
+          contract: contractInfo.address
+        })
+      }
+
       const chain = config.chains.find((c) => c.id === contractInfo.chainId);
       if (!chain) {
         throw new Error('Chain not found');
@@ -319,7 +361,13 @@ export function SecurityDetails() {
         { from: connectedAddress as `0x${string}` }
       );
 
+      // Wait for transaction confirmation
       await publicClient.waitForTransactionReceipt({ hash: tx });
+
+      // Debug the transaction
+      if (txDebugger) {
+        await txDebugger.logTransactionDetails(tx, 'Ownership Transfer Request')
+      }
 
       toast({
         title: "Request submitted",
@@ -333,6 +381,12 @@ export function SecurityDetails() {
       return;
     } catch (error) {
       console.error('Error submitting transfer ownership request:', error);
+      
+      // Log transaction error
+      if (txDebugger) {
+        txDebugger.logTransactionError('Ownership Transfer Request', error)
+      }
+      
       toast({
         title: "Error",
         description: "Failed to submit transfer ownership request.",
@@ -375,6 +429,11 @@ export function SecurityDetails() {
       );
       
       await publicClient.waitForTransactionReceipt({ hash: result });
+      
+      // Debug the transaction
+      if (txDebugger) {
+        await txDebugger.logTransactionDetails(result, 'Ownership Transfer Approval')
+      }
 
       toast({
         title: "Success",
@@ -422,11 +481,19 @@ export function SecurityDetails() {
         throw new Error('Only the recovery address can cancel ownership transfer');
       }
 
-      await workflowManager.cancelOperation(
+      const cancelHash = await workflowManager.cancelOperation(
         CoreOperationType.OWNERSHIP_TRANSFER,
         BigInt(txId),
         { from: connectedAddress as Address }
       );
+      
+      // Wait for transaction confirmation
+      await publicClient.waitForTransactionReceipt({ hash: cancelHash });
+      
+      // Debug the transaction
+      if (txDebugger) {
+        await txDebugger.logTransactionDetails(cancelHash, 'Ownership Transfer Cancellation')
+      }
 
       // Don't call handleOperationSuccess here as it's called in the onCancel callback
     } catch (error) {
@@ -451,6 +518,16 @@ export function SecurityDetails() {
         return;
       }
 
+      // Log transaction start
+      if (txDebugger) {
+        await txDebugger.logContractState(contractAddress as `0x${string}`, 'Broadcaster Update Request')
+        txDebugger.logTransactionStart('Broadcaster Update Request', {
+          from: connectedAddress,
+          newBroadcaster,
+          contract: contractAddress
+        })
+      }
+
       const chain = config.chains.find((c) => c.id === contractInfo.chainId);
       if (!chain) {
         throw new Error('Chain not found');
@@ -472,7 +549,13 @@ export function SecurityDetails() {
         { from: connectedAddress as `0x${string}` }
       );
       
+      // Wait for transaction confirmation
       await publicClient.waitForTransactionReceipt({ hash });
+
+      // Debug the transaction
+      if (txDebugger) {
+        await txDebugger.logTransactionDetails(hash, 'Broadcaster Update Request')
+      }
 
       toast({
         title: "Request submitted",
@@ -486,6 +569,12 @@ export function SecurityDetails() {
 
     } catch (error) {
       console.error('Error submitting broadcaster update request:', error);
+      
+      // Log transaction error
+      if (txDebugger) {
+        txDebugger.logTransactionError('Broadcaster Update Request', error)
+      }
+      
       toast({
         title: "Error",
         description: "Failed to submit broadcaster update request.",
@@ -550,6 +639,11 @@ export function SecurityDetails() {
       
       await publicClient.waitForTransactionReceipt({ hash });
       
+      // Debug the transaction
+      if (txDebugger) {
+        await txDebugger.logTransactionDetails(hash, `${operationName} Approval`)
+      }
+      
       toast({
         title: "Success",
         description: "Operation approved successfully",
@@ -575,6 +669,16 @@ export function SecurityDetails() {
           variant: "destructive"
         });
         return;
+      }
+
+      // Log transaction start
+      if (txDebugger) {
+        await txDebugger.logContractState(contractAddress as `0x${string}`, 'Recovery Update Request')
+        txDebugger.logTransactionStart('Recovery Update Request', {
+          from: connectedAddress,
+          newRecoveryAddress,
+          contract: contractAddress
+        })
       }
 
       const chain = config.chains.find((c) => c.id === contractInfo.chainId);
@@ -607,6 +711,11 @@ export function SecurityDetails() {
         { from: connectedAddress as `0x${string}` }
       );
 
+      // Log success
+      if (txDebugger) {
+        txDebugger.logTransactionSuccess('Recovery Update Request', 'Meta-transaction signed and stored')
+      }
+
       toast({
         title: "Success",
         description: "Recovery update transaction signed and stored",
@@ -614,6 +723,12 @@ export function SecurityDetails() {
 
     } catch (error) {
       console.error('Error in recovery update:', error);
+      
+      // Log transaction error
+      if (txDebugger) {
+        txDebugger.logTransactionError('Recovery Update Request', error)
+      }
+      
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to update recovery address",
@@ -633,6 +748,17 @@ export function SecurityDetails() {
           variant: "destructive"
         });
         return;
+      }
+
+      // Log transaction start
+      if (txDebugger) {
+        await txDebugger.logContractState(contractAddress as `0x${string}`, 'TimeLock Update Request')
+        txDebugger.logTransactionStart('TimeLock Update Request', {
+          from: connectedAddress,
+          newPeriod,
+          timeLockUnit,
+          contract: contractAddress
+        })
       }
 
       const chain = config.chains.find((c) => c.id === contractInfo.chainId);
@@ -683,6 +809,11 @@ export function SecurityDetails() {
         { from: connectedAddress as `0x${string}` }
       );
 
+      // Log success
+      if (txDebugger) {
+        txDebugger.logTransactionSuccess('TimeLock Update Request', 'Meta-transaction signed and stored')
+      }
+
       toast({
         title: "Success",
         description: "TimeLock period update transaction signed and stored",
@@ -690,6 +821,12 @@ export function SecurityDetails() {
 
     } catch (error) {
       console.error('Error in timelock update:', error);
+      
+      // Log transaction error
+      if (txDebugger) {
+        txDebugger.logTransactionError('TimeLock Update Request', error)
+      }
+      
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to update timelock period",
@@ -886,6 +1023,11 @@ export function SecurityDetails() {
       
       // Wait for transaction confirmation
       await publicClient.waitForTransactionReceipt({ hash: txHash });
+      
+      // Log transaction details after confirmation
+      if (txDebugger) {
+        await txDebugger.logTransactionDetails(txHash, `${type} Broadcast`);
+      }
 
       // Remove the broadcasted transaction from local storage
       removeTransaction(pendingTx.txId);
@@ -980,11 +1122,19 @@ export function SecurityDetails() {
         throw new Error(`Only ${requiredRole} can cancel ${operation.name.toLowerCase()}`);
       }
 
-      await workflowManager.cancelOperation(
+      const cancelHash = await workflowManager.cancelOperation(
         operationType,
         BigInt(txId),
         { from: connectedAddress as Address }
       );
+      
+      // Wait for transaction confirmation
+      await publicClient.waitForTransactionReceipt({ hash: cancelHash });
+      
+      // Debug the transaction
+      if (txDebugger) {
+        await txDebugger.logTransactionDetails(cancelHash, 'Broadcaster Update Cancellation')
+      }
 
       // Refresh data after successful cancellation
       await handleOperationSuccess();

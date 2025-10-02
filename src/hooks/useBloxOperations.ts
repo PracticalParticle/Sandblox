@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { Address, PublicClient } from 'viem';
 import { usePublicClient, useWalletClient } from 'wagmi';
 import { useChain } from './useChain';
-import { TxRecord } from '../Guardian/sdk/typescript/interfaces/lib.index';
+import { TxRecord } from '../Guardian/sdk/typescript';
 import { MetaTransactionManager } from '@/services/MetaTransactionManager';
 import { loadBloxOperationsByBloxId } from '@/registrations/BloxOperations';
 import { loadBloxContractModule, loadBloxComponentModule } from '@/lib/catalog';

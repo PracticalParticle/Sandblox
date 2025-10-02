@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Address, Chain } from 'viem';
 import { usePublicClient, useWalletClient } from 'wagmi';
-import { SecureOwnable } from '../Guardian/sdk/typescript/SecureOwnable';
+import { SecureOwnable } from '../Guardian/sdk/typescript';
 
 interface RoleValidationResult {
   isOwner: boolean;
@@ -57,7 +57,7 @@ export function useRoleValidation(
         const [ownerAddress, broadcasterAddress, recoveryAddress] = await Promise.all([
           contract.owner(),
           contract.getBroadcaster(),
-          contract.getRecoveryAddress()
+          contract.getRecovery()
         ]);
 
         if (!mounted) return;

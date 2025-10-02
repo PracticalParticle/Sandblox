@@ -4,7 +4,7 @@ import { BaseBloxOperationsHandler } from '../../../types/BloxOperationsHandler'
 import { MetaTransaction, TxRecord } from '../../../Guardian/sdk/typescript/interfaces/lib.index';
 import { SinglePhaseOperationFunctions } from '../../../types/OperationRegistry';
 import SimpleRWA20 from '../SimpleRWA20';
-import { SecureOwnable } from '../../../Guardian/sdk/typescript/SecureOwnable';
+import { SecureOwnable, OPERATION_TYPES } from '../../../Guardian/sdk/typescript';
 import { RWA20TxRecord, TokenMetaTxParams } from './types';
 import { MetaTransactionManager } from '../../../services/MetaTransactionManager';
 
@@ -134,12 +134,21 @@ export default class SimpleRWA20OperationsHandler extends BaseBloxOperationsHand
       );
       
       // Fetch operation types from the contract
-      const types = await secureOwnable.getSupportedOperationTypes();
+      const operationTypeHashes = await secureOwnable.getSupportedOperationTypes();
+      
+      // Create a reverse mapping from hash to name
+      const hashToNameMap = new Map<string, string>()
+      Object.entries(OPERATION_TYPES).forEach(([name, hash]) => {
+        hashToNameMap.set(hash.toLowerCase(), name)
+      })
       
       // Create a map of operation names to operation type hashes
-      types.forEach(({ operationType, name }) => {
-        const normalizedName = name.toUpperCase().replace(/\s/g, '_');
-        this.operationTypeMap.set(normalizedName, operationType as Hex);
+      operationTypeHashes.forEach((hash) => {
+        const name = hashToNameMap.get(hash.toLowerCase())
+        if (name) {
+          const normalizedName = name.toUpperCase().replace(/\s/g, '_');
+          this.operationTypeMap.set(normalizedName, hash as Hex);
+        }
       });
       
       // Validate that all required operation types are available
@@ -153,13 +162,16 @@ export default class SimpleRWA20OperationsHandler extends BaseBloxOperationsHand
         console.warn(`Some required operation types are missing from contract: ${missingTypes.join(', ')}`);
         
         // Attempt to find close matches by name similarity
-        types.forEach(({ operationType, name }) => {
-          for (const missingType of missingTypes) {
-            // Check if the contract-provided name contains parts of our expected names
-            if (name.toUpperCase().includes(missingType.replace(/_/g, ' ')) || 
-                missingType.includes(name.toUpperCase().replace(/\s/g, '_'))) {
-              console.log(`Using "${name}" (${operationType}) for "${missingType}"`);
-              this.operationTypeMap.set(missingType, operationType as Hex);
+        operationTypeHashes.forEach((hash) => {
+          const name = hashToNameMap.get(hash.toLowerCase())
+          if (name) {
+            for (const missingType of missingTypes) {
+              // Check if the contract-provided name contains parts of our expected names
+              if (name.toUpperCase().includes(missingType.replace(/_/g, ' ')) || 
+                  missingType.includes(name.toUpperCase().replace(/\s/g, '_'))) {
+                console.log(`Using "${name}" (${hash}) for "${missingType}"`);
+                this.operationTypeMap.set(missingType, hash as Hex);
+              }
             }
           }
         });
