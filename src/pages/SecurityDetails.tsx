@@ -57,7 +57,7 @@ import { CoreOperationType, operationRegistry } from '@/types/OperationRegistry'
 import type { BroadcastActionType } from '@/components/security/BroadcastDialog'
 import { OPERATION_TYPES } from '@/Guardian/sdk/typescript'
 import { Address } from 'viem'
-import { useTransactionDebugger } from '@/hooks/useTransactionDebugger'
+import { useGlobalTransactionMonitor } from '@/hooks/useGlobalTransactionMonitor'
 
 const container = {
   hidden: { opacity: 0 },
@@ -113,7 +113,12 @@ export function SecurityDetails() {
   const { address: connectedAddress, isConnected } = useAccount()
   const { disconnect } = useDisconnect()
   const navigate = useNavigate()
-  const { debugger: txDebugger } = useTransactionDebugger()
+  const { 
+    monitor: networkDebugger, 
+    executeTransactionSimple,
+    executeWithMonitoring,
+    logContractState
+  } = useGlobalTransactionMonitor()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { transactions = {}, storeTransaction, clearTransactions, removeTransaction } = useMetaTransactionManager(contractAddress || '')
@@ -326,9 +331,9 @@ export function SecurityDetails() {
 
     try {
       // Log transaction start
-      if (txDebugger) {
-        await txDebugger.logContractState(contractInfo.address as `0x${string}`, 'Ownership Transfer Request')
-        txDebugger.logTransactionStart('Ownership Transfer Request', {
+      if (networkDebugger) {
+        await logContractState(contractInfo.address as `0x${string}`, 'Ownership Transfer Request')
+        networkDebugger.logTransactionStart('Ownership Transfer Request', {
           from: connectedAddress,
           contract: contractInfo.address
         })
@@ -354,20 +359,21 @@ export function SecurityDetails() {
         })
       );
       
-      // Request the ownership transfer operation
-      const tx = await workflowManager.requestOperation(
-        CoreOperationType.OWNERSHIP_TRANSFER,
-        {}, // No additional parameters needed for ownership transfer
-        { from: connectedAddress as `0x${string}` }
-      );
+      // Request the ownership transfer operation with enhanced debugging
+      const tx = await executeTransactionSimple(
+        async () => {
+          return await workflowManager.requestOperation(
+            CoreOperationType.OWNERSHIP_TRANSFER,
+            {}, // No additional parameters needed for ownership transfer
+            { from: connectedAddress as `0x${string}` }
+          )
+        },
+        'Ownership Transfer Request',
+        'SecurityDetails'
+      )
 
       // Wait for transaction confirmation
-      await publicClient.waitForTransactionReceipt({ hash: tx });
-
-      // Debug the transaction
-      if (txDebugger) {
-        await txDebugger.logTransactionDetails(tx, 'Ownership Transfer Request')
-      }
+      await publicClient.waitForTransactionReceipt({ hash: tx })
 
       toast({
         title: "Request submitted",
@@ -383,8 +389,8 @@ export function SecurityDetails() {
       console.error('Error submitting transfer ownership request:', error);
       
       // Log transaction error
-      if (txDebugger) {
-        txDebugger.logTransactionError('Ownership Transfer Request', error)
+      if (networkDebugger) {
+        networkDebugger.logTransactionError('Ownership Transfer Request', error)
       }
       
       toast({
@@ -421,19 +427,20 @@ export function SecurityDetails() {
         storeTransaction
       );
 
-      // Approve the ownership transfer operation
-      const result = await workflowManager.approveOperation(
-        CoreOperationType.OWNERSHIP_TRANSFER,
-        BigInt(txId),
-        { from: connectedAddress as `0x${string}` }
-      );
+      // Approve the ownership transfer operation with enhanced debugging
+      const result = await executeTransactionSimple(
+        async () => {
+          return await workflowManager.approveOperation(
+            CoreOperationType.OWNERSHIP_TRANSFER,
+            BigInt(txId),
+            { from: connectedAddress as `0x${string}` }
+          )
+        },
+        'Ownership Transfer Approval',
+        'SecurityDetails'
+      )
       
-      await publicClient.waitForTransactionReceipt({ hash: result });
-      
-      // Debug the transaction
-      if (txDebugger) {
-        await txDebugger.logTransactionDetails(result, 'Ownership Transfer Approval')
-      }
+      await publicClient.waitForTransactionReceipt({ hash: result })
 
       toast({
         title: "Success",
@@ -488,12 +495,7 @@ export function SecurityDetails() {
       );
       
       // Wait for transaction confirmation
-      await publicClient.waitForTransactionReceipt({ hash: cancelHash });
-      
-      // Debug the transaction
-      if (txDebugger) {
-        await txDebugger.logTransactionDetails(cancelHash, 'Ownership Transfer Cancellation')
-      }
+      await publicClient.waitForTransactionReceipt({ hash: cancelHash })
 
       // Don't call handleOperationSuccess here as it's called in the onCancel callback
     } catch (error) {
@@ -519,9 +521,9 @@ export function SecurityDetails() {
       }
 
       // Log transaction start
-      if (txDebugger) {
-        await txDebugger.logContractState(contractAddress as `0x${string}`, 'Broadcaster Update Request')
-        txDebugger.logTransactionStart('Broadcaster Update Request', {
+      if (networkDebugger) {
+        await logContractState(contractAddress as `0x${string}`, 'Broadcaster Update Request')
+        networkDebugger.logTransactionStart('Broadcaster Update Request', {
           from: connectedAddress,
           newBroadcaster,
           contract: contractAddress
@@ -542,20 +544,21 @@ export function SecurityDetails() {
         storeTransaction
       );
 
-      // Request the broadcaster update operation
-      const hash = await workflowManager.requestOperation(
-        CoreOperationType.BROADCASTER_UPDATE,
-        { newBroadcaster: newBroadcaster as `0x${string}` },
-        { from: connectedAddress as `0x${string}` }
-      );
+      // Request the broadcaster update operation with enhanced debugging
+      const hash = await executeTransactionSimple(
+        async () => {
+          return await workflowManager.requestOperation(
+            CoreOperationType.BROADCASTER_UPDATE,
+            { newBroadcaster: newBroadcaster as `0x${string}` },
+            { from: connectedAddress as `0x${string}` }
+          )
+        },
+        'Broadcaster Update Request',
+        'SecurityDetails'
+      )
       
       // Wait for transaction confirmation
-      await publicClient.waitForTransactionReceipt({ hash });
-
-      // Debug the transaction
-      if (txDebugger) {
-        await txDebugger.logTransactionDetails(hash, 'Broadcaster Update Request')
-      }
+      await publicClient.waitForTransactionReceipt({ hash })
 
       toast({
         title: "Request submitted",
@@ -571,8 +574,8 @@ export function SecurityDetails() {
       console.error('Error submitting broadcaster update request:', error);
       
       // Log transaction error
-      if (txDebugger) {
-        txDebugger.logTransactionError('Broadcaster Update Request', error)
+      if (networkDebugger) {
+        networkDebugger.logTransactionError('Broadcaster Update Request', error)
       }
       
       toast({
@@ -630,19 +633,20 @@ export function SecurityDetails() {
         throw new Error(`Unsupported operation type: ${operationName}`);
       }
 
-      // Approve the operation
-      const hash = await workflowManager.approveOperation(
-        operationType,
-        BigInt(txId),
-        { from: connectedAddress as `0x${string}` }
-      );
+      // Approve the operation with enhanced debugging
+      const hash = await executeTransactionSimple(
+        async () => {
+          return await workflowManager.approveOperation(
+            operationType,
+            BigInt(txId),
+            { from: connectedAddress as `0x${string}` }
+          )
+        },
+        `${operationName} Approval`,
+        'SecurityDetails'
+      )
       
-      await publicClient.waitForTransactionReceipt({ hash });
-      
-      // Debug the transaction
-      if (txDebugger) {
-        await txDebugger.logTransactionDetails(hash, `${operationName} Approval`)
-      }
+      await publicClient.waitForTransactionReceipt({ hash })
       
       toast({
         title: "Success",
@@ -672,9 +676,9 @@ export function SecurityDetails() {
       }
 
       // Log transaction start
-      if (txDebugger) {
-        await txDebugger.logContractState(contractAddress as `0x${string}`, 'Recovery Update Request')
-        txDebugger.logTransactionStart('Recovery Update Request', {
+      if (networkDebugger) {
+        await logContractState(contractAddress as `0x${string}`, 'Recovery Update Request')
+        networkDebugger.logTransactionStart('Recovery Update Request', {
           from: connectedAddress,
           newRecoveryAddress,
           contract: contractAddress
@@ -712,8 +716,8 @@ export function SecurityDetails() {
       );
 
       // Log success
-      if (txDebugger) {
-        txDebugger.logTransactionSuccess('Recovery Update Request', 'Meta-transaction signed and stored')
+      if (networkDebugger) {
+        networkDebugger.logTransactionSuccess('Recovery Update Request', 'Meta-transaction signed and stored')
       }
 
       toast({
@@ -725,8 +729,8 @@ export function SecurityDetails() {
       console.error('Error in recovery update:', error);
       
       // Log transaction error
-      if (txDebugger) {
-        txDebugger.logTransactionError('Recovery Update Request', error)
+      if (networkDebugger) {
+        networkDebugger.logTransactionError('Recovery Update Request', error)
       }
       
       toast({
@@ -751,9 +755,9 @@ export function SecurityDetails() {
       }
 
       // Log transaction start
-      if (txDebugger) {
-        await txDebugger.logContractState(contractAddress as `0x${string}`, 'TimeLock Update Request')
-        txDebugger.logTransactionStart('TimeLock Update Request', {
+      if (networkDebugger) {
+        await logContractState(contractAddress as `0x${string}`, 'TimeLock Update Request')
+        networkDebugger.logTransactionStart('TimeLock Update Request', {
           from: connectedAddress,
           newPeriod,
           timeLockUnit,
@@ -810,8 +814,8 @@ export function SecurityDetails() {
       );
 
       // Log success
-      if (txDebugger) {
-        txDebugger.logTransactionSuccess('TimeLock Update Request', 'Meta-transaction signed and stored')
+      if (networkDebugger) {
+        networkDebugger.logTransactionSuccess('TimeLock Update Request', 'Meta-transaction signed and stored')
       }
 
       toast({
@@ -823,8 +827,8 @@ export function SecurityDetails() {
       console.error('Error in timelock update:', error);
       
       // Log transaction error
-      if (txDebugger) {
-        txDebugger.logTransactionError('TimeLock Update Request', error)
+      if (networkDebugger) {
+        networkDebugger.logTransactionError('TimeLock Update Request', error)
       }
       
       toast({
@@ -1022,12 +1026,7 @@ export function SecurityDetails() {
       });
       
       // Wait for transaction confirmation
-      await publicClient.waitForTransactionReceipt({ hash: txHash });
-      
-      // Log transaction details after confirmation
-      if (txDebugger) {
-        await txDebugger.logTransactionDetails(txHash, `${type} Broadcast`);
-      }
+      await publicClient.waitForTransactionReceipt({ hash: txHash })
 
       // Remove the broadcasted transaction from local storage
       removeTransaction(pendingTx.txId);
@@ -1129,12 +1128,7 @@ export function SecurityDetails() {
       );
       
       // Wait for transaction confirmation
-      await publicClient.waitForTransactionReceipt({ hash: cancelHash });
-      
-      // Debug the transaction
-      if (txDebugger) {
-        await txDebugger.logTransactionDetails(cancelHash, 'Broadcaster Update Cancellation')
-      }
+      await publicClient.waitForTransactionReceipt({ hash: cancelHash })
 
       // Refresh data after successful cancellation
       await handleOperationSuccess();
@@ -2517,6 +2511,7 @@ export function SecurityDetails() {
         connectedAddress={connectedAddress}
         operationName="Broadcaster Update"
       />
+
     </TransactionManagerProvider>
   )
 }

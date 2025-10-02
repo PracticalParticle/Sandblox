@@ -21,6 +21,15 @@ const envSchema = z.object({
   VITE_SEPOLIA_CHAIN_ID: z.number().optional(),
   VITE_SEPOLIA_NAME: z.string().optional(),
   VITE_SEPOLIA_EXPLORER_URL: z.string().url().optional(),
+
+  // Development Debugging Configuration
+  VITE_ENABLE_TRANSACTION_DEBUGGING: z.string().transform(val => val === 'true').default('false'),
+  VITE_DEBUG_NETWORK_TYPE: z.enum(['ganache', 'hardhat', 'public']).default('ganache'),
+  VITE_DEBUG_LOG_LEVEL: z.enum(['verbose', 'normal', 'minimal']).default('normal'),
+
+  // Optional: Specific RPC URLs for debugging
+  VITE_GANACHE_RPC_URL: z.string().url().optional(),
+  VITE_HARDHAT_RPC_URL: z.string().url().optional(),
 })
 
 // Type inference
@@ -52,6 +61,15 @@ function parseEnvVariables(): EnvConfig {
     VITE_SEPOLIA_CHAIN_ID: import.meta.env.VITE_SEPOLIA_CHAIN_ID ? Number(import.meta.env.VITE_SEPOLIA_CHAIN_ID) : undefined,
     VITE_SEPOLIA_NAME: import.meta.env.VITE_SEPOLIA_NAME || undefined,
     VITE_SEPOLIA_EXPLORER_URL: import.meta.env.VITE_SEPOLIA_EXPLORER_URL || undefined,
+
+    // Development Debugging Configuration
+    VITE_ENABLE_TRANSACTION_DEBUGGING: import.meta.env.VITE_ENABLE_TRANSACTION_DEBUGGING || 'false',
+    VITE_DEBUG_NETWORK_TYPE: import.meta.env.VITE_DEBUG_NETWORK_TYPE || 'ganache',
+    VITE_DEBUG_LOG_LEVEL: import.meta.env.VITE_DEBUG_LOG_LEVEL || 'normal',
+
+    // Optional: Specific RPC URLs for debugging
+    VITE_GANACHE_RPC_URL: import.meta.env.VITE_GANACHE_RPC_URL || undefined,
+    VITE_HARDHAT_RPC_URL: import.meta.env.VITE_HARDHAT_RPC_URL || undefined,
 
   }
 

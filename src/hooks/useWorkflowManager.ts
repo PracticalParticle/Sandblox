@@ -7,6 +7,7 @@ import { useMetaTransactionManager } from './useMetaTransactionManager'
 import { useToast } from "@/components/ui/use-toast"
 import { OperationType, CoreOperationType, OperationPhase } from '../types/OperationRegistry'
 import { useRoleValidation } from './useRoleValidation'
+import { useGlobalTransactionMonitor } from './useGlobalTransactionMonitor'
 import { getContractDetails } from '@/lib/catalog'
 
 export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
@@ -16,6 +17,7 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
   const config = useConfig()
   const { toast } = useToast()
   const { storeTransaction, removeTransaction, refreshTransactions } = useMetaTransactionManager(contractAddress || '')
+  const { executeTransactionSimple } = useGlobalTransactionMonitor()
   const [manager, setManager] = useState<WorkflowManager | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [pendingOperations, setPendingOperations] = useState<Set<string>>(new Set())
@@ -140,10 +142,17 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
       // Add operation to pending set
       setPendingOperations(prev => new Set([...prev, operationKey]))
       
-      const result = await manager.requestOperation(
-        operationType,
-        params,
-        { from: walletClient.account.address }
+      // Use global transaction monitor for tracking
+      const result = await executeTransactionSimple(
+        async () => {
+          return await manager.requestOperation(
+            operationType,
+            params,
+            { from: walletClient.account.address }
+          )
+        },
+        `${operationType} Request`,
+        'WorkflowManager'
       )
       
       // Refresh transactions after successful operation
@@ -170,7 +179,7 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
         return next
       })
     }
-  }, [manager, walletClient, toast, pendingOperations, refreshTransactions])
+  }, [manager, walletClient, toast, pendingOperations, refreshTransactions, executeTransactionSimple])
 
   // Approve a pending operation
   const approveOperation = useCallback(async (
@@ -181,10 +190,17 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
     
     setIsLoading(true)
     try {
-      const result = await manager.approveOperation(
-        operationType,
-        BigInt(txId),
-        { from: walletClient.account.address }
+      // Use global transaction monitor for tracking
+      const result = await executeTransactionSimple(
+        async () => {
+          return await manager.approveOperation(
+            operationType,
+            BigInt(txId),
+            { from: walletClient.account.address }
+          )
+        },
+        `${operationType} Approval`,
+        'WorkflowManager'
       )
       
       // Clean up the transaction from storage
@@ -205,7 +221,7 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
     } finally {
       setIsLoading(false)
     }
-  }, [manager, walletClient, toast, removeTransaction])
+  }, [manager, walletClient, toast, removeTransaction, executeTransactionSimple])
 
   // Cancel a pending operation
   const cancelOperation = useCallback(async (
@@ -216,10 +232,17 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
     
     setIsLoading(true)
     try {
-      const result = await manager.cancelOperation(
-        operationType,
-        BigInt(txId),
-        { from: walletClient.account.address }
+      // Use global transaction monitor for tracking
+      const result = await executeTransactionSimple(
+        async () => {
+          return await manager.cancelOperation(
+            operationType,
+            BigInt(txId),
+            { from: walletClient.account.address }
+          )
+        },
+        `${operationType} Cancellation`,
+        'WorkflowManager'
       )
       
       // Clean up the transaction from storage
@@ -240,7 +263,7 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
     } finally {
       setIsLoading(false)
     }
-  }, [manager, walletClient, toast, removeTransaction])
+  }, [manager, walletClient, toast, removeTransaction, executeTransactionSimple])
 
   // Sign approval for a meta-transaction
   const signApproval = useCallback(async (
