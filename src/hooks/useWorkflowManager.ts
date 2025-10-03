@@ -69,6 +69,16 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
         const chain = config.chains.find(c => c.id === chainId)
         if (!chain) throw new Error("Chain not found")
 
+        console.log('🔧 useWorkflowManager initManager:', {
+          contractAddress,
+          chainId: chain.id,
+          chainName: chain.name,
+          hasPublicClient: !!publicClient,
+          hasWalletClient: !!walletClient,
+          walletClientAccount: walletClient?.account?.address,
+          contractType
+        });
+
         const workflowManager = await generateNewWorkflowManager(
           publicClient, 
           walletClient || undefined, 
@@ -486,6 +496,22 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
   // Update loading state to include role validation
   const combinedIsLoading = isLoading || roleValidationLoading
   
+  // Debug logging for SDK instances
+  const secureOwnable = manager?.getSecureOwnable();
+  const dynamicRBAC = manager?.getDynamicRBAC();
+  const definitions = manager?.getDefinitions();
+  
+  console.log('🔍 useWorkflowManager SDK instances:', {
+    manager: !!manager,
+    secureOwnable: !!secureOwnable,
+    dynamicRBAC: !!dynamicRBAC,
+    definitions: !!definitions,
+    managerType: manager?.constructor.name,
+    secureOwnableType: secureOwnable?.constructor.name,
+    dynamicRBACType: dynamicRBAC?.constructor.name,
+    definitionsType: definitions?.constructor.name
+  });
+
   return {
     manager,
     isLoading: combinedIsLoading,
@@ -504,6 +530,10 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
     executeMetaTransaction,
     canExecutePhase,
     getRequiredRoleForOperation,
-    refreshAllData
+    refreshAllData,
+    // SDK instances for permission checking
+    secureOwnable,
+    dynamicRBAC,
+    definitions
   }
 } 

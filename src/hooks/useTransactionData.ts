@@ -73,8 +73,8 @@ export function useTransactionData({
         // This is expected if the wallet doesn't have permission
       }
 
-      // For now, just use pending transactions as the source of truth
-      // The transaction history call is failing due to permission issues
+      // Use pending transactions as the source of truth
+      // Transaction history calls are failing due to permission issues
       console.log('Using pending transactions as source of truth')
       
       const pending = pendingTxs.filter(tx => tx.status === TxStatus.PENDING)

@@ -17,10 +17,8 @@ import { ContractInfo } from "@/components/ContractInfo";
 import { SecureContractInfo } from "@/lib/types";
 import { WalletStatusBadge } from '@/components/WalletStatusBadge';
 import { ExtendedSignedTransaction, SignedMetaTxTable } from '@/components/SignedMetaTxTable';
-import { OpHistory } from '@/components/OpHistory';
+import { TransactionManager } from '@/components/TransactionManager';
 import { useMetaTransactionManager } from '@/hooks/useMetaTransactionManager';
-import { useOperationTypes } from '@/hooks/useOperationTypes';
-import { Hex } from 'viem';
 import { TxRecord } from '@/Guardian/sdk/typescript/interfaces/lib.index';
 import { useChain } from '@/hooks/useChain';
 
@@ -130,7 +128,6 @@ const BloxMiniApp: React.FC = () => {
   const { toast } = useToast()
   const { transactions = {}, clearTransactions, removeTransaction } = useMetaTransactionManager(address || '');
   const [signedTransactions, setSignedTransactions] = useState<SignedTransaction[]>([]);
-  const { getOperationName } = useOperationTypes(address as `0x${string}`);
   const [isMobileView, setIsMobileView] = useState(false);
   const [bloxUiLoading, setBloxUiLoading] = useState(true);
   const publicClient = usePublicClient();
@@ -145,7 +142,12 @@ const BloxMiniApp: React.FC = () => {
     manager,
     approveOperation,
     cancelOperation,
-    refreshAllData
+    signApproval,
+    signCancellation,
+    refreshAllData,
+    secureOwnable,
+    dynamicRBAC,
+    definitions
   } = useWorkflowManager(address as `0x${string}`, type);
 
   // Function to show notifications using toast
@@ -321,19 +323,6 @@ const BloxMiniApp: React.FC = () => {
     }
   };
 
-  // Add a function to filter out core operations
-  const filterBloxOperations = (operations: TxRecord[]): TxRecord[] => {
-    return operations.filter(op => {
-      const operationName = getOperationName(op.params.operationType as Hex);
-      const coreOperations = [
-        'OWNERSHIP_TRANSFER',
-        'BROADCASTER_UPDATE',
-        'RECOVERY_UPDATE',
-        'TIMELOCK_UPDATE'
-      ];
-      return !coreOperations.includes(operationName);
-    });
-  };
 
   // Add a function to handle operation approval
   const handleApproveOperation = async (txId: number) => {
@@ -387,6 +376,60 @@ const BloxMiniApp: React.FC = () => {
         type: 'error',
         title: "Error",
         description: error instanceof Error ? error.message : 'Failed to cancel operation',
+      });
+    }
+  };
+
+  // Add a function to handle meta transaction signing
+  const handleMetaTxSign = async (tx: TxRecord, type: 'approve' | 'cancel') => {
+    if (!manager || !contractInfo) return;
+    
+    try {
+      const operationType = tx.params.operationType as OperationType;
+      
+      if (type === 'approve') {
+        await signApproval(operationType, tx.txId);
+      } else {
+        await signCancellation(operationType, tx.txId);
+      }
+      
+      showNotification({
+        type: 'success',
+        title: "Success",
+        description: `Meta transaction ${type} signed successfully`,
+      });
+
+      await refreshAllData();
+    } catch (error) {
+      console.error(`Failed to sign meta transaction ${type}:`, error);
+      showNotification({
+        type: 'error',
+        title: "Error",
+        description: error instanceof Error ? error.message : `Failed to sign meta transaction ${type}`,
+      });
+    }
+  };
+
+  // Add a function to handle meta transaction broadcasting
+  const handleBroadcastMetaTx = async (_tx: TxRecord, type: 'approve' | 'cancel') => {
+    if (!manager || !contractInfo) return;
+    
+    try {
+      // For now, we'll just show a message that broadcasting is not yet implemented
+      // In a real implementation, this would execute a previously signed meta transaction
+      showNotification({
+        type: 'info',
+        title: "Broadcast Meta Transaction",
+        description: `Broadcasting meta transaction ${type} is not yet implemented. Please use the sign function first.`,
+      });
+
+      await refreshAllData();
+    } catch (error) {
+      console.error(`Failed to broadcast meta transaction ${type}:`, error);
+      showNotification({
+        type: 'error',
+        title: "Error",
+        description: error instanceof Error ? error.message : `Failed to broadcast meta transaction ${type}`,
       });
     }
   };
@@ -609,6 +652,17 @@ const BloxMiniApp: React.FC = () => {
     setIsDialogOpen(true);
   };
 
+  // Debug logging for SDK instances in BloxMiniApp
+  console.log('🔍 BloxMiniApp SDK instances:', {
+    contractAddress: address,
+    secureOwnable: !!secureOwnable,
+    dynamicRBAC: !!dynamicRBAC,
+    definitions: !!definitions,
+    secureOwnableType: secureOwnable?.constructor.name,
+    dynamicRBACType: dynamicRBAC?.constructor.name,
+    definitionsType: definitions?.constructor.name
+  });
+
   return (
     <div className="container py-8">
       <motion.div variants={container} initial="hidden" animate="show">
@@ -767,39 +821,42 @@ const BloxMiniApp: React.FC = () => {
                 </motion.div>
               )}
 
-              {/* Operations History */}
-              {contractInfo && (
-                <motion.div variants={item} className="mt-6">
-                  <OpHistory
-                    contractAddress={address as `0x${string}`}
-                    operations={filterBloxOperations(contractInfo.operationHistory || [])}
-                    isLoading={loading}
-                    contractInfo={{
-                      ...contractInfo,
-                      bloxId: type || '',
-                      chainId: contractInfo.chainId,
-                      chainName: contractInfo.chainName,
-                      broadcaster: contractInfo.broadcaster as `0x${string}`,
-                      owner: contractInfo.owner as `0x${string}`,
-                      recoveryAddress: contractInfo.recoveryAddress as `0x${string}`,
-                      timeLockPeriodInMinutes: contractInfo.timeLockPeriodInMinutes
-                    }}
-                    signedTransactions={signedTransactions}
-                    onApprove={handleApproveOperation}
-                    onCancel={handleCancelOperation}
-                    showMetaTxOption={true}
-                    refreshData={refreshAllData}
-                    refreshSignedTransactions={refreshLocalTransactions}
-                    onNotification={(notification) => {
-                      showNotification({
-                        type: notification.type as 'error' | 'warning' | 'info' | 'success',
-                        title: notification.title,
-                        description: notification.description
-                      });
-                    }}
-                  />
-                </motion.div>
-              )}
+              {/* Transaction Manager */}
+        {contractInfo && (
+          <motion.div variants={item} className="mt-6">
+            <TransactionManager
+              contractAddress={address as `0x${string}`}
+              contractInfo={{
+                ...contractInfo,
+                bloxId: type || '',
+                chainId: contractInfo.chainId,
+                chainName: contractInfo.chainName,
+                broadcaster: contractInfo.broadcaster as `0x${string}`,
+                owner: contractInfo.owner as `0x${string}`,
+                recoveryAddress: contractInfo.recoveryAddress as `0x${string}`,
+                timeLockPeriodInMinutes: contractInfo.timeLockPeriodInMinutes
+              }}
+              onApprove={handleApproveOperation}
+              onCancel={handleCancelOperation}
+              onMetaTxSign={handleMetaTxSign}
+              onBroadcastMetaTx={handleBroadcastMetaTx}
+              showMetaTxOption={true}
+              refreshData={refreshAllData}
+              refreshSignedTransactions={refreshLocalTransactions}
+              onNotification={(notification) => {
+                showNotification({
+                  type: notification.type as 'error' | 'warning' | 'info' | 'success',
+                  title: notification.title,
+                  description: notification.description
+                });
+              }}
+              // Guardian SDK instances for permission checking
+              secureOwnable={secureOwnable}
+              dynamicRBAC={dynamicRBAC}
+              definitions={definitions}
+            />
+          </motion.div>
+        )}
             </div>
           </div>
         </div>

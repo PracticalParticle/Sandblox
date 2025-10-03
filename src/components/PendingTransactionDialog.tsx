@@ -9,18 +9,18 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Clock, Info } from "lucide-react";
+import { Clock, Info, Shield, Zap } from "lucide-react";
 import { TxInfoCard } from "./TxInfoCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { NotificationMessage } from "@/lib/catalog/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { formatAddress } from "@/lib/utils";
-import { useMetaTransactionManager } from "@/hooks/useMetaTransactionManager";
 import { TxRecord } from "@/Guardian/sdk/typescript";
-import { useOperationRegistry } from "../hooks/useOperationRegistry";
-import { useBloxOperations } from "../hooks/useBloxOperations";
-import { useEffect, useState } from "react";
+import { useTransactionPermissions } from "@/hooks/useTransactionPermissions";
+import { SecureOwnable } from "@/Guardian/sdk/typescript/contracts/SecureOwnable";
+import { DynamicRBAC } from "@/Guardian/sdk/typescript/contracts/DynamicRBAC";
+import { Definitions } from "@/Guardian/sdk/typescript/lib/Definition";
+import { PermissionDebugger } from "./debug/PermissionDebugger";
 
 interface PendingTransactionDialogProps {
   isOpen: boolean;
@@ -47,6 +47,10 @@ interface PendingTransactionDialogProps {
   showMetaTxOption?: boolean;
   refreshData?: () => void;
   mode?: 'timelock' | 'metatx';
+  // Guardian SDK instances for permission checking
+  secureOwnable?: SecureOwnable;
+  dynamicRBAC?: DynamicRBAC;
+  definitions?: Definitions;
 }
 
 export function PendingTransactionDialog({
@@ -64,74 +68,24 @@ export function PendingTransactionDialog({
   onCancel,
   onMetaTxSign,
   onBroadcastMetaTx,
+  secureOwnable,
+  dynamicRBAC,
+  definitions,
 }: PendingTransactionDialogProps): JSX.Element {
   // State to track the active tab
   const [activeTab, setActiveTab] = React.useState<'timelock' | 'metatx'>(mode);
-  
-  // Add transaction manager
-  const { removeTransaction } = useMetaTransactionManager(contractInfo.contractAddress);
 
-  // Get operation registry hooks
-  const { getOperationInfo } = useOperationRegistry();
-  const { getBloxOperations, getBloxComponents } = useBloxOperations();
+  // Get transaction permissions based on user roles
+  const permissions = useTransactionPermissions({
+    transaction,
+    connectedAddress,
+    contractAddress: contractInfo.contractAddress,
+    secureOwnable,
+    dynamicRBAC,
+    definitions,
+    timeLockPeriodInMinutes: contractInfo.timeLockPeriodInMinutes,
+  });
 
-  // State for blox-specific components and operations
-  const [bloxOperations, setBloxOperations] = useState<any>(null);
-  const [, setIsLoadingComponents] = useState(true);
-
-  // Load blox-specific components and operations
-  useEffect(() => {
-    async function loadBloxComponents() {
-      setIsLoadingComponents(true);
-      try {
-        // Get operation info to determine the blox type
-        const operationInfo = await getOperationInfo(transaction.params.operationType);
-        if (!operationInfo) {
-          console.error('No operation info found for transaction');
-          return;
-        }
-
-        // Handle the case where bloxId is optional
-        if (operationInfo.bloxId) {
-          // Get blox components and operations
-          const [components, operations] = await Promise.all([
-            getBloxComponents(operationInfo.bloxId, 'PendingTransaction'),
-            getBloxOperations(operationInfo.bloxId, contractInfo.contractAddress)
-          ]);
-
-          if (components) {
-            console.log('Blox components loaded successfully');
-          }
-          
-          if (operations) {
-            setBloxOperations(operations);
-          }
-        } else {
-          // bloxId is optional, so this isn't an error case
-          console.log('Operation does not have a bloxId, skipping blox-specific components');
-        }
-      } catch (error) {
-        console.error('Failed to load blox components:', error);
-        onNotification?.({
-          type: 'error',
-          title: 'Component Load Error',
-          description: 'Failed to load transaction components'
-        });
-      } finally {
-        setIsLoadingComponents(false);
-      }
-    }
-
-    if (transaction && contractInfo.contractAddress) {
-      loadBloxComponents();
-    }
-  }, [transaction, contractInfo.contractAddress, getOperationInfo, getBloxComponents, getBloxOperations]);
-
-  // Handle refresh to make sure it calls refreshData
-  const handleRefresh = React.useCallback(() => {
-    console.log("Refresh called in dialog");
-    refreshData?.();
-  }, [refreshData]);
 
   const handleApproveWrapper = async (txId: number) => {
     try {
@@ -141,15 +95,10 @@ export function PendingTransactionDialog({
         description: 'Please wait while the transaction is being approved...'
       });
 
-      // Use blox operations if available, otherwise fall back to default
-      if (bloxOperations?.handleApprove) {
-        await bloxOperations.handleApprove(txId);
-      } else if (onApprove) {
+      // Call the approve handler
+      if (onApprove) {
         await onApprove(txId);
       }
-
-      // Remove from local storage after successful approval
-      removeTransaction(txId.toString());
 
       onNotification?.({
         type: 'success',
@@ -159,7 +108,7 @@ export function PendingTransactionDialog({
 
       // Close dialog and refresh data
       onOpenChange(false);
-      handleRefresh();
+      refreshData?.();
     } catch (error) {
       console.error('Failed to approve transaction:', error);
       onNotification?.({
@@ -178,15 +127,10 @@ export function PendingTransactionDialog({
         description: 'Please wait while the transaction is being cancelled...'
       });
 
-      // Use blox operations if available, otherwise fall back to default
-      if (bloxOperations?.handleCancel) {
-        await bloxOperations.handleCancel(txId);
-      } else if (onCancel) {
+      // Call the cancel handler
+      if (onCancel) {
         await onCancel(txId);
       }
-
-      // Remove from local storage after successful cancellation
-      removeTransaction(txId.toString());
 
       onNotification?.({
         type: 'success',
@@ -196,7 +140,7 @@ export function PendingTransactionDialog({
 
       // Close dialog and refresh data
       onOpenChange(false);
-      handleRefresh();
+      refreshData?.();
     } catch (error) {
       console.error('Failed to cancel transaction:', error);
       onNotification?.({
@@ -215,15 +159,10 @@ export function PendingTransactionDialog({
         description: 'Please wait while the transaction is being broadcast...'
       });
 
-      // Use blox operations if available, otherwise fall back to default
-      if (bloxOperations?.handleBroadcast) {
-        await bloxOperations.handleBroadcast(tx, type);
-      } else if (onBroadcastMetaTx) {
+      // Call the broadcast handler
+      if (onBroadcastMetaTx) {
         await onBroadcastMetaTx(tx, type);
       }
-
-      // Remove from local storage after successful broadcast
-      removeTransaction(tx.txId.toString());
 
       onNotification?.({
         type: 'success',
@@ -233,7 +172,7 @@ export function PendingTransactionDialog({
 
       // Close dialog and refresh data
       onOpenChange(false);
-      handleRefresh();
+      refreshData?.();
     } catch (error) {
       console.error('Failed to broadcast transaction:', error);
       onNotification?.({
@@ -271,45 +210,53 @@ export function PendingTransactionDialog({
   // Check if the transaction is pending (from SDK data)
   const isPending = transaction.status === 1; // TxStatus.PENDING
 
-  // Get formatted broadcaster address
-  const formattedBroadcasterAddress = contractInfo.broadcaster ? formatAddress(contractInfo.broadcaster) : 'Unknown';
 
-  // Determine if the time delay has expired
-  const now = Math.floor(Date.now() / 1000);
-  const releaseTime = Number(transaction.releaseTime);
-  const isTimeDelayExpired = now >= releaseTime;
-  
-  // Check user roles
-  const isOwner = connectedAddress?.toLowerCase() === contractInfo.owner?.toLowerCase();
-  const isBroadcaster = connectedAddress?.toLowerCase() === contractInfo.broadcaster?.toLowerCase();
-
-  // Determine alert message and guidance based on roles and time delay
+  // Determine alert message and guidance based on permissions and time delay
   const renderAlert = () => {
     if (!isPending) return null;
     
     let alertMessage = "";
+    let alertType: 'info' | 'warning' | 'error' = 'info';
     
-    if (isTimeDelayExpired) {
-      if (isOwner) {
-        alertMessage = `This transaction is pending and the time delay has expired. You can now approve this transaction directly, or the broadcaster (${formattedBroadcasterAddress}) can broadcast it.`;
-      } else if (isBroadcaster) {
+    // Check for permission errors
+    if (permissions.permissionErrors.length > 0) {
+      alertMessage = `Permission issues: ${permissions.permissionErrors.join(', ')}`;
+      alertType = 'error';
+    } else if (permissions.isTimeDelayExpired) {
+      if (permissions.canApprove) {
+        alertMessage = `This transaction is pending and the time delay has expired. You can now approve this transaction directly.`;
+      } else if (permissions.canBroadcast) {
         alertMessage = `This transaction is pending and the time delay has expired. As the broadcaster, you can now broadcast this transaction.`;
       } else {
-        alertMessage = `This transaction is pending and the time delay has expired. The owner can approve it directly, or the broadcaster (${formattedBroadcasterAddress}) can broadcast it.`;
+        alertMessage = `This transaction is pending and the time delay has expired. You don't have permission to approve or broadcast this transaction.`;
+        alertType = 'warning';
       }
     } else {
-      if (isBroadcaster) {
+      if (permissions.canBroadcast) {
         alertMessage = `This transaction is pending. As the broadcaster, you can broadcast it now, or wait until the time delay expires.`;
-      } else if (isOwner) {
-        alertMessage = `This transaction is pending. Please wait until the time delay expires to approve it directly, or connect with the broadcaster wallet (${formattedBroadcasterAddress}) to broadcast it sooner.`;
+      } else if (permissions.canApprove) {
+        alertMessage = `This transaction is pending. Please wait until the time delay expires to approve it directly.`;
       } else {
-        alertMessage = `This transaction is pending. Please connect with the broadcaster wallet (${formattedBroadcasterAddress}) to broadcast it, or wait until the time delay expires for direct approval.`;
+        alertMessage = `This transaction is pending. You don't have permission to approve or broadcast this transaction.`;
+        alertType = 'warning';
       }
     }
     
+    const alertClasses = {
+      info: "bg-blue-50 border-blue-200 text-blue-900 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300",
+      warning: "bg-yellow-50 border-yellow-200 text-yellow-900 dark:bg-yellow-900/20 dark:border-yellow-800 dark:text-yellow-300",
+      error: "bg-red-50 border-red-200 text-red-900 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300"
+    };
+    
+    const iconClasses = {
+      info: "h-4 w-4 text-blue-600 dark:text-blue-400",
+      warning: "h-4 w-4 text-yellow-600 dark:text-yellow-400",
+      error: "h-4 w-4 text-red-600 dark:text-red-400"
+    };
+    
     return (
-      <Alert className="bg-blue-50 border-blue-200 text-blue-900 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300 mb-2">
-        <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+      <Alert className={`${alertClasses[alertType]} mb-2`}>
+        <Info className={iconClasses[alertType]} />
         <AlertDescription className="text-sm ml-2">
           {alertMessage}
         </AlertDescription>
@@ -343,12 +290,23 @@ export function PendingTransactionDialog({
         <div className="space-y-4">
           <TxInfoCard 
             record={transaction}
-            operationName={bloxOperations?.getOperationName?.(transaction) || 'Custom Operation'}
+            operationName={'Custom Operation'}
             showExecutionType={true}
             showStatus={true}
           />
 
           {renderAlert()}
+
+          {/* Debug Information - Remove in production */}
+          <PermissionDebugger
+            transaction={transaction}
+            connectedAddress={connectedAddress!}
+            contractAddress={contractInfo.contractAddress}
+            secureOwnable={secureOwnable}
+            dynamicRBAC={dynamicRBAC}
+            definitions={definitions}
+            timeLockPeriodInMinutes={contractInfo.timeLockPeriodInMinutes}
+          />
 
           <Card>
             <Tabs defaultValue="timelock" className="w-full" value={activeTab} onValueChange={(value) => setActiveTab(value as 'timelock' | 'metatx')}>
@@ -364,7 +322,10 @@ export function PendingTransactionDialog({
               <TabsContent value="timelock" className="mt-4">
                 <div className="space-y-4">
                   <div className="p-4 border rounded-lg">
-                    <h3 className="font-semibold mb-2">Time Lock Operations</h3>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Clock className="h-4 w-4" />
+                      <h3 className="font-semibold">Time Lock Operations</h3>
+                    </div>
                     <p className="text-sm text-muted-foreground mb-4">
                       This transaction is pending and will be available for approval after the time lock period expires.
                     </p>
@@ -379,25 +340,66 @@ export function PendingTransactionDialog({
                         <span>{contractInfo.timeLockPeriodInMinutes} minutes</span>
                       </div>
                       <div className="flex justify-between text-sm">
+                        <span>Time Lock Period (seconds):</span>
+                        <span>{contractInfo.timeLockPeriodInMinutes * 60} seconds</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
                         <span>Status:</span>
                         <span className="text-yellow-600">Pending</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Time Delay Expired:</span>
+                        <span className={permissions.isTimeDelayExpired ? "text-green-600" : "text-yellow-600"}>
+                          {permissions.isTimeDelayExpired ? "Yes" : "No"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Current Time:</span>
+                        <span>{new Date().toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Time Difference:</span>
+                        <span>{Math.floor(Date.now() / 1000) - Number(transaction.releaseTime)} seconds</span>
+                      </div>
+                    </div>
+                    
+                    {/* Permission Status */}
+                    <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Shield className="h-4 w-4" />
+                        <span className="text-sm font-medium">Your Permissions</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className={`flex items-center gap-1 ${permissions.canApprove ? 'text-green-600' : 'text-gray-500'}`}>
+                          <div className={`w-2 h-2 rounded-full ${permissions.canApprove ? 'bg-green-500' : 'bg-gray-400'}`} />
+                          <span>Can Approve</span>
+                        </div>
+                        <div className={`flex items-center gap-1 ${permissions.canCancel ? 'text-green-600' : 'text-gray-500'}`}>
+                          <div className={`w-2 h-2 rounded-full ${permissions.canCancel ? 'bg-green-500' : 'bg-gray-400'}`} />
+                          <span>Can Cancel</span>
+                        </div>
                       </div>
                     </div>
                     
                     <div className="flex gap-2 mt-4">
                       <Button 
                         onClick={() => handleApproveWrapper(Number(transaction.txId))}
-                        disabled={!isTimeDelayExpired}
+                        disabled={!permissions.canApprove || !permissions.isTimeDelayExpired}
                         className="flex-1"
+                        variant={permissions.canApprove ? "default" : "secondary"}
                       >
-                        {isTimeDelayExpired ? 'Approve Transaction' : 'Wait for Time Lock'}
+                        {permissions.isTimeDelayExpired 
+                          ? (permissions.canApprove ? 'Approve Transaction' : 'No Permission to Approve')
+                          : 'Wait for Time Lock'
+                        }
                       </Button>
                       <Button 
                         variant="outline" 
                         onClick={() => handleCancelWrapper(Number(transaction.txId))}
+                        disabled={!permissions.canCancel}
                         className="flex-1"
                       >
-                        Cancel Transaction
+                        {permissions.canCancel ? 'Cancel Transaction' : 'No Permission to Cancel'}
                       </Button>
                     </div>
                   </div>
@@ -407,7 +409,10 @@ export function PendingTransactionDialog({
               <TabsContent value="metatx" className="mt-4">
                 <div className="space-y-4">
                   <div className="p-4 border rounded-lg">
-                    <h3 className="font-semibold mb-2">Meta Transaction Operations</h3>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Zap className="h-4 w-4" />
+                      <h3 className="font-semibold">Meta Transaction Operations</h3>
+                    </div>
                     <p className="text-sm text-muted-foreground mb-4">
                       Meta transactions allow gasless execution. The broadcaster can execute this transaction on behalf of the requester.
                     </p>
@@ -429,23 +434,88 @@ export function PendingTransactionDialog({
                         <span>Gas Limit:</span>
                         <span>{transaction.params.gasLimit.toString()}</span>
                       </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Has Signature:</span>
+                        <span className={transaction.message && transaction.message !== '0x' ? "text-green-600" : "text-yellow-600"}>
+                          {transaction.message && transaction.message !== '0x' ? "Yes" : "No"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Message Length:</span>
+                        <span>{transaction.message ? transaction.message.length : 0} characters</span>
+                      </div>
+                    </div>
+                    
+                    {/* Permission Status */}
+                    <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Shield className="h-4 w-4" />
+                        <span className="text-sm font-medium">Your Permissions</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className={`flex items-center gap-1 ${permissions.canSignMetaTx ? 'text-green-600' : 'text-gray-500'}`}>
+                          <div className={`w-2 h-2 rounded-full ${permissions.canSignMetaTx ? 'bg-green-500' : 'bg-gray-400'}`} />
+                          <span>Can Sign</span>
+                        </div>
+                        <div className={`flex items-center gap-1 ${permissions.canBroadcast ? 'text-green-600' : 'text-gray-500'}`}>
+                          <div className={`w-2 h-2 rounded-full ${permissions.canBroadcast ? 'bg-green-500' : 'bg-gray-400'}`} />
+                          <span>Can Broadcast</span>
+                        </div>
+                        <div className={`flex items-center gap-1 ${permissions.canExecuteMetaTx ? 'text-green-600' : 'text-gray-500'}`}>
+                          <div className={`w-2 h-2 rounded-full ${permissions.canExecuteMetaTx ? 'bg-green-500' : 'bg-gray-400'}`} />
+                          <span>Can Execute</span>
+                        </div>
+                        <div className={`flex items-center gap-1 ${permissions.canCancel ? 'text-green-600' : 'text-gray-500'}`}>
+                          <div className={`w-2 h-2 rounded-full ${permissions.canCancel ? 'bg-green-500' : 'bg-gray-400'}`} />
+                          <span>Can Cancel</span>
+                        </div>
+                      </div>
                     </div>
                     
                     <div className="flex gap-2 mt-4">
                       <Button 
                         onClick={() => onMetaTxSign?.(transaction, 'approve')}
+                        disabled={!permissions.canSignMetaTx}
                         className="flex-1"
+                        variant={permissions.canSignMetaTx ? "default" : "secondary"}
                       >
-                        Sign Meta Transaction
+                        {permissions.canSignMetaTx ? 'Sign Meta Transaction' : 'No Permission to Sign'}
                       </Button>
                       <Button 
                         variant="outline" 
                         onClick={() => handleBroadcastWrapper(transaction, 'approve')}
+                        disabled={!permissions.canBroadcast}
                         className="flex-1"
                       >
-                        Broadcast Meta Transaction
+                        {permissions.canBroadcast ? 'Broadcast Meta Transaction' : 'No Permission to Broadcast'}
                       </Button>
                     </div>
+                    
+                    {/* Additional Meta Transaction Actions */}
+                    {(permissions.canExecuteMetaTx || permissions.canCancel) && (
+                      <div className="mt-3 pt-3 border-t">
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            onClick={() => onMetaTxSign?.(transaction, 'cancel')}
+                            disabled={!permissions.canSignMetaTx}
+                            className="flex-1"
+                            size="sm"
+                          >
+                            Sign Cancel Meta Tx
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            onClick={() => handleBroadcastWrapper(transaction, 'cancel')}
+                            disabled={!permissions.canBroadcast}
+                            className="flex-1"
+                            size="sm"
+                          >
+                            Broadcast Cancel Meta Tx
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </TabsContent>

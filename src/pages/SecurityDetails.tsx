@@ -2,6 +2,7 @@ import { useAccount, useDisconnect, usePublicClient, useWalletClient, useConfig 
 import { useNavigate, useParams } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { useWorkflowManager } from '@/hooks/useWorkflowManager'
 import {
   ArrowLeft,
   Loader2,
@@ -38,9 +39,8 @@ import { TIMELOCK_PERIODS } from '@/constants/contract'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { TransactionManager } from '@/components/TransactionManager'
 import { useMetaTransactionManager } from '@/hooks/useMetaTransactionManager'
-import { SecureOwnable } from '../Guardian/sdk/typescript'
 import { TemporalActionDialog } from '@/components/security/TemporalActionDialog'
-import { TxRecord, TxStatus } from '@/Guardian/sdk/typescript'
+import { TxRecord } from '@/Guardian/sdk/typescript'
 import { MetaTxActionDialog } from '@/components/security/MetaTxActionDialog'
 import { TransactionManagerProvider } from '@/contexts/MetaTransactionManager'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -55,7 +55,6 @@ import { Hex } from 'viem'
 import { useOperationTypes } from '@/hooks/useOperationTypes'
 import { CoreOperationType, operationRegistry } from '@/types/OperationRegistry'
 import type { BroadcastActionType } from '@/components/security/BroadcastDialog'
-import { OPERATION_TYPES } from '@/Guardian/sdk/typescript'
 import { Address } from 'viem'
 import { useGlobalTransactionMonitor } from '@/hooks/useGlobalTransactionMonitor'
 
@@ -129,6 +128,24 @@ export function SecurityDetails() {
   const publicClient = usePublicClient()
   const { data: walletClient } = useWalletClient()
   const config = useConfig()
+  
+  // Get SDK instances from useWorkflowManager
+  const {
+    secureOwnable,
+    dynamicRBAC,
+    definitions
+  } = useWorkflowManager(contractAddress as `0x${string}`)
+  
+  // Debug logging for SDK instances in SecurityDetails
+  console.log('🔍 SecurityDetails SDK instances:', {
+    contractAddress,
+    secureOwnable: !!secureOwnable,
+    dynamicRBAC: !!dynamicRBAC,
+    definitions: !!definitions,
+    secureOwnableType: secureOwnable?.constructor.name,
+    dynamicRBACType: dynamicRBAC?.constructor.name,
+    definitionsType: definitions?.constructor.name
+  });
 
   // State for input fields
   const [newRecoveryAddress, setNewRecoveryAddress] = useState('')
@@ -141,9 +158,9 @@ export function SecurityDetails() {
   const [targetRole, setTargetRole] = useState<string | null>(null);
   const [isSigningTx, setIsSigningTx] = useState(false);
   const [showOwnershipDialog, setShowOwnershipDialog] = useState(false)
-  const [pendingOwnershipTx, setPendingOwnershipTx] = useState<TxRecord | null>(null)
-  const [pendingBroadcasterTx, setPendingBroadcasterTx] = useState<TxRecord | null>(null)
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
+  const [pendingOwnershipTx, _setPendingOwnershipTx] = useState<TxRecord | null>(null)
+  const [pendingBroadcasterTx, _setPendingBroadcasterTx] = useState<TxRecord | null>(null)
   const [ownershipExpanded, setOwnershipExpanded] = useState(false)
   const [broadcasterExpanded, setBroadcasterExpanded] = useState(false)
   const [recoveryExpanded, setRecoveryExpanded] = useState(false)
@@ -181,77 +198,16 @@ export function SecurityDetails() {
         throw new Error('Chain not found');
       }
 
-      const contract = new SecureOwnable(
-        publicClient,
-        undefined,
-        contractAddress as `0x${string}`,
-        chain
-      );
+      // Operation history is now handled by TransactionManager via useTransactionData hook
+      // No need to fetch it here as it causes permission errors
+      console.log('Skipping operation history fetch - handled by TransactionManager');
 
-      // Get operation history directly from contract
-      // Start from 1 since 0 gets converted to 1 anyway, and we need fromTxId < toTxId
-      const operationHistory = await contract.getTransactionHistory(BigInt(1), BigInt(100));
-      console.log('Fresh operation history:', operationHistory);
-
-      // Update contract info with fresh operation history
-      setContractInfo(prevInfo => {
-        if (!prevInfo) return prevInfo;
-        // Only update if the operation history actually changed
-        const currentLength = prevInfo.operationHistory?.length || 0;
-        const newLength = operationHistory?.length || 0;
-        if (currentLength === newLength && 
-            JSON.stringify(prevInfo.operationHistory) === JSON.stringify(operationHistory)) {
-          return prevInfo; // Return same reference if no change
-        }
-        return {
-          ...prevInfo,
-          operationHistory: operationHistory || []
-        };
-      });
-
-      // Find pending transactions in operation history
-      if (operationHistory) {
-        // Find first pending ownership transfer
-        const pendingOwnership = operationHistory.find(
-          (tx: TxRecord) => tx.status === TxStatus.PENDING && 
-               tx.params.operationType === OPERATION_TYPES.OWNERSHIP_TRANSFER
-        );
-
-        // Find first pending broadcaster update
-        const pendingBroadcaster = operationHistory.find(
-          (tx: TxRecord) => tx.status === TxStatus.PENDING && 
-               tx.params.operationType === OPERATION_TYPES.BROADCASTER_UPDATE
-        );
-
-        console.log('Found pending ownership tx:', pendingOwnership);
-        console.log('Found pending broadcaster tx:', pendingBroadcaster);
-
-        setPendingOwnershipTx(pendingOwnership || null);
-        setPendingBroadcasterTx(pendingBroadcaster || null);
-      }
+      // Pending transactions are now handled by TransactionManager
+      // No need to find them here as it causes permission errors
+      console.log('Pending transactions handled by TransactionManager');
     } catch (error) {
-      console.error('Error fetching operation history:', error);
-      
-      // If contract call fails due to permission issues, show empty history
-      // This is expected behavior when the caller doesn't have the required roles
-      console.log('Contract call failed - likely due to missing role permissions. Showing empty history.');
-      
-      // Update contract info with empty operation history
-      setContractInfo(prevInfo => {
-        if (!prevInfo) return prevInfo;
-        // Only update if the operation history actually changed
-        const currentLength = prevInfo.operationHistory?.length || 0;
-        if (currentLength === 0) {
-          return prevInfo; // Return same reference if already empty
-        }
-        return {
-          ...prevInfo,
-          operationHistory: []
-        };
-      });
-      
-      setPendingOwnershipTx(null);
-      setPendingBroadcasterTx(null);
+      console.error('Error in fetchOperationHistory:', error);
+      // This function is no longer used since TransactionManager handles everything
     }
   };
 
@@ -2432,6 +2388,10 @@ export function SecurityDetails() {
                   variant: notification.type === 'error' ? 'destructive' : 'default'
                 });
               }}
+              // Guardian SDK instances for permission checking
+              secureOwnable={secureOwnable}
+              dynamicRBAC={dynamicRBAC}
+              definitions={definitions}
             />
           </motion.div>
         </motion.div>

@@ -202,37 +202,30 @@ export class SecureOwnableManager {
         console.log('No pending transactions found or wallet lacks permission');
       }
 
-      // Try to load operation history
+      // Load operation history from pending transactions only
       let operationHistory: any[] = [];
       try {
-        console.log('Loading operation history...');
+        console.log('Loading operation history from pending transactions...');
         
-        // First, try to get transaction history from the contract
-        try {
-          const transactionHistory = await this.contract.getTransactionHistory(BigInt(1), BigInt(100));
-          console.log('Successfully loaded transaction history:', transactionHistory.length, 'transactions');
-          operationHistory = transactionHistory || [];
-        } catch (historyError: any) {
-          console.log('Failed to load transaction history, trying alternative approach:', historyError.message);
+        // Get individual transaction details for pending transactions
+        if (pendingTxIds && pendingTxIds.length > 0) {
+          console.log('Fetching details for pending transactions...');
+          const pendingTxDetails = [];
           
-          // If getTransactionHistory fails, try to get individual transaction details for pending transactions
-          if (pendingTxIds && pendingTxIds.length > 0) {
-            console.log('Fetching details for pending transactions...');
-            const pendingTxDetails = [];
-            
-            for (const txId of pendingTxIds) {
-              try {
-                const txDetail = await this.contract.getTransaction(txId);
-                console.log(`Loaded transaction ${txId}:`, txDetail);
-                pendingTxDetails.push(txDetail);
-              } catch (txError: any) {
-                console.warn(`Failed to load transaction ${txId}:`, txError.message);
-              }
+          for (const txId of pendingTxIds) {
+            try {
+              const txDetail = await this.contract.getTransaction(txId);
+              console.log(`Loaded transaction ${txId}:`, txDetail);
+              pendingTxDetails.push(txDetail);
+            } catch (txError: any) {
+              console.warn(`Failed to load transaction ${txId}:`, txError.message);
             }
-            
-            operationHistory = pendingTxDetails;
-            console.log('Loaded pending transaction details:', operationHistory.length, 'transactions');
           }
+          
+          operationHistory = pendingTxDetails;
+          console.log('Loaded pending transaction details:', operationHistory.length, 'transactions');
+        } else {
+          console.log('No pending transactions to load details for');
         }
       } catch (error: any) {
         console.warn('Error loading operation history:', error.message);

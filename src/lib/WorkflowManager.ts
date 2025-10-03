@@ -1,5 +1,7 @@
 import { Address, Chain, Hash, Hex, PublicClient, WalletClient } from 'viem';
 import { MetaTransaction, TransactionOptions, SecureOwnable, ExecutionType, TxAction } from '../Guardian/sdk/typescript';
+import { DynamicRBAC } from '../Guardian/sdk/typescript/contracts/DynamicRBAC';
+import { Definitions } from '../Guardian/sdk/typescript/lib/Definition';
 import { registerCoreOperations } from '../registrations/CoreOperations';
 import { registerBloxOperations, hasOperationsForContractType } from '../registrations/BloxOperations';
 import { 
@@ -31,6 +33,8 @@ const OPERATION_TYPE_HASH_MAP: Record<CoreOperationType, Hex> = {
  */
 export class WorkflowManager {
   private contract: SecureOwnable;
+  private dynamicRBAC?: DynamicRBAC;
+  private definitions?: Definitions;
   private publicClient: PublicClient;
   private walletClient?: WalletClient;
   private contractAddress: Address;
@@ -51,7 +55,24 @@ export class WorkflowManager {
     this.walletClient = walletClient;
     this.contractAddress = contractAddress;
     this.chain = chain;
+    
+    console.log('🔧 WorkflowManager constructor:', {
+      contractAddress,
+      chainId: chain.id,
+      chainName: chain.name,
+      hasWalletClient: !!walletClient,
+      walletClientAccount: walletClient?.account?.address,
+      contractType
+    });
+    
+    // Ensure wallet client is available for SDK instances
+    if (!walletClient) {
+      console.warn('⚠️ No wallet client available for SDK instances - this may cause permission issues');
+    }
+    
     this.contract = new SecureOwnable(publicClient, walletClient, contractAddress, chain);
+    this.dynamicRBAC = new DynamicRBAC(publicClient, walletClient, contractAddress, chain);
+    this.definitions = new Definitions(publicClient, walletClient, contractAddress, chain);
     this.storeTransaction = storeTransaction;
     this.contractType = contractType;
 
@@ -587,5 +608,60 @@ export class WorkflowManager {
     };
 
     return JSON.stringify(signedMetaTx, this.bigIntReplacer);
+  }
+
+  // Getter methods to expose SDK instances
+  getSecureOwnable(): SecureOwnable {
+    console.log('🔧 getSecureOwnable called:', {
+      hasContract: !!this.contract,
+      contractType: this.contract?.constructor.name,
+      contractAddress: this.contractAddress,
+      hasWalletClient: !!this.walletClient,
+      walletClientAccount: this.walletClient?.account?.address
+    });
+    
+    // Validate that the contract is actually a SecureOwnable contract
+    if (this.contract) {
+      this.validateSecureOwnableContract();
+    }
+    
+    return this.contract;
+  }
+
+  // Validate that the contract is actually a SecureOwnable contract
+  private async validateSecureOwnableContract(): Promise<void> {
+    try {
+      console.log('🔍 Validating SecureOwnable contract...');
+      
+      // Try to call a SecureOwnable-specific method
+      const owner = await this.contract.owner();
+      const broadcaster = await this.contract.getBroadcaster();
+      const timeLockPeriod = await this.contract.getTimeLockPeriodSec();
+      
+      console.log('✅ SecureOwnable contract validation successful:', {
+        owner,
+        broadcaster,
+        timeLockPeriod: timeLockPeriod.toString()
+      });
+    } catch (error) {
+      console.error('❌ SecureOwnable contract validation failed:', error);
+      throw new Error(`Contract at ${this.contractAddress} is not a valid SecureOwnable contract: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  getDynamicRBAC(): DynamicRBAC | undefined {
+    console.log('🔧 getDynamicRBAC called:', {
+      hasDynamicRBAC: !!this.dynamicRBAC,
+      dynamicRBACType: this.dynamicRBAC?.constructor.name
+    });
+    return this.dynamicRBAC;
+  }
+
+  getDefinitions(): Definitions | undefined {
+    console.log('🔧 getDefinitions called:', {
+      hasDefinitions: !!this.definitions,
+      definitionsType: this.definitions?.constructor.name
+    });
+    return this.definitions;
   }
 }

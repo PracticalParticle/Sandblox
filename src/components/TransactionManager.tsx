@@ -49,6 +49,9 @@ import { useOperationTypes } from '@/hooks/useOperationTypes'
 import { useTransactionData } from '@/hooks/useTransactionData'
 import { TxDetailsDialog } from './TxDetailsDialog'
 import { PendingTransactionDialog } from './PendingTransactionDialog'
+import { SecureOwnable } from '@/Guardian/sdk/typescript/contracts/SecureOwnable'
+import { DynamicRBAC } from '@/Guardian/sdk/typescript/contracts/DynamicRBAC'
+import { Definitions } from '@/Guardian/sdk/typescript/lib/Definition'
 
 // Status badge variants mapping
 const statusVariants: { [key: number]: { variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode } } = {
@@ -110,6 +113,10 @@ export interface TransactionManagerProps {
   refreshData?: () => void
   refreshSignedTransactions?: () => void
   onNotification?: (notification: { type: string; title: string; description: string }) => void
+  // Guardian SDK instances for permission checking
+  secureOwnable?: SecureOwnable
+  dynamicRBAC?: DynamicRBAC
+  definitions?: Definitions
 }
 
 const container = {
@@ -132,8 +139,22 @@ export function TransactionManager({
   showMetaTxOption,
   refreshData,
   refreshSignedTransactions,
-  onNotification
+  onNotification,
+  secureOwnable,
+  dynamicRBAC,
+  definitions
 }: TransactionManagerProps) {
+  
+  // Debug logging for SDK instances in TransactionManager
+  console.log('🔍 TransactionManager received SDK instances:', {
+    contractAddress,
+    secureOwnable: !!secureOwnable,
+    dynamicRBAC: !!dynamicRBAC,
+    definitions: !!definitions,
+    secureOwnableType: secureOwnable?.constructor.name,
+    dynamicRBACType: dynamicRBAC?.constructor.name,
+    definitionsType: definitions?.constructor.name
+  });
   const { address: connectedAddress } = useAccount()
   const config = useConfig()
   const { getOperationName } = useOperationTypes(contractAddress)
@@ -687,6 +708,10 @@ export function TransactionManager({
               showMetaTxOption={showMetaTxOption}
               refreshData={refreshData}
               mode="timelock"
+              // Guardian SDK instances for permission checking
+              secureOwnable={secureOwnable}
+              dynamicRBAC={dynamicRBAC}
+              definitions={definitions}
             />
           )}
         </CardContent>
