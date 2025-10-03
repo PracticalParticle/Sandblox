@@ -21,6 +21,9 @@ import { SecureOwnable } from "@/Guardian/sdk/typescript/contracts/SecureOwnable
 import { DynamicRBAC } from "@/Guardian/sdk/typescript/contracts/DynamicRBAC";
 import { Definitions } from "@/Guardian/sdk/typescript/lib/Definition";
 import { PermissionDebugger } from "./debug/PermissionDebugger";
+import { 
+  extractErrorInfo
+} from "@/Guardian/sdk/typescript/utils/contract-errors";
 
 interface PendingTransactionDialogProps {
   isOpen: boolean;
@@ -74,6 +77,82 @@ export function PendingTransactionDialog({
 }: PendingTransactionDialogProps): JSX.Element {
   // State to track the active tab
   const [activeTab, setActiveTab] = React.useState<'timelock' | 'metatx'>(mode);
+  
+  // Loading states for button actions
+  const [isApproving, setIsApproving] = React.useState(false);
+  const [isCancelling, setIsCancelling] = React.useState(false);
+  const [isSigning, setIsSigning] = React.useState(false);
+  const [isBroadcasting, setIsBroadcasting] = React.useState(false);
+
+  // Enhanced error handling using Guardian SDK
+  const handleContractError = (error: any, operation: string): string => {
+    console.error(`🔍 [CONTRACT ERROR] ${operation} failed:`, error);
+    
+    // Check if it's a contract revert with data
+    if (error?.data || error?.cause?.data) {
+      const revertData = error.data || error.cause?.data;
+      console.log(`🔍 [CONTRACT ERROR] Extracting error info from revert data:`, revertData);
+      
+      const errorInfo = extractErrorInfo(revertData);
+      if (errorInfo.error) {
+        console.log(`🔍 [CONTRACT ERROR] Decoded error:`, errorInfo);
+        return errorInfo.userMessage;
+      }
+    }
+    
+    // Check if it's a viem error with revert data
+    if (error?.shortMessage && error?.cause?.data) {
+      const revertData = error.cause.data;
+      console.log(`🔍 [CONTRACT ERROR] Viem error with revert data:`, revertData);
+      
+      const errorInfo = extractErrorInfo(revertData);
+      if (errorInfo.error) {
+        console.log(`🔍 [CONTRACT ERROR] Decoded viem error:`, errorInfo);
+        return errorInfo.userMessage;
+      }
+    }
+    
+    // Check for common error patterns in the message
+    const errorMessage = error?.message || error?.shortMessage || error?.toString() || 'Unknown error';
+    console.log(`🔍 [CONTRACT ERROR] Raw error message:`, errorMessage);
+    
+    // Try to decode from error message if it contains revert data
+    const revertDataMatch = errorMessage.match(/0x[a-fA-F0-9]+/);
+    if (revertDataMatch) {
+      const revertData = revertDataMatch[0];
+      console.log(`🔍 [CONTRACT ERROR] Found revert data in message:`, revertData);
+      
+      const errorInfo = extractErrorInfo(revertData);
+      if (errorInfo.error) {
+        console.log(`🔍 [CONTRACT ERROR] Decoded error from message:`, errorInfo);
+        return errorInfo.userMessage;
+      }
+    }
+    
+    // Fallback to user-friendly error messages based on common patterns
+    if (errorMessage.includes('Only owner')) {
+      return 'Only the contract owner can perform this action';
+    } else if (errorMessage.includes('Only broadcaster')) {
+      return 'Only the broadcaster can perform this action';
+    } else if (errorMessage.includes('Only recovery')) {
+      return 'Only the recovery address can perform this action';
+    } else if (errorMessage.includes('insufficient funds')) {
+      return 'Insufficient funds for gas fees';
+    } else if (errorMessage.includes('user rejected')) {
+      return 'Transaction was rejected by user';
+    } else if (errorMessage.includes('time lock')) {
+      return 'Time lock period has not expired yet';
+    } else if (errorMessage.includes('already pending')) {
+      return 'A request is already pending for this operation';
+    } else if (errorMessage.includes('not found')) {
+      return 'Transaction not found';
+    } else if (errorMessage.includes('permission')) {
+      return 'You do not have permission to perform this action';
+    }
+    
+    // Return the original error message as fallback
+    return errorMessage;
+  };
 
   // Get transaction permissions based on user roles
   const permissions = useTransactionPermissions({
@@ -88,6 +167,27 @@ export function PendingTransactionDialog({
 
 
   const handleApproveWrapper = async (txId: number) => {
+    if (isApproving) return; // Prevent double-clicks
+    
+    if (!connectedAddress) {
+      onNotification?.({
+        type: 'error',
+        title: 'Wallet Not Connected',
+        description: 'Please connect your wallet to approve transactions.'
+      });
+      return;
+    }
+
+    if (!onApprove) {
+      onNotification?.({
+        type: 'error',
+        title: 'Action Not Available',
+        description: 'Approve handler is not configured.'
+      });
+      return;
+    }
+
+    setIsApproving(true);
     try {
       onNotification?.({
         type: 'info',
@@ -95,10 +195,10 @@ export function PendingTransactionDialog({
         description: 'Please wait while the transaction is being approved...'
       });
 
+      console.log('🔧 Approving transaction:', { txId, connectedAddress });
+      
       // Call the approve handler
-      if (onApprove) {
-        await onApprove(txId);
-      }
+      await onApprove(txId);
 
       onNotification?.({
         type: 'success',
@@ -106,20 +206,45 @@ export function PendingTransactionDialog({
         description: 'The transaction has been successfully approved.'
       });
 
-      // Close dialog and refresh data
-      onOpenChange(false);
-      refreshData?.();
-    } catch (error) {
-      console.error('Failed to approve transaction:', error);
-      onNotification?.({
-        type: 'error',
-        title: 'Approval Failed',
-        description: error instanceof Error ? error.message : 'Failed to approve transaction'
-      });
-    }
+                // Close dialog and refresh data
+                onOpenChange(false);
+                console.log('🔄 Refreshing data after successful approval...');
+                refreshData?.();
+              } catch (error) {
+                console.error('Failed to approve transaction:', error);
+                const userFriendlyMessage = handleContractError(error, 'Approve Transaction');
+                onNotification?.({
+                  type: 'error',
+                  title: 'Approval Failed',
+                  description: userFriendlyMessage
+                });
+              } finally {
+                setIsApproving(false);
+              }
   };
 
   const handleCancelWrapper = async (txId: number) => {
+    if (isCancelling) return; // Prevent double-clicks
+    
+    if (!connectedAddress) {
+      onNotification?.({
+        type: 'error',
+        title: 'Wallet Not Connected',
+        description: 'Please connect your wallet to cancel transactions.'
+      });
+      return;
+    }
+
+    if (!onCancel) {
+      onNotification?.({
+        type: 'error',
+        title: 'Action Not Available',
+        description: 'Cancel handler is not configured.'
+      });
+      return;
+    }
+
+    setIsCancelling(true);
     try {
       onNotification?.({
         type: 'info',
@@ -127,10 +252,10 @@ export function PendingTransactionDialog({
         description: 'Please wait while the transaction is being cancelled...'
       });
 
+      console.log('🔧 Cancelling transaction:', { txId, connectedAddress });
+
       // Call the cancel handler
-      if (onCancel) {
-        await onCancel(txId);
-      }
+      await onCancel(txId);
 
       onNotification?.({
         type: 'success',
@@ -140,18 +265,43 @@ export function PendingTransactionDialog({
 
       // Close dialog and refresh data
       onOpenChange(false);
+      console.log('🔄 Refreshing data after successful cancellation...');
       refreshData?.();
     } catch (error) {
       console.error('Failed to cancel transaction:', error);
+      const userFriendlyMessage = handleContractError(error, 'Cancel Transaction');
       onNotification?.({
         type: 'error',
         title: 'Cancellation Failed',
-        description: error instanceof Error ? error.message : 'Failed to cancel transaction'
+        description: userFriendlyMessage
       });
+    } finally {
+      setIsCancelling(false);
     }
   };
 
   const handleBroadcastWrapper = async (tx: TxRecord, type: 'approve' | 'cancel'): Promise<void> => {
+    if (isBroadcasting) return; // Prevent double-clicks
+    
+    if (!connectedAddress) {
+      onNotification?.({
+        type: 'error',
+        title: 'Wallet Not Connected',
+        description: 'Please connect your wallet to broadcast transactions.'
+      });
+      return;
+    }
+
+    if (!onBroadcastMetaTx) {
+      onNotification?.({
+        type: 'error',
+        title: 'Action Not Available',
+        description: 'Broadcast handler is not configured.'
+      });
+      return;
+    }
+
+    setIsBroadcasting(true);
     try {
       onNotification?.({
         type: 'info',
@@ -159,10 +309,10 @@ export function PendingTransactionDialog({
         description: 'Please wait while the transaction is being broadcast...'
       });
 
+      console.log('🔧 Broadcasting transaction:', { tx, type, connectedAddress });
+
       // Call the broadcast handler
-      if (onBroadcastMetaTx) {
-        await onBroadcastMetaTx(tx, type);
-      }
+      await onBroadcastMetaTx(tx, type);
 
       onNotification?.({
         type: 'success',
@@ -172,14 +322,75 @@ export function PendingTransactionDialog({
 
       // Close dialog and refresh data
       onOpenChange(false);
+      console.log('🔄 Refreshing data after successful broadcast...');
       refreshData?.();
     } catch (error) {
       console.error('Failed to broadcast transaction:', error);
+      const userFriendlyMessage = handleContractError(error, 'Broadcast Transaction');
       onNotification?.({
         type: 'error',
         title: 'Broadcast Failed',
-        description: error instanceof Error ? error.message : 'Failed to broadcast transaction'
+        description: userFriendlyMessage
       });
+    } finally {
+      setIsBroadcasting(false);
+    }
+  };
+
+  const handleMetaTxSignWrapper = async (tx: TxRecord, type: 'approve' | 'cancel'): Promise<void> => {
+    if (isSigning) return; // Prevent double-clicks
+    
+    if (!connectedAddress) {
+      onNotification?.({
+        type: 'error',
+        title: 'Wallet Not Connected',
+        description: 'Please connect your wallet to sign meta transactions.'
+      });
+      return;
+    }
+
+    if (!onMetaTxSign) {
+      onNotification?.({
+        type: 'error',
+        title: 'Action Not Available',
+        description: 'Meta transaction signing handler is not configured.'
+      });
+      return;
+    }
+
+    setIsSigning(true);
+    try {
+      onNotification?.({
+        type: 'info',
+        title: 'Signing Meta Transaction',
+        description: 'Please wait while the meta transaction is being signed...'
+      });
+
+      console.log('🔧 Signing meta transaction:', { tx, type, connectedAddress });
+
+      // Call the meta transaction signing handler
+      await onMetaTxSign(tx, type);
+
+      onNotification?.({
+        type: 'success',
+        title: 'Meta Transaction Signed',
+        description: 'The meta transaction has been successfully signed.'
+      });
+
+      // Close dialog and refresh data
+      onOpenChange(false);
+      console.log('🔄 Refreshing data after successful meta transaction signing...');
+      refreshData?.();
+    } catch (error) {
+      console.error('Failed to sign meta transaction:', error);
+      const userFriendlyMessage = handleContractError(error, 'Sign Meta Transaction');
+      onNotification?.({
+        type: 'error',
+        title: 'Signing Failed',
+        description: userFriendlyMessage
+      });
+    } finally {
+      setIsSigning(false);
     }
   };
 
@@ -384,22 +595,27 @@ export function PendingTransactionDialog({
                     <div className="flex gap-2 mt-4">
                       <Button 
                         onClick={() => handleApproveWrapper(Number(transaction.txId))}
-                        disabled={!permissions.canApprove || !permissions.isTimeDelayExpired}
+                        disabled={!permissions.canApprove || !permissions.isTimeDelayExpired || isApproving}
                         className="flex-1"
                         variant={permissions.canApprove ? "default" : "secondary"}
                       >
-                        {permissions.isTimeDelayExpired 
-                          ? (permissions.canApprove ? 'Approve Transaction' : 'No Permission to Approve')
-                          : 'Wait for Time Lock'
+                        {isApproving 
+                          ? 'Approving...' 
+                          : permissions.isTimeDelayExpired 
+                            ? (permissions.canApprove ? 'Approve Transaction' : 'No Permission to Approve')
+                            : 'Wait for Time Lock'
                         }
                       </Button>
                       <Button 
                         variant="outline" 
                         onClick={() => handleCancelWrapper(Number(transaction.txId))}
-                        disabled={!permissions.canCancel}
+                        disabled={!permissions.canCancel || isCancelling}
                         className="flex-1"
                       >
-                        {permissions.canCancel ? 'Cancel Transaction' : 'No Permission to Cancel'}
+                        {isCancelling 
+                          ? 'Cancelling...' 
+                          : permissions.canCancel ? 'Cancel Transaction' : 'No Permission to Cancel'
+                        }
                       </Button>
                     </div>
                   </div>
@@ -474,20 +690,26 @@ export function PendingTransactionDialog({
                     
                     <div className="flex gap-2 mt-4">
                       <Button 
-                        onClick={() => onMetaTxSign?.(transaction, 'approve')}
-                        disabled={!permissions.canSignMetaTx}
+                        onClick={() => handleMetaTxSignWrapper(transaction, 'approve')}
+                        disabled={!permissions.canSignMetaTx || isSigning}
                         className="flex-1"
                         variant={permissions.canSignMetaTx ? "default" : "secondary"}
                       >
-                        {permissions.canSignMetaTx ? 'Sign Meta Transaction' : 'No Permission to Sign'}
+                        {isSigning 
+                          ? 'Signing...' 
+                          : permissions.canSignMetaTx ? 'Sign Meta Transaction' : 'No Permission to Sign'
+                        }
                       </Button>
                       <Button 
                         variant="outline" 
                         onClick={() => handleBroadcastWrapper(transaction, 'approve')}
-                        disabled={!permissions.canBroadcast}
+                        disabled={!permissions.canBroadcast || isBroadcasting}
                         className="flex-1"
                       >
-                        {permissions.canBroadcast ? 'Broadcast Meta Transaction' : 'No Permission to Broadcast'}
+                        {isBroadcasting 
+                          ? 'Broadcasting...' 
+                          : permissions.canBroadcast ? 'Broadcast Meta Transaction' : 'No Permission to Broadcast'
+                        }
                       </Button>
                     </div>
                     
@@ -497,21 +719,21 @@ export function PendingTransactionDialog({
                         <div className="flex gap-2">
                           <Button 
                             variant="outline" 
-                            onClick={() => onMetaTxSign?.(transaction, 'cancel')}
-                            disabled={!permissions.canSignMetaTx}
+                            onClick={() => handleMetaTxSignWrapper(transaction, 'cancel')}
+                            disabled={!permissions.canSignMetaTx || isSigning}
                             className="flex-1"
                             size="sm"
                           >
-                            Sign Cancel Meta Tx
+                            {isSigning ? 'Signing...' : 'Sign Cancel Meta Tx'}
                           </Button>
                           <Button 
                             variant="outline" 
                             onClick={() => handleBroadcastWrapper(transaction, 'cancel')}
-                            disabled={!permissions.canBroadcast}
+                            disabled={!permissions.canBroadcast || isBroadcasting}
                             className="flex-1"
                             size="sm"
                           >
-                            Broadcast Cancel Meta Tx
+                            {isBroadcasting ? 'Broadcasting...' : 'Broadcast Cancel Meta Tx'}
                           </Button>
                         </div>
                       </div>

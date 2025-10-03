@@ -285,6 +285,7 @@ export function TransactionManager({
 
   // Handle refresh
   const handleRefresh = useCallback(() => {
+    console.log('🔄 Refreshing transaction data...')
     refreshTransactionData()
     refreshData?.()
     refreshSignedTransactions?.()
@@ -295,6 +296,9 @@ export function TransactionManager({
     if (onMetaTxSign) {
       try {
         await onMetaTxSign(tx, type)
+        // Refresh data after successful operation
+        console.log('🔄 Refreshing data after meta transaction signing...')
+        handleRefresh()
       } catch (error) {
         console.error('Error signing meta transaction:', error)
         onNotification?.({
@@ -304,13 +308,16 @@ export function TransactionManager({
         })
       }
     }
-  }, [onMetaTxSign, onNotification])
+  }, [onMetaTxSign, onNotification, handleRefresh])
 
   // Handle meta transaction broadcasting
   const handleBroadcastMetaTx = useCallback(async (tx: TxRecord, type: 'approve' | 'cancel') => {
     if (onBroadcastMetaTx) {
       try {
         await onBroadcastMetaTx(tx, type)
+        // Refresh data after successful operation
+        console.log('🔄 Refreshing data after meta transaction broadcasting...')
+        handleRefresh()
       } catch (error) {
         console.error('Error broadcasting meta transaction:', error)
         onNotification?.({
@@ -320,7 +327,7 @@ export function TransactionManager({
         })
       }
     }
-  }, [onBroadcastMetaTx, onNotification])
+  }, [onBroadcastMetaTx, onNotification, handleRefresh])
 
   return (
     <motion.div variants={container} initial="hidden" animate="show">
