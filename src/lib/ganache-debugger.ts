@@ -31,23 +31,17 @@ export interface DetailedErrorInfo {
 
 export class GanacheDebugger {
   private ganacheClient: PublicClient
-  private _ganacheWallet?: WalletClient
+  // private _ganacheWallet?: WalletClient // Removed unused variable
   private isGanacheMode: boolean
 
   constructor(
     publicClient: PublicClient,
-    walletClient?: WalletClient,
+    _walletClient?: WalletClient,
     ganacheRpcUrl: string = 'http://localhost:8545'
   ) {
     this.isGanacheMode = ganacheRpcUrl.includes('localhost:8545') || ganacheRpcUrl.includes('127.0.0.1:8545')
     
-    if (this.isGanacheMode) {
-      this.ganacheClient = publicClient
-      this._ganacheWallet = walletClient
-    } else {
-      this.ganacheClient = publicClient
-      this._ganacheWallet = walletClient
-    }
+    this.ganacheClient = publicClient
   }
 
   /**

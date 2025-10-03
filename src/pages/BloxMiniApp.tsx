@@ -340,7 +340,7 @@ const BloxMiniApp: React.FC = () => {
     if (!manager || !contractInfo) return;
     
     try {
-      const tx = contractInfo.operationHistory.find((op: TxRecord) => Number(op.txId) === txId);
+      const tx = contractInfo.operationHistory?.find((op: TxRecord) => Number(op.txId) === txId);
       if (!tx) throw new Error("Transaction not found");
 
       const operationType = tx.params.operationType as OperationType;
@@ -368,7 +368,7 @@ const BloxMiniApp: React.FC = () => {
     if (!manager || !contractInfo) return;
     
     try {
-      const tx = contractInfo.operationHistory.find((op: TxRecord) => Number(op.txId) === txId);
+      const tx = contractInfo.operationHistory?.find((op: TxRecord) => Number(op.txId) === txId);
       if (!tx) throw new Error("Transaction not found");
 
       const operationType = tx.params.operationType as OperationType;
@@ -772,7 +772,7 @@ const BloxMiniApp: React.FC = () => {
                 <motion.div variants={item} className="mt-6">
                   <OpHistory
                     contractAddress={address as `0x${string}`}
-                    operations={filterBloxOperations(contractInfo.operationHistory)}
+                    operations={filterBloxOperations(contractInfo.operationHistory || [])}
                     isLoading={loading}
                     contractInfo={{
                       ...contractInfo,

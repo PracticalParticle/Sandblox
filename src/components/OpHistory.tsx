@@ -716,12 +716,6 @@ export function OpHistory({
               onNotification={handleNotification}
               isLoading={false}
               connectedAddress={connectedAddress}
-              signedMetaTxStates={signedTransactions.reduce((acc, tx) => {
-                if (tx.txId === operationTx.txId.toString() && tx.metadata?.action) {
-                  acc[`${tx.txId}-${tx.metadata.action}`] = { type: tx.metadata.action as 'approve' | 'cancel' }
-                }
-                return acc
-              }, {} as Record<string, { type: 'approve' | 'cancel' }>)}
               showMetaTxOption={showMetaTxOption}
               refreshData={refreshData}
               mode="timelock"

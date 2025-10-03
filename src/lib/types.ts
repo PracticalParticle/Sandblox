@@ -38,6 +38,7 @@ export interface SecureContractInfo {
   broadcaster: string;
   owner: string;
   recoveryAddress: string;
+  operationHistory?: any[];
   [key: string]: any;
 }
 

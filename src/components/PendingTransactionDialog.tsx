@@ -8,6 +8,7 @@ import {
   DialogTitle 
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Clock, Info } from "lucide-react";
 import { TxInfoCard } from "./TxInfoCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -43,11 +44,9 @@ interface PendingTransactionDialogProps {
   onNotification?: (message: NotificationMessage) => void;
   isLoading?: boolean;
   connectedAddress?: Address;
-  signedMetaTxStates?: Record<string, { type: 'approve' | 'cancel' }>;
   showMetaTxOption?: boolean;
   refreshData?: () => void;
   mode?: 'timelock' | 'metatx';
-  hasSignedApproval?: boolean;
 }
 
 export function PendingTransactionDialog({
@@ -61,10 +60,9 @@ export function PendingTransactionDialog({
   connectedAddress,
   refreshData,
   mode = 'timelock',
-  signedMetaTxStates = {},
-  hasSignedApproval: propHasSignedApproval,
   onApprove,
   onCancel,
+  onMetaTxSign,
   onBroadcastMetaTx,
 }: PendingTransactionDialogProps): JSX.Element {
   // State to track the active tab
@@ -78,7 +76,6 @@ export function PendingTransactionDialog({
   const { getBloxOperations, getBloxComponents } = useBloxOperations();
 
   // State for blox-specific components and operations
-  const [BloxPendingTransactions, setBloxPendingTransactions] = useState<React.ComponentType<any> | null>(null);
   const [bloxOperations, setBloxOperations] = useState<any>(null);
   const [, setIsLoadingComponents] = useState(true);
 
@@ -103,13 +100,7 @@ export function PendingTransactionDialog({
           ]);
 
           if (components) {
-            // Access the PendingTransactions component from the loaded module
-            const PendingTransactionsComponent = components.PendingTransactions || components.default;
-            if (PendingTransactionsComponent) {
-              setBloxPendingTransactions(() => PendingTransactionsComponent);
-            } else {
-              console.error('PendingTransactions component not found in loaded module');
-            }
+            console.log('Blox components loaded successfully');
           }
           
           if (operations) {
@@ -277,9 +268,8 @@ export function PendingTransactionDialog({
     );
   }
 
-  // Check if the transaction is already signed
-  const hasSignedApproval = propHasSignedApproval || 
-    signedMetaTxStates[`${transaction.txId}-approve`]?.type === 'approve';
+  // Check if the transaction is pending (from SDK data)
+  const isPending = transaction.status === 1; // TxStatus.PENDING
 
   // Get formatted broadcaster address
   const formattedBroadcasterAddress = contractInfo.broadcaster ? formatAddress(contractInfo.broadcaster) : 'Unknown';
@@ -295,31 +285,31 @@ export function PendingTransactionDialog({
 
   // Determine alert message and guidance based on roles and time delay
   const renderAlert = () => {
-    if (!hasSignedApproval) return null;
+    if (!isPending) return null;
     
     let alertMessage = "";
     
     if (isTimeDelayExpired) {
       if (isOwner) {
-        alertMessage = `This transaction has been signed and the time delay has expired. You can now approve this transaction directly, or the broadcaster (${formattedBroadcasterAddress}) can broadcast it.`;
+        alertMessage = `This transaction is pending and the time delay has expired. You can now approve this transaction directly, or the broadcaster (${formattedBroadcasterAddress}) can broadcast it.`;
       } else if (isBroadcaster) {
-        alertMessage = `This transaction has been signed and the time delay has expired. As the broadcaster, you can now broadcast this transaction.`;
+        alertMessage = `This transaction is pending and the time delay has expired. As the broadcaster, you can now broadcast this transaction.`;
       } else {
-        alertMessage = `This transaction has been signed and the time delay has expired. The owner can approve it directly, or the broadcaster (${formattedBroadcasterAddress}) can broadcast it.`;
+        alertMessage = `This transaction is pending and the time delay has expired. The owner can approve it directly, or the broadcaster (${formattedBroadcasterAddress}) can broadcast it.`;
       }
     } else {
       if (isBroadcaster) {
-        alertMessage = `This transaction has been signed. As the broadcaster, you can broadcast it now, or wait until the time delay expires.`;
+        alertMessage = `This transaction is pending. As the broadcaster, you can broadcast it now, or wait until the time delay expires.`;
       } else if (isOwner) {
-        alertMessage = `This transaction has been signed. Please wait until the time delay expires to approve it directly, or connect with the broadcaster wallet (${formattedBroadcasterAddress}) to broadcast it sooner.`;
+        alertMessage = `This transaction is pending. Please wait until the time delay expires to approve it directly, or connect with the broadcaster wallet (${formattedBroadcasterAddress}) to broadcast it sooner.`;
       } else {
-        alertMessage = `This transaction has been signed. Please connect with the broadcaster wallet (${formattedBroadcasterAddress}) to broadcast it, or wait until the time delay expires for direct approval.`;
+        alertMessage = `This transaction is pending. Please connect with the broadcaster wallet (${formattedBroadcasterAddress}) to broadcast it, or wait until the time delay expires for direct approval.`;
       }
     }
     
     return (
-      <Alert className="bg-purple-50 border-purple-200 text-purple-900 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300 mb-2">
-        <Info className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+      <Alert className="bg-blue-50 border-blue-200 text-blue-900 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300 mb-2">
+        <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
         <AlertDescription className="text-sm ml-2">
           {alertMessage}
         </AlertDescription>
@@ -372,48 +362,92 @@ export function PendingTransactionDialog({
               </TabsList>
 
               <TabsContent value="timelock" className="mt-4">
-                {BloxPendingTransactions ? (
-                  <BloxPendingTransactions
-                    transactions={[transaction]}
-                    isLoadingTx={false}
-                    onRefresh={handleRefresh}
-                    onApprove={handleApproveWrapper}
-                    onCancel={handleCancelWrapper}
-                    isLoading={false}
-                    contractAddress={contractInfo.contractAddress}
-                    mode="timelock"
-                    onNotification={onNotification}
-                    connectedAddress={connectedAddress}
-                    timeLockPeriodInMinutes={contractInfo.timeLockPeriodInMinutes}
-                  />
-                ) : (
-                  <div className="text-center py-4 text-muted-foreground">
-                    Loading transaction components...
+                <div className="space-y-4">
+                  <div className="p-4 border rounded-lg">
+                    <h3 className="font-semibold mb-2">Time Lock Operations</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      This transaction is pending and will be available for approval after the time lock period expires.
+                    </p>
+                    
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>Release Time:</span>
+                        <span>{new Date(Number(transaction.releaseTime) * 1000).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Time Lock Period:</span>
+                        <span>{contractInfo.timeLockPeriodInMinutes} minutes</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Status:</span>
+                        <span className="text-yellow-600">Pending</span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2 mt-4">
+                      <Button 
+                        onClick={() => handleApproveWrapper(Number(transaction.txId))}
+                        disabled={!isTimeDelayExpired}
+                        className="flex-1"
+                      >
+                        {isTimeDelayExpired ? 'Approve Transaction' : 'Wait for Time Lock'}
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => handleCancelWrapper(Number(transaction.txId))}
+                        className="flex-1"
+                      >
+                        Cancel Transaction
+                      </Button>
+                    </div>
                   </div>
-                )}
+                </div>
               </TabsContent>
 
               <TabsContent value="metatx" className="mt-4">
-                {BloxPendingTransactions ? (
-                  <BloxPendingTransactions
-                    transactions={[transaction]}
-                    isLoadingTx={false}
-                    onRefresh={handleRefresh}
-                    onMetaTxSign={bloxOperations?.handleMetaTxSign}
-                    onBroadcastMetaTx={handleBroadcastWrapper}
-                    signedMetaTxStates={signedMetaTxStates}
-                    isLoading={false}
-                    contractAddress={contractInfo.contractAddress}
-                    mode="metatx"
-                    onNotification={onNotification}
-                    connectedAddress={connectedAddress}
-                    timeLockPeriodInMinutes={contractInfo.timeLockPeriodInMinutes}
-                  />
-                ) : (
-                  <div className="text-center py-4 text-muted-foreground">
-                    Loading transaction components...
+                <div className="space-y-4">
+                  <div className="p-4 border rounded-lg">
+                    <h3 className="font-semibold mb-2">Meta Transaction Operations</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Meta transactions allow gasless execution. The broadcaster can execute this transaction on behalf of the requester.
+                    </p>
+                    
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>Requester:</span>
+                        <span className="font-mono text-xs">{transaction.params.requester}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Target:</span>
+                        <span className="font-mono text-xs">{transaction.params.target}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Value:</span>
+                        <span>{transaction.params.value.toString()} ETH</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Gas Limit:</span>
+                        <span>{transaction.params.gasLimit.toString()}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2 mt-4">
+                      <Button 
+                        onClick={() => onMetaTxSign?.(transaction, 'approve')}
+                        className="flex-1"
+                      >
+                        Sign Meta Transaction
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => handleBroadcastWrapper(transaction, 'approve')}
+                        className="flex-1"
+                      >
+                        Broadcast Meta Transaction
+                      </Button>
+                    </div>
                   </div>
-                )}
+                </div>
               </TabsContent>
             </Tabs>
           </Card>

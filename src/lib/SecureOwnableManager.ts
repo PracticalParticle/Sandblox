@@ -202,6 +202,43 @@ export class SecureOwnableManager {
         console.log('No pending transactions found or wallet lacks permission');
       }
 
+      // Try to load operation history
+      let operationHistory: any[] = [];
+      try {
+        console.log('Loading operation history...');
+        
+        // First, try to get transaction history from the contract
+        try {
+          const transactionHistory = await this.contract.getTransactionHistory(BigInt(1), BigInt(100));
+          console.log('Successfully loaded transaction history:', transactionHistory.length, 'transactions');
+          operationHistory = transactionHistory || [];
+        } catch (historyError: any) {
+          console.log('Failed to load transaction history, trying alternative approach:', historyError.message);
+          
+          // If getTransactionHistory fails, try to get individual transaction details for pending transactions
+          if (pendingTxIds && pendingTxIds.length > 0) {
+            console.log('Fetching details for pending transactions...');
+            const pendingTxDetails = [];
+            
+            for (const txId of pendingTxIds) {
+              try {
+                const txDetail = await this.contract.getTransaction(txId);
+                console.log(`Loaded transaction ${txId}:`, txDetail);
+                pendingTxDetails.push(txDetail);
+              } catch (txError: any) {
+                console.warn(`Failed to load transaction ${txId}:`, txError.message);
+              }
+            }
+            
+            operationHistory = pendingTxDetails;
+            console.log('Loaded pending transaction details:', operationHistory.length, 'transactions');
+          }
+        }
+      } catch (error: any) {
+        console.warn('Error loading operation history:', error.message);
+        operationHistory = [];
+      }
+
       return {
         address: this.address,
         contractAddress: this.address,
@@ -213,7 +250,7 @@ export class SecureOwnableManager {
         recentEvents: validEvents.filter(e => e.status !== 'pending').slice(0, 5),
         chainId: Number(chainId),
         chainName: getChainName(Number(chainId), [this.chain]),
-        operationHistory: [] // TODO: Implement proper transaction history loading
+        operationHistory: operationHistory
       };
     } catch (error) {
       console.error('Contract loading error:', error);

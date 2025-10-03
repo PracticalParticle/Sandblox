@@ -36,7 +36,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { TIMELOCK_PERIODS } from '@/constants/contract'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
-import { OpHistory } from '@/components/OpHistory'
+import { TransactionManager } from '@/components/TransactionManager'
 import { useMetaTransactionManager } from '@/hooks/useMetaTransactionManager'
 import { SecureOwnable } from '../Guardian/sdk/typescript'
 import { TemporalActionDialog } from '@/components/security/TemporalActionDialog'
@@ -116,7 +116,6 @@ export function SecurityDetails() {
   const { 
     monitor: networkDebugger, 
     executeTransactionSimple,
-    executeWithMonitoring,
     logContractState
   } = useGlobalTransactionMonitor()
   const [loading, setLoading] = useState(true)
@@ -612,7 +611,7 @@ export function SecurityDetails() {
       );
 
       // Find the transaction in operation history
-      const tx = contractInfo.operationHistory.find((tx: TxRecord) => tx.txId === BigInt(txId));
+      const tx = contractInfo.operationHistory?.find((tx: TxRecord) => tx.txId === BigInt(txId));
       if (!tx) {
         throw new Error('Transaction not found');
       }
@@ -2393,12 +2392,11 @@ export function SecurityDetails() {
             />
           </motion.div>
 
-          {/* Operation History Section */}
+          {/* Transaction Manager Section */}
           <motion.div variants={item} className="mt-6">
-            <OpHistory
-              isLoading={loading}
+            <TransactionManager
+              contractAddress={contractAddress as `0x${string}`}
               contractInfo={contractInfo}
-              signedTransactions={filteredSignedTransactions as any}
               onApprove={handleApproveOperation}
               onCancel={(txId) => {
                 // Get the operation type from the transaction
@@ -2414,18 +2412,26 @@ export function SecurityDetails() {
                 // Default to broadcaster update cancellation for backward compatibility
                 return handleUpdateBroadcasterCancellation(txId);
               }}
+              onMetaTxSign={async (tx: TxRecord, type: 'approve' | 'cancel') => {
+                // Handle meta transaction signing
+                console.log('Meta transaction signing:', { tx, type });
+                // Add your meta transaction signing logic here
+              }}
+              onBroadcastMetaTx={async (tx: TxRecord, type: 'approve' | 'cancel') => {
+                // Handle meta transaction broadcasting
+                console.log('Meta transaction broadcasting:', { tx, type });
+                // Add your meta transaction broadcasting logic here
+              }}
+              showMetaTxOption={true}
               refreshData={loadContractInfo}
               refreshSignedTransactions={refreshSignedTransactions}
-              contractAddress={contractAddress as `0x${string}`}
-              operations={contractInfo?.operationHistory?.filter((op: TxRecord) => {
-                const operationName = getOperationName(op.params.operationType as Hex);
-                return [
-                  'OWNERSHIP_TRANSFER',
-                  'BROADCASTER_UPDATE',
-                  'RECOVERY_UPDATE',
-                  'TIMELOCK_UPDATE'
-                ].includes(operationName);
-              }) || []}
+              onNotification={(notification) => {
+                toast({
+                  title: notification.title,
+                  description: notification.description,
+                  variant: notification.type === 'error' ? 'destructive' : 'default'
+                });
+              }}
             />
           </motion.div>
         </motion.div>
