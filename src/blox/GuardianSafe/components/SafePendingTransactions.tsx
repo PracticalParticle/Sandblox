@@ -106,8 +106,23 @@ export function SafePendingTransactions({
   const getSafeUIUrl = (safeTxHash: string): string => {
     if (!safeAddress) return "#";
     
-    const baseUrl = chainId === 1 ? "https://app.safe.global" : "https://safe-transaction-mainnet.safe.global";
-    return `${baseUrl}/transactions/queue?safe=${safeAddress}&id=${safeTxHash}`;
+    // Use the correct Safe app URL format
+    const baseUrl = "https://app.safe.global";
+    
+    // Determine chain prefix based on chainId
+    let chainPrefix = "eth"; // default to mainnet
+    if (chainId === 11155111) {
+      chainPrefix = "sep"; // Sepolia testnet
+    } else if (chainId === 5) {
+      chainPrefix = "gor"; // Goerli testnet
+    } else if (chainId === 1) {
+      chainPrefix = "eth"; // Ethereum mainnet
+    }
+    
+    // Format the multisig ID with chain prefix and safe address
+    const multisigId = `multisig_${safeAddress}_${safeTxHash}`;
+    
+    return `${baseUrl}/transactions/tx?safe=${chainPrefix}:${safeAddress}&id=${multisigId}`;
   };
 
   // Copy to clipboard
@@ -570,85 +585,100 @@ export function SafePendingTransactions({
                   {/* Guardian Protocol Actions */}
                   {activeTab === "guardian" && (
                     <div className="border-t pt-4 space-y-4">
-                      <div className="flex items-center gap-2 mb-3">
+                      <div className="flex items-center gap-2 mb-4">
                         <Shield className="h-4 w-4 text-primary" />
                         <span className="text-sm font-medium text-muted-foreground">Guardian Protocol Actions</span>
                       </div>
                       
-                      {/* Temporal Workflow (Request/Approve with time delay) */}
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <Timer className="h-4 w-4 text-blue-500" />
-                          <span className="text-sm font-medium">Temporal Workflow</span>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleGuardianRequest(tx)}
-                            disabled={loadingStates.request || !contractAddress}
-                            className="w-full"
-                          >
-                            {loadingStates.request ? (
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            ) : (
-                              <Shield className="h-4 w-4 mr-2" />
-                            )}
-                            Request Transaction (Time-lock)
-                          </Button>
-                        </div>
-                        
-                        <p className="text-xs text-muted-foreground">
-                          Request this transaction through Guardian protocol with time-lock security
-                        </p>
-                      </div>
-
-                      {/* Meta Transaction (Direct signing for immediate broadcast) */}
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <Zap className="h-4 w-4 text-green-500" />
-                          <span className="text-sm font-medium">Meta Transaction</span>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleGuardianMetaTxSign(tx, 'request')}
-                            disabled={loadingStates.metaTx || !contractAddress || isMetaTxSigned(tx, 'request')}
-                            className="w-full"
-                          >
-                            {loadingStates.metaTx ? (
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            ) : isMetaTxSigned(tx, 'request') ? (
-                              <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />
-                            ) : (
-                              <Radio className="h-4 w-4 mr-2" />
-                            )}
-                            {isMetaTxSigned(tx, 'request') ? 'Signed' : 'Sign Request Meta-Tx'}
-                          </Button>
+                      {/* Two-column layout for Guardian options */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Temporal Workflow (Request/Approve with time delay) */}
+                        <div className="space-y-3 p-4 border rounded-lg">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <Timer className="h-4 w-4 text-blue-500" />
+                              <span className="text-sm font-medium">Temporal Workflow</span>
+                              <Badge variant="secondary" className="text-xs">Time-lock</Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground ml-6">
+                              Request with time-lock security. Includes waiting period for enhanced security.
+                            </p>
+                          </div>
                           
-                          {isMetaTxSigned(tx, 'request') && (
+                          <div className="space-y-2">
                             <Button
                               variant="default"
                               size="sm"
-                              onClick={() => handleGuardianMetaTxBroadcast(tx, 'request')}
-                              disabled={loadingStates.metaTx}
-                              className="w-full"
+                              onClick={() => handleGuardianRequest(tx)}
+                              disabled={loadingStates.request || !contractAddress}
+                              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                            >
+                              {loadingStates.request ? (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              ) : (
+                                <Shield className="h-4 w-4 mr-2" />
+                              )}
+                              Request Transaction
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Meta Transaction (Direct signing for immediate broadcast) */}
+                        <div className="space-y-3 p-4 border rounded-lg">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <Zap className="h-4 w-4 text-purple-500" />
+                              <span className="text-sm font-medium">Meta Transaction</span>
+                              <Badge variant="secondary" className="text-xs">Immediate</Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground ml-6">
+                              Sign and broadcast immediately. No waiting period for faster execution.
+                            </p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => handleGuardianMetaTxSign(tx, 'request')}
+                              disabled={loadingStates.metaTx || !contractAddress || isMetaTxSigned(tx, 'request')}
+                              className="w-full bg-purple-600 hover:bg-purple-700 text-white"
                             >
                               {loadingStates.metaTx ? (
                                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              ) : isMetaTxSigned(tx, 'request') ? (
+                                <CheckCircle2 className="h-4 w-4 mr-2 text-white" />
                               ) : (
                                 <Radio className="h-4 w-4 mr-2" />
                               )}
-                              Broadcast Meta-Transaction
+                              {isMetaTxSigned(tx, 'request') ? 'Signed' : 'Sign Meta-Tx'}
                             </Button>
-                          )}
+                            
+                            {isMetaTxSigned(tx, 'request') && (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => handleGuardianMetaTxBroadcast(tx, 'request')}
+                                disabled={loadingStates.metaTx}
+                                className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                              >
+                                {loadingStates.metaTx ? (
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                ) : (
+                                  <Radio className="h-4 w-4 mr-2" />
+                                )}
+                                Broadcast Meta-Transaction
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                        
+                      </div>
+                      
+                      {/* Additional info */}
+                      <div className="mt-4 p-3 bg-muted/50 rounded-lg">
                         <p className="text-xs text-muted-foreground">
-                          Sign and broadcast this transaction immediately through Guardian protocol
+                          <strong>Choose your approach:</strong> Use Temporal Workflow for enhanced security with time-lock, 
+                          or Meta Transaction for immediate execution. You can use both approaches independently.
                         </p>
                       </div>
                     </div>
