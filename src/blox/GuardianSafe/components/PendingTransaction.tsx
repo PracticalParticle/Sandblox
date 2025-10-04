@@ -3,9 +3,10 @@ import { Address, Hex } from "viem";
 import { formatEther } from "viem";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, X, CheckCircle2, Clock, XCircle, RefreshCw, Radio } from "lucide-react";
+import { Loader2, X, CheckCircle2, Clock, XCircle, RefreshCw, Radio, Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TxStatus } from "../../../Guardian/sdk/typescript/types/lib.index";
 import { SAFE_OPERATIONS } from "../hooks/useOperations";
 import { useOperationTypes } from "@/hooks/useOperationTypes";
@@ -52,6 +53,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
   formatSafeTxForDisplay
 }) => {
   const [isRefreshing, setIsRefreshing] = React.useState<boolean>(false);
+  const [activeMode, setActiveMode] = React.useState<'timelock' | 'metatx'>(mode);
   
   // Get operation types for mapping hex values to human-readable names
   const { getOperationName, loading: loadingOperationTypes } = useOperationTypes(contractAddress);
@@ -290,12 +292,19 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
             const now = Math.floor(Date.now() / 1000);
             const isReady = now >= Number(tx.releaseTime);
             
-            // Update progress calculation
+            // Update progress calculation with safety check
             const timeLockPeriodInSeconds = timeLockPeriodInMinutes * 60;
-            const startTime = Number(tx.releaseTime) - timeLockPeriodInSeconds;
-            const elapsedTime = now - startTime;
-            const progress = Math.min((elapsedTime / timeLockPeriodInSeconds) * 100, 100);
-            const isTimeLockComplete = progress >= 100;
+            
+            // Handle edge case where timelock period is 0
+            let progress = 100; // Default to complete if no timelock
+            let isTimeLockComplete = true;
+            
+            if (timeLockPeriodInSeconds > 0) {
+              const startTime = Number(tx.releaseTime) - timeLockPeriodInSeconds;
+              const elapsedTime = now - startTime;
+              progress = Math.min(Math.max((elapsedTime / timeLockPeriodInSeconds) * 100, 0), 100);
+              isTimeLockComplete = progress >= 100;
+            }
 
             // Key for meta transaction state
             const approveKey = `${tx.txId}-approve`;
@@ -351,52 +360,69 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                       </div>
                     </div>
 
-                    {mode === 'timelock' && (
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Time Lock Progress</span>
-                          <span>{Math.round(progress)}%</span>
+                    {/* Tabs for switching between temporal and meta-transaction modes */}
+                    <Tabs value={activeMode} onValueChange={(value) => setActiveMode(value as 'timelock' | 'metatx')} className="w-full">
+                      <TabsList className="grid w-full grid-cols-2 bg-background p-1 rounded-lg">
+                        <TabsTrigger value="timelock" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
+                          Temporal (Time Lock)
+                        </TabsTrigger>
+                        <TabsTrigger value="metatx" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
+                          Meta Transaction (Immediate)
+                        </TabsTrigger>
+                      </TabsList>
+                      
+                      <TabsContent value="timelock" className="space-y-4">
+                        {/* Time Lock Progress */}
+                        <div className="space-y-2">
+                          {/* Info about temporal approval timing */}
+                          <div className="rounded-md bg-amber-50 p-3 dark:bg-amber-950/30">
+                            <p className="text-sm text-amber-700 dark:text-amber-300">
+                              <Clock className="h-4 w-4 inline mr-2" />
+                              Temporal approval requires waiting for the time lock period to complete. 
+                              This provides security by ensuring transactions cannot be executed immediately.
+                            </p>
+                          </div>
+                          
+                          <div className="flex justify-between text-sm">
+                            <span>Time Lock Progress</span>
+                            <span>{Math.round(progress)}%</span>
+                          </div>
+                          <Progress 
+                            value={progress} 
+                            className={`h-2 ${isTimeLockComplete ? 'bg-muted' : ''}`}
+                            aria-label="Time lock progress"
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={Math.round(progress)}
+                          />
                         </div>
-                        <Progress 
-                          value={progress} 
-                          className={`h-2 ${isTimeLockComplete ? 'bg-muted' : ''}`}
-                          aria-label="Time lock progress"
-                          aria-valuemin={0}
-                          aria-valuemax={100}
-                          aria-valuenow={Math.round(progress)}
-                        />
-                      </div>
-                    )}
 
-                    <div className="flex space-x-2">
-                      {mode === 'timelock' ? (
-                        <>
+                        {/* Temporal Action Buttons */}
+                        <div className="flex space-x-2">
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <div className="flex-1">
-                                  <Button
-                                    onClick={() => handleApproveAction(Number(tx.txId))}
-                                    disabled={
-                                      !checkTimeLockApprove(tx) || 
-                                      !isReady || 
-                                      isLoading || 
-                                      tx.status !== TxStatus.PENDING || 
-                                      !isTimeLockComplete
+                                <Button
+                                  onClick={() => handleApproveAction(Number(tx.txId))}
+                                  disabled={
+                                    !checkTimeLockApprove(tx) || 
+                                    !isReady || 
+                                    isLoading || 
+                                    tx.status !== TxStatus.PENDING || 
+                                    !isTimeLockComplete
+                                  }
+                                  className={`w-full transition-all duration-200 flex items-center justify-center
+                                    ${isTimeLockComplete 
+                                      ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800'
+                                      : 'bg-slate-50 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
                                     }
-                                    className={`w-full transition-all duration-200 flex items-center justify-center
-                                      ${isTimeLockComplete 
-                                        ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800'
-                                        : 'bg-slate-50 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
-                                      }
-                                      disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 disabled:dark:bg-slate-900 disabled:dark:text-slate-500
-                                    `}
-                                    variant="outline"
-                                  >
-                                    {isTimeLockComplete && <CheckCircle2 className="h-4 w-4 mr-2" />}
-                                    <span>Approve</span>
-                                  </Button>
-                                </div>
+                                    disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 disabled:dark:bg-slate-900 disabled:dark:text-slate-500
+                                  `}
+                                  variant="outline"
+                                >
+                                  {isTimeLockComplete && <CheckCircle2 className="h-4 w-4 mr-2" />}
+                                  <span>Approve</span>
+                                </Button>
                               </TooltipTrigger>
                               <TooltipContent side="bottom">
                                 {!checkTimeLockApprove(tx)
@@ -413,23 +439,21 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <div className="flex-1">
-                                  <Button
-                                    onClick={() => handleCancelAction(Number(tx.txId))}
-                                    disabled={!checkTimeLockCancel(tx) || isLoading || tx.status !== TxStatus.PENDING }
-                                    variant="outline"
-                                    className="w-full transition-all duration-200 flex items-center justify-center
-                                      bg-rose-50 text-rose-700 hover:bg-rose-100 
-                                      dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
-                                      border border-rose-200 dark:border-rose-800
-                                      disabled:opacity-50 disabled:cursor-not-allowed 
-                                      disabled:bg-slate-50 disabled:text-slate-400 
-                                      disabled:dark:bg-slate-900 disabled:dark:text-slate-500"
-                                  >
-                                    <X className="h-4 w-4 mr-2" />
-                                    <span>Cancel</span>
-                                  </Button>
-                                </div>
+                                <Button
+                                  onClick={() => handleCancelAction(Number(tx.txId))}
+                                  disabled={!checkTimeLockCancel(tx) || isLoading || tx.status !== TxStatus.PENDING }
+                                  variant="outline"
+                                  className="w-full transition-all duration-200 flex items-center justify-center
+                                    bg-rose-50 text-rose-700 hover:bg-rose-100 
+                                    dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50
+                                    border border-rose-200 dark:border-rose-800
+                                    disabled:opacity-50 disabled:cursor-not-allowed 
+                                    disabled:bg-slate-50 disabled:text-slate-400 
+                                    disabled:dark:bg-slate-900 disabled:dark:text-slate-500"
+                                >
+                                  <X className="h-4 w-4 mr-2" />
+                                  <span>Cancel</span>
+                                </Button>
                               </TooltipTrigger>
                               <TooltipContent side="bottom">
                                 {!checkTimeLockCancel(tx)
@@ -438,9 +462,22 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
-                        </>
-                      ) : (
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent value="metatx" className="space-y-4">
+                        {/* Meta Transaction Action Buttons */}
                         <div className="w-full space-y-2">
+                          {/* Info about meta-transaction timing */}
+                          <div className="rounded-md bg-blue-50 p-3 dark:bg-blue-950/30">
+                            <p className="text-sm text-blue-700 dark:text-blue-300">
+                              <Info className="h-4 w-4 inline mr-2" />
+                              Meta-transactions can be signed immediately after the request phase, 
+                              regardless of the time lock period. The time delay only applies to 
+                              temporal (timelock) approvals.
+                            </p>
+                          </div>
+                          
                           <div className="flex space-x-2">
                             <TooltipProvider>
                               <Tooltip>
@@ -460,7 +497,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                         border border-emerald-200 dark:border-emerald-800
                                         disabled:opacity-50 disabled:cursor-not-allowed 
                                         disabled:bg-slate-50 disabled:text-slate-400 
-                                        disabled:dark:bg-slate-900 disabled:dark:text-slate-500
+                                        disabled:bg-slate-900 disabled:text-slate-500
                                       `}
                                       variant="outline"
                                     >
@@ -483,7 +520,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                     ? "Only the owner can sign approval meta-transactions"
                                     : hasSignedApproval
                                       ? "Transaction is already signed"
-                                      : "Sign approval meta-transaction"}
+                                      : "Sign approval meta-transaction (available immediately)"}
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
@@ -506,7 +543,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                         }
                                         disabled:opacity-50 disabled:cursor-not-allowed 
                                         disabled:bg-slate-50 disabled:text-slate-400 
-                                        disabled:dark:bg-slate-900 disabled:dark:text-slate-500
+                                        disabled:bg-slate-900 disabled:text-slate-500
                                       `}
                                       variant="outline"
                                     >
@@ -526,8 +563,8 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                             </TooltipProvider>
                           </div>
                         </div>
-                      )}
-                    </div>
+                      </TabsContent>
+                    </Tabs>
                   </div>
                 </CardContent>
               </Card>

@@ -21,6 +21,7 @@ const envSchema = z.object({
   VITE_SEPOLIA_CHAIN_ID: z.number().optional(),
   VITE_SEPOLIA_NAME: z.string().optional(),
   VITE_SEPOLIA_EXPLORER_URL: z.string().url().optional(),
+  VITE_SAFE_API_KEY: z.string().optional(),
 })
 
 // Type inference
@@ -52,6 +53,7 @@ function parseEnvVariables(): EnvConfig {
     VITE_SEPOLIA_CHAIN_ID: import.meta.env.VITE_SEPOLIA_CHAIN_ID ? Number(import.meta.env.VITE_SEPOLIA_CHAIN_ID) : undefined,
     VITE_SEPOLIA_NAME: import.meta.env.VITE_SEPOLIA_NAME || undefined,
     VITE_SEPOLIA_EXPLORER_URL: import.meta.env.VITE_SEPOLIA_EXPLORER_URL || undefined,
+    VITE_SAFE_API_KEY: import.meta.env.VITE_SAFE_API_KEY || undefined,
 
   }
 

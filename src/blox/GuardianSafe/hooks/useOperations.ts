@@ -9,6 +9,7 @@ import { NotificationMessage, SafeTxRecord, EnhancedSafeTx } from '../lib/types'
 import { GuardianSafeService } from '../lib/services';
 import GuardianSafe, { SafeTx } from '../GuardianSafe';
 
+
 // Valid operation types for GuardianSafe
 export const SAFE_OPERATIONS = {
   EXEC_SAFE_TX: "EXEC_SAFE_TX"
@@ -38,9 +39,11 @@ interface UseOperationsReturn {
   handleApproveTransaction: (txId: number) => Promise<void>;
   handleCancelTransaction: (txId: number) => Promise<void>;
   
+
+  
   // Meta Transaction Actions
   handleMetaTxSign: (tx: SafeTxRecord, type: 'approve' | 'cancel') => Promise<void>;
-  handleSinglePhaseMetaTxSign: (safeTx: SafeTx) => Promise<void>;
+  handleSinglePhaseMetaTxSign: (safeTx: SafeTx, customId?: string) => Promise<void>;
   handleBroadcastMetaTx: (tx: SafeTxRecord, type: 'approve' | 'cancel') => Promise<void>;
   handleBroadcastSinglePhaseMetaTx: (txId: string) => Promise<void>;
   signedMetaTxStates: Record<string, { type: 'approve' | 'cancel' | 'singlePhase' }>;
@@ -96,6 +99,7 @@ export function useOperations({
   const [isLoadingOperations, setIsLoadingOperations] = useState(false);
   const [isDelegatedCallEnabled, setIsDelegatedCallEnabled] = useState(false);
   const [signedMetaTxStates, setSignedMetaTxStates] = useState<Record<string, { type: 'approve' | 'cancel' | 'singlePhase' }>>({});
+
   const [loadingStates, setLoadingStates] = useState<{
     request: boolean;
     approval: Record<number, boolean>;
@@ -438,7 +442,7 @@ export function useOperations({
   }, [safeService, address, contractAddress, storeTransaction, onSuccess, onError]);
 
   // Handle meta transaction signing for new transactions (single-phase)
-  const handleSinglePhaseMetaTxSign = useCallback(async (safeTx: SafeTx) => {
+  const handleSinglePhaseMetaTxSign = useCallback(async (safeTx: SafeTx, customId?: string) => {
     try {
       if (!safeService || !address) {
         throw new Error("Services not initialized or wallet not connected");
@@ -455,7 +459,8 @@ export function useOperations({
       const signedTxString = await safeService.generateSignedNewTransactionMetaTx(safeTx, { from: address });
       
       // Generate a temporary ID for the transaction
-      const tempId = `temp_${Date.now()}`;
+      // For Safe pending transactions, we can use a custom ID, otherwise use timestamp
+      const tempId = customId || `temp_${Date.now()}`;
 
       // Store the signed transaction
       storeTransaction(
@@ -648,11 +653,15 @@ export function useOperations({
     setOperationTypeFilter(filter === null ? "" : filter);
   }, [setOperationTypeFilter]);
 
+
+
   return {
     // Transaction actions
     handleRequestTransaction,
     handleApproveTransaction,
     handleCancelTransaction,
+    
+
     
     // Meta transaction actions
     handleMetaTxSign,
