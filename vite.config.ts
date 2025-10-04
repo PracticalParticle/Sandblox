@@ -4,15 +4,48 @@ import react from '@vitejs/plugin-react-swc';
 import path from 'path';
 import fs from 'fs';
 
-// Plugin to replace CSP placeholder
-function cspPlugin(isDev: boolean): Plugin {
+// Plugin to replace CSP placeholder and inject blockchain endpoint
+function cspPlugin(isDev: boolean, ganacheEndpoint: string): Plugin {
   return {
     name: 'vite-plugin-csp',
     transformIndexHtml(html) {
-      return html.replace(
+      let updatedHtml = html.replace(
         '%VITE_CSP_SCRIPT_SRC%',
         isDev ? "'unsafe-eval'" : ''
       );
+      
+      // Replace blockchain endpoint placeholders in CSP
+      if (ganacheEndpoint) {
+        const ganacheDomain = ganacheEndpoint.split('.').slice(1).join('.');
+        updatedHtml = updatedHtml.replace(
+          /%GANACHE_ENDPOINT%/g,
+          ganacheEndpoint
+        );
+        updatedHtml = updatedHtml.replace(
+          /%GANACHE_DOMAIN%/g,
+          ganacheDomain
+        );
+      } else {
+        // Remove placeholder lines if no endpoint is configured
+        updatedHtml = updatedHtml.replace(
+          /\s*https:\/\/%GANACHE_ENDPOINT%\s*\n?/g,
+          ''
+        );
+        updatedHtml = updatedHtml.replace(
+          /\s*wss:\/\/%GANACHE_ENDPOINT%\s*\n?/g,
+          ''
+        );
+        updatedHtml = updatedHtml.replace(
+          /\s*https:\/\/\*\.%GANACHE_DOMAIN%\s*\n?/g,
+          ''
+        );
+        updatedHtml = updatedHtml.replace(
+          /\s*wss:\/\/\*\.%GANACHE_DOMAIN%\s*\n?/g,
+          ''
+        );
+      }
+      
+      return updatedHtml;
     },
   };
 }
@@ -54,15 +87,31 @@ function markdownPlugin(): Plugin {
 export default defineConfig(({ mode }) => {
   const isDev = mode === 'development';
   
-  // Define your Ganache endpoint
-  const GANACHE_ENDPOINT = 'remote-ganache-1.tailb0865.ts.net';
-  const GANACHE_DOMAIN = GANACHE_ENDPOINT.split('.').slice(1).join('.');
+  // Load environment variables
+  const env = loadEnv(mode, process.cwd(), '');
+  
+  // Define your Ganache endpoint from environment variable
+  const DEVNET_RPC_URL = env.VITE_DEVNET_RPC_URL;
+  let GANACHE_ENDPOINT = '';
+  let GANACHE_DOMAIN = '';
+  
+  if (DEVNET_RPC_URL) {
+    try {
+      const url = new URL(DEVNET_RPC_URL);
+      GANACHE_ENDPOINT = url.hostname;
+      GANACHE_DOMAIN = GANACHE_ENDPOINT.split('.').slice(1).join('.');
+    } catch (error) {
+      console.warn('Invalid VITE_DEVNET_RPC_URL format:', DEVNET_RPC_URL);
+    }
+  }
   
   const baseCSP = {
     'default-src': [
       "'self'",
-      `https://${GANACHE_ENDPOINT}`,
-      `https://*.${GANACHE_DOMAIN}`,
+      ...(GANACHE_ENDPOINT ? [
+        `https://${GANACHE_ENDPOINT}`,
+        `https://*.${GANACHE_DOMAIN}`
+      ] : []),
       'https://*.drpc.org',  // Add DRPC
       'https://ethereum-sepolia-rpc.publicnode.com',
       'https://sepolia.era.zksync.dev',
@@ -77,10 +126,12 @@ export default defineConfig(({ mode }) => {
       'https://sepolia.era.zksync.dev',
       'https://sepolia-rollup.arbitrum.io/rpc',
       // Ganache specific endpoints with full coverage
-      `https://${GANACHE_ENDPOINT}`,
-      `wss://${GANACHE_ENDPOINT}`,
-      `https://*.${GANACHE_DOMAIN}`,
-      `wss://*.${GANACHE_DOMAIN}`,
+      ...(GANACHE_ENDPOINT ? [
+        `https://${GANACHE_ENDPOINT}`,
+        `wss://${GANACHE_ENDPOINT}`,
+        `https://*.${GANACHE_DOMAIN}`,
+        `wss://*.${GANACHE_DOMAIN}`
+      ] : []),
       // Development allowances
       ...(isDev ? [
         "*",  // Allow all connections in development
@@ -132,7 +183,7 @@ export default defineConfig(({ mode }) => {
     base: '/',
     plugins: [
       react(),
-      cspPlugin(isDev),
+      cspPlugin(isDev, GANACHE_ENDPOINT),
       markdownPlugin()
     ],
     resolve: {
@@ -205,7 +256,7 @@ export default defineConfig(({ mode }) => {
           rewrite: (path) => path.replace(/^\/local-node/, '')
         },
         '/remote-ganache': {
-          target: `https://${GANACHE_ENDPOINT}`,
+          target: DEVNET_RPC_URL,
           changeOrigin: true,
           secure: true,
           ws: true
