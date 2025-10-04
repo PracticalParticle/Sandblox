@@ -225,7 +225,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
     return (
       <div className="space-y-4">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-medium">Pending Transactions</h3>
+          <h3 className="text-sm font-medium text-muted-foreground">PENDING TRANSACTIONS</h3>
         </div>
         <Card>
           <CardContent className="pt-6 flex justify-center">
@@ -242,7 +242,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
     return (
       <div className="space-y-4">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-medium">Pending Transactions</h3>
+          <h3 className="text-sm font-medium text-muted-foreground">PENDING TRANSACTIONS</h3>
           <Button 
             variant="outline" 
             size="sm" 
@@ -265,8 +265,8 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium">
-          Pending Transactions ({transactions.length})
+        <h3 className="text-sm font-medium text-muted-foreground">
+          PENDING TRANSACTIONS ({transactions.length})
         </h3>
         <Button 
           variant="outline" 

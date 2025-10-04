@@ -7,11 +7,12 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import GuardianSafe from "./GuardianSafe";
 import { useChain } from "@/hooks/useChain";
 import { atom, useAtom } from "jotai";
-import { AlertCircle, Loader2, Shield, Info, Settings2, Radio } from "lucide-react";
+import { AlertCircle, Loader2, Shield, Info, Settings2, Copy, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
 import { ContractInfo as BaseContractInfo } from "@/lib/verification/index";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -167,7 +168,115 @@ function MetaTxSettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   );
 }
 
-
+// Paginated Owners Dialog Component
+function AllOwnersDialog({ 
+  open, 
+  onOpenChange, 
+  owners, 
+  connectedAddress 
+}: { 
+  open: boolean; 
+  onOpenChange: (open: boolean) => void; 
+  owners: Address[];
+  connectedAddress: Address | undefined;
+}) {
+  const [currentPage, setCurrentPage] = useState(0);
+  const ownersPerPage = 10;
+  const totalPages = Math.ceil(owners.length / ownersPerPage);
+  
+  const startIndex = currentPage * ownersPerPage;
+  const endIndex = startIndex + ownersPerPage;
+  const currentOwners = owners.slice(startIndex, endIndex);
+  
+  // Reset page when dialog opens
+  useEffect(() => {
+    if (open) {
+      setCurrentPage(0);
+    }
+  }, [open]);
+  
+  const handlePrevious = () => {
+    setCurrentPage(prev => Math.max(0, prev - 1));
+  };
+  
+  const handleNext = () => {
+    setCurrentPage(prev => Math.min(totalPages - 1, prev + 1));
+  };
+  
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px] max-h-[80vh]">
+        <DialogHeader>
+          <DialogTitle>All Safe Owners</DialogTitle>
+          <DialogDescription>
+            Complete list of Safe owners ({owners.length} total)
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-4 max-h-[400px] overflow-y-auto">
+          {currentOwners.map((owner: Address, index: number) => (
+            <div key={owner} className="flex items-center justify-between p-3 border rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-medium">
+                  {startIndex + index + 1}
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium">Owner {startIndex + index + 1}</span>
+                  <span className="font-mono text-xs text-muted-foreground" title={owner}>
+                    {owner}
+                  </span>
+                </div>
+                {connectedAddress && owner.toLowerCase() === connectedAddress.toLowerCase() && (
+                  <div className="flex items-center gap-1 text-green-600 text-xs">
+                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                    <span>Connected</span>
+                  </div>
+                )}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => navigator.clipboard.writeText(owner)}
+                title="Copy address"
+              >
+                <Copy className="h-3 w-3" />
+              </Button>
+            </div>
+          ))}
+        </div>
+        
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between pt-4 border-t">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePrevious}
+              disabled={currentPage === 0}
+            >
+              Previous
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Page {currentPage + 1} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNext}
+              disabled={currentPage === totalPages - 1}
+            >
+              Next
+            </Button>
+          </div>
+        )}
+        
+        <DialogFooter>
+          <Button onClick={() => onOpenChange(false)}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 // Main Component Interface
 interface GuardianSafeUIProps {
@@ -201,12 +310,12 @@ function GuardianSafeUIContent({
   const [delegatedCallEnabled, setDelegatedCallEnabled] = useAtom(delegatedCallEnabledAtom);
   const [error, setError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showAllOwnersDialog, setShowAllOwnersDialog] = useState(false);
+  const [isCardExpanded, setIsCardExpanded] = useState(true);
   
   // Workflow manager for role validation
   const { 
-    isOwner,
-    isBroadcaster,
-    isRecovery
+    isOwner
   } = useWorkflowManager(contractAddress as Address);
   
   // Safe address ref for display
@@ -591,6 +700,7 @@ function GuardianSafeUIContent({
               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                 <Shield className="h-4 w-4 text-primary" />
               </div>
+              <div className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-semibold">Guardian Safe</h2>
                 <Tooltip>
@@ -601,6 +711,50 @@ function GuardianSafeUIContent({
                     <p>Secure transaction management with time-locked operations</p>
                   </TooltipContent>
                 </Tooltip>
+                </div>
+                {safeAddress && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Safe:</span>
+                    <div className="flex items-center gap-1 bg-muted px-2 py-1 rounded-md">
+                      <span className="font-mono text-sm" title={safeAddress}>
+                        {safeAddress.slice(0, 6)}...{safeAddress.slice(-4)}
+                      </span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={() => navigator.clipboard.writeText(safeAddress)}
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Copy Safe address</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={() => {
+                              const safeUrl = `https://app.safe.global/home?safe=${chain?.name?.toLowerCase()}:${safeAddress}`;
+                              window.open(safeUrl, '_blank');
+                            }}
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Open in Safe App</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -633,6 +787,17 @@ function GuardianSafeUIContent({
                   <p>Configure meta-transaction settings</p>
                 </TooltipContent>
               </Tooltip>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsCardExpanded(!isCardExpanded)}
+              >
+                {isCardExpanded ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </Button>
             </div>
           </CardHeader>
 
@@ -642,86 +807,18 @@ function GuardianSafeUIContent({
             onOpenChange={setSettingsOpen}
           />
 
-          <CardContent>
-            <div className="space-y-6">
-              {/* Safe address */}
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium text-muted-foreground">SAFE ADDRESS</h3>
-                <div className="rounded-md border p-3">
-                  <p className="font-mono text-sm truncate" title={safeAddress || "Not available"}>
-                    {safeAddress || "Not available"}
-                  </p>
-                </div>
-              </div>
-
-              {/* Delegated Call Toggle (Only for owner) */}
-              {isOwner && (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-medium text-muted-foreground">SETTINGS</h3>
-                  <div className="rounded-md border p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <Label htmlFor="delegated-call">Delegated Call</Label>
-                        <p className="text-sm text-muted-foreground">
-                          Enable delegate call operations
-                        </p>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          id="delegated-call"
-                          type="checkbox"
-                          checked={delegatedCallEnabled}
-                          onChange={(e) => handleToggleDelegatedCall(e.target.checked)}
-                          disabled={loadingState.delegatedCallToggle}
-                          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                        />
-                        <span className="text-sm">
-                          {delegatedCallEnabled ? 'Enabled' : 'Disabled'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-                             {/* Safe Pending Transactions */}
-               {safeAddress && (
-                 <div className="space-y-2">
-                   <SafePendingTransactions
-                     pendingTransactions={safePendingTxs}
-                     isLoading={isLoadingSafeTxs}
-                     error={safeTxsError}
-                     onRefresh={refreshSafeTxs}
-                     safeAddress={safeAddress}
-                     chainId={chain?.id}
+          {/* All Owners Dialog */}
+          <AllOwnersDialog
+            open={showAllOwnersDialog}
+            onOpenChange={setShowAllOwnersDialog}
+            owners={safeOwners}
                      connectedAddress={address}
-                     contractAddress={contractAddress}
-                     onNotification={addMessage}
-                   />
-                 </div>
-               )}
+          />
 
-              {/* Pending Transactions */}
-              <div className="space-y-2">
-                <PendingTransactions
-                  transactions={pendingTransactions}
-                  isLoadingTx={loadingState.transactions}
-                  onRefresh={refreshData}
-                  onApprove={handleApproveTransaction}
-                  onCancel={handleCancelTransaction}
-                  onMetaTxSign={handleMetaTxSign}
-                  onBroadcastMetaTx={handleBroadcastMetaTx}
-                  signedMetaTxStates={signedMetaTxStates}
-                  isLoading={operationsLoadingStates.approval[0] || operationsLoadingStates.cancellation[0]}
-                  contractAddress={contractAddress as Address}
-                  onNotification={handleNotification}
-                  connectedAddress={address}
-                  timeLockPeriodInMinutes={timeLockPeriodInMinutes}
-                  formatSafeTxForDisplay={formatSafeTxForDisplay}
-                />
-              </div>
-
-              {/* Safe Owners Information */}
+          {isCardExpanded && (
+            <CardContent>
+              <div className="space-y-6">
+                {/* Safe Owners Information - Moved to top */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-medium text-muted-foreground">SAFE OWNERS</h3>
@@ -742,7 +839,7 @@ function GuardianSafeUIContent({
                 <div className="rounded-md border p-4">
                   {safeOwners.length > 0 ? (
                     <div className="space-y-3">
-                                             {safeOwners.map((owner: Address, index: number) => (
+                      {safeOwners.slice(0, 3).map((owner: Address, index: number) => (
                          <div key={owner} className="flex items-center justify-between">
                            <div className="flex items-center gap-2">
                              <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-medium">
@@ -764,11 +861,23 @@ function GuardianSafeUIContent({
                                onClick={() => navigator.clipboard.writeText(owner)}
                                title="Copy address"
                              >
-                               📋
+                               <Copy className="h-3 w-3" />
                              </Button>
                            </div>
                          </div>
                        ))}
+                      {safeOwners.length > 3 && (
+                        <div className="pt-2 border-t">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowAllOwnersDialog(true)}
+                            className="w-full"
+                          >
+                            View All {safeOwners.length} Owners
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ) : isLoadingOwners ? (
                     <div className="text-center py-4">
@@ -796,11 +905,15 @@ function GuardianSafeUIContent({
                 </div>
               </div>
 
-              {/* Guard Management Section */}
+              {/* Security Settings Section - Consolidated */}
               {isOwner && (
                 <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-muted-foreground">SECURITY SETTINGS</h3>
+                  
+                  {/* Transaction Guard Section */}
+                <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium text-muted-foreground">TRANSACTION GUARD</h3>
+                      <h4 className="text-sm font-medium">Transaction Guard</h4>
                     {isLoadingGuard && (
                       <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                     )}
@@ -940,36 +1053,118 @@ function GuardianSafeUIContent({
                     </div>
                   </div>
                 </div>
-              )}
 
-              {/* Role Information */}
+
+                  {/* Delegated Call Section */}
               <div className="space-y-2">
-                <h3 className="text-sm font-medium text-muted-foreground">YOUR ROLES</h3>
+                    <h4 className="text-sm font-medium">Delegated Call Access</h4>
                 <div className="rounded-md border p-4">
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="flex flex-col items-center">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isOwner ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>
-                        <Shield className="h-5 w-5" />
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <Label htmlFor="delegated-call">Enable Delegated Calls</Label>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="h-4 w-4 text-muted-foreground" />
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs">
+                                  <p>Allows the GuardianSafe contract to execute delegate calls on behalf of the Safe</p>
+                                </TooltipContent>
+                              </Tooltip>
                       </div>
-                      <p className="mt-2 text-sm font-medium">Owner</p>
-                      <p className="text-xs text-muted-foreground">{isOwner ? 'Yes' : 'No'}</p>
+                             <p className="text-xs text-muted-foreground">
+                               {delegatedCallEnabled 
+                                 ? 'Enabled - GuardianSafe can execute delegate calls' 
+                                 : 'Disabled - GuardianSafe cannot execute delegate calls'
+                               }
+                             </p>
                     </div>
-                    <div className="flex flex-col items-center">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isBroadcaster ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-400'}`}>
-                        <Radio className="h-5 w-5" />
-                      </div>
-                      <p className="mt-2 text-sm font-medium">Broadcaster</p>
-                      <p className="text-xs text-muted-foreground">{isBroadcaster ? 'Yes' : 'No'}</p>
+                            <div className="flex items-center space-x-3">
+                              <Switch
+                                id="delegated-call"
+                                checked={delegatedCallEnabled}
+                                onCheckedChange={handleToggleDelegatedCall}
+                                disabled={loadingState.delegatedCallToggle}
+                                className="data-[state=checked]:bg-primary data-[state=unchecked]:bg-muted [&>span]:data-[state=checked]:bg-white [&>span]:data-[state=unchecked]:bg-white"
+                              />
+                              <span className={`text-sm font-medium ${delegatedCallEnabled ? 'text-green-600' : 'text-muted-foreground'}`}>
+                                {delegatedCallEnabled ? 'Enabled' : 'Disabled'}
+                              </span>
+                            </div>
                     </div>
-                    <div className="flex flex-col items-center">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isRecovery ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-400'}`}>
-                        <Shield className="h-5 w-5" />
+                        
+                        {/* Delegated Call Information */}
+                        <div className="pt-4 border-t">
+                          <p className="text-xs text-muted-foreground">
+                            <strong>Note:</strong> When delegated calls are enabled, the GuardianSafe contract can execute 
+                            delegate calls on behalf of the Safe. This enables advanced operations but grants significant 
+                            power and should only be enabled if you understand the risks and trust the GuardianSafe contract.
+                          </p>
                       </div>
-                      <p className="mt-2 text-sm font-medium">Recovery</p>
-                      <p className="text-xs text-muted-foreground">{isRecovery ? 'Yes' : 'No'}</p>
                     </div>
                   </div>
                 </div>
+              </div>
+              )}
+
+            </div>
+          </CardContent>
+          )}
+        </Card>
+
+        {/* Pending Transactions Card */}
+        <Card className="mt-6">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold">Pending Transactions</h3>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Safe transactions and Guardian transactions awaiting execution</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {/* Safe Pending Transactions */}
+              {safeAddress && (
+                <div className="space-y-2">
+                  <SafePendingTransactions
+                    pendingTransactions={safePendingTxs}
+                    isLoading={isLoadingSafeTxs}
+                    error={safeTxsError}
+                    onRefresh={refreshSafeTxs}
+                    safeAddress={safeAddress}
+                    chainId={chain?.id}
+                    connectedAddress={address}
+                    contractAddress={contractAddress}
+                    onNotification={addMessage}
+                  />
+                </div>
+              )}
+
+              {/* Guardian Pending Transactions */}
+              <div className="space-y-2">
+                <PendingTransactions
+                  transactions={pendingTransactions}
+                  isLoadingTx={loadingState.transactions}
+                  onRefresh={refreshData}
+                  onApprove={handleApproveTransaction}
+                  onCancel={handleCancelTransaction}
+                  onMetaTxSign={handleMetaTxSign}
+                  onBroadcastMetaTx={handleBroadcastMetaTx}
+                  signedMetaTxStates={signedMetaTxStates}
+                  isLoading={operationsLoadingStates.approval[0] || operationsLoadingStates.cancellation[0]}
+                  contractAddress={contractAddress as Address}
+                  onNotification={handleNotification}
+                  connectedAddress={address}
+                  timeLockPeriodInMinutes={timeLockPeriodInMinutes}
+                  formatSafeTxForDisplay={formatSafeTxForDisplay}
+                />
               </div>
             </div>
           </CardContent>
