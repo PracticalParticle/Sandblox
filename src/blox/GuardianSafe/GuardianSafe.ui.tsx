@@ -618,10 +618,25 @@ function GuardianSafeUIContent({
         <div className="space-y-2">
           <h3 className="font-medium text-sm text-muted-foreground">SAFE INFO</h3>
           <Card className="p-4">
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2">
                 <span className="text-sm text-muted-foreground">Safe Address:</span>
-                <span className="text-sm font-mono truncate max-w-[200px]">{safeAddress || 'Loading...'}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono break-all bg-muted px-2 py-1 rounded flex-1 min-w-0" title={safeAddress || 'Loading...'}>
+                    {safeAddress ? `${safeAddress.slice(0, 8)}...${safeAddress.slice(-6)}` : 'Loading...'}
+                  </span>
+                  {safeAddress && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 flex-shrink-0 touch-manipulation"
+                      onClick={() => navigator.clipboard.writeText(safeAddress)}
+                      title="Copy address"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Delegated Call:</span>
@@ -657,20 +672,38 @@ function GuardianSafeUIContent({
           <div className="space-y-2">
             <h3 className="font-medium text-sm text-muted-foreground">SAFE OWNERS</h3>
             <Card className="p-3">
-              <div className="space-y-2">
-                {safeOwners.map((owner: Address, index: number) => (
+              <div className="space-y-3">
+                {safeOwners.slice(0, 3).map((owner: Address, index: number) => (
                   <div key={owner} className="flex items-center justify-between">
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">Owner {index + 1}:</span>
                       {address && owner.toLowerCase() === address.toLowerCase() && (
                         <div className="w-1.5 h-1.5 rounded-full bg-green-500" title="Connected wallet"></div>
                       )}
                     </div>
-                    <span className="text-xs font-mono truncate max-w-[120px]" title={owner}>
-                      {owner.slice(0, 6)}...{owner.slice(-4)}
-                    </span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-mono break-all bg-muted px-2 py-1 rounded flex-1 min-w-0" title={owner}>
+                        {owner.slice(0, 6)}...{owner.slice(-4)}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 w-5 p-0 flex-shrink-0 touch-manipulation"
+                        onClick={() => navigator.clipboard.writeText(owner)}
+                        title="Copy address"
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
+                {safeOwners.length > 3 && (
+                  <div className="pt-2 border-t">
+                    <p className="text-xs text-muted-foreground text-center">
+                      +{safeOwners.length - 3} more owners
+                    </p>
+                  </div>
+                )}
               </div>
             </Card>
           </div>
@@ -693,6 +726,7 @@ function GuardianSafeUIContent({
         </Alert>
       )}
       
+      
       <div className={dashboardMode ? "p-0" : "container mx-auto p-4"}>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -703,6 +737,17 @@ function GuardianSafeUIContent({
               <div className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-semibold">Guardian Safe</h2>
+                {guardInfo?.guardAddress && guardInfo.guardAddress === contractAddress ? (
+                  <div className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-md text-xs font-medium">
+                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                    Active
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-700 rounded-md text-xs font-medium">
+                    <AlertCircle className="w-3 h-3" />
+                    Activation Required
+                  </div>
+                )}
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Info className="h-4 w-4 text-muted-foreground" />
@@ -715,8 +760,8 @@ function GuardianSafeUIContent({
                 {safeAddress && (
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">Safe:</span>
-                    <div className="flex items-center gap-1 bg-muted px-2 py-1 rounded-md">
-                      <span className="font-mono text-sm" title={safeAddress}>
+                    <div className="flex items-center gap-1 bg-muted px-2 py-1 rounded-md max-w-full min-w-0">
+                      <span className="font-mono text-sm truncate flex-1 min-w-0" title={safeAddress}>
                         {safeAddress.slice(0, 6)}...{safeAddress.slice(-4)}
                       </span>
                       <Tooltip>
@@ -724,7 +769,7 @@ function GuardianSafeUIContent({
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-6 w-6 p-0"
+                            className="h-6 w-6 p-0 flex-shrink-0 touch-manipulation"
                             onClick={() => navigator.clipboard.writeText(safeAddress)}
                           >
                             <Copy className="h-3 w-3" />
@@ -739,7 +784,7 @@ function GuardianSafeUIContent({
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-6 w-6 p-0"
+                            className="h-6 w-6 p-0 flex-shrink-0 touch-manipulation"
                             onClick={() => {
                               const safeUrl = `https://app.safe.global/home?safe=${chain?.name?.toLowerCase()}:${safeAddress}`;
                               window.open(safeUrl, '_blank');
@@ -850,14 +895,14 @@ function GuardianSafeUIContent({
                                <div className="w-2 h-2 rounded-full bg-green-500" title="Connected wallet"></div>
                              )}
                            </div>
-                           <div className="flex items-center gap-2">
-                             <span className="font-mono text-sm" title={owner}>
+                           <div className="flex items-center gap-2 min-w-0">
+                             <span className="font-mono text-sm truncate flex-1 min-w-0 max-w-[120px]" title={owner}>
                                {owner.slice(0, 6)}...{owner.slice(-4)}
                              </span>
                              <Button
                                variant="ghost"
                                size="sm"
-                               className="h-6 w-6 p-0"
+                               className="h-6 w-6 p-0 flex-shrink-0 touch-manipulation"
                                onClick={() => navigator.clipboard.writeText(owner)}
                                title="Copy address"
                              >
@@ -913,7 +958,6 @@ function GuardianSafeUIContent({
                   {/* Transaction Guard Section */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-medium">Transaction Guard</h4>
                     {isLoadingGuard && (
                       <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                     )}
@@ -928,12 +972,24 @@ function GuardianSafeUIContent({
                       </Tooltip>
                     )}
                   </div>
-                  <div className="rounded-md border p-4">
+                  <div className={`rounded-md border p-4 ${
+                    guardInfo && (!guardInfo.guardAddress || guardInfo.guardAddress === '0x0000000000000000000000000000000000000000' || guardInfo.guardAddress !== contractAddress) 
+                      ? 'border-orange-200 bg-orange-50/50' 
+                      : 'border-border'
+                  }`}>
                     <div className="space-y-4">
                       {/* Current Guard Status */}
                       <div className="flex items-center justify-between">
                         <div className="space-y-1">
-                          <p className="text-sm font-medium">Current Guard</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium">Guardian Protection</p>
+                            {guardInfo && (!guardInfo.guardAddress || guardInfo.guardAddress === '0x0000000000000000000000000000000000000000' || guardInfo.guardAddress !== contractAddress) && (
+                              <div className="flex items-center gap-1 px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs font-medium">
+                                <AlertCircle className="w-3 h-3" />
+                                Inactive
+                              </div>
+                            )}
+                          </div>
                           <p className="text-xs text-muted-foreground">
                             {guardInfo ? (
                               guardInfo.guardAddress && guardInfo.guardAddress !== '0x0000000000000000000000000000000000000000' ? (
@@ -1001,8 +1057,8 @@ function GuardianSafeUIContent({
                                   const safeTxHash = await setGuard(contractAddress);
                                   addMessage?.({
                                     type: 'success',
-                                    title: 'Guard Transaction Executed',
-                                    description: `Guard set successfully! Transaction Hash: ${safeTxHash}. The GuardianSafe contract (${contractAddress}) is now protecting the underlying Safe.`
+                                    title: 'Guardian Activated',
+                                    description: `Guardian protection activated! Transaction Hash: ${safeTxHash}. The GuardianSafe contract (${contractAddress}) is now protecting the underlying Safe.`
                                   });
                                   // Refresh guard info after a short delay to check if it was executed immediately
                                   setTimeout(async () => {
@@ -1016,14 +1072,14 @@ function GuardianSafeUIContent({
                                 } catch (error) {
                                   addMessage?.({
                                     type: 'error',
-                                    title: 'Failed to Propose Guard Transaction',
+                                    title: 'Failed to Activate Guardian',
                                     description: error instanceof Error ? error.message : 'Unknown error occurred'
                                   });
                                 }
                               }}
                               disabled={isLoadingGuard || !contractAddress || !isConnectedWalletSafeOwner}
                             >
-                              Set GuardianSafe as Guard
+                              Activate Guardian Protection
                             </Button>
                           )}
                         </div>
@@ -1033,10 +1089,10 @@ function GuardianSafeUIContent({
                        {guardInfo?.guardAddress && (
                          <div className="pt-4 border-t">
                            <p className="text-xs text-muted-foreground">
-                             <strong>Note:</strong> When GuardianSafe is set as a transaction guard, 
-                             all Safe transactions will be validated by the GuardianSafe contract 
-                             before execution. This provides an additional layer of security 
-                             and enables time-locked operations.
+                              <strong>Note:</strong> When GuardianSafe is activated as a transaction guard, 
+                              all Safe transactions will be validated by the GuardianSafe contract 
+                              before execution. This provides an additional layer of security 
+                              and enables time-locked operations.
                            </p>
                          </div>
                        )}
@@ -1045,7 +1101,7 @@ function GuardianSafeUIContent({
                        {!isConnectedWalletSafeOwner && (
                          <div className="pt-4 border-t">
                            <p className="text-xs text-muted-foreground">
-                             <strong>Permission Required:</strong> Only Safe owners can set or remove transaction guards. 
+                             <strong>Permission Required:</strong> Only Safe owners can activate or remove transaction guards. 
                              Please connect with a wallet that is an owner of this Safe.
                            </p>
                          </div>
@@ -1057,7 +1113,6 @@ function GuardianSafeUIContent({
 
                   {/* Delegated Call Section */}
               <div className="space-y-2">
-                    <h4 className="text-sm font-medium">Delegated Call Access</h4>
                 <div className="rounded-md border p-4">
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
