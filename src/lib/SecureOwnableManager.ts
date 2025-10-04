@@ -202,36 +202,6 @@ export class SecureOwnableManager {
         console.log('No pending transactions found or wallet lacks permission');
       }
 
-      // Load operation history from pending transactions only
-      let operationHistory: any[] = [];
-      try {
-        console.log('Loading operation history from pending transactions...');
-        
-        // Get individual transaction details for pending transactions
-        if (pendingTxIds && pendingTxIds.length > 0) {
-          console.log('Fetching details for pending transactions...');
-          const pendingTxDetails = [];
-          
-          for (const txId of pendingTxIds) {
-            try {
-              const txDetail = await this.contract.getTransaction(txId);
-              console.log(`Loaded transaction ${txId}:`, txDetail);
-              pendingTxDetails.push(txDetail);
-            } catch (txError: any) {
-              console.warn(`Failed to load transaction ${txId}:`, txError.message);
-            }
-          }
-          
-          operationHistory = pendingTxDetails;
-          console.log('Loaded pending transaction details:', operationHistory.length, 'transactions');
-        } else {
-          console.log('No pending transactions to load details for');
-        }
-      } catch (error: any) {
-        console.warn('Error loading operation history:', error.message);
-        operationHistory = [];
-      }
-
       return {
         address: this.address,
         contractAddress: this.address,
@@ -243,7 +213,7 @@ export class SecureOwnableManager {
         recentEvents: validEvents.filter(e => e.status !== 'pending').slice(0, 5),
         chainId: Number(chainId),
         chainName: getChainName(Number(chainId), [this.chain]),
-        operationHistory: operationHistory
+        operationHistory: [] // TODO: Implement proper transaction history loading
       };
     } catch (error) {
       console.error('Contract loading error:', error);

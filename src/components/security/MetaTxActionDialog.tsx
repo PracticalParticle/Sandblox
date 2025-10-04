@@ -9,11 +9,13 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Badge } from "@/components/ui/badge"
 import { formatAddress, convertToMinutes } from "@/lib/utils"
 import { TxInfoCard } from "../TxInfoCard"
-import { TxRecord } from '../../Guardian/sdk/typescript'
+import { TxRecord } from '../../Guardian/sdk/typescript/interfaces/lib.index'
 import { useState, useEffect, FormEvent } from "react"
 import { useWorkflowManager } from "@/hooks/useWorkflowManager"
 import { CoreOperationType, OperationPhase } from "../../types/OperationRegistry"
 import { Address } from "viem"
+import { extractErrorInfo } from '../../Guardian/sdk/typescript/utils/contract-errors'
+import { useToast } from "@/components/ui/use-toast"
 
 interface MetaTxActionDialogProps {
   isOpen: boolean
@@ -40,14 +42,13 @@ interface MetaTxActionDialogProps {
   onNewValueChange: (value: string) => void
   newValueLabel: string
   newValuePlaceholder?: string
-  validateNewValue?: (value: string) => { isValid: boolean; message?: string }
   isSigning?: boolean
   customInput?: React.ReactNode
   transactionRecord?: TxRecord
   operationName?: string
   refreshData?: () => void
   refreshSignedTransactions?: () => void
-  timeLockUnit?: 'days' | 'hours' | 'minutes'
+  timeLockUnit?: 'days' | 'hours' | 'minutes' | 'seconds'
 }
 
 export function MetaTxActionDialog({
@@ -67,7 +68,6 @@ export function MetaTxActionDialog({
   onNewValueChange,
   newValueLabel,
   newValuePlaceholder,
-  validateNewValue,
   isSigning: externalIsSigning = false,
   customInput,
   transactionRecord,
@@ -75,25 +75,43 @@ export function MetaTxActionDialog({
   refreshData,
   timeLockUnit = 'minutes'
 }: MetaTxActionDialogProps) {
-  // Use the WorkflowManager hook with enhanced role validation
+  // Use the Guardian SDK hook
   const {
     isLoading: workflowIsLoading,
     signSinglePhaseOperation,
     canExecutePhase,
     isOwner,
     isBroadcaster,
-    isRecovery
+    isRecovery,
+    secureOwnable
   } = useWorkflowManager(contractInfo.contractAddress as `0x${string}`)
+  
+  const { toast } = useToast()
 
   // Local state
   const [isSigning, setIsSigning] = useState(false)
+  const [validationState, setValidationState] = useState<{ isValid: boolean; message?: string }>({ isValid: true })
   
   // Reset state when dialog opens/closes
   useEffect(() => {
     if (!isOpen) {
       setIsSigning(false)
+      setValidationState({ isValid: true })
     }
   }, [isOpen])
+
+  // Validate input when it changes using SDK
+  useEffect(() => {
+    if (newValue && newValue.trim() && secureOwnable) {
+      validateWithSDK(newValue).then(result => {
+        setValidationState(result)
+      }).catch(() => {
+        setValidationState({ isValid: false, message: "Validation failed" })
+      })
+    } else {
+      setValidationState({ isValid: true })
+    }
+  }, [newValue, timeLockUnit, secureOwnable])
 
   // Map the actionType to a core operation type
   const getOperationType = () => {
@@ -135,10 +153,88 @@ export function MetaTxActionDialog({
   // Combine direct role check with canExecutePhase check for maximum reliability
   const isWalletValidForRequest = isWalletValidForRole()
 
-  // Validate the new value
-  const validationResult = validateNewValue ? validateNewValue(newValue) : { isValid: true }
+  // SDK-based validation using contract validations
+  const validateWithSDK = async (value: string): Promise<{ isValid: boolean; message?: string }> => {
+    if (!secureOwnable) {
+      return { isValid: false, message: "SDK not initialized" }
+    }
 
-  // Handle form submission
+    try {
+      const operationType = getOperationType()
+      
+      if (operationType === CoreOperationType.TIMELOCK_UPDATE) {
+        // Convert to minutes for SDK validation
+        const minutes = convertToMinutes(value, timeLockUnit)
+        
+        // Basic validation - must be positive
+        if (minutes <= 0) {
+          return { isValid: false, message: "Time lock period must be greater than 0" }
+        }
+        
+        // Use SDK to get current time lock period for comparison
+        const currentPeriod = await secureOwnable.getTimeLockPeriodSec()
+        const currentPeriodMinutes = Number(currentPeriod) / 60
+        
+        // Check if it's different from current period (with proper tolerance for different units)
+        const tolerance = timeLockUnit === 'seconds' ? 0.01 : 0.1 // Smaller tolerance for seconds
+        if (Math.abs(minutes - currentPeriodMinutes) < tolerance) {
+          return { isValid: false, message: "New time lock period must be different from current period" }
+        }
+        
+        // Let the SDK handle the actual validation through execution options
+        return { isValid: true }
+      } else if (operationType === CoreOperationType.RECOVERY_UPDATE) {
+        // Validate address format
+        if (!/^0x[a-fA-F0-9]{40}$/.test(value)) {
+          return { isValid: false, message: "Invalid Ethereum address format" }
+        }
+        
+        // Use SDK to get current recovery address for comparison
+        const currentRecovery = await secureOwnable.getRecovery()
+        if (value.toLowerCase() === currentRecovery.toLowerCase()) {
+          return { isValid: false, message: "New recovery address must be different from current address" }
+        }
+        
+        return { isValid: true }
+      } else if (operationType === CoreOperationType.BROADCASTER_UPDATE) {
+        // Validate address format
+        if (!/^0x[a-fA-F0-9]{40}$/.test(value)) {
+          return { isValid: false, message: "Invalid Ethereum address format" }
+        }
+        
+        // Use SDK to get current broadcaster address for comparison
+        const currentBroadcaster = await secureOwnable.getBroadcaster()
+        if (value.toLowerCase() === currentBroadcaster.toLowerCase()) {
+          return { isValid: false, message: "New broadcaster address must be different from current address" }
+        }
+        
+        return { isValid: true }
+      } else if (operationType === CoreOperationType.OWNERSHIP_TRANSFER) {
+        // Validate address format
+        if (!/^0x[a-fA-F0-9]{40}$/.test(value)) {
+          return { isValid: false, message: "Invalid Ethereum address format" }
+        }
+        
+        // Use SDK to get current owner address for comparison
+        const currentOwner = await secureOwnable.owner()
+        if (value.toLowerCase() === currentOwner.toLowerCase()) {
+          return { isValid: false, message: "New owner address must be different from current address" }
+        }
+        
+        return { isValid: true }
+      }
+      
+      return { isValid: true }
+    } catch (error) {
+      console.error("SDK validation error:", error)
+      return { isValid: false, message: "Validation failed" }
+    }
+  }
+
+  // Use SDK validation state
+  const validationResult = validationState
+
+  // Handle form submission with SDK error handling
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     
@@ -146,22 +242,53 @@ export function MetaTxActionDialog({
       setIsSigning(true)
       const operationType = getOperationType()
       
+      // Check validation state
+      if (!validationState.isValid) {
+        throw new Error(validationState.message || "Validation failed")
+      }
+      
+      
+      // Additional validation for empty inputs
+      if (!newValue || newValue.trim() === '') {
+        throw new Error("Please enter a value")
+      }
+      
       // Prepare parameters based on operation type
       let params: any = {}
       
       if (operationType === CoreOperationType.RECOVERY_UPDATE) {
         params = { newRecoveryAddress: newValue as Address }
       } else if (operationType === CoreOperationType.TIMELOCK_UPDATE) {
-        // For timelock updates, we need to convert the value to minutes first
+        // For timelock updates, convert to minutes for SDK (SDK will convert to seconds internally)
         const minutes = convertToMinutes(newValue, timeLockUnit)
-        params = { newTimeLockPeriodInMinutes: BigInt(minutes) }
+        
+        // Round to nearest integer to avoid decimal BigInt conversion errors
+        const roundedMinutes = Math.round(minutes)
+        
+        // Validate that the rounded minutes is greater than 0
+        if (roundedMinutes <= 0) {
+          throw new Error(`Time lock period too small. ${newValue} ${timeLockUnit} converts to ${minutes.toFixed(6)} minutes, which rounds to 0. Please use at least 1 minute or a larger value. For seconds, try at least 60 seconds (1 minute).`)
+        }
+        
+        params = { newTimeLockPeriodInMinutes: BigInt(roundedMinutes) }
+      } else if (operationType === CoreOperationType.BROADCASTER_UPDATE) {
+        params = { newBroadcaster: newValue as Address }
+      } else if (operationType === CoreOperationType.OWNERSHIP_TRANSFER) {
+        params = { newOwner: newValue as Address }
       } else {
         // For custom operations
         params = { newValue }
       }
       
-      // Sign the operation - WorkflowManager will handle storage
-      await signSinglePhaseOperation(operationType, params)
+      
+      // Sign the operation - Guardian SDK will handle storage
+      await signSinglePhaseOperation(operationType as CoreOperationType, params)
+      
+      // Show success toast
+      toast({
+        title: "Success",
+        description: "Operation signed successfully",
+      })
       
       // Close the dialog on success
       onOpenChange(false)
@@ -170,9 +297,29 @@ export function MetaTxActionDialog({
       if (refreshData) {
         refreshData()
       }
-    } catch (error) {
-      // Error handling is done in the hook
+    } catch (error: any) {
       console.error("Submit error:", error)
+      
+      // Use SDK error extraction for better error messages
+      let errorMessage = error.message || "Operation failed"
+      
+      if (error.message && error.message.includes('revert')) {
+        try {
+          const errorInfo = extractErrorInfo(error.message)
+          if (errorInfo.isKnownError && errorInfo.error) {
+            errorMessage = errorInfo.userMessage
+          }
+        } catch (extractError) {
+          console.warn("Could not extract error info:", extractError)
+        }
+      }
+      
+      // Show error toast to user
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      })
     } finally {
       setIsSigning(false)
     }

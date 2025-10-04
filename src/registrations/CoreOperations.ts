@@ -2,6 +2,7 @@ import { Address, Hex } from 'viem';
 import { SecureOwnable } from '../Guardian/sdk/typescript';
 import { OPERATION_TYPES, FUNCTION_SELECTORS } from '../Guardian/sdk/typescript/types/core.access.index';
 import { TransactionOptions } from '../Guardian/sdk/typescript/interfaces/base.index';
+import { TxAction, ExecutionType } from '../Guardian/sdk/typescript/types/lib.index';
 import { 
   OperationRegistryEntry,
   WorkflowType,
@@ -135,7 +136,45 @@ function registerRecoveryUpdateOperation(contract: SecureOwnable): void {
     
     // Combined request and approval with meta-transaction
     requestAndApproveWithMetaTx: async (metaTx, options) => {
-      return contract.updateRecoveryRequestAndApprove(metaTx, options);
+      console.log('🔍 RECOVERY_UPDATE requestAndApproveWithMetaTx called:', {
+        hasMetaTx: !!metaTx,
+        hasSignature: !!metaTx?.signature,
+        hasMessage: !!metaTx?.message,
+        from: options.from
+      });
+      
+      try {
+        const result = await contract.updateRecoveryRequestAndApprove(metaTx, options);
+        console.log('✅ RECOVERY_UPDATE result:', result.hash);
+        return result;
+      } catch (error) {
+        console.error('❌ RECOVERY_UPDATE error:', error);
+        throw error;
+      }
+    },
+    
+    // Prepare meta-transaction for signing
+    prepareMetaTx: async (params: { newRecoveryAddress: Address, contractAddress: Address }, options: TransactionOptions) => {
+      const executionOptions = await contract.updateRecoveryExecutionOptions(params.newRecoveryAddress);
+      const metaTxParams = await contract.createMetaTxParams(
+        params.contractAddress,
+        FUNCTION_SELECTORS.UPDATE_RECOVERY as Hex,
+        TxAction.SIGN_META_REQUEST_AND_APPROVE,
+        BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
+        BigInt(0), // No max gas price
+        options.from
+      );
+      const unsignedMetaTx = await contract.generateUnsignedMetaTransactionForNew(
+        options.from,
+        params.contractAddress,
+        BigInt(0), // No value
+        BigInt(0), // No gas limit
+        OPERATION_TYPES.RECOVERY_UPDATE as Hex,
+        ExecutionType.STANDARD,
+        executionOptions,
+        metaTxParams
+      );
+      return unsignedMetaTx;
     }
   };
   
@@ -170,7 +209,46 @@ function registerTimeLockUpdateOperation(contract: SecureOwnable): void {
     
     // Combined request and approval with meta-transaction
     requestAndApproveWithMetaTx: async (metaTx, options) => {
-      return contract.updateTimeLockRequestAndApprove(metaTx, options);
+      console.log('🔍 TIMELOCK_UPDATE requestAndApproveWithMetaTx called:', {
+        hasMetaTx: !!metaTx,
+        hasSignature: !!metaTx?.signature,
+        hasMessage: !!metaTx?.message,
+        from: options.from
+      });
+      
+      try {
+        const result = await contract.updateTimeLockRequestAndApprove(metaTx, options);
+        console.log('✅ TIMELOCK_UPDATE result:', result.hash);
+        return result;
+      } catch (error) {
+        console.error('❌ TIMELOCK_UPDATE error:', error);
+        throw error;
+      }
+    },
+    
+    // Prepare meta-transaction for signing
+    prepareMetaTx: async (params: { newTimeLockPeriodInMinutes: bigint, contractAddress: Address }, options: TransactionOptions) => {
+      
+      const executionOptions = await contract.updateTimeLockExecutionOptions(BigInt(params.newTimeLockPeriodInMinutes));
+      const metaTxParams = await contract.createMetaTxParams(
+        params.contractAddress,
+        FUNCTION_SELECTORS.UPDATE_TIMELOCK as Hex,
+        TxAction.SIGN_META_REQUEST_AND_APPROVE,
+        BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
+        BigInt(0), // No max gas price
+        options.from
+      );
+      const unsignedMetaTx = await contract.generateUnsignedMetaTransactionForNew(
+        options.from,
+        params.contractAddress,
+        BigInt(0), // No value
+        BigInt(0), // No gas limit
+        OPERATION_TYPES.TIMELOCK_UPDATE as Hex,
+        ExecutionType.STANDARD,
+        executionOptions,
+        metaTxParams
+      );
+      return unsignedMetaTx;
     }
   };
   

@@ -70,7 +70,7 @@ export interface SinglePhaseOperationFunctions {
   requestAndApproveWithMetaTx: (metaTx: MetaTransaction, options: TransactionOptions) => Promise<TransactionResult>;
   
   // Meta-transaction preparation
-  prepareMetaTx?: (params: any, options: TransactionOptions) => Promise<string>;
+  prepareMetaTx?: (params: any, options: TransactionOptions) => Promise<string | MetaTransaction>;
 }
 
 /**

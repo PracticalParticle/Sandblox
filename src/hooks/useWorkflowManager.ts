@@ -63,21 +63,17 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
   // Initialize manager when dependencies change
   useEffect(() => {
     const initManager = async () => {
-      if (!publicClient || !contractAddress) return
+      if (!publicClient || !contractAddress) {
+        return
+      }
 
       try {
         const chain = config.chains.find(c => c.id === chainId)
-        if (!chain) throw new Error("Chain not found")
+        if (!chain) {
+          console.error("Chain not found for chainId:", chainId);
+          return
+        }
 
-        console.log('🔧 useWorkflowManager initManager:', {
-          contractAddress,
-          chainId: chain.id,
-          chainName: chain.name,
-          hasPublicClient: !!publicClient,
-          hasWalletClient: !!walletClient,
-          walletClientAccount: walletClient?.account?.address,
-          contractType
-        });
 
         const workflowManager = await generateNewWorkflowManager(
           publicClient, 
@@ -88,9 +84,11 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
           contractType
         )
         
+        console.log('✅ WorkflowManager initialized successfully');
         setManager(workflowManager)
       } catch (error) {
         console.error("Failed to initialize WorkflowManager:", error)
+        setManager(null) // Explicitly set to null on error
       }
     }
 
@@ -344,7 +342,25 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
     operationType: OperationType,
     params: any
   ): Promise<string | undefined> => {
-    if (!manager || !walletClient?.account) return
+    if (!manager) {
+      console.error('❌ signSinglePhaseOperation: WorkflowManager not initialized');
+      toast({
+        title: "Error",
+        description: "WorkflowManager not initialized. Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!walletClient?.account) {
+      console.error('❌ signSinglePhaseOperation: No wallet connected');
+      toast({
+        title: "Error",
+        description: "No wallet connected. Please connect your wallet.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     // Create a unique operation key
     const operationKey = `${operationType}-${safeStringify(params)}`
@@ -357,6 +373,7 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
     
     setIsLoading(true)
     try {
+      
       // Add operation to pending set
       setPendingOperations(prev => new Set([...prev, operationKey]))
       
@@ -365,6 +382,8 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
         params,
         { from: walletClient.account.address }
       )
+      
+      console.log('✅ signSinglePhaseOperation: Operation completed', { result });
       
       // Store the transaction
       if (result) {
@@ -386,6 +405,7 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
       
       return result
     } catch (error: any) {
+      console.error('❌ signSinglePhaseOperation: Operation failed:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to sign operation",
@@ -501,16 +521,6 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
   const dynamicRBAC = manager?.getDynamicRBAC();
   const definitions = manager?.getDefinitions();
   
-  console.log('🔍 useWorkflowManager SDK instances:', {
-    manager: !!manager,
-    secureOwnable: !!secureOwnable,
-    dynamicRBAC: !!dynamicRBAC,
-    definitions: !!definitions,
-    managerType: manager?.constructor.name,
-    secureOwnableType: secureOwnable?.constructor.name,
-    dynamicRBACType: dynamicRBAC?.constructor.name,
-    definitionsType: definitions?.constructor.name
-  });
 
   return {
     manager,

@@ -256,10 +256,10 @@ export function convertBigIntsToStrings(obj: any): any {
 /**
  * Converts a time value from a given unit to minutes
  * @param value The time value to convert
- * @param unit The unit of the time value (days, hours, or minutes)
+ * @param unit The unit of the time value (days, hours, minutes, or seconds)
  * @returns The converted value in minutes
  */
-export function convertToMinutes(value: string, unit: 'days' | 'hours' | 'minutes'): number {
+export function convertToMinutes(value: string, unit: 'days' | 'hours' | 'minutes' | 'seconds'): number {
   const numValue = parseInt(value);
   if (isNaN(numValue) || numValue < 0) return 0;
   
@@ -270,6 +270,8 @@ export function convertToMinutes(value: string, unit: 'days' | 'hours' | 'minute
       return numValue * 60;
     case 'minutes':
       return numValue;
+    case 'seconds':
+      return numValue / 60;
     default:
       return numValue;
   }

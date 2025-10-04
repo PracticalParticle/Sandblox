@@ -484,16 +484,21 @@ export default class SimpleRWA20OperationsHandler extends BaseBloxOperationsHand
         this.chain as Chain
       );
       
-      // Get the broadcaster address from the contract
+      // Get the broadcaster and owner addresses from the contract
       const broadcasterAddress = await secureOwnable.getBroadcaster();
+      const ownerAddress = await secureOwnable.getOwner();
       console.log(`Contract broadcaster address: ${broadcasterAddress}`);
+      console.log(`Contract owner address: ${ownerAddress}`);
       
-      // Check if current wallet is the broadcaster
-      if (this.walletClient.account.address.toLowerCase() !== broadcasterAddress.toLowerCase()) {
-        throw new Error(`Only the broadcaster can execute this transaction. Current account (${this.walletClient.account.address}) is not the broadcaster (${broadcasterAddress})`);
+      // Check if current wallet is either the broadcaster or the owner
+      const isBroadcaster = this.walletClient.account.address.toLowerCase() === broadcasterAddress.toLowerCase();
+      const isOwner = this.walletClient.account.address.toLowerCase() === ownerAddress.toLowerCase();
+      
+      if (!isBroadcaster && !isOwner) {
+        throw new Error(`Only the broadcaster or owner can execute this transaction. Current account (${this.walletClient.account.address}) is neither the broadcaster (${broadcasterAddress}) nor the owner (${ownerAddress})`);
       }
       
-      console.log(`Confirmed broadcaster role for account: ${this.walletClient.account.address}`);
+      console.log(`Confirmed role for account: ${this.walletClient.account.address} (${isBroadcaster ? 'broadcaster' : 'owner'})`);
       
       // Validate deadline first to avoid unnecessary gas price check if expired
       const currentTimestamp = BigInt(Math.floor(Date.now() / 1000));

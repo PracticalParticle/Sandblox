@@ -27,7 +27,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useSecureOwnable } from '@/hooks/useSecureOwnable'
 import { useToast } from '../components/ui/use-toast'
 import { SecureContractInfo } from '@/lib/types'
-import { isValidEthereumAddress, generateNewWorkflowManager, convertBigIntsToStrings } from '@/lib/utils'
+import { generateNewWorkflowManager, convertBigIntsToStrings } from '@/lib/utils'
 import {
   Tooltip,
   TooltipContent,
@@ -35,7 +35,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
-import { TIMELOCK_PERIODS } from '@/constants/contract'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { TransactionManager } from '@/components/TransactionManager'
 import { useMetaTransactionManager } from '@/hooks/useMetaTransactionManager'
@@ -73,24 +72,8 @@ const item = {
   show: { opacity: 1, y: 0 },
 }
 
-const formatTimeValue = (value: string | number): string => {
-  const numValue = typeof value === 'string' ? parseInt(value) : value;
-  if (isNaN(numValue)) return value.toString();
-  
-  // Convert to days/hours/minutes format
-  const days = Math.floor(numValue / 1440);
-  const hours = Math.floor((numValue % 1440) / 60);
-  const minutes = numValue % 60;
 
-  const parts = [];
-  if (days > 0) parts.push(`${days} day${days === 1 ? '' : 's'}`);
-  if (hours > 0) parts.push(`${hours} hour${hours === 1 ? '' : 's'}`);
-  if (minutes > 0 || parts.length === 0) parts.push(`${minutes} minute${minutes === 1 ? '' : 's'}`);
-
-  return parts.join(' ');
-};
-
-const convertToMinutes = (value: string, unit: 'days' | 'hours' | 'minutes'): number => {
+const convertToMinutes = (value: string, unit: 'days' | 'hours' | 'minutes' | 'seconds'): number => {
   const numValue = parseInt(value);
   if (isNaN(numValue) || numValue < 0) return 0;
   
@@ -101,6 +84,8 @@ const convertToMinutes = (value: string, unit: 'days' | 'hours' | 'minutes'): nu
       return numValue * 60;
     case 'minutes':
       return numValue;
+    case 'seconds':
+      return numValue / 60;
     default:
       return numValue;
   }
@@ -129,28 +114,19 @@ export function SecurityDetails() {
   const { data: walletClient } = useWalletClient()
   const config = useConfig()
   
-  // Get SDK instances from useWorkflowManager
+  // Get SDK instances from WorkflowManager
   const {
     secureOwnable,
     dynamicRBAC,
     definitions
   } = useWorkflowManager(contractAddress as `0x${string}`)
   
-  // Debug logging for SDK instances in SecurityDetails
-  console.log('🔍 SecurityDetails SDK instances:', {
-    contractAddress,
-    secureOwnable: !!secureOwnable,
-    dynamicRBAC: !!dynamicRBAC,
-    definitions: !!definitions,
-    secureOwnableType: secureOwnable?.constructor.name,
-    dynamicRBACType: dynamicRBAC?.constructor.name,
-    definitionsType: definitions?.constructor.name
-  });
+  // SDK instances are available for use
 
   // State for input fields
   const [newRecoveryAddress, setNewRecoveryAddress] = useState('')
-  const [newTimeLockPeriod, setNewTimeLockPeriod] = useState('')
-  const [timeLockUnit, setTimeLockUnit] = useState<'days' | 'hours' | 'minutes'>('minutes')
+  const [newTimeLockPeriod, setNewTimeLockPeriod] = useState('1')
+  const [timeLockUnit, setTimeLockUnit] = useState<'days' | 'hours' | 'minutes' | 'seconds'>('minutes')
   const [showBroadcasterDialog, setShowBroadcasterDialog] = useState(false)
   const [showRecoveryDialog, setShowRecoveryDialog] = useState(false)
   const [showTimeLockDialog, setShowTimeLockDialog] = useState(false)
@@ -727,8 +703,8 @@ export function SecurityDetails() {
 
       // Convert the period to minutes based on the selected unit
       const periodInMinutes = convertToMinutes(newPeriod, timeLockUnit);
-      if (isNaN(periodInMinutes) || periodInMinutes < TIMELOCK_PERIODS.MIN || periodInMinutes > TIMELOCK_PERIODS.MAX) {
-        throw new Error(`Period must be between ${formatTimeValue(TIMELOCK_PERIODS.MIN)} and ${formatTimeValue(TIMELOCK_PERIODS.MAX)}`);
+      if (isNaN(periodInMinutes) || periodInMinutes <= 0) {
+        throw new Error("Time lock period must be greater than 0");
       }
 
       // Set signing state before any wallet interaction
@@ -1534,10 +1510,10 @@ export function SecurityDetails() {
                             isOpen={showTimeLockDialog}
                             onOpenChange={setShowTimeLockDialog}
                             title="Update TimeLock Period"
-                            description={`Enter a new time lock period. Current period is ${formatTimeValue(contractInfo.timeLockPeriodInMinutes)}. Valid range: ${formatTimeValue(TIMELOCK_PERIODS.MIN)} to ${formatTimeValue(TIMELOCK_PERIODS.MAX)}.`}
+                            description={`Enter a new time lock period. Current period is ${contractInfo.timeLockPeriodInMinutes} minutes. Minimum value is 1 minute. For seconds, use at least 60 seconds.`}
                             contractInfo={contractInfo}
                             actionType="timelock"
-                            currentValue={formatTimeValue(contractInfo?.timeLockPeriodInMinutes)}
+                            currentValue={`${contractInfo?.timeLockPeriodInMinutes} minutes`}
                             currentValueLabel="Current TimeLock Period"
                             actionLabel="Sign Transaction"
                             requiredRole="owner"
@@ -1545,7 +1521,7 @@ export function SecurityDetails() {
                             newValue={newTimeLockPeriod}
                             onNewValueChange={setNewTimeLockPeriod}
                             newValueLabel="New TimeLock Period"
-                            newValuePlaceholder="Enter period value"
+                            newValuePlaceholder="Enter period value (minimum 1 minute, 60+ seconds)"
                             customInput={
                               <div className="flex space-x-2">
                                 <Input
@@ -1554,33 +1530,20 @@ export function SecurityDetails() {
                                   className="flex-1"
                                   value={newTimeLockPeriod}
                                   onChange={(e) => setNewTimeLockPeriod(e.target.value)}
-                                  placeholder="Enter period value"
+                                  placeholder="Enter period value (minimum 1 minute, 60+ seconds)"
                                 />
                                 <select
                                   value={timeLockUnit}
-                                  onChange={(e) => setTimeLockUnit(e.target.value as 'days' | 'hours' | 'minutes')}
+                                  onChange={(e) => setTimeLockUnit(e.target.value as 'days' | 'hours' | 'minutes' | 'seconds')}
                                   className="w-28 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                                 >
                                   <option value="days">Days</option>
                                   <option value="hours">Hours</option>
                                   <option value="minutes">Minutes</option>
+                                  <option value="seconds">Seconds</option>
                                 </select>
                               </div>
                             }
-                            validateNewValue={(value) => {
-                              const minutes = convertToMinutes(value, timeLockUnit);
-                              if (minutes === 0) {
-                                return {
-                                  isValid: false,
-                                  message: "Please enter a valid positive number"
-                                };
-                              }
-                              
-                              return {
-                                isValid: minutes >= TIMELOCK_PERIODS.MIN && minutes <= TIMELOCK_PERIODS.MAX,
-                                message: `Please enter a period between ${formatTimeValue(TIMELOCK_PERIODS.MIN)} and ${formatTimeValue(TIMELOCK_PERIODS.MAX)}`
-                              };
-                            }}
                             onSubmit={async () => {
                               const minutes = convertToMinutes(newTimeLockPeriod, timeLockUnit);
                               await handleUpdateTimeLockRequest(minutes.toString());
@@ -2009,10 +1972,6 @@ export function SecurityDetails() {
                             onNewValueChange={setNewRecoveryAddress}
                             newValueLabel="New Recovery Address"
                             newValuePlaceholder="Enter new recovery address"
-                            validateNewValue={(value) => ({
-                              isValid: isValidEthereumAddress(value),
-                              message: "Please enter a valid Ethereum address"
-                            })}
                             isSigning={isSigningTx}
                             onSubmit={async () => {
                               await handleUpdateRecoveryRequest(newRecoveryAddress);

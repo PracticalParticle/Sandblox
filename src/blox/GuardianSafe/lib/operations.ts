@@ -672,6 +672,8 @@ export default class GuardianSafeOperationsHandler extends BaseBloxOperationsHan
         throw new Error(`Only the broadcaster can execute this transaction. Current account (${this.walletClient.account.address}) is not the broadcaster (${broadcasterAddress})`);
       }
       
+      console.log(`Confirmed broadcaster role for account: ${this.walletClient.account.address}`);
+      
       // Convert string values back to BigInts where needed
       const metaTxWithBigInts = {
         ...signedMetaTx,

@@ -558,7 +558,12 @@ export class WorkflowManager {
 
     // Use the operation's prepareMetaTx method directly
     if (isSinglePhaseOperation(operation) && operation.functions.prepareMetaTx) {
-      return await operation.functions.prepareMetaTx(params, options);
+      const metaTx = await operation.functions.prepareMetaTx(params, options);
+      // If already a string, return as is; otherwise, serialize to string
+      if (typeof metaTx === 'string') {
+        return metaTx;
+      }
+      return JSON.stringify(metaTx, this.bigIntReplacer);
     }
 
     // Get execution options for the operation or use default '0x' if not provided
