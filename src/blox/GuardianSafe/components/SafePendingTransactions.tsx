@@ -38,7 +38,7 @@ export interface SafePendingTransactionsProps {
   contractAddress?: Address;
   onNotification?: (message: any) => void;
   isGuardianActive?: boolean;
-  ownerAddress?: Address;
+  isGuardianContractOwner?: boolean;
 }
 
 /**
@@ -55,7 +55,7 @@ export function SafePendingTransactions({
   contractAddress,
   onNotification,
   isGuardianActive = true,
-  ownerAddress
+  isGuardianContractOwner = false
 }: SafePendingTransactionsProps) {
   const { address } = useAccount();
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -337,10 +337,17 @@ export function SafePendingTransactions({
     return !!signedMetaTxStates[txId] && !!transactions[Number(txId)];
   };
 
-  // Check if connected user has Owner role
+  // Check if connected user has Guardian contract Owner role
   const hasOwnerRole = (): boolean => {
-    if (!connectedAddress || !ownerAddress) return false;
-    return connectedAddress.toLowerCase() === ownerAddress.toLowerCase();
+    // Debug logging
+    console.log('🔍 hasOwnerRole check:', {
+      connectedAddress,
+      isGuardianContractOwner,
+      hasOwnerRole: isGuardianContractOwner
+    });
+    
+    // Use the boolean from the workflow manager
+    return isGuardianContractOwner;
   };
 
 

@@ -61,60 +61,8 @@ const delegatedCallEnabledAtom = atom<boolean>(false);
 // Add storage key for meta tx settings
 const META_TX_SETTINGS_KEY = 'guardianSafe.metaTxSettings';
 
-// Role badge component - clean rounded style without borders
-function RoleBadge({ role, className = "" }: { role: string; className?: string }) {
-  const getRoleStyle = (role: string) => {
-    switch (role.toLowerCase()) {
-      case 'owner':
-        return 'bg-blue-500/10 text-blue-500';
-      case 'broadcaster':
-        return 'bg-purple-500/10 text-purple-500';
-      case 'recovery':
-        return 'bg-red-500/10 text-red-500';
-      default:
-        return 'bg-gray-500/10 text-gray-500';
-    }
-  };
 
-  return (
-    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getRoleStyle(role)} ${className}`}>
-      {role}
-    </span>
-  );
-}
 
-// Multiple role badges component
-function RoleBadges({ roles, className = "" }: { roles: string[]; className?: string }) {
-  if (roles.length === 0) return null;
-  
-  return (
-    <div className={`flex flex-wrap gap-1 ${className}`}>
-      {roles.map((role, index) => (
-        <RoleBadge key={index} role={role} />
-      ))}
-    </div>
-  );
-}
-
-// Function to determine owner roles - returns array of individual roles
-function getOwnerRoles(
-  ownerAddress: Address,
-  contractOwnerAddress?: Address,
-  contractBroadcasterAddress?: Address,
-  contractRecoveryAddress?: Address
-): string[] {
-  const roles = [];
-  
-  const isOwner = contractOwnerAddress && ownerAddress.toLowerCase() === contractOwnerAddress.toLowerCase();
-  const isBroadcaster = contractBroadcasterAddress && ownerAddress.toLowerCase() === contractBroadcasterAddress.toLowerCase();
-  const isRecovery = contractRecoveryAddress && ownerAddress.toLowerCase() === contractRecoveryAddress.toLowerCase();
-
-  if (isOwner) roles.push('Owner');
-  if (isBroadcaster) roles.push('Broadcaster');
-  if (isRecovery) roles.push('Recovery');
-
-  return roles;
-}
 
 // Default meta-transaction settings
 const defaultMetaTxSettings: SafeMetaTxParams = {
@@ -227,18 +175,12 @@ function AllOwnersDialog({
   open, 
   onOpenChange, 
   owners, 
-  connectedAddress,
-  ownerAddress,
-  broadcasterAddress,
-  recoveryAddress
+  connectedAddress
 }: { 
   open: boolean; 
   onOpenChange: (open: boolean) => void; 
   owners: Address[];
   connectedAddress: Address | undefined;
-  ownerAddress?: Address;
-  broadcasterAddress?: Address;
-  recoveryAddress?: Address;
 }) {
   const [currentPage, setCurrentPage] = useState(0);
   const ownersPerPage = 10;
@@ -379,10 +321,7 @@ function GuardianSafeUIContent({
   
   // Workflow manager for role validation
   const { 
-    isOwner,
-    ownerAddress,
-    broadcasterAddress,
-    recoveryAddress
+    isOwner
   } = useWorkflowManager(contractAddress as Address);
   
   // Safe address ref for display
@@ -908,9 +847,6 @@ function GuardianSafeUIContent({
             onOpenChange={setShowAllOwnersDialog}
             owners={safeOwners}
             connectedAddress={address}
-            ownerAddress={ownerAddress}
-            broadcasterAddress={broadcasterAddress}
-            recoveryAddress={recoveryAddress}
           />
 
           {isCardExpanded && (
@@ -1258,7 +1194,7 @@ function GuardianSafeUIContent({
                     contractAddress={contractAddress}
                     onNotification={addMessage}
                     isGuardianActive={Boolean(guardInfo?.guardAddress && guardInfo.guardAddress === contractAddress)}
-                    ownerAddress={ownerAddress}
+                    isGuardianContractOwner={isOwner}
                   />
                 </div>
               )}
