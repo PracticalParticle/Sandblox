@@ -1198,6 +1198,7 @@ function GuardianSafeUIContent({
                     connectedAddress={address}
                     contractAddress={contractAddress}
                     onNotification={addMessage}
+                    isGuardianActive={!!(guardInfo?.guardAddress && guardInfo.guardAddress === contractAddress)}
                   />
                 </div>
               )}

@@ -37,6 +37,7 @@ export interface SafePendingTransactionsProps {
   connectedAddress?: Address;
   contractAddress?: Address;
   onNotification?: (message: any) => void;
+  isGuardianActive?: boolean;
 }
 
 /**
@@ -51,7 +52,8 @@ export function SafePendingTransactions({
   chainId,
   connectedAddress,
   contractAddress,
-  onNotification
+  onNotification,
+  isGuardianActive = true
 }: SafePendingTransactionsProps) {
   const { address } = useAccount();
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -766,78 +768,110 @@ export function SafePendingTransactions({
                           </p>
                         </div>
                     
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {/* Temporal Workflow Action */}
-                          <div className="p-4 border rounded-lg bg-card">
-                            <div className="flex items-center gap-2 mb-3">
-                              <Timer className="h-4 w-4 text-blue-500" />
-                              <span className="text-sm font-medium">Temporal Workflow</span>
-                              <Badge variant="secondary" className="text-xs">Time-lock</Badge>
-                            </div>
-                            <p className="text-xs text-muted-foreground mb-4">
-                              Enhanced security with time-lock protection
-                            </p>
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={() => handleGuardianRequest(tx)}
-                              disabled={loadingStates.request || !contractAddress}
-                              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                            >
-                              {loadingStates.request ? (
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              ) : (
-                                <Shield className="h-4 w-4 mr-2" />
-                              )}
-                              Request Transaction
-                            </Button>
-                          </div>
-
-                          {/* Meta Transaction Action */}
-                          <div className="p-4 border rounded-lg bg-card">
-                            <div className="flex items-center gap-2 mb-3">
-                              <Zap className="h-4 w-4 text-purple-500" />
-                              <span className="text-sm font-medium">Meta Transaction</span>
-                              <Badge variant="secondary" className="text-xs">Immediate</Badge>
-                            </div>
-                            <p className="text-xs text-muted-foreground mb-4">
-                              Sign and broadcast for immediate execution
-                            </p>
-                            
-                            <div className="space-y-2">
-                              <Button
-                                variant="default"
-                                size="sm"
-                                onClick={() => handleGuardianMetaTxSign(tx, 'request')}
-                                disabled={loadingStates.metaTx || !contractAddress || isMetaTxSigned(tx, 'request')}
-                                className="w-full bg-purple-600 hover:bg-purple-700 text-white"
-                              >
-                                {loadingStates.metaTx ? (
-                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                ) : isMetaTxSigned(tx, 'request') ? (
-                                  <CheckCircle2 className="h-4 w-4 mr-2 text-white" />
-                                ) : (
-                                  <Radio className="h-4 w-4 mr-2" />
-                                )}
-                                {isMetaTxSigned(tx, 'request') ? 'Signed' : 'Sign Meta-Tx'}
-                              </Button>
-                              
-                              {isMetaTxSigned(tx, 'request') && (
+                        <div className="space-y-4">
+                          {/* Execute in Safe Action - Only show when guardian is not active */}
+                          {!isGuardianActive && (
+                            <div className="p-3 border rounded-lg bg-card">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <ExternalLink className="h-4 w-4 text-green-500" />
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm font-medium">Execute in Safe</span>
+                                      <Badge variant="secondary" className="text-xs">Direct</Badge>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                      Execute this transaction directly in Safe UI
+                                    </p>
+                                  </div>
+                                </div>
                                 <Button
                                   variant="default"
                                   size="sm"
-                                  onClick={() => handleGuardianMetaTxBroadcast(tx, 'request')}
-                                  disabled={loadingStates.metaTx}
+                                  onClick={() => window.open(getSafeUIUrl(tx.safeTxHash), '_blank')}
+                                  className="bg-green-600 hover:bg-green-700 text-white"
+                                >
+                                  <ExternalLink className="h-4 w-4 mr-2" />
+                                  Execute in Safe UI
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Guardian Protocol Actions */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Temporal Workflow Action */}
+                            <div className="p-4 border rounded-lg bg-card">
+                              <div className="flex items-center gap-2 mb-3">
+                                <Timer className="h-4 w-4 text-blue-500" />
+                                <span className="text-sm font-medium">Temporal Workflow</span>
+                                <Badge variant="secondary" className="text-xs">Time-lock</Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground mb-4">
+                                Enhanced security with time-lock protection
+                              </p>
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => handleGuardianRequest(tx)}
+                                disabled={loadingStates.request || !contractAddress}
+                                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                              >
+                                {loadingStates.request ? (
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                ) : (
+                                  <Shield className="h-4 w-4 mr-2" />
+                                )}
+                                Request Transaction
+                              </Button>
+                            </div>
+
+                            {/* Meta Transaction Action */}
+                            <div className="p-4 border rounded-lg bg-card">
+                              <div className="flex items-center gap-2 mb-3">
+                                <Zap className="h-4 w-4 text-purple-500" />
+                                <span className="text-sm font-medium">Meta Transaction</span>
+                                <Badge variant="secondary" className="text-xs">Immediate</Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground mb-4">
+                                Sign and broadcast for immediate execution
+                              </p>
+                              
+                              <div className="space-y-2">
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => handleGuardianMetaTxSign(tx, 'request')}
+                                  disabled={loadingStates.metaTx || !contractAddress || isMetaTxSigned(tx, 'request')}
                                   className="w-full bg-purple-600 hover:bg-purple-700 text-white"
                                 >
                                   {loadingStates.metaTx ? (
                                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  ) : isMetaTxSigned(tx, 'request') ? (
+                                    <CheckCircle2 className="h-4 w-4 mr-2 text-white" />
                                   ) : (
                                     <Radio className="h-4 w-4 mr-2" />
                                   )}
-                                  Broadcast Meta-Transaction
+                                  {isMetaTxSigned(tx, 'request') ? 'Signed' : 'Sign Meta-Tx'}
                                 </Button>
-                              )}
+                                
+                                {isMetaTxSigned(tx, 'request') && (
+                                  <Button
+                                    variant="default"
+                                    size="sm"
+                                    onClick={() => handleGuardianMetaTxBroadcast(tx, 'request')}
+                                    disabled={loadingStates.metaTx}
+                                    className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                                  >
+                                    {loadingStates.metaTx ? (
+                                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    ) : (
+                                      <Radio className="h-4 w-4 mr-2" />
+                                    )}
+                                    Broadcast Meta-Transaction
+                                  </Button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
