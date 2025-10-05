@@ -275,7 +275,6 @@ function AllOwnersDialog({
         
         <div className="space-y-3 max-h-[400px] overflow-y-auto">
           {currentOwners.map((owner: Address, index: number) => {
-            const ownerRoles = getOwnerRoles(owner, ownerAddress, broadcasterAddress, recoveryAddress);
             return (
               <div key={owner} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
                 <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -297,20 +296,15 @@ function AllOwnersDialog({
                     </span>
                   </div>
                 </div>
-                <div className="flex flex-col gap-1 items-end">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 w-7 p-0 flex-shrink-0"
-                    onClick={() => navigator.clipboard.writeText(owner)}
-                    title="Copy address"
-                  >
-                    <Copy className="h-3 w-3" />
-                  </Button>
-                  {ownerRoles.length > 0 && (
-                    <RoleBadges roles={ownerRoles} />
-                  )}
-                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 flex-shrink-0"
+                  onClick={() => navigator.clipboard.writeText(owner)}
+                  title="Copy address"
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
               </div>
             );
           })}
@@ -728,7 +722,6 @@ function GuardianSafeUIContent({
             <Card className="p-2">
               <div className="space-y-2">
                 {safeOwners.slice(0, 3).map((owner: Address, index: number) => {
-                  const ownerRoles = getOwnerRoles(owner, ownerAddress, broadcasterAddress, recoveryAddress);
                   return (
                     <div key={owner} className="flex items-start justify-between py-1">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -737,24 +730,19 @@ function GuardianSafeUIContent({
                           <div className="w-1.5 h-1.5 rounded-full bg-green-500" title="Connected wallet"></div>
                         )}
                       </div>
-                      <div className="flex flex-col gap-1 items-end">
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-[10px] min-w-0" title={owner}>
-                            {owner.slice(0, 4)}...{owner.slice(-3)}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-4 w-4 p-0 flex-shrink-0 touch-manipulation"
-                            onClick={() => navigator.clipboard.writeText(owner)}
-                            title="Copy address"
-                          >
-                            <Copy className="h-2.5 w-2.5" />
-                          </Button>
-                        </div>
-                        {ownerRoles.length > 0 && (
-                          <RoleBadges roles={ownerRoles} className="text-[10px] px-1.5 py-0.5" />
-                        )}
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-[10px] min-w-0" title={owner}>
+                          {owner.slice(0, 4)}...{owner.slice(-3)}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-4 w-4 p-0 flex-shrink-0 touch-manipulation"
+                          onClick={() => navigator.clipboard.writeText(owner)}
+                          title="Copy address"
+                        >
+                          <Copy className="h-2.5 w-2.5" />
+                        </Button>
                       </div>
                     </div>
                   );
@@ -950,7 +938,6 @@ function GuardianSafeUIContent({
                   {safeOwners.length > 0 ? (
                     <div className="space-y-2">
                       {safeOwners.slice(0, 3).map((owner: Address, index: number) => {
-                        const ownerRoles = getOwnerRoles(owner, ownerAddress, broadcasterAddress, recoveryAddress);
                         return (
                           <div key={owner} className="flex items-center justify-between py-2">
                             <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -966,24 +953,19 @@ function GuardianSafeUIContent({
                                 </div>
                               </div>
                             </div>
-                            <div className="flex flex-col gap-1 items-end">
-                              <div className="flex items-center gap-1">
-                                <span className="font-mono text-xs truncate max-w-[80px]" title={owner}>
-                                  {owner.slice(0, 4)}...{owner.slice(-3)}
-                                </span>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-5 w-5 p-0 flex-shrink-0 touch-manipulation"
-                                  onClick={() => navigator.clipboard.writeText(owner)}
-                                  title="Copy address"
-                                >
-                                  <Copy className="h-3 w-3" />
-                                </Button>
-                              </div>
-                              {ownerRoles.length > 0 && (
-                                <RoleBadges roles={ownerRoles} />
-                              )}
+                            <div className="flex items-center gap-1">
+                              <span className="font-mono text-xs truncate max-w-[80px]" title={owner}>
+                                {owner.slice(0, 4)}...{owner.slice(-3)}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-5 w-5 p-0 flex-shrink-0 touch-manipulation"
+                                onClick={() => navigator.clipboard.writeText(owner)}
+                                title="Copy address"
+                              >
+                                <Copy className="h-3 w-3" />
+                              </Button>
                             </div>
                           </div>
                         );
@@ -1276,6 +1258,7 @@ function GuardianSafeUIContent({
                     contractAddress={contractAddress}
                     onNotification={addMessage}
                     isGuardianActive={Boolean(guardInfo?.guardAddress && guardInfo.guardAddress === contractAddress)}
+                    ownerAddress={ownerAddress}
                   />
                 </div>
               )}

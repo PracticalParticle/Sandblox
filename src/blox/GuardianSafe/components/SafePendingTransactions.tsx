@@ -38,6 +38,7 @@ export interface SafePendingTransactionsProps {
   contractAddress?: Address;
   onNotification?: (message: any) => void;
   isGuardianActive?: boolean;
+  ownerAddress?: Address;
 }
 
 /**
@@ -53,7 +54,8 @@ export function SafePendingTransactions({
   connectedAddress,
   contractAddress,
   onNotification,
-  isGuardianActive = true
+  isGuardianActive = true,
+  ownerAddress
 }: SafePendingTransactionsProps) {
   const { address } = useAccount();
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -333,6 +335,12 @@ export function SafePendingTransactions({
     const txId = safeTx.nonce.toString();
     // Check both the signed states and the actual stored transactions
     return !!signedMetaTxStates[txId] && !!transactions[Number(txId)];
+  };
+
+  // Check if connected user has Owner role
+  const hasOwnerRole = (): boolean => {
+    if (!connectedAddress || !ownerAddress) return false;
+    return connectedAddress.toLowerCase() === ownerAddress.toLowerCase();
   };
 
 
@@ -824,8 +832,8 @@ export function SafePendingTransactions({
                                       variant="default"
                                       size="sm"
                                       onClick={() => handleGuardianRequest(tx)}
-                                      disabled={loadingStates.request || !contractAddress || !confirmationStatus.isComplete}
-                                      className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                                      disabled={loadingStates.request || !contractAddress || !confirmationStatus.isComplete || !hasOwnerRole()}
+                                      className="w-full bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                       {loadingStates.request ? (
                                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -836,7 +844,9 @@ export function SafePendingTransactions({
                                     </Button>
                                   </TooltipTrigger>
                                   <TooltipContent>
-                                    {!confirmationStatus.isComplete ? (
+                                    {!hasOwnerRole() ? (
+                                      <p>Only contract owners can request Guardian protocol transactions</p>
+                                    ) : !confirmationStatus.isComplete ? (
                                       <p>Transaction needs {confirmationStatus.remaining} more signature{confirmationStatus.remaining !== 1 ? 's' : ''} before Guardian actions are available</p>
                                     ) : (
                                       <p>Request transaction through Guardian protocol</p>
@@ -865,8 +875,8 @@ export function SafePendingTransactions({
                                         variant="default"
                                         size="sm"
                                         onClick={() => handleGuardianMetaTxSign(tx, 'request')}
-                                        disabled={loadingStates.metaTx || !contractAddress || isMetaTxSigned(tx, 'request') || !confirmationStatus.isComplete}
-                                        className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                                        disabled={loadingStates.metaTx || !contractAddress || isMetaTxSigned(tx, 'request') || !confirmationStatus.isComplete || !hasOwnerRole()}
+                                        className="w-full bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                                       >
                                         {loadingStates.metaTx ? (
                                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -879,7 +889,9 @@ export function SafePendingTransactions({
                                       </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                      {!confirmationStatus.isComplete ? (
+                                      {!hasOwnerRole() ? (
+                                        <p>Only contract owners can sign Guardian protocol meta-transactions</p>
+                                      ) : !confirmationStatus.isComplete ? (
                                         <p>Transaction needs {confirmationStatus.remaining} more signature{confirmationStatus.remaining !== 1 ? 's' : ''} before Guardian actions are available</p>
                                       ) : isMetaTxSigned(tx, 'request') ? (
                                         <p>Meta-transaction already signed</p>
@@ -898,8 +910,8 @@ export function SafePendingTransactions({
                                           variant="default"
                                           size="sm"
                                           onClick={() => handleGuardianMetaTxBroadcast(tx, 'request')}
-                                          disabled={loadingStates.metaTx || !confirmationStatus.isComplete}
-                                          className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                                          disabled={loadingStates.metaTx || !confirmationStatus.isComplete || !hasOwnerRole()}
+                                          className="w-full bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                           {loadingStates.metaTx ? (
                                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -910,7 +922,9 @@ export function SafePendingTransactions({
                                         </Button>
                                       </TooltipTrigger>
                                       <TooltipContent>
-                                        {!confirmationStatus.isComplete ? (
+                                        {!hasOwnerRole() ? (
+                                          <p>Only contract owners can broadcast Guardian protocol meta-transactions</p>
+                                        ) : !confirmationStatus.isComplete ? (
                                           <p>Transaction needs {confirmationStatus.remaining} more signature{confirmationStatus.remaining !== 1 ? 's' : ''} before broadcasting</p>
                                         ) : (
                                           <p>Broadcast the signed meta-transaction to the blockchain</p>
