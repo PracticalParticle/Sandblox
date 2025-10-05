@@ -14,15 +14,17 @@ import {
   Shield,
   Radio,
   Timer,
-  Zap
+  Zap,
+  Eye
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { SafePendingTx } from "../lib/safe/SafeTxService";
 import { useAccount } from "wagmi";
 import { useOperations } from "../hooks/useOperations";
 import { useMetaTransactionManager } from "@/hooks/useMetaTransactionManager";
+import { decodeSafeMethodEnhanced } from "../lib/safeMethodDecoder";
 
 
 export interface SafePendingTransactionsProps {
@@ -53,7 +55,6 @@ export function SafePendingTransactions({
 }: SafePendingTransactionsProps) {
   const { address } = useAccount();
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState("view");
 
   // Guardian operations hook
   const {
@@ -90,8 +91,17 @@ export function SafePendingTransactions({
     return `${formatEther(value)} ETH`;
   };
 
-  // Format operation type
-  const formatOperation = (operation: number): string => {
+  // Format operation type with enhanced method decoding
+  const formatOperation = (operation: number, data?: string): string => {
+    // First check if we have data to decode the specific method
+    if (data && data !== '0x' && data !== '0x0') {
+      const methodInfo = decodeSafeMethodEnhanced(data);
+      if (methodInfo.isSafeMethod) {
+        return methodInfo.methodName;
+      }
+    }
+    
+    // Fallback to operation type
     switch (operation) {
       case 0:
         return "Call";
@@ -163,7 +173,7 @@ export function SafePendingTransactions({
     return !hasConfirmed && isOwner;
   };
 
-  // Get confirmation status
+  // Get Safe signature status
   const getConfirmationStatus = (tx: SafePendingTx) => {
     const confirmed = tx.confirmations.length;
     const required = tx.confirmationsRequired;
@@ -269,7 +279,7 @@ export function SafePendingTransactions({
       const safeTxData = {
         to: safeTx.to,
         value: safeTx.value,
-        data: safeTx.data as `0x${string}`,
+        data: formattedData as `0x${string}`,
         operation: safeTx.operation,
         safeTxGas: safeTx.safeTxGas,
         baseGas: safeTx.baseGas,
@@ -323,6 +333,7 @@ export function SafePendingTransactions({
     return !!signedMetaTxStates[txId] && !!transactions[Number(txId)];
   };
 
+
   if (error) {
     return (
       <Alert variant="destructive">
@@ -340,43 +351,16 @@ export function SafePendingTransactions({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-medium text-muted-foreground">
-            SAFE PENDING TRANSACTIONS
+            SAFE PENDING TRANSACTION
           </h3>
           {pendingTransactions.length > 0 && (
             <Badge variant="secondary" className="text-xs">
-              {pendingTransactions.length}
+              Nonce: {pendingTransactions.sort((a, b) => a.nonce - b.nonce)[0]?.nonce}
             </Badge>
           )}
         </div>
         
         <div className="flex items-center gap-2">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger 
-                value="view" 
-                className={`text-xs transition-all duration-200 ${
-                  activeTab === "view" 
-                    ? "bg-primary text-primary-foreground shadow-sm" 
-                    : "hover:bg-muted"
-                }`}
-              >
-                {activeTab === "view" && <div className="w-2 h-2 bg-primary-foreground rounded-full mr-2" />}
-                View
-              </TabsTrigger>
-              <TabsTrigger 
-                value="guardian" 
-                className={`text-xs transition-all duration-200 ${
-                  activeTab === "guardian" 
-                    ? "bg-primary text-primary-foreground shadow-sm" 
-                    : "hover:bg-muted"
-                }`}
-              >
-                {activeTab === "guardian" && <div className="w-2 h-2 bg-primary-foreground rounded-full mr-2" />}
-                Guardian
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-          
           <Button
             variant="outline"
             size="sm"
@@ -419,7 +403,10 @@ export function SafePendingTransactions({
       {/* Transactions List */}
       {!isLoading && pendingTransactions.length > 0 && (
         <div className="space-y-4">
-          {pendingTransactions.map((tx) => {
+          {pendingTransactions
+            .sort((a, b) => a.nonce - b.nonce) // Sort by nonce (lowest first)
+            .slice(0, 1) // Only show the first (lowest nonce) transaction
+            .map((tx) => {
             const confirmationStatus = getConfirmationStatus(tx);
             const canSignTx = canSign(tx);
             
@@ -481,126 +468,210 @@ export function SafePendingTransactions({
                   </div>
                 </CardHeader>
                 
-                <CardContent className="space-y-4">
-                  {/* Transaction Details */}
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">To:</span>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="font-mono text-xs truncate max-w-[200px]" title={tx.to}>
-                          {tx.to}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0"
-                          onClick={() => copyToClipboard(tx.to, "Address")}
-                        >
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                      </div>
+                <CardContent className="space-y-6">
+                  {/* Transaction Information & Signatures Section */}
+                  <div className="space-y-6">
+                    {/* Submitted timestamp as subtitle */}
+                    <div className="text-xs text-muted-foreground">
+                      Submitted: {formatDate(tx.submissionDate)}
                     </div>
                     
-                    <div>
-                      <span className="text-muted-foreground">Value:</span>
-                      <div className="mt-1 font-medium">
-                        {formatValue(tx.value)}
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <span className="text-muted-foreground">Operation:</span>
-                      <div className="mt-1">
-                        <Badge variant="outline" className="text-xs">
-                          {formatOperation(tx.operation)}
-                        </Badge>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <span className="text-muted-foreground">Submitted:</span>
-                      <div className="mt-1 text-xs">
-                        {formatDate(tx.submissionDate)}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Transaction Data */}
-                  {tx.data && tx.data !== '0x' && (
-                    <div>
-                      <span className="text-muted-foreground text-sm">Data:</span>
-                      <div className="mt-1 p-2 bg-muted rounded text-xs font-mono">
-                        <div className="flex items-center justify-between">
-                          <span className="truncate max-w-[300px]" title={tx.data}>
-                            {tx.data.length > 66 ? `${tx.data.slice(0, 32)}...${tx.data.slice(-32)}` : tx.data}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 ml-2 flex-shrink-0"
-                            onClick={() => copyToClipboard(tx.data, "Transaction data")}
-                          >
-                            <Copy className="h-3 w-3" />
-                          </Button>
+                    {/* Main Transaction Details Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      {/* Left Column - Transaction Details */}
+                      <div className="lg:col-span-2 space-y-4">
+                        <div className="space-y-4 text-sm">
+                          <div className="space-y-1">
+                            <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Recipient</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm" title={tx.to}>
+                                {tx.to.length > 20 ? `${tx.to.slice(0, 10)}...${tx.to.slice(-10)}` : tx.to}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 hover:bg-muted"
+                                onClick={() => copyToClipboard(tx.to, "Address")}
+                              >
+                                <Copy className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Value</span>
+                            <div className="text-sm font-semibold">
+                              {formatValue(tx.value)}
+                            </div>
+                          </div>
                         </div>
 
+                        {/* Transaction Data */}
+                        {tx.data && tx.data !== '0x' && (
+                          <div className="space-y-2">
+                            <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Transaction Data</span>
+                            <div className="p-3 bg-muted/50 rounded-lg border">
+                              <div className="flex items-center justify-between">
+                                <span className="truncate max-w-[300px] font-mono text-xs" title={tx.data}>
+                                  {tx.data.length > 66 ? `${tx.data.slice(0, 32)}...${tx.data.slice(-32)}` : tx.data}
+                                </span>
+                                <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                                  <Dialog>
+                                    <DialogTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0 hover:bg-muted"
+                                      >
+                                        <Eye className="h-3 w-3" />
+                                      </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
+                                      <DialogHeader>
+                                        <DialogTitle>Transaction Data Preview</DialogTitle>
+                                      </DialogHeader>
+                                      <div className="space-y-4">
+                                        <div>
+                                          <h4 className="text-sm font-medium mb-2">Raw Data:</h4>
+                                          <div className="p-3 bg-muted rounded text-xs font-mono break-all">
+                                            {tx.data}
+                                          </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => copyToClipboard(tx.data, "Transaction data")}
+                                          >
+                                            <Copy className="h-4 w-4 mr-2" />
+                                            Copy Data
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </DialogContent>
+                                  </Dialog>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 hover:bg-muted"
+                                    onClick={() => copyToClipboard(tx.data, "Transaction data")}
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
 
-                  {/* Confirmations Status */}
-                  <div className="border-t pt-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-muted-foreground">Confirmations:</span>
-                      <span className="text-sm font-medium">
-                        {confirmationStatus.confirmed} / {confirmationStatus.required}
-                      </span>
-                    </div>
-                    
-                    {/* Progress Bar */}
-                    <div className="w-full bg-muted rounded-full h-2">
-                      <div 
-                        className="bg-primary h-2 rounded-full transition-all duration-300"
-                        style={{ 
-                          width: `${(confirmationStatus.confirmed / confirmationStatus.confirmed) * 100}%` 
-                        }}
-                      />
-                    </div>
-                    
-                    {/* Confirmation Details */}
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      {confirmationStatus.remaining > 0 ? (
-                        <span>
-                          {confirmationStatus.remaining} more confirmation{confirmationStatus.remaining !== 1 ? 's' : ''} needed
-                        </span>
-                      ) : (
-                        <span className="text-green-600 flex items-center gap-1">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Ready to execute
-                        </span>
-                      )}
+                      {/* Right Column - Safe Signatures Status */}
+                      <div className="space-y-4">
+                        <div className="p-4 bg-muted/30 rounded-lg border">
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium">Safe Signatures</span>
+                              <Badge 
+                                variant={confirmationStatus.isComplete ? "default" : "secondary"}
+                                className="text-xs"
+                              >
+                                {confirmationStatus.confirmed}/{confirmationStatus.required}
+                              </Badge>
+                            </div>
+                            
+                            {/* Enhanced Progress Bar */}
+                            <div className="space-y-2">
+                              <div className="w-full bg-muted rounded-full h-3 overflow-hidden">
+                                <div 
+                                  className={`h-3 rounded-full transition-all duration-500 ${
+                                    confirmationStatus.isComplete 
+                                      ? 'bg-green-500' 
+                                      : 'bg-primary'
+                                  }`}
+                                  style={{ 
+                                    width: `${(confirmationStatus.confirmed / confirmationStatus.required) * 100}%` 
+                                  }}
+                                />
+                              </div>
+                              
+                              <div className="text-xs text-muted-foreground">
+                                {confirmationStatus.remaining > 0 ? (
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    {confirmationStatus.remaining} more signature{confirmationStatus.remaining !== 1 ? 's' : ''} needed
+                                  </span>
+                                ) : (
+                                  <span className="text-green-600 flex items-center gap-1 font-medium">
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    Ready to execute
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Transaction Status Summary */}
+                        <div className="p-3 bg-card rounded-lg border">
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-muted-foreground">Operation</span>
+                              <div className="flex items-center gap-1">
+                                {(() => {
+                                  const methodInfo = decodeSafeMethodEnhanced(tx.data || '0x');
+                                  return (
+                                    <div className="flex items-center gap-1">
+                                      <Badge 
+                                        variant={methodInfo.isSafeMethod ? "default" : "outline"} 
+                                        className="text-xs"
+                                      >
+                                        {formatOperation(tx.operation, tx.data)}
+                                      </Badge>
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-muted-foreground">Status</span>
+                              <span className={`font-medium ${
+                                confirmationStatus.isComplete ? 'text-green-600' : 'text-amber-600'
+                              }`}>
+                                {confirmationStatus.isComplete ? 'Ready' : 'Pending'}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-muted-foreground">Nonce</span>
+                              <span className="font-mono">{tx.nonce}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-muted-foreground">Gas Price</span>
+                              <span className="font-mono">{formatEther(tx.gasPrice)} ETH</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Guardian Protocol Actions */}
-                  {activeTab === "guardian" && (
-                    <div className="border-t pt-4 space-y-4">
-                      <div className="flex items-center gap-2 mb-4">
-                        <Shield className="h-4 w-4 text-primary" />
-                        <span className="text-sm font-medium text-muted-foreground">Guardian Protocol Actions</span>
-                      </div>
-                      
+                  {/* Guardian Protocol Actions Section */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-semibold text-foreground">Guardian Protocol Actions</h4>
+                    </div>
+                    
+                    <div className="space-y-4">
                       {/* Two-column layout for Guardian options */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         {/* Temporal Workflow (Request/Approve with time delay) */}
-                        <div className="space-y-3 p-4 border rounded-lg">
-                          <div className="space-y-1">
+                        <div className="space-y-3 p-4 border rounded-lg bg-card">
+                          <div className="space-y-2">
                             <div className="flex items-center gap-2">
                               <Timer className="h-4 w-4 text-blue-500" />
                               <span className="text-sm font-medium">Temporal Workflow</span>
                               <Badge variant="secondary" className="text-xs">Time-lock</Badge>
                             </div>
-                            <p className="text-xs text-muted-foreground ml-6">
+                            <p className="text-xs text-muted-foreground">
                               Request with time-lock security. Includes waiting period for enhanced security.
                             </p>
                           </div>
@@ -624,14 +695,14 @@ export function SafePendingTransactions({
                         </div>
 
                         {/* Meta Transaction (Direct signing for immediate broadcast) */}
-                        <div className="space-y-3 p-4 border rounded-lg">
-                          <div className="space-y-1">
+                        <div className="space-y-3 p-4 border rounded-lg bg-card">
+                          <div className="space-y-2">
                             <div className="flex items-center gap-2">
                               <Zap className="h-4 w-4 text-purple-500" />
                               <span className="text-sm font-medium">Meta Transaction</span>
                               <Badge variant="secondary" className="text-xs">Immediate</Badge>
                             </div>
-                            <p className="text-xs text-muted-foreground ml-6">
+                            <p className="text-xs text-muted-foreground">
                               Sign and broadcast immediately. No waiting period for faster execution.
                             </p>
                           </div>
@@ -675,18 +746,22 @@ export function SafePendingTransactions({
                       </div>
                       
                       {/* Additional info */}
-                      <div className="mt-4 p-3 bg-muted/50 rounded-lg">
+                      <div className="p-3 bg-muted/50 rounded-lg">
                         <p className="text-xs text-muted-foreground">
                           <strong>Choose your approach:</strong> Use Temporal Workflow for enhanced security with time-lock, 
                           or Meta Transaction for immediate execution. You can use both approaches independently.
                         </p>
                       </div>
                     </div>
-                  )}
+                  </div>
 
-                  {/* Sign Transaction Button (Safe UI) */}
-                  {activeTab === "view" && canSignTx && (
-                    <div className="border-t pt-4">
+                  {/* Safe UI Signing Section */}
+                  {canSignTx && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-semibold text-foreground">Safe UI Signing</h4>
+                      </div>
+                      
                       <Alert>
                         <AlertCircle className="h-4 w-4" />
                         <AlertDescription>
@@ -695,7 +770,7 @@ export function SafePendingTransactions({
                       </Alert>
                       
                       <Button 
-                        className="w-full mt-2"
+                        className="w-full"
                         onClick={() => window.open(getSafeUIUrl(tx.safeTxHash), '_blank')}
                       >
                         <ExternalLink className="h-4 w-4 mr-2" />

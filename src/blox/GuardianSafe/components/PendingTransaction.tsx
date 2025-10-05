@@ -16,6 +16,7 @@ import { OperationPhase } from "@/types/OperationRegistry";
 import { usePublicClient } from "wagmi";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { decodeSafeMethodEnhanced } from "../lib/safeMethodDecoder";
 
 export interface PendingTransactionsProps {
   transactions: SafeTxRecord[];
@@ -204,7 +205,9 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
       return formattedTx.description || "Unknown transaction";
     }
 
-    const operationType = tx.operation === 0 ? "Call" : "DelegateCall";
+    // Use enhanced method decoder to get specific Safe method name
+    const methodInfo = decodeSafeMethodEnhanced(tx.data || '0x');
+    const operationType = methodInfo.isSafeMethod ? methodInfo.methodName : (tx.operation === 0 ? "Call" : "DelegateCall");
     const valueEth = Number(tx.value) / 1e18;
     
     let description = `${operationType} to ${tx.to}`;
@@ -336,7 +339,10 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                             Transaction #{tx.txId.toString()}
                           </p>
                           <Badge variant="outline" className={tx.operation === 0 ? "bg-blue-50" : "bg-purple-50"}>
-                            {tx.operation === 0 ? "Call" : "DelegateCall"}
+                            {(() => {
+                              const methodInfo = decodeSafeMethodEnhanced(tx.data || '0x');
+                              return methodInfo.isSafeMethod ? methodInfo.methodName : (tx.operation === 0 ? "Call" : "DelegateCall");
+                            })()}
                           </Badge>
                         </div>
                         <p className="text-sm mt-1">{txDescription}</p>
