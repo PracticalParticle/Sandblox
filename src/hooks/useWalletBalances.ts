@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
 import { usePublicClient, useAccount } from 'wagmi';
 import { Address } from 'viem';
 import { erc20Abi } from 'viem';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryKeys';
 
 export interface TokenBalance {
   address: Address;
@@ -19,31 +20,26 @@ export interface WalletBalances {
 }
 
 /**
- * Hook to manage wallet balances for both ETH and ERC20 tokens
+ * Hook to manage wallet balances for both ETH and ERC20 tokens using TanStack Query
  * @param tokenAddresses Array of token addresses to track
- * @param refreshInterval Optional interval in ms to refresh balances (default: 10000)
+ * @param refreshInterval Optional interval in ms to refresh balances (default: 30000)
  * @returns WalletBalances object containing ETH and token balances
  */
 export function useWalletBalances(
   tokenAddresses: Address[] = [],
-  refreshInterval: number = 10000
+  refreshInterval: number = 30000
 ): WalletBalances {
   const { address: walletAddress } = useAccount();
   const publicClient = usePublicClient();
-  const [balances, setBalances] = useState<WalletBalances>({
-    eth: BigInt(0),
-    tokens: {},
-    isLoading: true,
-    error: null,
-  });
 
-  useEffect(() => {
-    let mounted = true;
-    let intervalId: NodeJS.Timeout;
-
-    const fetchBalances = async () => {
+  const { data: balances, isLoading, error } = useQuery({
+    queryKey: queryKeys.wallet.balances(walletAddress!, tokenAddresses),
+    queryFn: async () => {
       if (!walletAddress || !publicClient) {
-        return;
+        return {
+          eth: BigInt(0),
+          tokens: {},
+        };
       }
 
       try {
@@ -52,89 +48,91 @@ export function useWalletBalances(
           address: walletAddress,
         });
 
-        // Fetch token balances and metadata
+        // Use multicall to fetch all token data in a single RPC call
         const tokenBalances: Record<Address, TokenBalance> = {};
-        await Promise.all(
-          tokenAddresses.map(async (tokenAddress) => {
-            try {
-              const [balance, decimals, symbol, name] = await Promise.all([
-                publicClient.readContract({
-                  address: tokenAddress,
-                  abi: erc20Abi,
-                  functionName: 'balanceOf',
-                  args: [walletAddress],
-                }) as Promise<bigint>,
-                publicClient.readContract({
-                  address: tokenAddress,
-                  abi: erc20Abi,
-                  functionName: 'decimals',
-                  args: [],
-                }) as Promise<number>,
-                publicClient.readContract({
-                  address: tokenAddress,
-                  abi: erc20Abi,
-                  functionName: 'symbol',
-                  args: [],
-                }) as Promise<string>,
-                publicClient.readContract({
-                  address: tokenAddress,
-                  abi: erc20Abi,
-                  functionName: 'name',
-                  args: [],
-                }) as Promise<string>,
-              ]);
+        
+        if (tokenAddresses.length > 0) {
+          const contracts = tokenAddresses.flatMap(tokenAddress => [
+            {
+              address: tokenAddress,
+              abi: erc20Abi,
+              functionName: 'balanceOf',
+              args: [walletAddress],
+            },
+            {
+              address: tokenAddress,
+              abi: erc20Abi,
+              functionName: 'decimals',
+              args: [],
+            },
+            {
+              address: tokenAddress,
+              abi: erc20Abi,
+              functionName: 'symbol',
+              args: [],
+            },
+            {
+              address: tokenAddress,
+              abi: erc20Abi,
+              functionName: 'name',
+              args: [],
+            },
+          ]);
 
+          const results = await publicClient.multicall({
+            contracts,
+            allowFailure: true,
+          });
+
+          // Process results in groups of 4 (balance, decimals, symbol, name)
+          for (let i = 0; i < tokenAddresses.length; i++) {
+            const tokenAddress = tokenAddresses[i];
+            const baseIndex = i * 4;
+            
+            const balanceResult = results[baseIndex];
+            const decimalsResult = results[baseIndex + 1];
+            const symbolResult = results[baseIndex + 2];
+            const nameResult = results[baseIndex + 3];
+
+            // Only add token if all calls succeeded
+            if (
+              balanceResult.status === 'success' &&
+              decimalsResult.status === 'success' &&
+              symbolResult.status === 'success' &&
+              nameResult.status === 'success'
+            ) {
               tokenBalances[tokenAddress] = {
                 address: tokenAddress,
-                balance,
-                decimals,
-                symbol,
-                name,
+                balance: balanceResult.result as bigint,
+                decimals: decimalsResult.result as number,
+                symbol: symbolResult.result as string,
+                name: nameResult.result as string,
               };
-            } catch (error) {
-              console.error(`Error fetching token balance for ${tokenAddress}:`, error);
-              // Don't throw here, just log the error and continue with other tokens
+            } else {
+              console.warn(`Failed to fetch token data for ${tokenAddress}`);
             }
-          })
-        );
-
-        if (mounted) {
-          setBalances((prev) => ({
-            ...prev,
-            eth: ethBalance,
-            tokens: tokenBalances,
-            isLoading: false,
-            error: null,
-          }));
+          }
         }
+
+        return {
+          eth: ethBalance,
+          tokens: tokenBalances,
+        };
       } catch (error) {
         console.error('Error fetching balances:', error);
-        if (mounted) {
-          setBalances((prev) => ({
-            ...prev,
-            isLoading: false,
-            error: error instanceof Error ? error : new Error('Failed to fetch balances'),
-          }));
-        }
+        throw error;
       }
-    };
+    },
+    enabled: !!walletAddress && !!publicClient,
+    refetchInterval: refreshInterval,
+    refetchIntervalInBackground: true,
+    staleTime: 30_000, // Cache for 30 seconds
+  });
 
-    // Initial fetch
-    fetchBalances();
-
-    // Set up interval for periodic updates
-    if (refreshInterval > 0) {
-      intervalId = setInterval(fetchBalances, refreshInterval);
-    }
-
-    // Cleanup
-    return () => {
-      mounted = false;
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-    };
-  }, [walletAddress, publicClient, tokenAddresses, refreshInterval]);
-
-  return balances;
+  return {
+    eth: balances?.eth || BigInt(0),
+    tokens: balances?.tokens || {},
+    isLoading,
+    error: error as Error | null,
+  };
 } 

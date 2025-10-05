@@ -9,6 +9,8 @@ import { NotificationMessage, VaultTxRecord } from '../lib/types';
 import { createVaultMetaTxParams } from '../lib/operations';
 import { SimpleVaultService } from '../lib/services';
 import SimpleVault from '../SimpleVault';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryKeys';
 
 // Valid operation types for SimpleVault
 export const VAULT_OPERATIONS = {
@@ -82,8 +84,6 @@ export function useOperations({
   // States
   const [vaultService, setVaultService] = useState<SimpleVaultService | null>(null);
   const [vault, setVault] = useState<SimpleVault | null>(null);
-  const [operations, setOperations] = useState<VaultTxRecord[]>([]);
-  const [isLoadingOperations, setIsLoadingOperations] = useState(false);
   const [signedMetaTxStates, setSignedMetaTxStates] = useState<Record<string, { type: 'approve' | 'cancel' }>>({});
   const [loadingStates, setLoadingStates] = useState<{
     approval: Record<number, boolean>;
@@ -98,7 +98,8 @@ export function useOperations({
   // Initialize services
   useEffect(() => {
     if (!publicClient || !chain || !contractAddress) return;
-    
+    let didCancel = false;
+
     const initializeServices = async () => {
       try {
         const newVault = new SimpleVault(
@@ -107,6 +108,7 @@ export function useOperations({
           contractAddress, 
           chain
         );
+        if (didCancel) return;
         setVault(newVault);
 
         const newService = new SimpleVaultService(
@@ -115,25 +117,24 @@ export function useOperations({
           contractAddress,
           chain
         );
+        if (didCancel) return;
         setVaultService(newService);
-
-        // Fetch initial operations
-        setIsLoadingOperations(true);
-        const txs = await newService.getPendingTransactions();
-        setOperations(txs);
       } catch (error) {
         console.error('Failed to initialize services:', error);
+        if (didCancel) return;
         onError?.({
           type: 'error',
           title: 'Initialization Failed',
           description: error instanceof Error ? error.message : 'Failed to initialize services'
         });
-      } finally {
-        setIsLoadingOperations(false);
       }
     };
 
     initializeServices();
+
+    return () => {
+      didCancel = true;
+    };
   }, [publicClient, walletClient, contractAddress, chain, onError]);
 
   // Add error handling for transaction manager
@@ -147,26 +148,39 @@ export function useOperations({
     }
   }, [txManagerError, onError]);
 
-  // Refresh operations
-  const refreshOperations = useCallback(async () => {
-    if (!vaultService) return;
-    
-    setIsLoadingOperations(true);
-    try {
+  // Fetch operations using TanStack Query
+  const { data: operations = [], isLoading: isLoadingOperations, error: operationsError } = useQuery({
+    queryKey: queryKeys.operations.pendingTxs(chain?.id || 0, contractAddress),
+    queryFn: async () => {
+      if (!vaultService) {
+        return [];
+      }
+      console.log("Fetching operation history...");
       const txs = await vaultService.getPendingTransactions();
-      setOperations(txs);
-      onRefresh?.();
-    } catch (error) {
-      console.error('Failed to refresh operations:', error);
+      console.log("Fetched operations:", txs.length);
+      return txs;
+    },
+    enabled: !!vaultService && !!chain,
+    refetchInterval: 60_000, // Refresh every 60 seconds
+    refetchIntervalInBackground: true,
+    staleTime: 30_000, // Cache for 30 seconds
+  });
+
+  // Handle operations error
+  useEffect(() => {
+    if (operationsError) {
       onError?.({
         type: 'error',
-        title: 'Refresh Failed',
-        description: error instanceof Error ? error.message : 'Failed to refresh operations'
+        title: 'Operations Fetch Failed',
+        description: operationsError.message
       });
-    } finally {
-      setIsLoadingOperations(false);
     }
-  }, [vaultService, onError, onRefresh]);
+  }, [operationsError, onError]);
+
+  // Refresh operations callback for manual refresh
+  const refreshOperations = useCallback(() => {
+    onRefresh?.();
+  }, [onRefresh]);
 
   // Operation History hooks for filtering
   const {

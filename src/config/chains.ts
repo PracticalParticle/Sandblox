@@ -33,10 +33,10 @@ export const sepolia = {
   },
   rpcUrls: {
     default: {
-      http: ['https://ethereum-sepolia-rpc.publicnode.com'],
+      http: [env.VITE_SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com'],
     },
     public: {
-      http: ['https://ethereum-sepolia-rpc.publicnode.com'],
+      http: [env.VITE_SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com'],
     },
   },
   blockExplorers: {

@@ -7,14 +7,27 @@ import { injected } from 'wagmi/connectors';
 import { devnet, sepolia, arbitrumSepolia, zksyncSepoliaTestnet } from '@/config/chains';
 import { Transport } from 'wagmi';
 
-// Create a new QueryClient instance
-const queryClient = new QueryClient();
+// Create a new QueryClient instance with conservative defaults to avoid rate limits
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000, // cache results for 1 minute by default
+      gcTime: 5 * 60_000, // keep in cache for 5 minutes
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: 'always',
+      retry: false, // avoid hammering rate-limited public RPCs
+    },
+    mutations: {
+      retry: false,
+    },
+  },
+});
 
-// Initialize transports based on available environment variables
+// Initialize transports (use chain defaults to allow internal batching where supported)
 const transports: Record<number, Transport> = {
   [sepolia.id]: http(),
   [arbitrumSepolia.id]: http(),
-  [zksyncSepoliaTestnet.id]: http()
+  [zksyncSepoliaTestnet.id]: http(),
 };
 
 // Add devnet transport

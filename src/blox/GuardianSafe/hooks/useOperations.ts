@@ -114,9 +114,10 @@ export function useOperations({
     delegatedCall: false
   });
 
-  // Initialize services
+  // Initialize services (guard against StrictMode double-invoke)
   useEffect(() => {
     if (!publicClient || !chain || !contractAddress) return;
+    let didCancel = false;
     
     const initializeServices = async () => {
       try {
@@ -126,6 +127,7 @@ export function useOperations({
           contractAddress, 
           chain
         );
+        if (didCancel) return;
         setSafe(newSafe);
 
         const newService = new GuardianSafeService(
@@ -134,15 +136,18 @@ export function useOperations({
           contractAddress,
           chain
         );
+        if (didCancel) return;
         setSafeService(newService);
 
         // Fetch initial operations
         setIsLoadingOperations(true);
         const txs = await newService.getPendingTransactions();
+        if (didCancel) return;
         setOperations(txs);
         
         // Fetch delegated call status
         const delegatedCallEnabled = await newService.isDelegatedCallEnabled();
+        if (didCancel) return;
         setIsDelegatedCallEnabled(delegatedCallEnabled);
       } catch (error) {
         console.error('Failed to initialize services:', error);
@@ -152,11 +157,15 @@ export function useOperations({
           description: error instanceof Error ? error.message : 'Failed to initialize services'
         });
       } finally {
+        if (didCancel) return;
         setIsLoadingOperations(false);
       }
     };
 
     initializeServices();
+    return () => {
+      didCancel = true;
+    };
   }, [publicClient, walletClient, contractAddress, chain, onError]);
 
   // Add error handling for transaction manager

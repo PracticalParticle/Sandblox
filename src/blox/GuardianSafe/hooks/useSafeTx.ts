@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Address } from 'viem';
 import { usePublicClient } from 'wagmi';
 import { SafeTxService, SafePendingTx } from '../lib/safe/SafeTxService';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryKeys';
 
 export interface UseSafeTxReturn {
   // Data
@@ -52,13 +54,14 @@ export function useSafeTx({
   const [error, setError] = useState<Error | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Initialize SafeTxService when dependencies change
+  // Initialize SafeTxService when dependencies change (guard against StrictMode double-invoke)
   useEffect(() => {
     if (!safeAddress || !chainId || !publicClient) {
       setSafeTxService(null);
       setIsInitialized(false);
       return;
     }
+    let didCancel = false;
 
     const initializeService = async () => {
       try {
@@ -76,6 +79,7 @@ export function useSafeTx({
         // Initialize the service
         await service.init();
         
+        if (didCancel) return;
         setSafeTxService(service);
         setIsInitialized(true);
         
@@ -85,78 +89,48 @@ export function useSafeTx({
         setError(err instanceof Error ? err : new Error('Failed to initialize SafeTxService'));
         setIsInitialized(false);
       } finally {
+        if (didCancel) return;
         setIsLoading(false);
       }
     };
 
     initializeService();
+    return () => { didCancel = true; };
   }, [safeAddress, chainId, publicClient]);
 
-  // Fetch pending transactions
-  const fetchPendingTransactions = useCallback(async () => {
-    if (!safeTxService || !isInitialized) {
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const transactions = await safeTxService.getPendingTransactions();
-      setPendingTransactions(transactions);
-      
-      console.log(`📋 Fetched ${transactions.length} pending transactions`);
-    } catch (err) {
-      console.error('❌ Failed to fetch pending transactions:', err);
-      setError(err instanceof Error ? err : new Error('Failed to fetch pending transactions'));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [safeTxService, isInitialized]);
-
-  // Fetch Safe info
-  const fetchSafeInfo = useCallback(async () => {
-    if (!safeTxService || !isInitialized) {
-      return;
-    }
-
-    try {
-      const info = await safeTxService.getSafeInfo();
-      setSafeInfo(info);
-      
-      console.log('📋 Fetched Safe info:', info);
-    } catch (err) {
-      console.error('❌ Failed to fetch Safe info:', err);
-      // Don't set error for Safe info as it's not critical
-    }
-  }, [safeTxService, isInitialized]);
-
-  // Initial data fetch
+  // Fetch pending transactions via TanStack Query
+  const { data: queriedPendingTxs } = useQuery({
+    enabled: Boolean(isInitialized && safeTxService && safeAddress && chainId),
+    queryKey: queryKeys.contract.safe.pendingTxs(chainId || 0, (safeAddress || '').toString()),
+    queryFn: async () => {
+      return await safeTxService!.getPendingTransactions();
+    },
+    staleTime: refreshInterval,
+    refetchInterval: autoRefresh ? refreshInterval : false,
+  });
   useEffect(() => {
-    if (isInitialized) {
-      fetchPendingTransactions();
-      fetchSafeInfo();
-    }
-  }, [isInitialized, fetchPendingTransactions, fetchSafeInfo]);
+    if (queriedPendingTxs) setPendingTransactions(queriedPendingTxs);
+  }, [queriedPendingTxs]);
 
-  // Auto-refresh functionality
+  // Fetch Safe info via TanStack Query
+  const { data: queriedSafeInfo } = useQuery({
+    enabled: Boolean(isInitialized && safeTxService && safeAddress && chainId),
+    queryKey: queryKeys.contract.safe.info(chainId || 0, (safeAddress || '').toString()),
+    queryFn: async () => {
+      return await safeTxService!.getSafeInfo();
+    },
+    staleTime: 60_000,
+  });
   useEffect(() => {
-    if (!autoRefresh || !isInitialized || !safeTxService) {
-      return;
-    }
+    if (queriedSafeInfo) setSafeInfo(queriedSafeInfo);
+  }, [queriedSafeInfo]);
 
-    const interval = setInterval(() => {
-      console.log('🔄 Auto-refreshing Safe pending transactions...');
-      fetchPendingTransactions();
-    }, refreshInterval);
-
-    return () => clearInterval(interval);
-  }, [autoRefresh, isInitialized, safeTxService, refreshInterval, fetchPendingTransactions]);
+  // Remove manual interval; handled by TanStack Query's refetchInterval
 
   // Refresh function for manual use
   const refreshPendingTransactions = useCallback(async () => {
-    await fetchPendingTransactions();
-  }, [fetchPendingTransactions]);
+    // TanStack Query will refetch on demand via invalidation at call sites if needed
+  }, []);
 
   // Get transaction details
   const getTransactionDetails = useCallback(async (safeTxHash: string): Promise<SafePendingTx | null> => {

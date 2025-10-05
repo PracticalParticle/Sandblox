@@ -58,8 +58,9 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
     loadContractType();
   }, [bloxId]);
 
-  // Initialize manager when dependencies change
+  // Initialize manager when dependencies change (guard against StrictMode double-invoke)
   useEffect(() => {
+    let didCancel = false
     const initManager = async () => {
       if (!publicClient || !contractAddress) return
 
@@ -75,7 +76,7 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
           storeTransaction,
           contractType
         )
-        
+        if (didCancel) return
         setManager(workflowManager)
       } catch (error) {
         console.error("Failed to initialize WorkflowManager:", error)
@@ -83,6 +84,7 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
     }
 
     initManager()
+    return () => { didCancel = true }
   }, [publicClient, walletClient, contractAddress, chainId, config.chains, storeTransaction, contractType])
 
   // Helper function to determine required role based on operation and phase

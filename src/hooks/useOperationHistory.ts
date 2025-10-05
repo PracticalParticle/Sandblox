@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { TxRecord } from '../Guardian/sdk/typescript/interfaces/lib.index'
 import { TxStatus } from '../Guardian/sdk/typescript/types/lib.index'
 import { Address, Hex } from 'viem'
@@ -38,31 +38,27 @@ export function useOperationHistory({
   operations,
   isLoading = false
 }: UseOperationHistoryProps): UseOperationHistoryReturn {
-  const [sortedOperations, setSortedOperations] = useState<TxRecord[]>([])
-  const [filteredOperations, setFilteredOperations] = useState<TxRecord[]>([])
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [operationTypeFilter, setOperationTypeFilter] = useState<string>('all')
 
   const { getOperationName, operationTypes: rawOperationTypes, loading: loadingTypes } = useOperationTypes(contractAddress)
 
-  // Convert operation types to the correct Hex type
-  const operationTypes = new Map(
-    Array.from(rawOperationTypes.entries()).map(([key, value]) => [key as Hex, value])
+  // Convert operation types to the correct Hex type (stable memo)
+  const operationTypes = useMemo(
+    () => new Map(Array.from(rawOperationTypes.entries()).map(([key, value]) => [key as Hex, value])),
+    [rawOperationTypes]
   )
 
-  // Update sorted operations when operations change
-  useEffect(() => {
-    // Sort operations by txId in descending order (newest first)
-    const sorted = [...operations].sort((a, b) => 
-      Number(b.txId - a.txId)
-    )
-    setSortedOperations(sorted)
+  // Derive sorted operations (stable memo)
+  const sortedOperations = useMemo(() => {
+    if (!operations || operations.length === 0) return []
+    // Sort by txId desc (newest first)
+    return [...operations].sort((a, b) => Number(b.txId - a.txId))
   }, [operations])
 
-  // Update filtered operations when filters or sorted operations change
-  useEffect(() => {
-    // Apply filters
-    let filtered = [...sortedOperations]
+  // Derive filtered operations (stable memo)
+  const filteredOperations = useMemo(() => {
+    let filtered = sortedOperations
 
     if (statusFilter !== 'all') {
       filtered = filtered.filter(op => op.status === parseInt(statusFilter))
@@ -72,7 +68,7 @@ export function useOperationHistory({
       filtered = filtered.filter(op => op.params.operationType === operationTypeFilter)
     }
 
-    setFilteredOperations(filtered)
+    return filtered
   }, [sortedOperations, statusFilter, operationTypeFilter])
 
   return {
