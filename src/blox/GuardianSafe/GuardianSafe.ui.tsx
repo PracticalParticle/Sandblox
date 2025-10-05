@@ -1203,25 +1203,7 @@ function GuardianSafeUIContent({
                 </div>
               )}
 
-              {/* Guardian Pending Transactions */}
-              <div className="space-y-2">
-                <PendingTransactions
-                  transactions={pendingTransactions}
-                  isLoadingTx={loadingState.transactions}
-                  onRefresh={refreshData}
-                  onApprove={handleApproveTransaction}
-                  onCancel={handleCancelTransaction}
-                  onMetaTxSign={handleMetaTxSign}
-                  onBroadcastMetaTx={handleBroadcastMetaTx}
-                  signedMetaTxStates={signedMetaTxStates}
-                  isLoading={operationsLoadingStates.approval[0] || operationsLoadingStates.cancellation[0]}
-                  contractAddress={contractAddress as Address}
-                  onNotification={handleNotification}
-                  connectedAddress={address}
-                  timeLockPeriodInMinutes={timeLockPeriodInMinutes}
-                  formatSafeTxForDisplay={formatSafeTxForDisplay}
-                />
-              </div>
+             
             </div>
           </CardContent>
         </Card>

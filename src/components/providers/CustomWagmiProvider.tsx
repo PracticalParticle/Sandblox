@@ -1,8 +1,8 @@
 import { ReactNode } from 'react';
-import { WagmiProvider, http } from 'wagmi';
+import { WagmiProvider, http, createConfig } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { RainbowKitProvider, getDefaultConfig, lightTheme, darkTheme } from '@rainbow-me/rainbowkit';
-import { metaMaskWallet, walletConnectWallet } from '@rainbow-me/rainbowkit/wallets';
+import { RainbowKitProvider, lightTheme, darkTheme } from '@rainbow-me/rainbowkit';
+import { injected } from 'wagmi/connectors';
 // import { sepolia, bscTestnet, zkSyncSepoliaTestnet, polygonAmoy, baseSepolia, arbitrumSepolia, optimismSepolia } from 'wagmi/chains';
 import { devnet, sepolia, arbitrumSepolia, zksyncSepoliaTestnet } from '@/config/chains';
 import { Transport } from 'wagmi';
@@ -22,24 +22,12 @@ transports[devnet.id] = http(devnet.rpcUrls.default.http[0]);
 
 const availableChains = [devnet, sepolia, arbitrumSepolia, zksyncSepoliaTestnet] as const;
 
-// Ensure projectId is properly initialized
-const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID || '';
-
-const wagmiConfig = getDefaultConfig({
-  appName: 'SandBlox',
-  projectId,
+// Always avoid WalletConnect to prevent relayer churn unless explicitly re-enabled later
+const wagmiConfig = createConfig({
   chains: availableChains,
   transports,
-  ssr: false, // Disable SSR
-  wallets: [
-    {
-      groupName: 'Recommended',
-      wallets: [
-        metaMaskWallet,
-        ...(projectId ? [walletConnectWallet] : []),
-      ]
-    }
-  ]
+  ssr: false,
+  connectors: [injected()],
 });
 
 interface CustomWagmiProviderProps {
