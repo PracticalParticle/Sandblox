@@ -198,8 +198,19 @@ export function SafePendingTransactions({
       let extractedSignatures = safeTx.signatures;
       
       if (!extractedSignatures || extractedSignatures === '0x') {
-        // Combine signatures from confirmations
+        // Check if we have enough confirmations to meet threshold
+        const confirmationStatus = getConfirmationStatus(safeTx);
+        
+        if (!confirmationStatus.isComplete) {
+          throw new Error(
+            `Insufficient signatures: ${confirmationStatus.confirmed}/${confirmationStatus.required} required. ` +
+            `Need ${confirmationStatus.remaining} more signature(s).`
+          );
+        }
+        
+        // Combine signatures from confirmations with proper ordering and validation
         const signatureArray: string[] = [];
+        const validConfirmations: Array<{owner: string, signature: string}> = [];
         
         safeTx.confirmations?.forEach(confirmation => {
           if (confirmation.signature) {
@@ -207,8 +218,42 @@ export function SafePendingTransactions({
             const cleanSig = confirmation.signature.startsWith('0x') 
               ? confirmation.signature.slice(2) 
               : confirmation.signature;
-            signatureArray.push(cleanSig);
+            
+            // Validate signature format (should be 130 hex characters = 65 bytes)
+            if (cleanSig.length !== 130) {
+              console.warn(`Invalid signature length for ${confirmation.owner}: ${cleanSig.length} (expected 130)`);
+              return;
+            }
+            
+            // Validate signature format (should be valid hex)
+            if (!/^[0-9a-fA-F]{130}$/.test(cleanSig)) {
+              console.warn(`Invalid signature format for ${confirmation.owner}: not valid hex`);
+              return;
+            }
+            
+            validConfirmations.push({
+              owner: confirmation.owner.toLowerCase(),
+              signature: cleanSig
+            });
           }
+        });
+        
+        // Sort signatures by owner address (required by Safe contract)
+        validConfirmations.sort((a, b) => a.owner.localeCompare(b.owner));
+        
+        // Validate we have enough valid signatures
+        if (validConfirmations.length < safeTx.confirmationsRequired) {
+          throw new Error(
+            `Insufficient valid signatures: ${validConfirmations.length}/${safeTx.confirmationsRequired} required. ` +
+            `Some signatures may be invalid or malformed.`
+          );
+        }
+        
+        // Take only the required number of signatures (in case we have more than needed)
+        const requiredSignatures = validConfirmations.slice(0, safeTx.confirmationsRequired);
+        
+        requiredSignatures.forEach(conf => {
+          signatureArray.push(conf.signature);
         });
         
         if (signatureArray.length > 0) {
@@ -243,6 +288,7 @@ export function SafePendingTransactions({
       await handleRequestTransaction(safeTxData);
     } catch (error) {
       console.error('Failed to request Safe transaction:', error);
+      throw error; // Re-throw to show error to user
     }
   };
 
@@ -252,8 +298,19 @@ export function SafePendingTransactions({
       let extractedSignatures = safeTx.signatures;
       
       if (!extractedSignatures || extractedSignatures === '0x') {
-        // Combine signatures from confirmations
+        // Check if we have enough confirmations to meet threshold
+        const confirmationStatus = getConfirmationStatus(safeTx);
+        
+        if (!confirmationStatus.isComplete) {
+          throw new Error(
+            `Insufficient signatures: ${confirmationStatus.confirmed}/${confirmationStatus.required} required. ` +
+            `Need ${confirmationStatus.remaining} more signature(s).`
+          );
+        }
+        
+        // Combine signatures from confirmations with proper ordering and validation
         const signatureArray: string[] = [];
+        const validConfirmations: Array<{owner: string, signature: string}> = [];
         
         safeTx.confirmations?.forEach(confirmation => {
           if (confirmation.signature) {
@@ -261,8 +318,42 @@ export function SafePendingTransactions({
             const cleanSig = confirmation.signature.startsWith('0x') 
               ? confirmation.signature.slice(2) 
               : confirmation.signature;
-            signatureArray.push(cleanSig);
+            
+            // Validate signature format (should be 130 hex characters = 65 bytes)
+            if (cleanSig.length !== 130) {
+              console.warn(`Invalid signature length for ${confirmation.owner}: ${cleanSig.length} (expected 130)`);
+              return;
+            }
+            
+            // Validate signature format (should be valid hex)
+            if (!/^[0-9a-fA-F]{130}$/.test(cleanSig)) {
+              console.warn(`Invalid signature format for ${confirmation.owner}: not valid hex`);
+              return;
+            }
+            
+            validConfirmations.push({
+              owner: confirmation.owner.toLowerCase(),
+              signature: cleanSig
+            });
           }
+        });
+        
+        // Sort signatures by owner address (required by Safe contract)
+        validConfirmations.sort((a, b) => a.owner.localeCompare(b.owner));
+        
+        // Validate we have enough valid signatures
+        if (validConfirmations.length < safeTx.confirmationsRequired) {
+          throw new Error(
+            `Insufficient valid signatures: ${validConfirmations.length}/${safeTx.confirmationsRequired} required. ` +
+            `Some signatures may be invalid or malformed.`
+          );
+        }
+        
+        // Take only the required number of signatures (in case we have more than needed)
+        const requiredSignatures = validConfirmations.slice(0, safeTx.confirmationsRequired);
+        
+        requiredSignatures.forEach(conf => {
+          signatureArray.push(conf.signature);
         });
         
         if (signatureArray.length > 0) {
@@ -303,6 +394,7 @@ export function SafePendingTransactions({
       }
     } catch (error) {
       console.error('Failed to sign meta transaction:', error);
+      throw error; // Re-throw to show error to user
     }
   };
 
