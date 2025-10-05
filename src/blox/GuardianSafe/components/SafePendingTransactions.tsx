@@ -750,12 +750,19 @@ export function SafePendingTransactions({
                     </div>
                   </div>
 
-                  {/* Guardian Protocol Actions Section - Only for lowest nonce */}
-                  {(() => {
-                    const filteredTxs = pendingTransactions.filter(tx => !tx.isExecuted);
-                    const sortedTxs = filteredTxs.sort((a, b) => a.nonce - b.nonce);
-                    const lowestNonce = sortedTxs[0]?.nonce;
-                    const isLowestNonce = tx.nonce === lowestNonce;
+                {/* Guardian Protocol Actions Section - Only for lowest nonce */}
+                {(() => {
+                  // Use the same truly pending criteria used for the list to avoid mismatches
+                  const filteredTxs = pendingTransactions.filter(tx => !tx.isExecuted);
+                  const trulyPendingTxs = filteredTxs.filter(tx => {
+                    if (tx.transactionHash && tx.transactionHash !== '0x') return false;
+                    if (tx.blockNumber && tx.blockNumber > 0) return false;
+                    if (tx.executor && tx.executor !== '0x0000000000000000000000000000000000000000') return false;
+                    return true;
+                  });
+                  const sortedTxs = trulyPendingTxs.sort((a, b) => a.nonce - b.nonce);
+                  const lowestNonce = sortedTxs[0]?.nonce;
+                  const isLowestNonce = tx.nonce === lowestNonce;
                     
                     if (!isLowestNonce) return null;
                     
@@ -769,7 +776,7 @@ export function SafePendingTransactions({
                         </div>
                     
                         <div className="space-y-4">
-                          {/* Execute in Safe Action - Only show when guardian is not active */}
+                          {/* Execute in Safe Action - Only show when guardian is not active and for lowest nonce */}
                           {!isGuardianActive && (
                             <div className="p-3 border rounded-lg bg-card">
                               <div className="flex items-center justify-between">

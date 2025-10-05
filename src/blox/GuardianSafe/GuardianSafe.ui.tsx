@@ -16,7 +16,6 @@ import { AlertCircle, Loader2, Shield, Info, Settings2, Copy, ExternalLink, Chev
 import { ContractInfo as BaseContractInfo } from "@/lib/verification/index";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { PendingTransactions } from "./components/PendingTransaction";
 import { NotificationMessage, SafeMetaTxParams, SafeTxRecord } from "./lib/types";
 import { TransactionManagerProvider } from "@/contexts/MetaTransactionManager";
 import { useOperations } from "./hooks/useOperations";
@@ -432,14 +431,7 @@ function GuardianSafeUIContent({
 
   // Operations hook - moved after refreshData definition
   const {
-    handleApproveTransaction,
-    handleCancelTransaction,
-    handleMetaTxSign,
-    handleBroadcastMetaTx,
-    loadingStates: operationsLoadingStates,
     handleDelegatedCallToggle,
-    formatSafeTxForDisplay,
-    signedMetaTxStates,
   } = useOperations({
     contractAddress: contractAddress as Address,
     onSuccess: addMessage,
@@ -526,19 +518,7 @@ function GuardianSafeUIContent({
     return pendingTxs.filter(tx => tx.status === TxStatus.PENDING);
   }, [pendingTxs]);
 
-  // Calculate time lock period in minutes from days
-  const timeLockPeriodInMinutes = useMemo(() => {
-    return (contractInfo?.timeLockPeriodInDays || 0) * 24 * 60;
-  }, [contractInfo]);
-
-  // Notification handler
-  const handleNotification = useCallback((message: NotificationMessage): void => {
-    if (addMessage) {
-      addMessage(message);
-    } else {
-      console.log('Notification:', message);
-    }
-  }, [addMessage]);
+  
 
   // Loading state
   if (loadingState.initialization) {
@@ -1198,12 +1178,12 @@ function GuardianSafeUIContent({
                     connectedAddress={address}
                     contractAddress={contractAddress}
                     onNotification={addMessage}
-                    isGuardianActive={!!(guardInfo?.guardAddress && guardInfo.guardAddress === contractAddress)}
+                    isGuardianActive={Boolean(guardInfo?.guardAddress && guardInfo.guardAddress === contractAddress)}
                   />
                 </div>
               )}
 
-             
+           
             </div>
           </CardContent>
         </Card>
