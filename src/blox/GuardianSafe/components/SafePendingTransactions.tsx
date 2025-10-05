@@ -817,20 +817,33 @@ export function SafePendingTransactions({
                               <p className="text-xs text-muted-foreground mb-4">
                                 Enhanced security with time-lock protection
                               </p>
-                              <Button
-                                variant="default"
-                                size="sm"
-                                onClick={() => handleGuardianRequest(tx)}
-                                disabled={loadingStates.request || !contractAddress}
-                                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                              >
-                                {loadingStates.request ? (
-                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                ) : (
-                                  <Shield className="h-4 w-4 mr-2" />
-                                )}
-                                Request Transaction
-                              </Button>
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="default"
+                                      size="sm"
+                                      onClick={() => handleGuardianRequest(tx)}
+                                      disabled={loadingStates.request || !contractAddress || !confirmationStatus.isComplete}
+                                      className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                                    >
+                                      {loadingStates.request ? (
+                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                      ) : (
+                                        <Shield className="h-4 w-4 mr-2" />
+                                      )}
+                                      Request Transaction
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    {!confirmationStatus.isComplete ? (
+                                      <p>Transaction needs {confirmationStatus.remaining} more signature{confirmationStatus.remaining !== 1 ? 's' : ''} before Guardian actions are available</p>
+                                    ) : (
+                                      <p>Request transaction through Guardian protocol</p>
+                                    )}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
                             </div>
 
                             {/* Meta Transaction Action */}
@@ -845,38 +858,66 @@ export function SafePendingTransactions({
                               </p>
                               
                               <div className="space-y-2">
-                                <Button
-                                  variant="default"
-                                  size="sm"
-                                  onClick={() => handleGuardianMetaTxSign(tx, 'request')}
-                                  disabled={loadingStates.metaTx || !contractAddress || isMetaTxSigned(tx, 'request')}
-                                  className="w-full bg-purple-600 hover:bg-purple-700 text-white"
-                                >
-                                  {loadingStates.metaTx ? (
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                  ) : isMetaTxSigned(tx, 'request') ? (
-                                    <CheckCircle2 className="h-4 w-4 mr-2 text-white" />
-                                  ) : (
-                                    <Radio className="h-4 w-4 mr-2" />
-                                  )}
-                                  {isMetaTxSigned(tx, 'request') ? 'Signed' : 'Sign Meta-Tx'}
-                                </Button>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="default"
+                                        size="sm"
+                                        onClick={() => handleGuardianMetaTxSign(tx, 'request')}
+                                        disabled={loadingStates.metaTx || !contractAddress || isMetaTxSigned(tx, 'request') || !confirmationStatus.isComplete}
+                                        className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                                      >
+                                        {loadingStates.metaTx ? (
+                                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                        ) : isMetaTxSigned(tx, 'request') ? (
+                                          <CheckCircle2 className="h-4 w-4 mr-2 text-white" />
+                                        ) : (
+                                          <Radio className="h-4 w-4 mr-2" />
+                                        )}
+                                        {isMetaTxSigned(tx, 'request') ? 'Signed' : 'Sign Meta-Tx'}
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      {!confirmationStatus.isComplete ? (
+                                        <p>Transaction needs {confirmationStatus.remaining} more signature{confirmationStatus.remaining !== 1 ? 's' : ''} before Guardian actions are available</p>
+                                      ) : isMetaTxSigned(tx, 'request') ? (
+                                        <p>Meta-transaction already signed</p>
+                                      ) : (
+                                        <p>Sign meta-transaction for immediate execution</p>
+                                      )}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                                 
                                 {isMetaTxSigned(tx, 'request') && (
-                                  <Button
-                                    variant="default"
-                                    size="sm"
-                                    onClick={() => handleGuardianMetaTxBroadcast(tx, 'request')}
-                                    disabled={loadingStates.metaTx}
-                                    className="w-full bg-purple-600 hover:bg-purple-700 text-white"
-                                  >
-                                    {loadingStates.metaTx ? (
-                                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                    ) : (
-                                      <Radio className="h-4 w-4 mr-2" />
-                                    )}
-                                    Broadcast Meta-Transaction
-                                  </Button>
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="default"
+                                          size="sm"
+                                          onClick={() => handleGuardianMetaTxBroadcast(tx, 'request')}
+                                          disabled={loadingStates.metaTx || !confirmationStatus.isComplete}
+                                          className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                                        >
+                                          {loadingStates.metaTx ? (
+                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                          ) : (
+                                            <Radio className="h-4 w-4 mr-2" />
+                                          )}
+                                          Broadcast Meta-Transaction
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        {!confirmationStatus.isComplete ? (
+                                          <p>Transaction needs {confirmationStatus.remaining} more signature{confirmationStatus.remaining !== 1 ? 's' : ''} before broadcasting</p>
+                                        ) : (
+                                          <p>Broadcast the signed meta-transaction to the blockchain</p>
+                                        )}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
                                 )}
                               </div>
                             </div>
