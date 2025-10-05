@@ -61,6 +61,61 @@ const delegatedCallEnabledAtom = atom<boolean>(false);
 // Add storage key for meta tx settings
 const META_TX_SETTINGS_KEY = 'guardianSafe.metaTxSettings';
 
+// Role badge component - clean rounded style without borders
+function RoleBadge({ role, className = "" }: { role: string; className?: string }) {
+  const getRoleStyle = (role: string) => {
+    switch (role.toLowerCase()) {
+      case 'owner':
+        return 'bg-blue-500/10 text-blue-500';
+      case 'broadcaster':
+        return 'bg-purple-500/10 text-purple-500';
+      case 'recovery':
+        return 'bg-red-500/10 text-red-500';
+      default:
+        return 'bg-gray-500/10 text-gray-500';
+    }
+  };
+
+  return (
+    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getRoleStyle(role)} ${className}`}>
+      {role}
+    </span>
+  );
+}
+
+// Multiple role badges component
+function RoleBadges({ roles, className = "" }: { roles: string[]; className?: string }) {
+  if (roles.length === 0) return null;
+  
+  return (
+    <div className={`flex flex-wrap gap-1 ${className}`}>
+      {roles.map((role, index) => (
+        <RoleBadge key={index} role={role} />
+      ))}
+    </div>
+  );
+}
+
+// Function to determine owner roles - returns array of individual roles
+function getOwnerRoles(
+  ownerAddress: Address,
+  contractOwnerAddress?: Address,
+  contractBroadcasterAddress?: Address,
+  contractRecoveryAddress?: Address
+): string[] {
+  const roles = [];
+  
+  const isOwner = contractOwnerAddress && ownerAddress.toLowerCase() === contractOwnerAddress.toLowerCase();
+  const isBroadcaster = contractBroadcasterAddress && ownerAddress.toLowerCase() === contractBroadcasterAddress.toLowerCase();
+  const isRecovery = contractRecoveryAddress && ownerAddress.toLowerCase() === contractRecoveryAddress.toLowerCase();
+
+  if (isOwner) roles.push('Owner');
+  if (isBroadcaster) roles.push('Broadcaster');
+  if (isRecovery) roles.push('Recovery');
+
+  return roles;
+}
+
 // Default meta-transaction settings
 const defaultMetaTxSettings: SafeMetaTxParams = {
   deadline: BigInt(3600), // 1 hour in seconds
@@ -172,12 +227,18 @@ function AllOwnersDialog({
   open, 
   onOpenChange, 
   owners, 
-  connectedAddress 
+  connectedAddress,
+  ownerAddress,
+  broadcasterAddress,
+  recoveryAddress
 }: { 
   open: boolean; 
   onOpenChange: (open: boolean) => void; 
   owners: Address[];
   connectedAddress: Address | undefined;
+  ownerAddress?: Address;
+  broadcasterAddress?: Address;
+  recoveryAddress?: Address;
 }) {
   const [currentPage, setCurrentPage] = useState(0);
   const ownersPerPage = 10;
@@ -212,37 +273,47 @@ function AllOwnersDialog({
           </DialogDescription>
         </DialogHeader>
         
-        <div className="space-y-4 max-h-[400px] overflow-y-auto">
-          {currentOwners.map((owner: Address, index: number) => (
-            <div key={owner} className="flex items-center justify-between p-3 border rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-medium">
-                  {startIndex + index + 1}
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium">Owner {startIndex + index + 1}</span>
-                  <span className="font-mono text-xs text-muted-foreground" title={owner}>
-                    {owner}
-                  </span>
-                </div>
-                {connectedAddress && owner.toLowerCase() === connectedAddress.toLowerCase() && (
-                  <div className="flex items-center gap-1 text-green-600 text-xs">
-                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                    <span>Connected</span>
+        <div className="space-y-3 max-h-[400px] overflow-y-auto">
+          {currentOwners.map((owner: Address, index: number) => {
+            const ownerRoles = getOwnerRoles(owner, ownerAddress, broadcasterAddress, recoveryAddress);
+            return (
+              <div key={owner} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-medium flex-shrink-0">
+                    {startIndex + index + 1}
                   </div>
-                )}
+                  <div className="flex flex-col gap-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">Owner {startIndex + index + 1}</span>
+                      {connectedAddress && owner.toLowerCase() === connectedAddress.toLowerCase() && (
+                        <div className="flex items-center gap-1 text-green-600 text-xs">
+                          <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                          <span>Connected</span>
+                        </div>
+                      )}
+                    </div>
+                    <span className="font-mono text-xs text-muted-foreground truncate" title={owner}>
+                      {owner}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1 items-end">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 flex-shrink-0"
+                    onClick={() => navigator.clipboard.writeText(owner)}
+                    title="Copy address"
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                  {ownerRoles.length > 0 && (
+                    <RoleBadges roles={ownerRoles} />
+                  )}
+                </div>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
-                onClick={() => navigator.clipboard.writeText(owner)}
-                title="Copy address"
-              >
-                <Copy className="h-3 w-3" />
-              </Button>
-            </div>
-          ))}
+            );
+          })}
         </div>
         
         {totalPages > 1 && (
@@ -314,7 +385,10 @@ function GuardianSafeUIContent({
   
   // Workflow manager for role validation
   const { 
-    isOwner
+    isOwner,
+    ownerAddress,
+    broadcasterAddress,
+    recoveryAddress
   } = useWorkflowManager(contractAddress as Address);
   
   // Safe address ref for display
@@ -651,32 +725,40 @@ function GuardianSafeUIContent({
         {safeOwners.length > 0 && (
           <div className="space-y-2">
             <h3 className="font-medium text-sm text-muted-foreground">SAFE OWNERS</h3>
-            <Card className="p-3">
-              <div className="space-y-3">
-                {safeOwners.slice(0, 3).map((owner: Address, index: number) => (
-                  <div key={owner} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">Owner {index + 1}:</span>
-                      {address && owner.toLowerCase() === address.toLowerCase() && (
-                        <div className="w-1.5 h-1.5 rounded-full bg-green-500" title="Connected wallet"></div>
-                      )}
+            <Card className="p-2">
+              <div className="space-y-2">
+                {safeOwners.slice(0, 3).map((owner: Address, index: number) => {
+                  const ownerRoles = getOwnerRoles(owner, ownerAddress, broadcasterAddress, recoveryAddress);
+                  return (
+                    <div key={owner} className="flex items-start justify-between py-1">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <span className="text-xs text-muted-foreground">Owner {index + 1}:</span>
+                        {address && owner.toLowerCase() === address.toLowerCase() && (
+                          <div className="w-1.5 h-1.5 rounded-full bg-green-500" title="Connected wallet"></div>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-1 items-end">
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-[10px] min-w-0" title={owner}>
+                            {owner.slice(0, 4)}...{owner.slice(-3)}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-4 w-4 p-0 flex-shrink-0 touch-manipulation"
+                            onClick={() => navigator.clipboard.writeText(owner)}
+                            title="Copy address"
+                          >
+                            <Copy className="h-2.5 w-2.5" />
+                          </Button>
+                        </div>
+                        {ownerRoles.length > 0 && (
+                          <RoleBadges roles={ownerRoles} className="text-[10px] px-1.5 py-0.5" />
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs font-mono break-all bg-muted px-2 py-1 rounded flex-1 min-w-0" title={owner}>
-                        {owner.slice(0, 6)}...{owner.slice(-4)}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-5 w-5 p-0 flex-shrink-0 touch-manipulation"
-                        onClick={() => navigator.clipboard.writeText(owner)}
-                        title="Copy address"
-                      >
-                        <Copy className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {safeOwners.length > 3 && (
                   <div className="pt-2 border-t">
                     <p className="text-xs text-muted-foreground text-center">
@@ -837,7 +919,10 @@ function GuardianSafeUIContent({
             open={showAllOwnersDialog}
             onOpenChange={setShowAllOwnersDialog}
             owners={safeOwners}
-                     connectedAddress={address}
+            connectedAddress={address}
+            ownerAddress={ownerAddress}
+            broadcasterAddress={broadcasterAddress}
+            recoveryAddress={recoveryAddress}
           />
 
           {isCardExpanded && (
@@ -861,36 +946,48 @@ function GuardianSafeUIContent({
                     </Tooltip>
                   )}
                 </div>
-                <div className="rounded-md border p-4">
+                <div className="rounded-md border p-3">
                   {safeOwners.length > 0 ? (
-                    <div className="space-y-3">
-                      {safeOwners.slice(0, 3).map((owner: Address, index: number) => (
-                         <div key={owner} className="flex items-center justify-between">
-                           <div className="flex items-center gap-2">
-                             <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-medium">
-                               {index + 1}
-                             </div>
-                             <span className="text-sm font-medium">Owner {index + 1}</span>
-                             {address && owner.toLowerCase() === address.toLowerCase() && (
-                               <div className="w-2 h-2 rounded-full bg-green-500" title="Connected wallet"></div>
-                             )}
-                           </div>
-                           <div className="flex items-center gap-2 min-w-0">
-                             <span className="font-mono text-sm truncate flex-1 min-w-0 max-w-[120px]" title={owner}>
-                               {owner.slice(0, 6)}...{owner.slice(-4)}
-                             </span>
-                             <Button
-                               variant="ghost"
-                               size="sm"
-                               className="h-6 w-6 p-0 flex-shrink-0 touch-manipulation"
-                               onClick={() => navigator.clipboard.writeText(owner)}
-                               title="Copy address"
-                             >
-                               <Copy className="h-3 w-3" />
-                             </Button>
-                           </div>
-                         </div>
-                       ))}
+                    <div className="space-y-2">
+                      {safeOwners.slice(0, 3).map((owner: Address, index: number) => {
+                        const ownerRoles = getOwnerRoles(owner, ownerAddress, broadcasterAddress, recoveryAddress);
+                        return (
+                          <div key={owner} className="flex items-center justify-between py-2">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-medium flex-shrink-0">
+                                {index + 1}
+                              </div>
+                              <div className="flex flex-col gap-1 min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium">Owner {index + 1}</span>
+                                  {address && owner.toLowerCase() === address.toLowerCase() && (
+                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500" title="Connected wallet"></div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-1 items-end">
+                              <div className="flex items-center gap-1">
+                                <span className="font-mono text-xs truncate max-w-[80px]" title={owner}>
+                                  {owner.slice(0, 4)}...{owner.slice(-3)}
+                                </span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-5 w-5 p-0 flex-shrink-0 touch-manipulation"
+                                  onClick={() => navigator.clipboard.writeText(owner)}
+                                  title="Copy address"
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              {ownerRoles.length > 0 && (
+                                <RoleBadges roles={ownerRoles} />
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                       {safeOwners.length > 3 && (
                         <div className="pt-2 border-t">
                           <Button
