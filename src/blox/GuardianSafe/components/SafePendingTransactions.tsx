@@ -351,11 +351,29 @@ export function SafePendingTransactions({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-medium text-muted-foreground">
-            SAFE PENDING TRANSACTION
+            SAFE PENDING TRANSACTIONS
           </h3>
-          {pendingTransactions.length > 0 && (
+          {(() => {
+            const filteredTxs = pendingTransactions.filter(tx => !tx.isExecuted);
+            const trulyPendingTxs = filteredTxs.filter(tx => {
+              if (tx.transactionHash && tx.transactionHash !== '0x') return false;
+              if (tx.blockNumber && tx.blockNumber > 0) return false;
+              if (tx.executor && tx.executor !== '0x0000000000000000000000000000000000000000') return false;
+              return true;
+            });
+            return trulyPendingTxs.length > 0;
+          })() && (
             <Badge variant="secondary" className="text-xs">
-              Nonce: {pendingTransactions.sort((a, b) => a.nonce - b.nonce)[0]?.nonce}
+              {(() => {
+                const filteredTxs = pendingTransactions.filter(tx => !tx.isExecuted);
+                const trulyPendingTxs = filteredTxs.filter(tx => {
+                  if (tx.transactionHash && tx.transactionHash !== '0x') return false;
+                  if (tx.blockNumber && tx.blockNumber > 0) return false;
+                  if (tx.executor && tx.executor !== '0x0000000000000000000000000000000000000000') return false;
+                  return true;
+                });
+                return trulyPendingTxs.length;
+              })()} Pending
             </Badge>
           )}
         </div>
@@ -386,7 +404,16 @@ export function SafePendingTransactions({
       )}
 
       {/* No Transactions */}
-      {!isLoading && pendingTransactions.length === 0 && (
+      {!isLoading && (() => {
+        const filteredTxs = pendingTransactions.filter(tx => !tx.isExecuted);
+        const trulyPendingTxs = filteredTxs.filter(tx => {
+          if (tx.transactionHash && tx.transactionHash !== '0x') return false;
+          if (tx.blockNumber && tx.blockNumber > 0) return false;
+          if (tx.executor && tx.executor !== '0x0000000000000000000000000000000000000000') return false;
+          return true;
+        });
+        return trulyPendingTxs.length === 0;
+      })() && (
         <Card>
           <CardContent className="pt-6">
             <div className="text-center py-8">
@@ -401,11 +428,82 @@ export function SafePendingTransactions({
       )}
 
       {/* Transactions List */}
-      {!isLoading && pendingTransactions.length > 0 && (
+      {!isLoading && (() => {
+        const filteredTxs = pendingTransactions.filter(tx => !tx.isExecuted);
+        const trulyPendingTxs = filteredTxs.filter(tx => {
+          if (tx.transactionHash && tx.transactionHash !== '0x') return false;
+          if (tx.blockNumber && tx.blockNumber > 0) return false;
+          if (tx.executor && tx.executor !== '0x0000000000000000000000000000000000000000') return false;
+          return true;
+        });
+        return trulyPendingTxs.length > 0;
+      })() && (
         <div className="space-y-4">
-          {pendingTransactions
-            .sort((a, b) => a.nonce - b.nonce) // Sort by nonce (lowest first)
-            .slice(0, 1) // Only show the first (lowest nonce) transaction
+          {(() => {
+            // Filter out executed transactions
+            const filteredTxs = pendingTransactions.filter(tx => !tx.isExecuted);
+            
+            // Additional filtering: remove transactions that have been processed on-chain
+            const trulyPendingTxs = filteredTxs.filter(tx => {
+              // Remove transactions that have transaction hashes (processed on-chain)
+              if (tx.transactionHash && tx.transactionHash !== '0x') {
+                console.log('🔍 Component: Filtering out transaction with hash (processed on-chain):', {
+                  nonce: tx.nonce,
+                  transactionHash: tx.transactionHash,
+                  safeTxHash: tx.safeTxHash
+                });
+                return false;
+              }
+              
+              // Remove transactions that have block numbers (processed on-chain)
+              if (tx.blockNumber && tx.blockNumber > 0) {
+                console.log('🔍 Component: Filtering out transaction with block number (processed on-chain):', {
+                  nonce: tx.nonce,
+                  blockNumber: tx.blockNumber,
+                  safeTxHash: tx.safeTxHash
+                });
+                return false;
+              }
+              
+              // Remove transactions that have an executor (indicates they were executed)
+              if (tx.executor && tx.executor !== '0x0000000000000000000000000000000000000000') {
+                console.log('🔍 Component: Filtering out transaction with executor (executed):', {
+                  nonce: tx.nonce,
+                  executor: tx.executor,
+                  safeTxHash: tx.safeTxHash
+                });
+                return false;
+              }
+              
+              return true;
+            });
+            
+            const sortedTxs = trulyPendingTxs.sort((a, b) => a.nonce - b.nonce);
+            const lowestNonce = sortedTxs[0]?.nonce;
+            
+            console.log('🔍 Component: All transactions:', pendingTransactions.map(tx => ({
+              nonce: tx.nonce,
+              isExecuted: tx.isExecuted,
+              safeTxHash: tx.safeTxHash,
+              transactionHash: tx.transactionHash,
+              blockNumber: tx.blockNumber,
+              executor: tx.executor,
+              submissionDate: tx.submissionDate
+            })));
+            console.log('🔍 Component: Filtered transactions:', filteredTxs.map(tx => ({
+              nonce: tx.nonce,
+              isExecuted: tx.isExecuted,
+              safeTxHash: tx.safeTxHash
+            })));
+            console.log('🔍 Component: Truly pending transactions:', sortedTxs.map(tx => ({
+              nonce: tx.nonce,
+              isExecuted: tx.isExecuted,
+              safeTxHash: tx.safeTxHash
+            })));
+            console.log('🔍 Component: Lowest nonce:', lowestNonce);
+            
+            return sortedTxs;
+          })()
             .map((tx) => {
             const confirmationStatus = getConfirmationStatus(tx);
             const canSignTx = canSign(tx);
@@ -477,9 +575,9 @@ export function SafePendingTransactions({
                     </div>
                     
                     {/* Main Transaction Details Grid */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Left Column - Transaction Details */}
-                      <div className="lg:col-span-2 space-y-4">
+                      <div className="space-y-4">
                         <div className="space-y-4 text-sm">
                           <div className="space-y-1">
                             <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Recipient</span>
@@ -644,39 +742,41 @@ export function SafePendingTransactions({
                               <span className="text-muted-foreground">Nonce</span>
                               <span className="font-mono">{tx.nonce}</span>
                             </div>
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-muted-foreground">Gas Price</span>
-                              <span className="font-mono">{formatEther(tx.gasPrice)} ETH</span>
-                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Guardian Protocol Actions Section */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-semibold text-foreground">Guardian Protocol Actions</h4>
-                    </div>
+                  {/* Guardian Protocol Actions Section - Only for lowest nonce */}
+                  {(() => {
+                    const filteredTxs = pendingTransactions.filter(tx => !tx.isExecuted);
+                    const sortedTxs = filteredTxs.sort((a, b) => a.nonce - b.nonce);
+                    const lowestNonce = sortedTxs[0]?.nonce;
+                    const isLowestNonce = tx.nonce === lowestNonce;
                     
-                    <div className="space-y-4">
-                      {/* Two-column layout for Guardian options */}
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        {/* Temporal Workflow (Request/Approve with time delay) */}
-                        <div className="space-y-3 p-4 border rounded-lg bg-card">
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
+                    if (!isLowestNonce) return null;
+                    
+                    return (
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <h4 className="text-sm font-semibold text-foreground">Guardian Protocol Actions</h4>
+                          <p className="text-xs text-muted-foreground">
+                            Available for transaction #{tx.nonce}. Choose your preferred execution method.
+                          </p>
+                        </div>
+                    
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Temporal Workflow Action */}
+                          <div className="p-4 border rounded-lg bg-card">
+                            <div className="flex items-center gap-2 mb-3">
                               <Timer className="h-4 w-4 text-blue-500" />
                               <span className="text-sm font-medium">Temporal Workflow</span>
                               <Badge variant="secondary" className="text-xs">Time-lock</Badge>
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                              Request with time-lock security. Includes waiting period for enhanced security.
+                            <p className="text-xs text-muted-foreground mb-4">
+                              Enhanced security with time-lock protection
                             </p>
-                          </div>
-                          
-                          <div className="space-y-2">
                             <Button
                               variant="default"
                               size="sm"
@@ -692,68 +792,58 @@ export function SafePendingTransactions({
                               Request Transaction
                             </Button>
                           </div>
-                        </div>
 
-                        {/* Meta Transaction (Direct signing for immediate broadcast) */}
-                        <div className="space-y-3 p-4 border rounded-lg bg-card">
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
+                          {/* Meta Transaction Action */}
+                          <div className="p-4 border rounded-lg bg-card">
+                            <div className="flex items-center gap-2 mb-3">
                               <Zap className="h-4 w-4 text-purple-500" />
                               <span className="text-sm font-medium">Meta Transaction</span>
                               <Badge variant="secondary" className="text-xs">Immediate</Badge>
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                              Sign and broadcast immediately. No waiting period for faster execution.
+                            <p className="text-xs text-muted-foreground mb-4">
+                              Sign and broadcast for immediate execution
                             </p>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={() => handleGuardianMetaTxSign(tx, 'request')}
-                              disabled={loadingStates.metaTx || !contractAddress || isMetaTxSigned(tx, 'request')}
-                              className="w-full bg-purple-600 hover:bg-purple-700 text-white"
-                            >
-                              {loadingStates.metaTx ? (
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              ) : isMetaTxSigned(tx, 'request') ? (
-                                <CheckCircle2 className="h-4 w-4 mr-2 text-white" />
-                              ) : (
-                                <Radio className="h-4 w-4 mr-2" />
-                              )}
-                              {isMetaTxSigned(tx, 'request') ? 'Signed' : 'Sign Meta-Tx'}
-                            </Button>
                             
-                            {isMetaTxSigned(tx, 'request') && (
+                            <div className="space-y-2">
                               <Button
                                 variant="default"
                                 size="sm"
-                                onClick={() => handleGuardianMetaTxBroadcast(tx, 'request')}
-                                disabled={loadingStates.metaTx}
+                                onClick={() => handleGuardianMetaTxSign(tx, 'request')}
+                                disabled={loadingStates.metaTx || !contractAddress || isMetaTxSigned(tx, 'request')}
                                 className="w-full bg-purple-600 hover:bg-purple-700 text-white"
                               >
                                 {loadingStates.metaTx ? (
                                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                ) : isMetaTxSigned(tx, 'request') ? (
+                                  <CheckCircle2 className="h-4 w-4 mr-2 text-white" />
                                 ) : (
                                   <Radio className="h-4 w-4 mr-2" />
                                 )}
-                                Broadcast Meta-Transaction
+                                {isMetaTxSigned(tx, 'request') ? 'Signed' : 'Sign Meta-Tx'}
                               </Button>
-                            )}
+                              
+                              {isMetaTxSigned(tx, 'request') && (
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => handleGuardianMetaTxBroadcast(tx, 'request')}
+                                  disabled={loadingStates.metaTx}
+                                  className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                                >
+                                  {loadingStates.metaTx ? (
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  ) : (
+                                    <Radio className="h-4 w-4 mr-2" />
+                                  )}
+                                  Broadcast Meta-Transaction
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
-                      
-                      {/* Additional info */}
-                      <div className="p-3 bg-muted/50 rounded-lg">
-                        <p className="text-xs text-muted-foreground">
-                          <strong>Choose your approach:</strong> Use Temporal Workflow for enhanced security with time-lock, 
-                          or Meta Transaction for immediate execution. You can use both approaches independently.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                    );
+                  })()}
 
                   {/* Safe UI Signing Section */}
                   {canSignTx && (

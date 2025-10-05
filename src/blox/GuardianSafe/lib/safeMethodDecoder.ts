@@ -1,5 +1,5 @@
 import { Hex } from 'viem';
-import { keccak256, toHex } from 'viem';
+import { keccak256, toHex, decodeFunctionData, formatEther } from 'viem';
 
 /**
  * Safe contract method decoder utility
@@ -33,6 +33,13 @@ const SAFE_METHOD_SIGNATURES: Record<string, string> = {
   [computeFunctionSelector('setFallbackHandler(address)')]: 'setFallbackHandler',
   [computeFunctionSelector('multiSend(bytes)')]: 'multiSend',
   
+  // More Safe methods
+  [computeFunctionSelector('approveHash(bytes32)')]: 'approveHash',
+  [computeFunctionSelector('signMessage(bytes)')]: 'signMessage',
+  [computeFunctionSelector('isValidSignature(bytes,bytes)')]: 'isValidSignature',
+  [computeFunctionSelector('getMessageHash(bytes)')]: 'getMessageHash',
+  [computeFunctionSelector('getTransactionHash(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,uint256)')]: 'getTransactionHash',
+  
   // Query methods
   [computeFunctionSelector('getOwners()')]: 'getOwners',
   [computeFunctionSelector('getThreshold()')]: 'getThreshold',
@@ -43,11 +50,40 @@ const SAFE_METHOD_SIGNATURES: Record<string, string> = {
 };
 
 /**
- * Decode Safe contract method from transaction data
+ * Transaction type detection interface
  */
-export function decodeSafeMethod(data: Hex | string): string {
+export interface TransactionType {
+  type: 'ETH_TRANSFER' | 'SAFE_METHOD' | 'CONTRACT_CALL' | 'UNKNOWN';
+  methodName?: string;
+  description: string;
+  category: string;
+  isExecutable: boolean;
+  priority: number; // Lower number = higher priority
+}
+
+/**
+ * Detect transaction type and decode method
+ */
+export function detectTransactionType(data: Hex | string, value: bigint = BigInt(0)): TransactionType {
+  // Handle empty or zero data
   if (!data || data === '0x' || data === '0x0') {
-    return 'Transfer';
+    if (value > 0) {
+      return {
+        type: 'ETH_TRANSFER',
+        description: `Send ${formatEther(value)} ETH`,
+        category: 'Transfer',
+        isExecutable: true,
+        priority: 1
+      };
+    } else {
+      return {
+        type: 'UNKNOWN',
+        description: 'Empty Transaction',
+        category: 'Other',
+        isExecutable: false,
+        priority: 10
+      };
+    }
   }
 
   // Ensure data starts with 0x
@@ -56,19 +92,69 @@ export function decodeSafeMethod(data: Hex | string): string {
   // Extract function selector (first 4 bytes)
   const selector = hexData.slice(0, 10);
   
-  // Look up method name
-  const methodName = SAFE_METHOD_SIGNATURES[selector];
-  
-  if (methodName) {
-    return methodName;
+  // Check if it's a Safe method
+  const safeMethodName = SAFE_METHOD_SIGNATURES[selector];
+  if (safeMethodName) {
+    return {
+      type: 'SAFE_METHOD',
+      methodName: safeMethodName,
+      description: getMethodDescription(safeMethodName),
+      category: getMethodCategory(safeMethodName),
+      isExecutable: true,
+      priority: 2
+    };
   }
   
-  // If not found in Safe methods, try to decode as generic contract call
+  // Try to decode as generic contract call
   if (hexData.length >= 10) {
-    return `Contract Call (${selector})`;
+    try {
+      // Try to decode with common ABI patterns
+      decodeFunctionData({
+        abi: [{
+          type: 'function',
+          name: 'unknown',
+          inputs: [],
+          outputs: []
+        }],
+        data: hexData as Hex
+      });
+      
+      return {
+        type: 'CONTRACT_CALL',
+        methodName: `Contract Call (${selector})`,
+        description: `Contract Call (${selector})`,
+        category: 'Contract',
+        isExecutable: true,
+        priority: 3
+      };
+    } catch {
+      return {
+        type: 'CONTRACT_CALL',
+        methodName: `Contract Call (${selector})`,
+        description: `Contract Call (${selector})`,
+        category: 'Contract',
+        isExecutable: true,
+        priority: 3
+      };
+    }
   }
   
-  return 'Unknown Method';
+  return {
+    type: 'UNKNOWN',
+    methodName: 'Unknown Method',
+    description: 'Unknown Method',
+    category: 'Other',
+    isExecutable: false,
+    priority: 10
+  };
+}
+
+/**
+ * Decode Safe contract method from transaction data (legacy function for compatibility)
+ */
+export function decodeSafeMethod(data: Hex | string): string {
+  const txType = detectTransactionType(data);
+  return txType.methodName || txType.description;
 }
 
 /**
@@ -89,13 +175,21 @@ export function getMethodDescription(methodName: string): string {
     'execTransactionFromModule': 'Execute Transaction from Module',
     'setFallbackHandler': 'Set Fallback Handler',
     'multiSend': 'Multi-Send Transaction',
+    'approveHash': 'Approve Transaction Hash',
+    'signMessage': 'Sign Message',
+    'isValidSignature': 'Validate Signature',
+    'getMessageHash': 'Get Message Hash',
+    'getTransactionHash': 'Get Transaction Hash',
     'getOwners': 'Get Owners',
     'getThreshold': 'Get Threshold',
     'isOwner': 'Check if Owner',
     'getNonce': 'Get Nonce',
     'getGuard': 'Get Guard',
     'getFallbackHandler': 'Get Fallback Handler',
-    'Transfer': 'ETH Transfer'
+    'Transfer': 'ETH Transfer',
+    'ETH_TRANSFER': 'Send ETH',
+    'CONTRACT_CALL': 'Contract Call',
+    'UNKNOWN': 'Unknown Operation'
   };
   
   return descriptions[methodName] || methodName;
@@ -119,13 +213,21 @@ export function getMethodCategory(methodName: string): string {
     'execTransactionFromModule': 'Modules',
     'setFallbackHandler': 'Configuration',
     'multiSend': 'Execution',
+    'approveHash': 'Security',
+    'signMessage': 'Security',
+    'isValidSignature': 'Security',
+    'getMessageHash': 'Query',
+    'getTransactionHash': 'Query',
     'getOwners': 'Query',
     'getThreshold': 'Query',
     'isOwner': 'Query',
     'getNonce': 'Query',
     'getGuard': 'Query',
     'getFallbackHandler': 'Query',
-    'Transfer': 'Transfer'
+    'Transfer': 'Transfer',
+    'ETH_TRANSFER': 'Transfer',
+    'CONTRACT_CALL': 'Contract',
+    'UNKNOWN': 'Other'
   };
   
   return categories[methodName] || 'Other';
@@ -139,26 +241,75 @@ export function getMethodIcon(methodName: string): string {
 }
 
 /**
+ * Get all available operation names dynamically
+ */
+export function getAllOperationNames(): string[] {
+  const operations = new Set<string>();
+  
+  // Add all Safe method names
+  Object.values(SAFE_METHOD_SIGNATURES).forEach(method => {
+    operations.add(method);
+  });
+  
+  // Add common transaction types
+  operations.add('ETH_TRANSFER');
+  operations.add('CONTRACT_CALL');
+  operations.add('UNKNOWN');
+  
+  return Array.from(operations).sort();
+}
+
+/**
+ * Get operation names by category
+ */
+export function getOperationNamesByCategory(): Record<string, string[]> {
+  const categories: Record<string, string[]> = {};
+  
+  // Initialize categories
+  const categoryKeys = ['Execution', 'Security', 'Ownership', 'Modules', 'Configuration', 'Query', 'Transfer', 'Contract', 'Other'];
+  categoryKeys.forEach(cat => {
+    categories[cat] = [];
+  });
+  
+  // Add Safe methods to their categories
+  Object.values(SAFE_METHOD_SIGNATURES).forEach(method => {
+    const category = getMethodCategory(method);
+    if (categories[category]) {
+      categories[category].push(method);
+    }
+  });
+  
+  // Add transaction types
+  categories['Transfer'].push('ETH_TRANSFER');
+  categories['Contract'].push('CONTRACT_CALL');
+  categories['Other'].push('UNKNOWN');
+  
+  return categories;
+}
+
+/**
  * Enhanced method decoder with full context
  */
-export function decodeSafeMethodEnhanced(data: Hex | string): {
+export function decodeSafeMethodEnhanced(data: Hex | string, value: bigint = BigInt(0)): {
   methodName: string;
   description: string;
   category: string;
   icon: string;
   isSafeMethod: boolean;
+  type: string;
+  isExecutable: boolean;
+  priority: number;
 } {
-  const methodName = decodeSafeMethod(data);
-  const description = getMethodDescription(methodName);
-  const category = getMethodCategory(methodName);
-  const icon = getMethodIcon(methodName);
-  const isSafeMethod = methodName !== 'Unknown Method' && !methodName.startsWith('Contract Call');
+  const txType = detectTransactionType(data, value);
   
   return {
-    methodName,
-    description,
-    category,
-    icon,
-    isSafeMethod
+    methodName: txType.methodName || txType.description,
+    description: txType.description,
+    category: txType.category,
+    icon: getMethodIcon(txType.methodName || txType.description),
+    isSafeMethod: txType.type === 'SAFE_METHOD',
+    type: txType.type,
+    isExecutable: txType.isExecutable,
+    priority: txType.priority
   };
 }
