@@ -629,10 +629,7 @@ function GuardianSafeUIContent({
                 <span className="text-sm text-muted-foreground">Delegated Call:</span>
                 <span className="text-sm">{delegatedCallEnabled ? 'Enabled' : 'Disabled'}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Time Lock:</span>
-                <span className="text-sm">{contractInfo?.timeLockPeriodInDays || 0} days</span>
-              </div>
+              
             </div>
           </Card>
         </div>
