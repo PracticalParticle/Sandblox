@@ -73,9 +73,16 @@ function PendingBadge({ record, contractInfo }: { record: TxRecord, contractInfo
       const now = Math.floor(Date.now() / 1000)
       const releaseTime = Number(record.releaseTime)
       const timeLockPeriod = (contractInfo.timeLockPeriodInMinutes || 0) * 60
+      
+      // Calculate the start time based on the release time minus the timelock period
       const startTime = releaseTime - timeLockPeriod
-      const currentProgress = Math.min(((now - startTime) / timeLockPeriod) * 100, 100)
-      setProgress(currentProgress)
+      
+      // Calculate progress based on time elapsed since the transaction was created
+      const elapsedTime = now - startTime
+      const currentProgress = Math.min((elapsedTime / timeLockPeriod) * 100, 100)
+      
+      // Ensure progress is not negative
+      setProgress(Math.max(currentProgress, 0))
     }
 
     calculateProgress()
