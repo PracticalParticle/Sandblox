@@ -656,7 +656,7 @@ const BloxMiniApp: React.FC = () => {
             connectedAddress={connectedAddress}
             navigationIcon={<Shield className="h-4 w-4" />}
             navigationTooltip="Security Settings"
-            navigateTo={`/blox-security/${address}`}
+            navigateTo={`/blox-security/${address}?type=${encodeURIComponent(type || bloxContract?.id || '')}`}
           />
         </motion.div>
 

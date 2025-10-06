@@ -58,6 +58,7 @@ import { CoreOperationType, operationRegistry } from '@/types/OperationRegistry'
 import type { BroadcastActionType } from '@/components/security/BroadcastDialog'
 import { OPERATION_TYPES } from '@/Guardian/sdk/typescript/types/core.access.index'
 import { Address } from 'viem'
+// Removed heuristic type detection; we prefer explicit type via query param
 
 const container = {
   hidden: { opacity: 0 },
@@ -143,6 +144,9 @@ export function SecurityDetails() {
   const [broadcasterExpanded, setBroadcasterExpanded] = useState(false)
   const [recoveryExpanded, setRecoveryExpanded] = useState(false)
   const [timelockExpanded, setTimelockExpanded] = useState(false)
+  // Read blox type from query param for precise navigation
+  const urlParams = new URLSearchParams(window.location.search)
+  const queryType = urlParams.get('type') || null
 
   // Add state for Broadcast Dialog
   const [showBroadcastTimelockDialog, setShowBroadcastTimelockDialog] = useState(false)
@@ -244,6 +248,7 @@ export function SecurityDetails() {
       }
       
       setContractInfo(info);
+      
       setError(null);
 
       // Fetch operation history after setting contract info
@@ -1274,7 +1279,7 @@ export function SecurityDetails() {
               onConnect={handleConnect}
               navigationIcon={<AppWindow className="h-4 w-4" />}
               navigationTooltip="View Blox Data"
-              navigateTo={contractInfo?.type ? `/blox/${contractInfo.type}/${contractAddress}` : `/blox/simple-vault/${contractAddress}`}            />
+              navigateTo={(() => { const t = (queryType || (contractInfo as any)?.contractType || (contractInfo as any)?.type || (contractInfo as any)?.bloxId); return t ? `/blox/${t}/${contractAddress}` : undefined })()}            />
 
             {/* Management Tiles */}
             <div className="grid lg:grid-cols-2 gap-8">

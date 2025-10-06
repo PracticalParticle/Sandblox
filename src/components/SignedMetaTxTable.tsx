@@ -54,14 +54,30 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
   const { getOperationName } = useOperationTypes(contractAddress)
   const [localTransactions, setLocalTransactions] = useState<ExtendedSignedTransaction[]>(transactions)
   const [isDeleting, setIsDeleting] = useState<string | null>(null)
+  const [showConflictDialog, setShowConflictDialog] = useState<boolean>(false)
+  const [isResolvingConflict, setIsResolvingConflict] = useState<boolean>(false)
 
   // Update local state when props change
   useEffect(() => {
     setLocalTransactions(transactions)
   }, [transactions])
 
-  // Filter out any transactions that have been broadcasted
-  const pendingTransactions = localTransactions
+  // Sort transactions by timestamp desc (newest first)
+  const sortedTransactions = [...localTransactions].sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0))
+
+  // Enforce only one pending meta-transaction per contract in the UI
+  const primaryTransaction = sortedTransactions[0]
+  const extraTransactions = sortedTransactions.slice(1)
+  const pendingTransactions = primaryTransaction ? [primaryTransaction] : []
+
+  // When there are multiple pending transactions, prompt user to resolve
+  useEffect(() => {
+    if (sortedTransactions.length > 1) {
+      setShowConflictDialog(true)
+    } else {
+      setShowConflictDialog(false)
+    }
+  }, [sortedTransactions.length])
 
   if (pendingTransactions.length === 0) {
     return null
@@ -140,6 +156,38 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
     }
   }
 
+  const handleKeepLatest = async () => {
+    if (extraTransactions.length === 0) return
+    setIsResolvingConflict(true)
+    try {
+      // Overwrite previous: remove all older transactions
+      for (const tx of extraTransactions) {
+        await onRemoveTransaction(tx.txId)
+      }
+      setLocalTransactions([primaryTransaction!])
+      setShowConflictDialog(false)
+    } catch (error) {
+      console.error('Error removing older transactions:', error)
+    } finally {
+      setIsResolvingConflict(false)
+    }
+  }
+
+  const handleKeepExisting = async () => {
+    if (!primaryTransaction) return
+    setIsResolvingConflict(true)
+    try {
+      // Discard the new one: remove newest transaction (keep existing/older)
+      await onRemoveTransaction(primaryTransaction.txId)
+      setLocalTransactions(extraTransactions)
+      setShowConflictDialog(false)
+    } catch (error) {
+      console.error('Error removing newest transaction:', error)
+    } finally {
+      setIsResolvingConflict(false)
+    }
+  }
+
   return (
     <motion.div variants={container} initial="hidden" animate="show">
       <Card>
@@ -181,6 +229,43 @@ export function SignedMetaTxTable({ transactions, onClearAll, onRemoveTransactio
             </AlertDialog.Root>
           </div>
         </CardHeader>
+        {/* Conflict resolution dialog when multiple pending metas exist */}
+        <AlertDialog.Root open={showConflictDialog} onOpenChange={setShowConflictDialog}>
+          <AlertDialog.Portal>
+            <AlertDialog.Overlay className="fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+            <AlertDialog.Content className="fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg">
+              <div className="flex flex-col space-y-2 text-center sm:text-left">
+                <AlertDialog.Title className="text-lg font-semibold">Pending Meta Transaction Exists</AlertDialog.Title>
+                <AlertDialog.Description className="text-sm text-muted-foreground">
+                  Only one pending meta transaction is allowed per contract. Do you want to keep the latest and overwrite the previous one, or keep the existing and discard the new one?
+                </AlertDialog.Description>
+              </div>
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
+                <AlertDialog.Cancel asChild>
+                  <Button variant="outline" className="mt-2 sm:mt-0" disabled={isResolvingConflict}>Cancel</Button>
+                </AlertDialog.Cancel>
+                <Button 
+                  variant="secondary"
+                  onClick={handleKeepExisting}
+                  disabled={isResolvingConflict}
+                >
+                  {isResolvingConflict ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Keep Existing
+                </Button>
+                <AlertDialog.Action asChild>
+                  <Button 
+                    variant="destructive" 
+                    onClick={handleKeepLatest}
+                    disabled={isResolvingConflict}
+                  >
+                    {isResolvingConflict ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    Keep Latest (Overwrite)
+                  </Button>
+                </AlertDialog.Action>
+              </div>
+            </AlertDialog.Content>
+          </AlertDialog.Portal>
+        </AlertDialog.Root>
         <CardContent>
           <Table>
             <TableHeader>

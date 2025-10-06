@@ -214,7 +214,11 @@ const DeployedContract = ({
               <Button 
                 variant="outline"
                 size="sm"
-                onClick={() => navigate(`/blox-security/${contract.address}`)}
+                onClick={() => navigate(
+                  contract.type && contract.type !== 'unknown'
+                    ? `/blox-security/${contract.address}?type=${encodeURIComponent(contract.type)}`
+                    : `/blox-security/${contract.address}`
+                )}
                 className="w-full sm:w-auto"
               >
                 <Shield className="h-4 w-4 mr-2" aria-hidden="true" />
@@ -226,7 +230,11 @@ const DeployedContract = ({
               <Button 
                 variant="outline"
                 size="sm"
-                onClick={() => navigate(`/blox-security/${contract.address}`)}
+                onClick={() => navigate(
+                  contract.type && contract.type !== 'unknown'
+                    ? `/blox-security/${contract.address}?type=${encodeURIComponent(contract.type)}`
+                    : `/blox-security/${contract.address}`
+                )}
                 className="w-full sm:w-auto"
               >
                 <Shield className="h-4 w-4 mr-2" aria-hidden="true" />
