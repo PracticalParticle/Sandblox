@@ -25,6 +25,7 @@ import { useAccount } from "wagmi";
 import { useOperations } from "../hooks/useOperations";
 import { useMetaTransactionManager } from "@/hooks/useMetaTransactionManager";
 import { decodeSafeMethodEnhanced } from "../lib/safeMethodDecoder";
+import { useWorkflowManager } from "@/hooks/useWorkflowManager";
 
 
 export interface SafePendingTransactionsProps {
@@ -78,6 +79,9 @@ export function SafePendingTransactions({
   // We don't need to call useMetaTransactionManager here since we're inside GuardianSafe UI
   // which already provides the TransactionManagerProvider context
   const { transactions } = useMetaTransactionManager(contractAddress || "0x0000000000000000000000000000000000000000" as Address);
+
+  // Workflow manager for role checks (e.g., broadcaster)
+  const { isBroadcaster } = useWorkflowManager(contractAddress || "0x0000000000000000000000000000000000000000" as Address);
 
   // Handle refresh with loading state
   const handleRefresh = async () => {
@@ -425,8 +429,8 @@ export function SafePendingTransactions({
   const isMetaTxSigned = (safeTx: SafePendingTx, _type: 'request' | 'approve' | 'cancel'): boolean => {
     // Use Safe nonce as the numeric ID for consistent storage
     const txId = safeTx.nonce.toString();
-    // Check both the signed states and the actual stored transactions
-    return !!signedMetaTxStates[txId] && !!transactions[Number(txId)];
+    // Consider either the transient signed state OR the persisted stored transaction
+    return !!signedMetaTxStates[txId] || !!transactions[Number(txId)];
   };
 
   // Check if connected user has Guardian contract Owner role
@@ -1009,7 +1013,7 @@ export function SafePendingTransactions({
                                           variant="default"
                                           size="sm"
                                           onClick={() => handleGuardianMetaTxBroadcast(tx, 'request')}
-                                          disabled={loadingStates.metaTx || !confirmationStatus.isComplete || !hasOwnerRole()}
+                                          disabled={loadingStates.metaTx || !confirmationStatus.isComplete || !isBroadcaster}
                                           className="w-full bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                           {loadingStates.metaTx ? (
@@ -1021,8 +1025,8 @@ export function SafePendingTransactions({
                                         </Button>
                                       </TooltipTrigger>
                                       <TooltipContent>
-                                        {!hasOwnerRole() ? (
-                                          <p>Only contract owners can broadcast Guardian protocol meta-transactions</p>
+                                        {!isBroadcaster ? (
+                                          <p>Only the broadcaster can broadcast Guardian protocol meta-transactions</p>
                                         ) : !confirmationStatus.isComplete ? (
                                           <p>Transaction needs {confirmationStatus.remaining} more signature{confirmationStatus.remaining !== 1 ? 's' : ''} before broadcasting</p>
                                         ) : (
