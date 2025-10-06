@@ -1,6 +1,7 @@
 import { useAccount } from 'wagmi'
 import { Address } from 'viem'
 import { BaseDeploymentForm, type FormField } from '@/components/BaseDeploymentForm'
+import { TIMELOCK_PERIODS } from '@/constants/contract'
 
 interface DeploymentFormProps {
   onDeploy: (params: {
@@ -9,7 +10,7 @@ interface DeploymentFormProps {
     initialOwner: Address,
     broadcaster: Address,
     recovery: Address,
-    timeLockPeriodInDays: number
+    timeLockPeriodInMinutes: number
   }) => Promise<void>
   isLoading?: boolean
 }
@@ -70,19 +71,30 @@ export function DeploymentForm({ onDeploy, isLoading }: DeploymentFormProps) {
       }
     },
     {
-      id: 'timeLockPeriodInDays',
-      label: 'Time Lock Period (Days)',
+      id: 'timeLockValue',
+      label: 'Time Lock Value',
       type: 'number',
       min: 1,
-      max: 89,
-      description: 'Operation delay in days (1-89)',
-      defaultValue: '7',
+      max: 129600,
+      description: 'Set the time lock with your preferred unit (1 minute to 90 days)',
+      defaultValue: '10080',
       validate: (value) => {
-        const days = parseInt(value)
-        if (isNaN(days) || days < 1 || days > 89) {
-          return 'Time lock period must be between 1 and 89 days'
+        const num = parseInt(value)
+        if (isNaN(num) || num < TIMELOCK_PERIODS.MIN || num > TIMELOCK_PERIODS.MAX) {
+          return `Please enter a period between 1 minute and 90 days`
         }
       }
+    },
+    {
+      id: 'timeLockUnit',
+      label: 'Time Lock Unit',
+      type: 'select',
+      defaultValue: 'minutes',
+      options: [
+        { label: 'Minutes', value: 'minutes' },
+        { label: 'Hours', value: 'hours' },
+        { label: 'Days', value: 'days' }
+      ]
     }
   ]
 
@@ -91,7 +103,19 @@ export function DeploymentForm({ onDeploy, isLoading }: DeploymentFormProps) {
       title="Deploy SimpleRWA20 Token"
       description="Configure your token's parameters and security settings. Choose addresses carefully as they control critical token operations."
       fields={fields}
-      onDeploy={onDeploy}
+      onDeploy={async (params: any) => {
+        const value = Number(params.timeLockValue)
+        const unit = params.timeLockUnit as 'minutes' | 'hours' | 'days'
+        const minutes = unit === 'minutes' ? value : unit === 'hours' ? value * 60 : value * 24 * 60
+        await onDeploy({
+          name: params.name,
+          symbol: params.symbol,
+          initialOwner: params.initialOwner,
+          broadcaster: params.broadcaster,
+          recovery: params.recovery,
+          timeLockPeriodInMinutes: minutes
+        })
+      }}
       isLoading={isLoading}
     />
   )

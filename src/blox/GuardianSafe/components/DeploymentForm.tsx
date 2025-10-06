@@ -2,6 +2,7 @@ import { useAccount } from 'wagmi'
 import { Address } from 'viem'
 import { BaseDeploymentForm, type FormField } from '@/components/BaseDeploymentForm'
 import { useState } from 'react'
+import { TIMELOCK_PERIODS } from '@/constants/contract'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Button } from "@/components/ui/button"
 import { ChevronDown, ChevronUp } from "lucide-react"
@@ -14,7 +15,7 @@ interface DeploymentFormProps {
     recovery: Address,
     safeAddress: Address,
     delegatedCallEnabled: boolean,
-    timeLockPeriodInDays: number
+    timeLockPeriodInMinutes: number
   }) => Promise<void>
   isLoading?: boolean
 }
@@ -67,20 +68,31 @@ export function DeploymentForm({ onDeploy, isLoading }: DeploymentFormProps) {
       }
     },
     {
-      id: 'timeLockPeriodInDays',
-      label: 'Time Lock Period (Days)',
+      id: 'timeLockValue',
+      label: 'Time Lock Value',
       type: 'number',
       min: 1,
-      max: 89,
-      description: 'Transaction approval delay in days (1-89)',
-      defaultValue: '7',
+      max: 129600,
+      description: 'Set the time lock with your preferred unit (1 minute to 90 days)',
+      defaultValue: '10080',
       validate: (value) => {
-        const days = parseInt(value)
-        if (isNaN(days) || days < 1 || days > 89) {
-          return 'Time lock period must be between 1 and 89 days'
+        const num = parseInt(value)
+        if (isNaN(num) || num < TIMELOCK_PERIODS.MIN || num > TIMELOCK_PERIODS.MAX) {
+          return `Please enter a period between 1 minute and 90 days`
         }
         return undefined;
       }
+    },
+    {
+      id: 'timeLockUnit',
+      label: 'Time Lock Unit',
+      type: 'select',
+      defaultValue: 'minutes',
+      options: [
+        { label: 'Minutes', value: 'minutes' },
+        { label: 'Hours', value: 'hours' },
+        { label: 'Days', value: 'days' }
+      ]
     }
   ]
 
@@ -93,7 +105,12 @@ export function DeploymentForm({ onDeploy, isLoading }: DeploymentFormProps) {
       broadcaster: params.broadcaster as Address,
       recovery: params.recovery as Address,
       safeAddress: params.safeAddress as Address,
-      timeLockPeriodInDays: parseInt(params.timeLockPeriodInDays),
+      // Convert value + unit to minutes
+      timeLockPeriodInMinutes: (() => {
+        const value = Number(params.timeLockValue)
+        const unit = params.timeLockUnit as 'minutes' | 'hours' | 'days'
+        return unit === 'minutes' ? value : unit === 'hours' ? value * 60 : value * 24 * 60
+      })(),
       delegatedCallEnabled: delegatedCallEnabled
     };
     
