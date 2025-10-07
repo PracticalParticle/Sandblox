@@ -4,6 +4,7 @@ import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
 import { useChain } from '@/hooks/useChain';
 import { useMetaTransactionManager } from '@/hooks/useMetaTransactionManager';
 import { useOperationHistory } from '@/hooks/useOperationHistory';
+import { useOperationTypes } from '@/hooks/useOperationTypes';
 import { convertBigIntsToStrings } from '@/lib/utils';
 import { NotificationMessage, SafeTxRecord, EnhancedSafeTx } from '../lib/types';
 import { GuardianSafeService } from '../lib/services';
@@ -88,6 +89,7 @@ export function useOperations({
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const chain = useChain();
+  const { getOperationType } = useOperationTypes(contractAddress);
   
   // Meta transaction manager
   const { transactions, storeTransaction, error: txManagerError } = useMetaTransactionManager(contractAddress);
@@ -199,6 +201,16 @@ export function useOperations({
       setIsLoadingOperations(false);
     }
   }, [safeService, onError, onRefresh]);
+
+  // Resolve GuardianSafe EXEC_SAFE_TX operation type (Hex) when available
+  const execSafeOperationType: Hex | null = useMemo(() => {
+    try {
+      const op = getOperationType?.(SAFE_OPERATIONS.EXEC_SAFE_TX);
+      return op ?? null;
+    } catch {
+      return null;
+    }
+  }, [getOperationType]);
 
   // Operation History hooks for filtering
   const {
@@ -411,7 +423,9 @@ export function useOperations({
         txId,
         signedTxString,
         {
-          type: type === 'approve' ? 'TRANSACTION_APPROVAL' : 'TRANSACTION_CANCELLATION',
+          // GuardianSafe meta: always EXEC_SAFE_TX for safe operations
+          type: SAFE_OPERATIONS.EXEC_SAFE_TX,
+          operationType: (execSafeOperationType as unknown as string) || undefined,
           timestamp: Date.now(),
           action: type,
           broadcasted: false,
@@ -448,7 +462,7 @@ export function useOperations({
     } finally {
       setLoadingStates(prev => ({ ...prev, metaTx: false }));
     }
-  }, [safeService, address, contractAddress, storeTransaction, onSuccess, onError]);
+  }, [safeService, address, contractAddress, storeTransaction, onSuccess, onError, execSafeOperationType]);
 
   // Handle meta transaction signing for new transactions (single-phase)
   const handleSinglePhaseMetaTxSign = useCallback(async (safeTx: SafeTx, customId?: string) => {
@@ -476,7 +490,9 @@ export function useOperations({
         tempId,
         signedTxString,
         {
-          type: 'SINGLE_PHASE_TRANSACTION',
+          // GuardianSafe meta: always EXEC_SAFE_TX for safe operations
+          type: SAFE_OPERATIONS.EXEC_SAFE_TX,
+          operationType: (execSafeOperationType as unknown as string) || undefined,
           timestamp: Date.now(),
           action: 'singlePhase',
           broadcasted: false,
@@ -514,7 +530,7 @@ export function useOperations({
     } finally {
       setLoadingStates(prev => ({ ...prev, metaTx: false }));
     }
-  }, [safeService, address, isDelegatedCallEnabled, contractAddress, storeTransaction, onSuccess, onError]);
+  }, [safeService, address, isDelegatedCallEnabled, contractAddress, storeTransaction, onSuccess, onError, execSafeOperationType]);
 
   // Handle meta transaction broadcasting for existing transactions
   const handleBroadcastMetaTx = useCallback(async (tx: SafeTxRecord, type: 'approve' | 'cancel') => {
