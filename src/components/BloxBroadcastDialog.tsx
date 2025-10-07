@@ -15,6 +15,8 @@ import { useBloxOperations } from "@/hooks/useBloxOperations"
 import { useOperationRegistry } from "@/hooks/useOperationRegistry"
 import { TxRecord } from "@/Guardian/sdk/typescript/interfaces/lib.index"
 import { useMetaTransactionManager } from "@/hooks/useMetaTransactionManager"
+import { useQueryInvalidation } from "@/hooks/useQueryInvalidation"
+import { useChainId } from "wagmi"
 
 interface BloxBroadcastDialogProps {
   isOpen: boolean
@@ -56,6 +58,8 @@ export function BloxBroadcastDialog({
   const { getBloxOperations } = useBloxOperations()
   const { getOperationInfo } = useOperationRegistry()
   const { removeTransaction } = useMetaTransactionManager(contractInfo.contractAddress || '')
+  const { invalidateAfterTransaction } = useQueryInvalidation()
+  const chainId = useChainId()
   
   // Stabilize hook function references to avoid effect re-running loops
   const getOperationInfoRef = useRef(getOperationInfo)
@@ -220,6 +224,15 @@ export function BloxBroadcastDialog({
       
       // Remove the transaction from local storage after successful broadcast
       removeTransaction(transaction.txId.toString())
+      
+      // Invalidate query cache to trigger automatic refresh
+      if (chainId && contractInfo.contractAddress) {
+        invalidateAfterTransaction(chainId, contractInfo.contractAddress as Address, {
+          operationType: transaction.metadata?.type || 'UNKNOWN',
+          walletAddress: connectedAddress as Address,
+          invalidateBalances: ['MINT_TOKENS', 'BURN_TOKENS', 'DEPOSIT', 'WITHDRAW'].includes(transaction.metadata?.type || '')
+        });
+      }
       
       setHasBroadcasted(true)
       

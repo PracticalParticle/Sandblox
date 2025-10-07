@@ -1,10 +1,13 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Address, Hex } from 'viem';
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
+import { useQuery } from '@tanstack/react-query';
 import { useChain } from '@/hooks/useChain';
 import { useMetaTransactionManager } from '@/hooks/useMetaTransactionManager';
 import { useOperationHistory } from '@/hooks/useOperationHistory';
 import { useOperationTypes } from '@/hooks/useOperationTypes';
+import { useQueryInvalidation } from '@/hooks/useQueryInvalidation';
+import { queryKeys } from '@/lib/queryKeys';
 import { convertBigIntsToStrings } from '@/lib/utils';
 import { NotificationMessage, SafeTxRecord, EnhancedSafeTx } from '../lib/types';
 import { GuardianSafeService } from '../lib/services';
@@ -90,6 +93,7 @@ export function useOperations({
   const { data: walletClient } = useWalletClient();
   const chain = useChain();
   const { getOperationType } = useOperationTypes(contractAddress);
+  const { invalidateAfterTransaction } = useQueryInvalidation();
   
   // Meta transaction manager
   const { transactions, storeTransaction, error: txManagerError } = useMetaTransactionManager(contractAddress);
@@ -97,8 +101,6 @@ export function useOperations({
   // States
   const [safeService, setSafeService] = useState<GuardianSafeService | null>(null);
   const [safe, setSafe] = useState<GuardianSafe | null>(null);
-  const [operations, setOperations] = useState<SafeTxRecord[]>([]);
-  const [isLoadingOperations, setIsLoadingOperations] = useState(false);
   const [isDelegatedCallEnabled, setIsDelegatedCallEnabled] = useState(false);
   const [signedMetaTxStates, setSignedMetaTxStates] = useState<Record<string, { type: 'approve' | 'cancel' | 'singlePhase' }>>({});
 
@@ -140,12 +142,6 @@ export function useOperations({
         );
         if (didCancel) return;
         setSafeService(newService);
-
-        // Fetch initial operations
-        setIsLoadingOperations(true);
-        const txs = await newService.getPendingTransactions();
-        if (didCancel) return;
-        setOperations(txs);
         
         // Fetch delegated call status
         const delegatedCallEnabled = await newService.isDelegatedCallEnabled();
@@ -160,7 +156,6 @@ export function useOperations({
         });
       } finally {
         if (didCancel) return;
-        setIsLoadingOperations(false);
       }
     };
 
@@ -169,6 +164,36 @@ export function useOperations({
       didCancel = true;
     };
   }, [publicClient, walletClient, contractAddress, chain, onError]);
+
+  // Fetch operations using TanStack Query
+  const { data: operations = [], isLoading: isLoadingOperations, error: operationsError, refetch: refetchOperations } = useQuery({
+    queryKey: queryKeys.operations.pendingTxs(chain?.id || 0, contractAddress),
+    queryFn: async () => {
+      if (!safeService) {
+        return [];
+      }
+      console.log("🔄 GuardianSafe: Fetching operation history...");
+      const txs = await safeService.getPendingTransactions();
+      console.log("✅ GuardianSafe: Fetched operations:", txs.length);
+      return txs;
+    },
+    enabled: !!safeService && !!chain,
+    refetchInterval: false, // Disable automatic refetch to avoid conflicts
+    refetchIntervalInBackground: false,
+    staleTime: 0, // Always consider data stale to allow immediate refetch
+    refetchOnMount: 'always', // Always refetch when component mounts
+  });
+
+  // Handle operations error
+  useEffect(() => {
+    if (operationsError) {
+      onError?.({
+        type: 'error',
+        title: 'Operations Fetch Failed',
+        description: operationsError.message
+      });
+    }
+  }, [operationsError, onError]);
 
   // Add error handling for transaction manager
   useEffect(() => {
@@ -181,26 +206,11 @@ export function useOperations({
     }
   }, [txManagerError, onError]);
 
-  // Refresh operations
-  const refreshOperations = useCallback(async () => {
-    if (!safeService) return;
-    
-    setIsLoadingOperations(true);
-    try {
-      const txs = await safeService.getPendingTransactions();
-      setOperations(txs);
-      onRefresh?.();
-    } catch (error) {
-      console.error('Failed to refresh operations:', error);
-      onError?.({
-        type: 'error',
-        title: 'Refresh Failed',
-        description: error instanceof Error ? error.message : 'Failed to refresh operations'
-      });
-    } finally {
-      setIsLoadingOperations(false);
-    }
-  }, [safeService, onError, onRefresh]);
+  // Refresh operations callback for manual refresh
+  const refreshOperations = useCallback(() => {
+    refetchOperations();
+    onRefresh?.();
+  }, [refetchOperations, onRefresh]);
 
   // Resolve GuardianSafe EXEC_SAFE_TX operation type (Hex) when available
   const execSafeOperationType: Hex | null = useMemo(() => {
@@ -304,8 +314,16 @@ export function useOperations({
         description: `Successfully requested Safe transaction to ${safeTx.to}`
       });
 
-      // Refresh operations list
-      refreshOperations();
+      // Wait a bit for blockchain state to propagate before invalidating
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Invalidate query cache to trigger automatic refresh
+      if (chain?.id) {
+        invalidateAfterTransaction(chain.id, contractAddress, {
+          operationType: 'EXEC_SAFE_TX',
+          walletAddress: address
+        });
+      }
     } catch (error: any) {
       console.error('Transaction request error:', error);
       onError?.({
@@ -317,7 +335,7 @@ export function useOperations({
     } finally {
       setLoadingStates(prev => ({ ...prev, request: false }));
     }
-  }, [safeService, address, isDelegatedCallEnabled, refreshOperations, onSuccess, onError]);
+  }, [safeService, address, isDelegatedCallEnabled, refreshOperations, onSuccess, onError, chain?.id, contractAddress, invalidateAfterTransaction]);
 
   // Handle approving a transaction after timelock
   const handleApproveTransaction = useCallback(async (txId: number): Promise<void> => {
@@ -340,8 +358,16 @@ export function useOperations({
         description: `Successfully approved transaction #${txId}`
       });
 
-      // Refresh operations list
-      refreshOperations();
+      // Wait a bit for blockchain state to propagate before invalidating
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Invalidate query cache to trigger automatic refresh
+      if (chain?.id) {
+        invalidateAfterTransaction(chain.id, contractAddress, {
+          operationType: 'EXEC_SAFE_TX',
+          walletAddress: address
+        });
+      }
     } catch (error: any) {
       console.error('Approval error:', error);
       onError?.({
@@ -356,7 +382,7 @@ export function useOperations({
         approval: { ...prev.approval, [txId]: false }
       }));
     }
-  }, [safeService, address, refreshOperations, onSuccess, onError]);
+  }, [safeService, address, refreshOperations, onSuccess, onError, chain?.id, contractAddress, invalidateAfterTransaction]);
 
   // Handle canceling a transaction
   const handleCancelTransaction = useCallback(async (txId: number): Promise<void> => {
@@ -379,8 +405,16 @@ export function useOperations({
         description: `Successfully cancelled transaction #${txId}`
       });
 
-      // Refresh operations list
-      refreshOperations();
+      // Wait a bit for blockchain state to propagate before invalidating
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Invalidate query cache to trigger automatic refresh
+      if (chain?.id) {
+        invalidateAfterTransaction(chain.id, contractAddress, {
+          operationType: 'EXEC_SAFE_TX',
+          walletAddress: address
+        });
+      }
     } catch (error: any) {
       console.error('Cancellation error:', error);
       onError?.({
@@ -395,7 +429,7 @@ export function useOperations({
         cancellation: { ...prev.cancellation, [txId]: false }
       }));
     }
-  }, [safeService, address, refreshOperations, onSuccess, onError]);
+  }, [safeService, address, refreshOperations, onSuccess, onError, chain?.id, contractAddress, invalidateAfterTransaction]);
 
   // META TRANSACTION FUNCTIONS
   // Handle meta transaction signing for existing transactions
@@ -584,8 +618,19 @@ export function useOperations({
       // Remove the transaction from storage
       storeTransaction(txId, '', { remove: true });
       
+      // Wait a bit for blockchain state to propagate before invalidating
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
       // Refresh operations list
       refreshOperations();
+      
+      // Invalidate query cache to trigger automatic refresh
+      if (chain?.id) {
+        invalidateAfterTransaction(chain.id, contractAddress, {
+          operationType: 'EXEC_SAFE_TX',
+          walletAddress: address
+        });
+      }
     } catch (error) {
       console.error('Failed to broadcast transaction:', error);
       onError?.({
@@ -597,7 +642,7 @@ export function useOperations({
     } finally {
       setLoadingStates(prev => ({ ...prev, metaTx: false }));
     }
-  }, [safe, walletClient, address, transactions, refreshOperations, onSuccess, onError, storeTransaction]);
+  }, [safe, walletClient, address, transactions, refreshOperations, onSuccess, onError, storeTransaction, chain?.id, contractAddress, invalidateAfterTransaction]);
 
   // Handle broadcasting single-phase meta transactions
   const handleBroadcastSinglePhaseMetaTx = useCallback(async (txId: string) => {
@@ -641,8 +686,19 @@ export function useOperations({
       // Remove the transaction from storage
       storeTransaction(txId, '', { remove: true });
       
+      // Wait a bit for blockchain state to propagate before invalidating
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
       // Refresh operations list
       refreshOperations();
+      
+      // Invalidate query cache to trigger automatic refresh
+      if (chain?.id) {
+        invalidateAfterTransaction(chain.id, contractAddress, {
+          operationType: 'EXEC_SAFE_TX',
+          walletAddress: address
+        });
+      }
     } catch (error) {
       console.error('Failed to broadcast single-phase transaction:', error);
       onError?.({
@@ -654,7 +710,7 @@ export function useOperations({
     } finally {
       setLoadingStates(prev => ({ ...prev, metaTx: false }));
     }
-  }, [safe, walletClient, address, transactions, refreshOperations, onSuccess, onError, storeTransaction]);
+  }, [safe, walletClient, address, transactions, refreshOperations, onSuccess, onError, storeTransaction, chain?.id, contractAddress, invalidateAfterTransaction]);
 
   // Format a SafeTx for display
   const formatSafeTxForDisplay = useCallback((safeTx: SafeTx): EnhancedSafeTx => {

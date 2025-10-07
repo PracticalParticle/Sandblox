@@ -13,6 +13,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import SimpleVault from "./SimpleVault";
 import { useChain } from "@/hooks/useChain";
+import { useQueryInvalidation } from "@/hooks/useQueryInvalidation";
 import { atom, useAtom } from "jotai";
 import { AlertCircle, Loader2, Wallet, Coins, X, Shield, Info, Settings2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -751,6 +752,7 @@ function SimpleVaultUIContent({
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const chain = useChain();
+  const { invalidateAfterTransaction } = useQueryInvalidation();
   const navigate = useNavigate();
   
   // State declarations
@@ -984,7 +986,19 @@ function SimpleVaultUIContent({
         description: `Successfully submitted withdrawal request for ${token ? 'tokens' : 'ETH'}`
       });
 
-      // Refresh transactions
+      // Wait a bit for blockchain state to propagate before invalidating
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Invalidate query cache to trigger automatic refresh
+      if (chain?.id) {
+        invalidateAfterTransaction(chain.id, contractAddress, {
+          operationType: token ? 'WITHDRAW_TOKEN' : 'WITHDRAW_ETH',
+          walletAddress: address,
+          invalidateBalances: true
+        });
+      }
+
+      // Refresh transactions (fallback)
       await handleRefresh();
     } catch (error: any) {
       console.error('Withdrawal request error:', error);

@@ -33,8 +33,7 @@ export interface UseSafeTxReturn {
 export interface UseSafeTxProps {
   safeAddress?: Address;
   chainId?: number;
-  autoRefresh?: boolean;
-  refreshInterval?: number; // in milliseconds
+  autoRefresh?: boolean; // Deprecated - TanStack Query handles all refetching
 }
 
 /**
@@ -43,8 +42,7 @@ export interface UseSafeTxProps {
 export function useSafeTx({
   safeAddress,
   chainId,
-  autoRefresh = true,
-  refreshInterval = 60000 // 60 seconds default
+  autoRefresh = true // Deprecated - kept for backward compatibility
 }: UseSafeTxProps): UseSafeTxReturn {
   const publicClient = usePublicClient();
   const [safeTxService, setSafeTxService] = useState<SafeTxService | null>(null);
@@ -105,8 +103,9 @@ export function useSafeTx({
     queryFn: async () => {
       return await safeTxService!.getPendingTransactions();
     },
-    staleTime: refreshInterval,
-    refetchInterval: autoRefresh ? refreshInterval : false,
+    staleTime: 0, // Always consider data stale to allow immediate refetch
+    refetchInterval: false, // Let TanStack Query handle all refetching via invalidation
+    refetchOnMount: 'always', // Always refetch when component mounts
   });
   useEffect(() => {
     if (queriedPendingTxs) setPendingTransactions(queriedPendingTxs);
@@ -119,7 +118,9 @@ export function useSafeTx({
     queryFn: async () => {
       return await safeTxService!.getSafeInfo();
     },
-    staleTime: 60_000,
+    staleTime: 0, // Always consider data stale to allow immediate refetch
+    refetchInterval: false, // Let TanStack Query handle all refetching via invalidation
+    refetchOnMount: 'always', // Always refetch when component mounts
   });
   useEffect(() => {
     if (queriedSafeInfo) setSafeInfo(queriedSafeInfo);

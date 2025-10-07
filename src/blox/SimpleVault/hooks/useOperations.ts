@@ -4,6 +4,7 @@ import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
 import { useChain } from '@/hooks/useChain';
 import { useMetaTransactionManager } from '@/hooks/useMetaTransactionManager';
 import { useOperationHistory } from '@/hooks/useOperationHistory';
+import { useQueryInvalidation } from '@/hooks/useQueryInvalidation';
 import { convertBigIntsToStrings } from '@/lib/utils';
 import { NotificationMessage, VaultTxRecord } from '../lib/types';
 import { createVaultMetaTxParams } from '../lib/operations';
@@ -77,6 +78,7 @@ export function useOperations({
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const chain = useChain();
+  const { invalidateAfterTransaction } = useQueryInvalidation();
   
   // Meta transaction manager
   const { transactions, storeTransaction, error: txManagerError } = useMetaTransactionManager(contractAddress);
@@ -155,15 +157,16 @@ export function useOperations({
       if (!vaultService) {
         return [];
       }
-      console.log("Fetching operation history...");
+      console.log("🔄 SimpleVault: Fetching operation history...");
       const txs = await vaultService.getPendingTransactions();
-      console.log("Fetched operations:", txs.length);
+      console.log("✅ SimpleVault: Fetched operations:", txs.length);
       return txs;
     },
     enabled: !!vaultService && !!chain,
-    refetchInterval: 60_000, // Refresh every 60 seconds
-    refetchIntervalInBackground: true,
-    staleTime: 30_000, // Cache for 30 seconds
+    refetchInterval: false, // Disable automatic refetch to avoid conflicts
+    refetchIntervalInBackground: false,
+    staleTime: 0, // Always consider data stale to allow immediate refetch
+    refetchOnMount: 'always', // Always refetch when component mounts
   });
 
   // Handle operations error
@@ -352,8 +355,20 @@ export function useOperations({
         return newState;
       });
       
+      // Wait a bit for blockchain state to propagate before invalidating
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
       // Refresh operations list
       refreshOperations();
+      
+      // Invalidate query cache to trigger automatic refresh
+      if (chain?.id) {
+        invalidateAfterTransaction(chain.id, contractAddress, {
+          operationType: 'WITHDRAW_ETH',
+          walletAddress: address,
+          invalidateBalances: true
+        });
+      }
     } catch (error) {
       console.error('Failed to broadcast transaction:', error);
       onError?.({
@@ -365,7 +380,7 @@ export function useOperations({
     } finally {
       setLoadingStates(prev => ({ ...prev, metaTx: false }));
     }
-  }, [vault, walletClient, address, transactions, refreshOperations, onSuccess, onError]);
+  }, [vault, walletClient, address, transactions, refreshOperations, onSuccess, onError, chain?.id, contractAddress, invalidateAfterTransaction]);
 
   // TIME LOCK FUNCTIONS
   // Handle withdrawal approval with timelock
@@ -389,8 +404,17 @@ export function useOperations({
         description: `Successfully approved withdrawal #${txId}`
       });
 
-      // Refresh operations list
-      refreshOperations();
+      // Wait a bit for blockchain state to propagate before invalidating
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Invalidate query cache to trigger automatic refresh
+      if (chain?.id) {
+        invalidateAfterTransaction(chain.id, contractAddress, {
+          operationType: 'WITHDRAW_ETH',
+          walletAddress: address,
+          invalidateBalances: true
+        });
+      }
     } catch (error: any) {
       console.error('Approval error:', error);
       onError?.({
@@ -405,7 +429,7 @@ export function useOperations({
         approval: { ...prev.approval, [txId]: false }
       }));
     }
-  }, [vaultService, address, refreshOperations, onSuccess, onError]);
+  }, [vaultService, address, refreshOperations, onSuccess, onError, chain?.id, contractAddress, invalidateAfterTransaction]);
 
   // Handle withdrawal cancellation
   const handleCancelWithdrawal = useCallback(async (txId: number): Promise<void> => {
@@ -428,8 +452,19 @@ export function useOperations({
         description: `Successfully cancelled withdrawal #${txId}`
       });
 
+      // Wait a bit for blockchain state to propagate before invalidating
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
       // Refresh operations list
       refreshOperations();
+      
+      // Invalidate query cache to trigger automatic refresh
+      if (chain?.id) {
+        invalidateAfterTransaction(chain.id, contractAddress, {
+          operationType: 'WITHDRAW_ETH',
+          walletAddress: address
+        });
+      }
     } catch (error: any) {
       console.error('Cancellation error:', error);
       onError?.({
@@ -444,7 +479,7 @@ export function useOperations({
         cancellation: { ...prev.cancellation, [txId]: false }
       }));
     }
-  }, [vaultService, address, refreshOperations, onSuccess, onError]);
+  }, [vaultService, address, refreshOperations, onSuccess, onError, chain?.id, contractAddress, invalidateAfterTransaction]);
 
   // Fix the type mismatch by creating wrapper functions
   const setStatusFilterWrapper = useCallback((filter: string | null) => {

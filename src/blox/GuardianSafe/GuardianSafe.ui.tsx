@@ -344,8 +344,7 @@ function GuardianSafeUIContent({
   } = useSafeTx({
     safeAddress: safeAddress || undefined,
     chainId: chain?.id,
-    autoRefresh: true,
-    refreshInterval: 60000 // 60 seconds
+    autoRefresh: true // TanStack Query handles all refetching via invalidation
   });
   
   // Safe guard hook for guard management

@@ -16,7 +16,11 @@ import {
 } from "./ui/table"
 import { Loader2, Clock, CheckCircle2, XCircle, AlertTriangle, Filter, RefreshCw } from 'lucide-react'
 import { useState, useEffect } from 'react'
-import { useAccount } from 'wagmi'
+import { useAccount, usePublicClient } from 'wagmi'
+import { useQuery } from '@tanstack/react-query'
+import { queryKeys } from '@/lib/queryKeys'
+import { SecureOwnable } from '../Guardian/sdk/typescript/SecureOwnable'
+import { useChain } from '@/hooks/useChain'
 
 import {
   Select,
@@ -157,14 +161,54 @@ export function OpHistory({
   onNotification
 }: OpHistoryProps) {
   const { address: connectedAddress } = useAccount()
+  const publicClient = usePublicClient()
+  const chain = useChain()
   
+  // CENTRALIZED OPERATION HISTORY FETCHING
+  // This automatically refetches when TanStack Query cache is invalidated
+  const { 
+    data: tanstackOperations = [],
+    isLoading: isLoadingTanstack,
+    refetch: refetchOperations 
+  } = useQuery({
+    queryKey: queryKeys.operations.history(chain?.id || 0, contractAddress || ''),
+    queryFn: async () => {
+      if (!contractAddress || !publicClient || !chain) return [];
+      
+      try {
+        const contract = new SecureOwnable(
+          publicClient,
+          undefined,
+          contractAddress as `0x${string}`,
+          chain
+        );
+
+        console.log('🔄 OpHistory: Fetching operation history...');
+        const history = await contract.getOperationHistory();
+        console.log('✅ OpHistory: Fetched operations:', history.length);
+        return history || [];
+      } catch (error) {
+        console.error('❌ OpHistory: Failed to fetch operation history:', error);
+        return [];
+      }
+    },
+    enabled: !!contractAddress && !!publicClient && !!chain,
+    staleTime: 0, // Always consider data stale to allow immediate refetch
+    refetchOnMount: 'always', // Always refetch when component mounts
+    refetchInterval: false, // Disable automatic polling
+  });
+
+  // Use TanStack Query data as primary source, props as fallback
+  const effectiveOperations = tanstackOperations.length > 0 ? tanstackOperations : operations;
+  const effectiveIsLoading = isLoadingTanstack || isLoading;
+
   // Add local state to track operations
-  const [localOperations, setLocalOperations] = useState(operations)
+  const [localOperations, setLocalOperations] = useState(effectiveOperations)
   
-  // Update local operations when props change
+  // Update local operations when effective operations change
   useEffect(() => {
-    setLocalOperations(operations)
-  }, [operations])
+    setLocalOperations(effectiveOperations)
+  }, [effectiveOperations])
   
   const {
     filteredOperations,
@@ -177,7 +221,7 @@ export function OpHistory({
   } = useOperationHistory({
     contractAddress,
     operations: localOperations,
-    isLoading
+    isLoading: effectiveIsLoading
   })
 
   const [selectedTransaction, setSelectedTransaction] = useState<TxRecord | null>(null)
@@ -472,13 +516,16 @@ export function OpHistory({
               variant="outline"
               size="sm"
               onClick={() => {
+                // Trigger TanStack Query invalidation to refresh all components
+                refetchOperations();
+                // Also trigger manual refresh functions if provided
                 if (refreshData) refreshData()
                 if (refreshSignedTransactions) refreshSignedTransactions()
               }}
               className="gap-2"
-              disabled={isLoading || loadingTypes || isLoadingBloxOperations}
+              disabled={effectiveIsLoading || loadingTypes || isLoadingBloxOperations}
             >
-              <RefreshCw className={`h-4 w-4 ${isLoading || loadingTypes || isLoadingBloxOperations ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`h-4 w-4 ${effectiveIsLoading || loadingTypes || isLoadingBloxOperations ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
           </div>
