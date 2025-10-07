@@ -171,11 +171,11 @@ export function TemporalActionDialog({
     setIsApproving(true)
     try {
       const operationType = getOperationType()
-      await approveOperation(operationType, txId)
-      
-      // Call the parent callback if provided
+      // Prefer parent-provided handler to avoid duplicate wallet prompts
       if (onApprove) {
         await onApprove(txId)
+      } else {
+        await approveOperation(operationType, txId)
       }
       
       // Refresh data
