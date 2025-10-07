@@ -1,7 +1,6 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { Address, Chain as ViemChain , PublicClient, WalletClient } from 'viem'
-import { devnet } from '@/config/chains'
 import { mainnet, sepolia } from 'wagmi/chains'
 import { SecureOwnableManager } from "./SecureOwnableManager"
 import { WorkflowManager } from "./WorkflowManager"
@@ -132,21 +131,21 @@ export const COMMON_CHAINS = {
   OPTIMISM: 10,
   BSC: 56,
   AVALANCHE: 43114,
-  LOCAL: devnet.id
+  LOCAL: 1337
 } as const
 
 // Updated getChainName to work with a chains parameter
 export function getChainName(chainId: Chain, chains: ViemChain[]): string {
   const chain = chains.find(c => c.id === chainId)
   if (chain) return chain.name
-  if (chainId === devnet.id) return devnet.name
+  if (chainId === 1337) return "Local Devnet"
   return "Unknown"
 }
 
 export function isTestnet(chainId: Chain, chains: ViemChain[]): boolean {
   const chain = chains.find(c => c.id === chainId)
   if (chain) return chain.testnet ?? false
-  if (chainId === devnet.id) return devnet.testnet
+  if (chainId === 1337) return true
   return false
 }
 

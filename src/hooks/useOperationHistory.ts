@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { TxRecord } from '../Guardian/sdk/typescript/interfaces/lib.index'
 import { TxStatus } from '../Guardian/sdk/typescript/types/lib.index'
 import { Address, Hex } from 'viem'

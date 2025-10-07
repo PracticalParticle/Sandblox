@@ -42,7 +42,6 @@ export interface UseSafeTxProps {
 export function useSafeTx({
   safeAddress,
   chainId,
-  autoRefresh = true // Deprecated - kept for backward compatibility
 }: UseSafeTxProps): UseSafeTxReturn {
   const publicClient = usePublicClient();
   const [safeTxService, setSafeTxService] = useState<SafeTxService | null>(null);

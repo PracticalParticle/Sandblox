@@ -1,27 +1,8 @@
 import type { Chain } from 'viem';
-import { env } from './env';
 
-export const devnet = {
-  id: env.VITE_DEVNET_CHAIN_ID,
-  name: env.VITE_DEVNET_NAME,
-  nativeCurrency: {
-    decimals: 18,
-    name: 'Ethereum',
-    symbol: 'ETH',
-  },
-  rpcUrls: {
-    default: {
-      http: [env.VITE_DEVNET_RPC_URL],
-    },
-    public: {
-      http: [env.VITE_DEVNET_RPC_URL],
-    },
-  },
-  blockExplorers: env.VITE_DEVNET_EXPLORER_URL ? {
-    default: { name: env.VITE_DEVNET_NAME, url: env.VITE_DEVNET_EXPLORER_URL },
-  } : undefined,
-  testnet: true,
-} as const satisfies Chain;
+// Default networks are now managed through networkStorage.ts
+// This file is kept for backward compatibility but should not be used directly
+// Use getAllNetworks() from @/lib/networkStorage instead
 
 export const sepolia = {
   id: 11155111,
@@ -33,10 +14,10 @@ export const sepolia = {
   },
   rpcUrls: {
     default: {
-      http: [env.VITE_SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com'],
+      http: ['https://ethereum-sepolia-rpc.publicnode.com'],
     },
     public: {
-      http: [env.VITE_SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com'],
+      http: ['https://ethereum-sepolia-rpc.publicnode.com'],
     },
   },
   blockExplorers: {
@@ -132,4 +113,4 @@ export const arbitrumSepolia = {
     },
   },
   testnet: true,
-} as const satisfies Chain; 
+} as const satisfies Chain;

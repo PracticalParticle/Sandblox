@@ -990,7 +990,7 @@ function SimpleVaultUIContent({
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       // Invalidate query cache to trigger automatic refresh
-      if (chain?.id) {
+      if (chain?.id && contractAddress) {
         invalidateAfterTransaction(chain.id, contractAddress, {
           operationType: token ? 'WITHDRAW_TOKEN' : 'WITHDRAW_ETH',
           walletAddress: address,

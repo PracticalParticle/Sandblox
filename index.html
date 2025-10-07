@@ -54,6 +54,11 @@
       base-uri 'self';
       form-action 'self'
     ">
+    <!-- 
+      Note: Custom network RPC URLs added through the UI will require a page reload
+      to be included in the Content Security Policy. The NetworkCSPBanner component
+      will notify users when this is needed.
+    -->
     <link rel="preconnect" href="https://rsms.me/" />
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css" crossorigin="anonymous" />
     <link rel="preload" href="/logo.svg" as="image" type="image/svg+xml" />
