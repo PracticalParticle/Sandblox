@@ -1,13 +1,14 @@
 import { useAccount } from 'wagmi'
 import { Address } from 'viem'
 import { BaseDeploymentForm, type FormField } from '@/components/BaseDeploymentForm'
+import { TIMELOCK_PERIODS } from '@/constants/contract'
 
 interface DeploymentFormProps {
   onDeploy: (params: {
     initialOwner: Address,
     broadcaster: Address,
     recovery: Address,
-    timeLockPeriodInDays: number
+    timeLockPeriodInMinutes: number
   }) => Promise<void>
   isLoading?: boolean
 }
@@ -45,19 +46,30 @@ export function DeploymentForm({ onDeploy, isLoading }: DeploymentFormProps) {
       }
     },
     {
-      id: 'timeLockPeriodInDays',
-      label: 'Time Lock Period (Days)',
+      id: 'timeLockValue',
+      label: 'Time Lock Value',
       type: 'number',
       min: 1,
-      max: 89,
-      description: 'Withdrawal delay in days (1-89)',
-      defaultValue: '7',
+      max: 129600,
+      description: 'Set the time lock with your preferred unit (1 day to 90 days)',
+      defaultValue: '10080',
       validate: (value) => {
-        const days = parseInt(value)
-        if (isNaN(days) || days < 1 || days > 89) {
-          return 'Time lock period must be between 1 and 89 days'
+        const num = parseInt(value)
+        if (isNaN(num) || num < 1 || num > TIMELOCK_PERIODS.MAX) {
+          return `Please enter a period up to 90 days`
         }
       }
+    },
+    {
+      id: 'timeLockUnit',
+      label: 'Time Lock Unit',
+      type: 'select',
+      defaultValue: 'minutes',
+      options: [
+        { label: 'Minutes', value: 'minutes' },
+        { label: 'Hours', value: 'hours' },
+        { label: 'Days', value: 'days' }
+      ]
     }
   ]
 
@@ -66,7 +78,24 @@ export function DeploymentForm({ onDeploy, isLoading }: DeploymentFormProps) {
       title="Deploy SimpleVault"
       description="Configure your vault's security parameters. Choose addresses carefully as they control critical vault operations."
       fields={fields}
-      onDeploy={onDeploy}
+      onDeploy={async (params: any) => {
+        const value = Number(params.timeLockValue)
+        const unit = params.timeLockUnit as 'minutes' | 'hours' | 'days'
+        const minutes = unit === 'minutes' ? value : unit === 'hours' ? value * 60 : value * 24 * 60
+        // Enforce SimpleVault contract constraints: 1 day to 90 days
+        if (minutes < 1440) {
+          throw new Error('Time lock must be at least 1 day (1440 minutes)')
+        }
+        if (minutes > TIMELOCK_PERIODS.MAX) {
+          throw new Error('Time lock must be at most 90 days (129600 minutes)')
+        }
+        await onDeploy({
+          initialOwner: params.initialOwner,
+          broadcaster: params.broadcaster,
+          recovery: params.recovery,
+          timeLockPeriodInMinutes: minutes
+        })
+      }}
       isLoading={isLoading}
     />
   )

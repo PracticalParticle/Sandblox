@@ -1,6 +1,8 @@
 import { useAccount, useDisconnect, usePublicClient, useWalletClient, useConfig } from 'wagmi'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { queryKeys } from '@/lib/queryKeys'
 import { motion } from 'framer-motion'
 import {
   ArrowLeft,
@@ -58,6 +60,7 @@ import { CoreOperationType, operationRegistry } from '@/types/OperationRegistry'
 import type { BroadcastActionType } from '@/components/security/BroadcastDialog'
 import { OPERATION_TYPES } from '@/Guardian/sdk/typescript/types/core.access.index'
 import { Address } from 'viem'
+import { useQueryInvalidation } from '@/hooks/useQueryInvalidation'
 
 const container = {
   hidden: { opacity: 0 },
@@ -113,6 +116,7 @@ export function SecurityDetails() {
   const { address: connectedAddress, isConnected } = useAccount()
   const { disconnect } = useDisconnect()
   const navigate = useNavigate()
+  const config = useConfig()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { transactions = {}, storeTransaction, clearTransactions, removeTransaction } = useMetaTransactionManager(contractAddress || '')
@@ -123,7 +127,34 @@ export function SecurityDetails() {
   const { openConnectModal } = useConnectModal()
   const publicClient = usePublicClient()
   const { data: walletClient } = useWalletClient()
-  const config = useConfig()
+  const { invalidateAfterTransaction } = useQueryInvalidation()
+
+  // TanStack Query for operation history
+  const { data: operationHistory, isLoading: isLoadingHistory } = useQuery({
+    queryKey: queryKeys.operations.history(contractInfo?.chainId || 1, contractAddress as `0x${string}`),
+    queryFn: async () => {
+      if (!contractAddress || !publicClient || !contractInfo) return [];
+      
+      const chain = config.chains.find((c) => c.id === contractInfo.chainId);
+      if (!chain) {
+        throw new Error('Chain not found');
+      }
+
+      const contract = new SecureOwnable(
+        publicClient,
+        undefined,
+        contractAddress as `0x${string}`,
+        chain
+      );
+
+      const operations = await contract.getOperationHistory();
+      return operations;
+    },
+    enabled: !!contractAddress && !!publicClient && !!contractInfo,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchInterval: false,
+  });
 
   // State for input fields
   const [newRecoveryAddress, setNewRecoveryAddress] = useState('')
@@ -138,11 +169,13 @@ export function SecurityDetails() {
   const [showOwnershipDialog, setShowOwnershipDialog] = useState(false)
   const [pendingOwnershipTx, setPendingOwnershipTx] = useState<TxRecord | null>(null)
   const [pendingBroadcasterTx, setPendingBroadcasterTx] = useState<TxRecord | null>(null)
-  const [isLoadingHistory, setIsLoadingHistory] = useState(true)
   const [ownershipExpanded, setOwnershipExpanded] = useState(false)
   const [broadcasterExpanded, setBroadcasterExpanded] = useState(false)
   const [recoveryExpanded, setRecoveryExpanded] = useState(false)
   const [timelockExpanded, setTimelockExpanded] = useState(false)
+  // Read blox type from query param for precise navigation
+  const urlParams = new URLSearchParams(window.location.search)
+  const queryType = urlParams.get('type') || null
 
   // Add state for Broadcast Dialog
   const [showBroadcastTimelockDialog, setShowBroadcastTimelockDialog] = useState(false)
@@ -166,75 +199,31 @@ export function SecurityDetails() {
     loadContractInfo()
   }, [contractAddress])
 
-  // Add a function to fetch operation history directly from contract
-  const fetchOperationHistory = async () => {
-    if (!contractAddress || !publicClient || !contractInfo) return;
-
-    try {
-      const chain = config.chains.find((c) => c.id === contractInfo.chainId);
-      if (!chain) {
-        throw new Error('Chain not found');
-      }
-
-      const contract = new SecureOwnable(
-        publicClient,
-        undefined,
-        contractAddress as `0x${string}`,
-        chain
+  // Update pending transactions when operation history changes
+  useEffect(() => {
+    if (operationHistory) {
+      // Find first pending ownership transfer
+      const pendingOwnership = operationHistory.find(
+        (tx: TxRecord) => tx.status === TxStatus.PENDING && 
+             tx.params.operationType === OPERATION_TYPES.OWNERSHIP_TRANSFER
       );
 
-      // Get operation history directly from contract
-      const operationHistory = await contract.getOperationHistory();
-      console.log('Fresh operation history:', operationHistory);
+      // Find first pending broadcaster update
+      const pendingBroadcaster = operationHistory.find(
+        (tx: TxRecord) => tx.status === TxStatus.PENDING && 
+             tx.params.operationType === OPERATION_TYPES.BROADCASTER_UPDATE
+      );
 
-      // Update contract info with fresh operation history
-      setContractInfo(prevInfo => ({
-        ...prevInfo!,
-        operationHistory: operationHistory || []
-      }));
-
-      // Find pending transactions in operation history
-      if (operationHistory) {
-        // Find first pending ownership transfer
-        const pendingOwnership = operationHistory.find(
-          (tx: TxRecord) => tx.status === TxStatus.PENDING && 
-               tx.params.operationType === OPERATION_TYPES.OWNERSHIP_TRANSFER
-        );
-
-        // Find first pending broadcaster update
-        const pendingBroadcaster = operationHistory.find(
-          (tx: TxRecord) => tx.status === TxStatus.PENDING && 
-               tx.params.operationType === OPERATION_TYPES.BROADCASTER_UPDATE
-        );
-
-        console.log('Found pending ownership tx:', pendingOwnership);
-        console.log('Found pending broadcaster tx:', pendingBroadcaster);
-
-        setPendingOwnershipTx(pendingOwnership || null);
-        setPendingBroadcasterTx(pendingBroadcaster || null);
-      }
-    } catch (error) {
-      console.error('Error fetching operation history:', error);
+      setPendingOwnershipTx(pendingOwnership || null);
+      setPendingBroadcasterTx(pendingBroadcaster || null);
     }
-  };
-
-  // Add effect to refresh data periodically
-  useEffect(() => {
-    if (!contractAddress || !contractInfo) return;
-
-    const refreshInterval = setInterval(() => {
-      fetchOperationHistory();
-    }, 5000); // Refresh every 5 seconds
-
-    return () => clearInterval(refreshInterval);
-  }, [contractAddress, contractInfo]);
+  }, [operationHistory]);
 
   // Update the loadContractInfo function to use fetchOperationHistory
   const loadContractInfo = async () => {
     if (!contractAddress || !publicClient) return;
 
     setLoading(true);
-    setIsLoadingHistory(true);
     setError(null);
 
     try {
@@ -244,10 +233,8 @@ export function SecurityDetails() {
       }
       
       setContractInfo(info);
+      
       setError(null);
-
-      // Fetch operation history after setting contract info
-      await fetchOperationHistory();
     } catch (error) {
       console.error('Error loading contract:', error);
       if (!contractInfo) {
@@ -260,7 +247,6 @@ export function SecurityDetails() {
       }
     } finally {
       setLoading(false);
-      setIsLoadingHistory(false);
     }
   };
 
@@ -887,6 +873,15 @@ export function SecurityDetails() {
       // Wait for transaction confirmation
       await publicClient.waitForTransactionReceipt({ hash: txHash });
 
+      // Invalidate relevant queries to trigger automatic refresh
+      if (contractInfo?.chainId && contractAddress) {
+        invalidateAfterTransaction(contractInfo.chainId, contractAddress as Address, {
+          operationType: typeStr,
+          walletAddress: connectedAddress as Address,
+          invalidateRoles: true
+        });
+      }
+
       // Remove the broadcasted transaction from local storage
       removeTransaction(pendingTx.txId);
       
@@ -1140,9 +1135,6 @@ export function SecurityDetails() {
       // Wait a short time for blockchain to update
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Fetch fresh operation history
-      await fetchOperationHistory();
-      
       // Refresh signed transactions
       refreshSignedTransactions();
       
@@ -1274,7 +1266,7 @@ export function SecurityDetails() {
               onConnect={handleConnect}
               navigationIcon={<AppWindow className="h-4 w-4" />}
               navigationTooltip="View Blox Data"
-              navigateTo={contractInfo?.type ? `/blox/${contractInfo.type}/${contractAddress}` : `/blox/simple-vault/${contractAddress}`}            />
+              navigateTo={(() => { const t = (queryType || (contractInfo as any)?.contractType || (contractInfo as any)?.type || (contractInfo as any)?.bloxId); return t ? `/blox/${t}/${contractAddress}` : undefined })()}            />
 
             {/* Management Tiles */}
             <div className="grid lg:grid-cols-2 gap-8">
@@ -2252,13 +2244,14 @@ export function SecurityDetails() {
           {/* Operation History Section */}
           <motion.div variants={item} className="mt-6">
             <OpHistory
-              isLoading={loading}
-              contractInfo={contractInfo}
+              isLoading={loading || isLoadingHistory}
+              contractInfo={contractInfo!}
+              operations={operationHistory || []}
               signedTransactions={filteredSignedTransactions as any}
               onApprove={handleApproveOperation}
               onCancel={(txId) => {
                 // Get the operation type from the transaction
-                const tx = contractInfo?.operationHistory?.find((op: TxRecord) => op.txId.toString() === txId.toString());
+                const tx = operationHistory?.find((op: TxRecord) => op.txId.toString() === txId.toString());
                 if (tx) {
                   const operationName = getOperationName(tx.params.operationType as Hex);
                   if (operationName === 'OWNERSHIP_TRANSFER') {
@@ -2273,15 +2266,6 @@ export function SecurityDetails() {
               refreshData={loadContractInfo}
               refreshSignedTransactions={refreshSignedTransactions}
               contractAddress={contractAddress as `0x${string}`}
-              operations={contractInfo?.operationHistory?.filter((op: TxRecord) => {
-                const operationName = getOperationName(op.params.operationType as Hex);
-                return [
-                  'OWNERSHIP_TRANSFER',
-                  'BROADCASTER_UPDATE',
-                  'RECOVERY_UPDATE',
-                  'TIMELOCK_UPDATE'
-                ].includes(operationName);
-              }) || []}
             />
           </motion.div>
         </motion.div>

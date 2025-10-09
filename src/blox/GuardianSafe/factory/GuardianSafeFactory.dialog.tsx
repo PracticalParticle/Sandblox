@@ -185,14 +185,14 @@ export default function GuardianSafeFactoryDialog({ open, onOpenChange, factoryA
     recovery: Address,
     safeAddress: Address,
     delegatedCallEnabled: boolean,
-    timeLockPeriodInDays: number
+    timeLockPeriodInMinutes: number
   }) => {
     try {
       setError(null)
       setIsLoading(true)
 
-      // Convert days to minutes for the contract
-      const timeLockPeriodInMinutes = params.timeLockPeriodInDays * 24 * 60
+      // Already in minutes from the form
+      const timeLockPeriodInMinutes = params.timeLockPeriodInMinutes
 
       // Store params for later use
       lastUsedParams.current = {
@@ -209,7 +209,6 @@ export default function GuardianSafeFactoryDialog({ open, onOpenChange, factoryA
         broadcaster: params.broadcaster,
         recovery: params.recovery,
         delegatedCallEnabled: params.delegatedCallEnabled,
-        timeLockPeriodInDays: params.timeLockPeriodInDays,
         timeLockPeriodInMinutes
       })
 

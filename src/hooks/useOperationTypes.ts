@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
 import { usePublicClient, useWalletClient, useConfig } from 'wagmi'
 import { Address, Hex } from 'viem'
 import { SecureOwnable } from '../Guardian/sdk/typescript/SecureOwnable'
+import { useQuery } from '@tanstack/react-query'
+import { queryKeys } from '@/lib/queryKeys'
 
 // Storage key for operation types cache
 const OPERATION_TYPES_CACHE_KEY = 'operationTypes.cache';
@@ -17,18 +18,18 @@ interface CachedOperationTypes {
 const CACHE_EXPIRATION = 24 * 60 * 60 * 1000;
 
 export function useOperationTypes(contractAddress?: Address) {
-  const [operationTypes, setOperationTypes] = useState<Map<string, string>>(new Map())
-  const [nameToTypeMap, setNameToTypeMap] = useState<Map<string, Hex>>(new Map())
-  const [loading, setLoading] = useState(true)
   const publicClient = usePublicClient()
   const { data: walletClient } = useWalletClient()
   const config = useConfig()
 
-  useEffect(() => {
-    const loadOperationTypes = async () => {
+  const { data: operationData, isLoading } = useQuery({
+    queryKey: queryKeys.operations.types(publicClient?.chain?.id || 0, contractAddress!),
+    queryFn: async () => {
       if (!contractAddress || !publicClient) {
-        setLoading(false)
-        return
+        return {
+          operationTypes: new Map<string, string>(),
+          nameToTypeMap: new Map<string, Hex>(),
+        }
       }
 
       try {
@@ -46,14 +47,10 @@ export function useOperationTypes(contractAddress?: Address) {
             typeMap.set(operationType, name)
             reverseMap.set(name, operationType as Hex)
           })
-          setOperationTypes(typeMap)
-          setNameToTypeMap(reverseMap)
-          setLoading(false)
-          return
+          return { operationTypes: typeMap, nameToTypeMap: reverseMap }
         }
 
         // If no cache or expired, load from contract
-        setLoading(true)
         const chainId = await publicClient.getChainId()
         const chain = config.chains.find(c => c.id === chainId)
         if (!chain) throw new Error('Chain not found')
@@ -76,23 +73,22 @@ export function useOperationTypes(contractAddress?: Address) {
         }
         localStorage.setItem(OPERATION_TYPES_CACHE_KEY, JSON.stringify(cache))
         
-        setOperationTypes(typeMap)
-        setNameToTypeMap(reverseMap)
+        return { operationTypes: typeMap, nameToTypeMap: reverseMap }
       } catch (error) {
         console.error('Failed to load operation types:', error)
-      } finally {
-        setLoading(false)
+        throw error
       }
-    }
-
-    loadOperationTypes()
-  }, [contractAddress, publicClient, walletClient, config.chains])
+    },
+    enabled: !!contractAddress && !!publicClient,
+    staleTime: 24 * 60 * 60 * 1000, // Cache for 24 hours
+    gcTime: 7 * 24 * 60 * 60 * 1000, // Keep in cache for 7 days
+  })
 
   return {
-    operationTypes,
-    nameToTypeMap,
-    loading,
-    getOperationName: (type: Hex) => operationTypes.get(type) || 'Unknown Operation',
-    getOperationType: (name: string) => nameToTypeMap.get(name) || null
+    operationTypes: operationData?.operationTypes || new Map<string, string>(),
+    nameToTypeMap: operationData?.nameToTypeMap || new Map<string, Hex>(),
+    loading: isLoading,
+    getOperationName: (type: Hex) => operationData?.operationTypes.get(type) || 'Unknown Operation',
+    getOperationType: (name: string) => operationData?.nameToTypeMap.get(name) || null
   }
 } 

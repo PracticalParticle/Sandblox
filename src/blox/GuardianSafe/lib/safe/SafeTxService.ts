@@ -158,7 +158,9 @@ export class SafeTxService {
     try {
       console.log('🌐 Fetching pending transactions from Safe Transaction Service API...');
       
-      const url = `${this.safeTransactionServiceUrl}/api/v1/safes/${this.safeAddress}/multisig-transactions/?executed=false&limit=100`;
+      // Add cache-busting parameter to force fresh data
+      const timestamp = Date.now();
+      const url = `${this.safeTransactionServiceUrl}/api/v1/safes/${this.safeAddress}/multisig-transactions/?executed=false&limit=100&trusted=true&_t=${timestamp}`;
       
       const response = await fetch(url);
       
@@ -170,7 +172,151 @@ export class SafeTxService {
       
       console.log(`📋 Found ${data.results.length} pending transactions via API`);
       
-      return data.results.map((tx: SafeTransactionServiceTx) => this.mapAPITransactionToPendingTx(tx));
+      // Debug: Log the raw API response to see what's being returned
+      console.log('🔍 Raw API response:', data.results.map(tx => ({
+        nonce: tx.nonce,
+        isExecuted: tx.isExecuted,
+        safeTxHash: tx.safeTxHash,
+        executionDate: tx.executionDate,
+        transactionHash: tx.transactionHash,
+        isSuccessful: tx.isSuccessful
+      })));
+      
+      // Get Safe's current nonce to filter out transactions behind the current nonce
+      let currentNonce: number | null = null;
+      try {
+        if (this.safeSdk) {
+          currentNonce = await this.safeSdk.getNonce();
+          console.log('🔍 Safe current nonce:', currentNonce);
+        }
+      } catch (error) {
+        console.warn('⚠️ Could not get Safe nonce:', error);
+      }
+
+      // Get Safe's current nonce from the contract directly as backup
+      let contractNonce: number | null = null;
+      try {
+        if (this.safeSdk) {
+          // Get nonce directly from the Safe contract
+          contractNonce = await this.safeSdk.getNonce();
+          console.log('🔍 Safe contract nonce:', contractNonce);
+        }
+      } catch (error) {
+        console.warn('⚠️ Could not get Safe contract nonce:', error);
+      }
+
+      // Get executed transactions to cross-reference and filter out executed ones
+      let executedTxHashes: Set<string> = new Set();
+      try {
+        const executedUrl = `${this.safeTransactionServiceUrl}/api/v1/safes/${this.safeAddress}/multisig-transactions/?executed=true&limit=100&_t=${timestamp}`;
+        const executedResponse = await fetch(executedUrl);
+        if (executedResponse.ok) {
+          const executedData: SafeTransactionServiceResponse = await executedResponse.json();
+          executedTxHashes = new Set(executedData.results.map(tx => tx.safeTxHash));
+          console.log('🔍 Found executed transactions:', Array.from(executedTxHashes));
+        }
+      } catch (error) {
+        console.warn('⚠️ Could not get executed transactions:', error);
+      }
+
+      // Additional check: Get all transactions (executed and pending) to cross-reference
+      let allTxHashes: Set<string> = new Set();
+      try {
+        const allTxUrl = `${this.safeTransactionServiceUrl}/api/v1/safes/${this.safeAddress}/multisig-transactions/?limit=100&_t=${timestamp}`;
+        const allTxResponse = await fetch(allTxUrl);
+        if (allTxResponse.ok) {
+          const allTxData: SafeTransactionServiceResponse = await allTxResponse.json();
+          // Filter for truly executed transactions (have executionDate or transactionHash)
+          const trulyExecuted = allTxData.results.filter(tx => 
+            tx.executionDate || tx.transactionHash || tx.isExecuted === true
+          );
+          allTxHashes = new Set(trulyExecuted.map(tx => tx.safeTxHash));
+          console.log('🔍 Found truly executed transactions:', Array.from(allTxHashes));
+        }
+      } catch (error) {
+        console.warn('⚠️ Could not get all transactions:', error);
+      }
+
+      // Additional filtering to remove rejected/executed transactions
+      const filteredResults = data.results.filter(tx => {
+        // Filter out transactions that have been executed (even if marked as not executed)
+        if (tx.executionDate || tx.transactionHash) {
+          console.log('🔍 Filtering out executed transaction:', {
+            nonce: tx.nonce,
+            executionDate: tx.executionDate,
+            transactionHash: tx.transactionHash,
+            isExecuted: tx.isExecuted
+          });
+          return false;
+        }
+        
+        // Filter out transactions that are marked as unsuccessful
+        if (tx.isSuccessful === false) {
+          console.log('🔍 Filtering out unsuccessful transaction:', {
+            nonce: tx.nonce,
+            isSuccessful: tx.isSuccessful
+          });
+          return false;
+        }
+        
+        // Filter out transactions that have been processed on-chain (even if API says not executed)
+        // This catches rejected transactions that were executed but marked as not executed
+        if (tx.isExecuted === true) {
+          console.log('🔍 Filtering out executed transaction (API marked as executed):', {
+            nonce: tx.nonce,
+            isExecuted: tx.isExecuted,
+            transactionHash: tx.transactionHash
+          });
+          return false;
+        }
+        
+        // Additional check: if transaction has a block number, it was processed
+        if (tx.blockNumber && tx.blockNumber > 0) {
+          console.log('🔍 Filtering out transaction with block number (processed on-chain):', {
+            nonce: tx.nonce,
+            blockNumber: tx.blockNumber,
+            transactionHash: tx.transactionHash
+          });
+          return false;
+        }
+        
+        // Filter out transactions that are behind the current Safe nonce
+        // Use the higher of the two nonce values for more accurate filtering
+        const effectiveNonce = Math.max(currentNonce || 0, contractNonce || 0);
+        if (effectiveNonce > 0 && tx.nonce < effectiveNonce) {
+          console.log('🔍 Filtering out transaction behind current nonce:', {
+            nonce: tx.nonce,
+            currentNonce: currentNonce,
+            contractNonce: contractNonce,
+            effectiveNonce: effectiveNonce
+          });
+          return false;
+        }
+        
+        // Filter out transactions that appear in the executed transactions list
+        if (executedTxHashes.has(tx.safeTxHash)) {
+          console.log('🔍 Filtering out transaction found in executed list:', {
+            nonce: tx.nonce,
+            safeTxHash: tx.safeTxHash
+          });
+          return false;
+        }
+        
+        // Filter out transactions that appear in the truly executed transactions list
+        if (allTxHashes.has(tx.safeTxHash)) {
+          console.log('🔍 Filtering out transaction found in truly executed list:', {
+            nonce: tx.nonce,
+            safeTxHash: tx.safeTxHash
+          });
+          return false;
+        }
+        
+        return true;
+      });
+      
+      console.log(`🔍 After filtering: ${filteredResults.length} transactions (was ${data.results.length})`);
+      
+      return filteredResults.map((tx: SafeTransactionServiceTx) => this.mapAPITransactionToPendingTx(tx));
     } catch (error) {
       console.error('❌ Failed to fetch pending transactions from API:', error);
       throw error;

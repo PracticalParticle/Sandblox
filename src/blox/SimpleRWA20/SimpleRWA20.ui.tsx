@@ -181,10 +181,15 @@ interface MintFormProps {
   decimals: number;
 }
 
-const MintForm = ({ onSubmit, isLoading, decimals }: MintFormProps) => {
+const MintForm = React.memo(({ onSubmit, isLoading, decimals }: MintFormProps) => {
   const [to, setTo] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
   const [error, setError] = useState<string>("");
+
+  // Debug logging to track re-renders
+  useEffect(() => {
+    console.log('MintForm re-rendered with decimals:', decimals);
+  }, [decimals]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -251,7 +256,9 @@ const MintForm = ({ onSubmit, isLoading, decimals }: MintFormProps) => {
       </Button>
     </form>
   );
-};
+});
+
+MintForm.displayName = 'MintForm';
 
 // Burn Form Component
 interface BurnFormProps {
@@ -260,7 +267,7 @@ interface BurnFormProps {
   decimals: number;
 }
 
-const BurnForm = ({ onSubmit, isLoading, decimals }: BurnFormProps) => {
+const BurnForm = React.memo(({ onSubmit, isLoading, decimals }: BurnFormProps) => {
   const [from, setFrom] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
   const [error, setError] = useState<string>("");
@@ -389,7 +396,7 @@ const BurnForm = ({ onSubmit, isLoading, decimals }: BurnFormProps) => {
       </Button>
     </form>
   );
-};
+});
 
 // Transfer Form Component
 interface TransferFormProps {
@@ -399,7 +406,7 @@ interface TransferFormProps {
   maxAmount: bigint;
 }
 
-const TransferForm = ({ onSubmit, isLoading, decimals, maxAmount }: TransferFormProps) => {
+const TransferForm = React.memo(({ onSubmit, isLoading, decimals, maxAmount }: TransferFormProps) => {
   const [to, setTo] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
   const [error, setError] = useState<string>("");
@@ -488,7 +495,7 @@ const TransferForm = ({ onSubmit, isLoading, decimals, maxAmount }: TransferForm
       </Button>
     </form>
   );
-};
+});
 
 // Allowance Form Component
 interface AllowanceFormProps {
@@ -498,7 +505,7 @@ interface AllowanceFormProps {
   maxAmount: bigint;
 }
 
-const AllowanceForm = ({ onSubmit, isLoading, decimals, maxAmount }: AllowanceFormProps) => {
+const AllowanceForm = React.memo(({ onSubmit, isLoading, decimals, maxAmount }: AllowanceFormProps) => {
   const [spender, setSpender] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
   const [error, setError] = useState<string>("");
@@ -587,7 +594,7 @@ const AllowanceForm = ({ onSubmit, isLoading, decimals, maxAmount }: AllowanceFo
       </Button>
     </form>
   );
-};
+});
 
 // Main Component Interface
 interface SimpleRWA20UIProps {
@@ -637,8 +644,12 @@ function SimpleRWA20UIContent({
   // Workflow manager for role validation
   const { isOwner } = useWorkflowManager(contractAddress as Address);
   
-  // Memoized decimals value
-  const decimals = useMemo(() => tokenMetadata?.decimals || 18, [tokenMetadata]);
+  // Memoized decimals value - use stable default to prevent unnecessary re-renders
+  const decimals = useMemo(() => {
+    const tokenDecimals = tokenMetadata?.decimals;
+    // Return a stable value to prevent form re-renders
+    return tokenDecimals !== undefined ? tokenDecimals : 18;
+  }, [tokenMetadata?.decimals]);
   
   // Initialization flag
   const initialLoadDoneRef = useRef(false);

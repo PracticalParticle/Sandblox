@@ -6,7 +6,7 @@ import { Loader2, Radio, Network, ArrowUpRight, InfoIcon } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
 import { TxInfoCard } from "./TxInfoCard"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { formatAddress } from "@/lib/utils"
 import { TxStatus } from '@/Guardian/sdk/typescript/types/lib.index'
 import { Address, Hex, keccak256 } from "viem"
@@ -15,6 +15,8 @@ import { useBloxOperations } from "@/hooks/useBloxOperations"
 import { useOperationRegistry } from "@/hooks/useOperationRegistry"
 import { TxRecord } from "@/Guardian/sdk/typescript/interfaces/lib.index"
 import { useMetaTransactionManager } from "@/hooks/useMetaTransactionManager"
+import { useQueryInvalidation } from "@/hooks/useQueryInvalidation"
+import { useChainId } from "wagmi"
 
 interface BloxBroadcastDialogProps {
   isOpen: boolean
@@ -56,7 +58,15 @@ export function BloxBroadcastDialog({
   const { getBloxOperations } = useBloxOperations()
   const { getOperationInfo } = useOperationRegistry()
   const { removeTransaction } = useMetaTransactionManager(contractInfo.contractAddress || '')
+  const { invalidateAfterTransaction } = useQueryInvalidation()
+  const chainId = useChainId()
   
+  // Stabilize hook function references to avoid effect re-running loops
+  const getOperationInfoRef = useRef(getOperationInfo)
+  const getBloxOperationsRef = useRef(getBloxOperations)
+  useEffect(() => { getOperationInfoRef.current = getOperationInfo }, [getOperationInfo])
+  useEffect(() => { getBloxOperationsRef.current = getBloxOperations }, [getBloxOperations])
+
   // Load blox operations when dialog opens
   useEffect(() => {
     const loadOperations = async () => {
@@ -84,7 +94,7 @@ export function BloxBroadcastDialog({
         }
 
         // Get operation info to determine if this is a blox operation
-        const operationInfo = await getOperationInfo(operationType)
+        const operationInfo = await getOperationInfoRef.current(operationType)
         console.log('Operation info:', operationInfo)
 
         if (!operationInfo?.bloxId) {
@@ -92,7 +102,7 @@ export function BloxBroadcastDialog({
         }
 
         // Get blox operations using the operation's bloxId
-        const operations = await getBloxOperations(operationInfo.bloxId, contractInfo.contractAddress as Address)
+        const operations = await getBloxOperationsRef.current(operationInfo.bloxId, contractInfo.contractAddress as Address)
         if (!operations) {
           throw new Error('Failed to load blox operations')
         }
@@ -105,9 +115,9 @@ export function BloxBroadcastDialog({
         setIsLoadingOperations(false)
       }
     }
-    
     loadOperations()
-  }, [isOpen, contractInfo.contractAddress, transaction, getOperationInfo, getBloxOperations])
+    // Exclude hook function identities to avoid endless refresh; rely on refs
+  }, [isOpen, contractInfo.contractAddress, transaction])
   
   // Reset state when dialog opens/closes
   useEffect(() => {
@@ -214,6 +224,15 @@ export function BloxBroadcastDialog({
       
       // Remove the transaction from local storage after successful broadcast
       removeTransaction(transaction.txId.toString())
+      
+      // Invalidate query cache to trigger automatic refresh
+      if (chainId && contractInfo.contractAddress) {
+        invalidateAfterTransaction(chainId, contractInfo.contractAddress as Address, {
+          operationType: transaction.metadata?.type || 'UNKNOWN',
+          walletAddress: connectedAddress as Address,
+          invalidateBalances: ['MINT_TOKENS', 'BURN_TOKENS', 'DEPOSIT', 'WITHDRAW'].includes(transaction.metadata?.type || '')
+        });
+      }
       
       setHasBroadcasted(true)
       

@@ -14,15 +14,18 @@ import {
   Shield,
   Radio,
   Timer,
-  Zap
+  Zap,
+  Eye
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { SafePendingTx } from "../lib/safe/SafeTxService";
 import { useAccount } from "wagmi";
 import { useOperations } from "../hooks/useOperations";
 import { useMetaTransactionManager } from "@/hooks/useMetaTransactionManager";
+import { decodeSafeMethodEnhanced } from "../lib/safeMethodDecoder";
+import { useWorkflowManager } from "@/hooks/useWorkflowManager";
 
 
 export interface SafePendingTransactionsProps {
@@ -35,6 +38,8 @@ export interface SafePendingTransactionsProps {
   connectedAddress?: Address;
   contractAddress?: Address;
   onNotification?: (message: any) => void;
+  isGuardianActive?: boolean;
+  isGuardianContractOwner?: boolean;
 }
 
 /**
@@ -49,11 +54,12 @@ export function SafePendingTransactions({
   chainId,
   connectedAddress,
   contractAddress,
-  onNotification
+  onNotification,
+  isGuardianActive = true,
+  isGuardianContractOwner = false
 }: SafePendingTransactionsProps) {
   const { address } = useAccount();
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState("view");
 
   // Guardian operations hook
   const {
@@ -61,7 +67,8 @@ export function SafePendingTransactions({
     handleSinglePhaseMetaTxSign,
     handleBroadcastSinglePhaseMetaTx,
     signedMetaTxStates,
-    loadingStates
+    loadingStates,
+    isDelegatedCallEnabled
   } = useOperations({
     contractAddress: contractAddress || "0x0000000000000000000000000000000000000000" as Address,
     onSuccess: onNotification,
@@ -73,6 +80,9 @@ export function SafePendingTransactions({
   // We don't need to call useMetaTransactionManager here since we're inside GuardianSafe UI
   // which already provides the TransactionManagerProvider context
   const { transactions } = useMetaTransactionManager(contractAddress || "0x0000000000000000000000000000000000000000" as Address);
+
+  // Workflow manager for role checks (e.g., broadcaster)
+  const { isBroadcaster } = useWorkflowManager(contractAddress || "0x0000000000000000000000000000000000000000" as Address);
 
   // Handle refresh with loading state
   const handleRefresh = async () => {
@@ -90,8 +100,17 @@ export function SafePendingTransactions({
     return `${formatEther(value)} ETH`;
   };
 
-  // Format operation type
-  const formatOperation = (operation: number): string => {
+  // Format operation type with enhanced method decoding
+  const formatOperation = (operation: number, data?: string): string => {
+    // First check if we have data to decode the specific method
+    if (data && data !== '0x' && data !== '0x0') {
+      const methodInfo = decodeSafeMethodEnhanced(data);
+      if (methodInfo.isSafeMethod) {
+        return methodInfo.methodName;
+      }
+    }
+    
+    // Fallback to operation type
     switch (operation) {
       case 0:
         return "Call";
@@ -106,8 +125,23 @@ export function SafePendingTransactions({
   const getSafeUIUrl = (safeTxHash: string): string => {
     if (!safeAddress) return "#";
     
-    const baseUrl = chainId === 1 ? "https://app.safe.global" : "https://safe-transaction-mainnet.safe.global";
-    return `${baseUrl}/transactions/queue?safe=${safeAddress}&id=${safeTxHash}`;
+    // Use the correct Safe app URL format
+    const baseUrl = "https://app.safe.global";
+    
+    // Determine chain prefix based on chainId
+    let chainPrefix = "eth"; // default to mainnet
+    if (chainId === 11155111) {
+      chainPrefix = "sep"; // Sepolia testnet
+    } else if (chainId === 5) {
+      chainPrefix = "gor"; // Goerli testnet
+    } else if (chainId === 1) {
+      chainPrefix = "eth"; // Ethereum mainnet
+    }
+    
+    // Format the multisig ID with chain prefix and safe address
+    const multisigId = `multisig_${safeAddress}_${safeTxHash}`;
+    
+    return `${baseUrl}/transactions/tx?safe=${chainPrefix}:${safeAddress}&id=${multisigId}`;
   };
 
   // Copy to clipboard
@@ -148,7 +182,7 @@ export function SafePendingTransactions({
     return !hasConfirmed && isOwner;
   };
 
-  // Get confirmation status
+  // Get Safe signature status
   const getConfirmationStatus = (tx: SafePendingTx) => {
     const confirmed = tx.confirmations.length;
     const required = tx.confirmationsRequired;
@@ -169,8 +203,19 @@ export function SafePendingTransactions({
       let extractedSignatures = safeTx.signatures;
       
       if (!extractedSignatures || extractedSignatures === '0x') {
-        // Combine signatures from confirmations
+        // Check if we have enough confirmations to meet threshold
+        const confirmationStatus = getConfirmationStatus(safeTx);
+        
+        if (!confirmationStatus.isComplete) {
+          throw new Error(
+            `Insufficient signatures: ${confirmationStatus.confirmed}/${confirmationStatus.required} required. ` +
+            `Need ${confirmationStatus.remaining} more signature(s).`
+          );
+        }
+        
+        // Combine signatures from confirmations with proper ordering and validation
         const signatureArray: string[] = [];
+        const validConfirmations: Array<{owner: string, signature: string}> = [];
         
         safeTx.confirmations?.forEach(confirmation => {
           if (confirmation.signature) {
@@ -178,8 +223,42 @@ export function SafePendingTransactions({
             const cleanSig = confirmation.signature.startsWith('0x') 
               ? confirmation.signature.slice(2) 
               : confirmation.signature;
-            signatureArray.push(cleanSig);
+            
+            // Validate signature format (should be 130 hex characters = 65 bytes)
+            if (cleanSig.length !== 130) {
+              console.warn(`Invalid signature length for ${confirmation.owner}: ${cleanSig.length} (expected 130)`);
+              return;
+            }
+            
+            // Validate signature format (should be valid hex)
+            if (!/^[0-9a-fA-F]{130}$/.test(cleanSig)) {
+              console.warn(`Invalid signature format for ${confirmation.owner}: not valid hex`);
+              return;
+            }
+            
+            validConfirmations.push({
+              owner: confirmation.owner.toLowerCase(),
+              signature: cleanSig
+            });
           }
+        });
+        
+        // Sort signatures by owner address (required by Safe contract)
+        validConfirmations.sort((a, b) => a.owner.localeCompare(b.owner));
+        
+        // Validate we have enough valid signatures
+        if (validConfirmations.length < safeTx.confirmationsRequired) {
+          throw new Error(
+            `Insufficient valid signatures: ${validConfirmations.length}/${safeTx.confirmationsRequired} required. ` +
+            `Some signatures may be invalid or malformed.`
+          );
+        }
+        
+        // Take only the required number of signatures (in case we have more than needed)
+        const requiredSignatures = validConfirmations.slice(0, safeTx.confirmationsRequired);
+        
+        requiredSignatures.forEach(conf => {
+          signatureArray.push(conf.signature);
         });
         
         if (signatureArray.length > 0) {
@@ -214,6 +293,7 @@ export function SafePendingTransactions({
       await handleRequestTransaction(safeTxData);
     } catch (error) {
       console.error('Failed to request Safe transaction:', error);
+      throw error; // Re-throw to show error to user
     }
   };
 
@@ -223,8 +303,19 @@ export function SafePendingTransactions({
       let extractedSignatures = safeTx.signatures;
       
       if (!extractedSignatures || extractedSignatures === '0x') {
-        // Combine signatures from confirmations
+        // Check if we have enough confirmations to meet threshold
+        const confirmationStatus = getConfirmationStatus(safeTx);
+        
+        if (!confirmationStatus.isComplete) {
+          throw new Error(
+            `Insufficient signatures: ${confirmationStatus.confirmed}/${confirmationStatus.required} required. ` +
+            `Need ${confirmationStatus.remaining} more signature(s).`
+          );
+        }
+        
+        // Combine signatures from confirmations with proper ordering and validation
         const signatureArray: string[] = [];
+        const validConfirmations: Array<{owner: string, signature: string}> = [];
         
         safeTx.confirmations?.forEach(confirmation => {
           if (confirmation.signature) {
@@ -232,8 +323,42 @@ export function SafePendingTransactions({
             const cleanSig = confirmation.signature.startsWith('0x') 
               ? confirmation.signature.slice(2) 
               : confirmation.signature;
-            signatureArray.push(cleanSig);
+            
+            // Validate signature format (should be 130 hex characters = 65 bytes)
+            if (cleanSig.length !== 130) {
+              console.warn(`Invalid signature length for ${confirmation.owner}: ${cleanSig.length} (expected 130)`);
+              return;
+            }
+            
+            // Validate signature format (should be valid hex)
+            if (!/^[0-9a-fA-F]{130}$/.test(cleanSig)) {
+              console.warn(`Invalid signature format for ${confirmation.owner}: not valid hex`);
+              return;
+            }
+            
+            validConfirmations.push({
+              owner: confirmation.owner.toLowerCase(),
+              signature: cleanSig
+            });
           }
+        });
+        
+        // Sort signatures by owner address (required by Safe contract)
+        validConfirmations.sort((a, b) => a.owner.localeCompare(b.owner));
+        
+        // Validate we have enough valid signatures
+        if (validConfirmations.length < safeTx.confirmationsRequired) {
+          throw new Error(
+            `Insufficient valid signatures: ${validConfirmations.length}/${safeTx.confirmationsRequired} required. ` +
+            `Some signatures may be invalid or malformed.`
+          );
+        }
+        
+        // Take only the required number of signatures (in case we have more than needed)
+        const requiredSignatures = validConfirmations.slice(0, safeTx.confirmationsRequired);
+        
+        requiredSignatures.forEach(conf => {
+          signatureArray.push(conf.signature);
         });
         
         if (signatureArray.length > 0) {
@@ -254,7 +379,7 @@ export function SafePendingTransactions({
       const safeTxData = {
         to: safeTx.to,
         value: safeTx.value,
-        data: safeTx.data as `0x${string}`,
+        data: formattedData as `0x${string}`,
         operation: safeTx.operation,
         safeTxGas: safeTx.safeTxGas,
         baseGas: safeTx.baseGas,
@@ -274,6 +399,7 @@ export function SafePendingTransactions({
       }
     } catch (error) {
       console.error('Failed to sign meta transaction:', error);
+      throw error; // Re-throw to show error to user
     }
   };
 
@@ -304,9 +430,23 @@ export function SafePendingTransactions({
   const isMetaTxSigned = (safeTx: SafePendingTx, _type: 'request' | 'approve' | 'cancel'): boolean => {
     // Use Safe nonce as the numeric ID for consistent storage
     const txId = safeTx.nonce.toString();
-    // Check both the signed states and the actual stored transactions
-    return !!signedMetaTxStates[txId] && !!transactions[Number(txId)];
+    // Consider either the transient signed state OR the persisted stored transaction
+    return !!signedMetaTxStates[txId] || !!transactions[Number(txId)];
   };
+
+  // Check if connected user has Guardian contract Owner role
+  const hasOwnerRole = (): boolean => {
+    // Debug logging
+    console.log('🔍 hasOwnerRole check:', {
+      connectedAddress,
+      isGuardianContractOwner,
+      hasOwnerRole: isGuardianContractOwner
+    });
+    
+    // Use the boolean from the workflow manager
+    return isGuardianContractOwner;
+  };
+
 
   if (error) {
     return (
@@ -327,41 +467,32 @@ export function SafePendingTransactions({
           <h3 className="text-sm font-medium text-muted-foreground">
             SAFE PENDING TRANSACTIONS
           </h3>
-          {pendingTransactions.length > 0 && (
+          {(() => {
+            const filteredTxs = pendingTransactions.filter(tx => !tx.isExecuted);
+            const trulyPendingTxs = filteredTxs.filter(tx => {
+              if (tx.transactionHash && tx.transactionHash !== '0x') return false;
+              if (tx.blockNumber && tx.blockNumber > 0) return false;
+              if (tx.executor && tx.executor !== '0x0000000000000000000000000000000000000000') return false;
+              return true;
+            });
+            return trulyPendingTxs.length > 0;
+          })() && (
             <Badge variant="secondary" className="text-xs">
-              {pendingTransactions.length}
+              {(() => {
+                const filteredTxs = pendingTransactions.filter(tx => !tx.isExecuted);
+                const trulyPendingTxs = filteredTxs.filter(tx => {
+                  if (tx.transactionHash && tx.transactionHash !== '0x') return false;
+                  if (tx.blockNumber && tx.blockNumber > 0) return false;
+                  if (tx.executor && tx.executor !== '0x0000000000000000000000000000000000000000') return false;
+                  return true;
+                });
+                return trulyPendingTxs.length;
+              })()} Pending
             </Badge>
           )}
         </div>
         
         <div className="flex items-center gap-2">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger 
-                value="view" 
-                className={`text-xs transition-all duration-200 ${
-                  activeTab === "view" 
-                    ? "bg-primary text-primary-foreground shadow-sm" 
-                    : "hover:bg-muted"
-                }`}
-              >
-                {activeTab === "view" && <div className="w-2 h-2 bg-primary-foreground rounded-full mr-2" />}
-                View
-              </TabsTrigger>
-              <TabsTrigger 
-                value="guardian" 
-                className={`text-xs transition-all duration-200 ${
-                  activeTab === "guardian" 
-                    ? "bg-primary text-primary-foreground shadow-sm" 
-                    : "hover:bg-muted"
-                }`}
-              >
-                {activeTab === "guardian" && <div className="w-2 h-2 bg-primary-foreground rounded-full mr-2" />}
-                Guardian
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-          
           <Button
             variant="outline"
             size="sm"
@@ -387,7 +518,16 @@ export function SafePendingTransactions({
       )}
 
       {/* No Transactions */}
-      {!isLoading && pendingTransactions.length === 0 && (
+      {!isLoading && (() => {
+        const filteredTxs = pendingTransactions.filter(tx => !tx.isExecuted);
+        const trulyPendingTxs = filteredTxs.filter(tx => {
+          if (tx.transactionHash && tx.transactionHash !== '0x') return false;
+          if (tx.blockNumber && tx.blockNumber > 0) return false;
+          if (tx.executor && tx.executor !== '0x0000000000000000000000000000000000000000') return false;
+          return true;
+        });
+        return trulyPendingTxs.length === 0;
+      })() && (
         <Card>
           <CardContent className="pt-6">
             <div className="text-center py-8">
@@ -402,10 +542,85 @@ export function SafePendingTransactions({
       )}
 
       {/* Transactions List */}
-      {!isLoading && pendingTransactions.length > 0 && (
+      {!isLoading && (() => {
+        const filteredTxs = pendingTransactions.filter(tx => !tx.isExecuted);
+        const trulyPendingTxs = filteredTxs.filter(tx => {
+          if (tx.transactionHash && tx.transactionHash !== '0x') return false;
+          if (tx.blockNumber && tx.blockNumber > 0) return false;
+          if (tx.executor && tx.executor !== '0x0000000000000000000000000000000000000000') return false;
+          return true;
+        });
+        return trulyPendingTxs.length > 0;
+      })() && (
         <div className="space-y-4">
-          {pendingTransactions.map((tx) => {
+          {(() => {
+            // Filter out executed transactions
+            const filteredTxs = pendingTransactions.filter(tx => !tx.isExecuted);
+            
+            // Additional filtering: remove transactions that have been processed on-chain
+            const trulyPendingTxs = filteredTxs.filter(tx => {
+              // Remove transactions that have transaction hashes (processed on-chain)
+              if (tx.transactionHash && tx.transactionHash !== '0x') {
+                console.log('🔍 Component: Filtering out transaction with hash (processed on-chain):', {
+                  nonce: tx.nonce,
+                  transactionHash: tx.transactionHash,
+                  safeTxHash: tx.safeTxHash
+                });
+                return false;
+              }
+              
+              // Remove transactions that have block numbers (processed on-chain)
+              if (tx.blockNumber && tx.blockNumber > 0) {
+                console.log('🔍 Component: Filtering out transaction with block number (processed on-chain):', {
+                  nonce: tx.nonce,
+                  blockNumber: tx.blockNumber,
+                  safeTxHash: tx.safeTxHash
+                });
+                return false;
+              }
+              
+              // Remove transactions that have an executor (indicates they were executed)
+              if (tx.executor && tx.executor !== '0x0000000000000000000000000000000000000000') {
+                console.log('🔍 Component: Filtering out transaction with executor (executed):', {
+                  nonce: tx.nonce,
+                  executor: tx.executor,
+                  safeTxHash: tx.safeTxHash
+                });
+                return false;
+              }
+              
+              return true;
+            });
+            
+            const sortedTxs = trulyPendingTxs.sort((a, b) => a.nonce - b.nonce);
+            const lowestNonce = sortedTxs[0]?.nonce;
+            
+            console.log('🔍 Component: All transactions:', pendingTransactions.map(tx => ({
+              nonce: tx.nonce,
+              isExecuted: tx.isExecuted,
+              safeTxHash: tx.safeTxHash,
+              transactionHash: tx.transactionHash,
+              blockNumber: tx.blockNumber,
+              executor: tx.executor,
+              submissionDate: tx.submissionDate
+            })));
+            console.log('🔍 Component: Filtered transactions:', filteredTxs.map(tx => ({
+              nonce: tx.nonce,
+              isExecuted: tx.isExecuted,
+              safeTxHash: tx.safeTxHash
+            })));
+            console.log('🔍 Component: Truly pending transactions:', sortedTxs.map(tx => ({
+              nonce: tx.nonce,
+              isExecuted: tx.isExecuted,
+              safeTxHash: tx.safeTxHash
+            })));
+            console.log('🔍 Component: Lowest nonce:', lowestNonce);
+            
+            return sortedTxs;
+          })()
+            .map((tx) => {
             const confirmationStatus = getConfirmationStatus(tx);
+            const isDelegateCall = tx.operation === 1;
             const canSignTx = canSign(tx);
             
             return (
@@ -466,197 +681,407 @@ export function SafePendingTransactions({
                   </div>
                 </CardHeader>
                 
-                <CardContent className="space-y-4">
-                  {/* Transaction Details */}
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">To:</span>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="font-mono text-xs truncate max-w-[200px]" title={tx.to}>
-                          {tx.to}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0"
-                          onClick={() => copyToClipboard(tx.to, "Address")}
-                        >
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                      </div>
+                <CardContent className="space-y-6">
+                  {/* Transaction Information & Signatures Section */}
+                  <div className="space-y-6">
+                    {/* Submitted timestamp as subtitle */}
+                    <div className="text-xs text-muted-foreground">
+                      Submitted: {formatDate(tx.submissionDate)}
                     </div>
                     
-                    <div>
-                      <span className="text-muted-foreground">Value:</span>
-                      <div className="mt-1 font-medium">
-                        {formatValue(tx.value)}
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <span className="text-muted-foreground">Operation:</span>
-                      <div className="mt-1">
-                        <Badge variant="outline" className="text-xs">
-                          {formatOperation(tx.operation)}
-                        </Badge>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <span className="text-muted-foreground">Submitted:</span>
-                      <div className="mt-1 text-xs">
-                        {formatDate(tx.submissionDate)}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Transaction Data */}
-                  {tx.data && tx.data !== '0x' && (
-                    <div>
-                      <span className="text-muted-foreground text-sm">Data:</span>
-                      <div className="mt-1 p-2 bg-muted rounded text-xs font-mono">
-                        <div className="flex items-center justify-between">
-                          <span className="truncate max-w-[300px]" title={tx.data}>
-                            {tx.data.length > 66 ? `${tx.data.slice(0, 32)}...${tx.data.slice(-32)}` : tx.data}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 ml-2 flex-shrink-0"
-                            onClick={() => copyToClipboard(tx.data, "Transaction data")}
-                          >
-                            <Copy className="h-3 w-3" />
-                          </Button>
-                        </div>
-
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Confirmations Status */}
-                  <div className="border-t pt-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-muted-foreground">Confirmations:</span>
-                      <span className="text-sm font-medium">
-                        {confirmationStatus.confirmed} / {confirmationStatus.required}
-                      </span>
-                    </div>
-                    
-                    {/* Progress Bar */}
-                    <div className="w-full bg-muted rounded-full h-2">
-                      <div 
-                        className="bg-primary h-2 rounded-full transition-all duration-300"
-                        style={{ 
-                          width: `${(confirmationStatus.confirmed / confirmationStatus.confirmed) * 100}%` 
-                        }}
-                      />
-                    </div>
-                    
-                    {/* Confirmation Details */}
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      {confirmationStatus.remaining > 0 ? (
-                        <span>
-                          {confirmationStatus.remaining} more confirmation{confirmationStatus.remaining !== 1 ? 's' : ''} needed
-                        </span>
-                      ) : (
-                        <span className="text-green-600 flex items-center gap-1">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Ready to execute
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Guardian Protocol Actions */}
-                  {activeTab === "guardian" && (
-                    <div className="border-t pt-4 space-y-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <Shield className="h-4 w-4 text-primary" />
-                        <span className="text-sm font-medium text-muted-foreground">Guardian Protocol Actions</span>
-                      </div>
-                      
-                      {/* Temporal Workflow (Request/Approve with time delay) */}
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <Timer className="h-4 w-4 text-blue-500" />
-                          <span className="text-sm font-medium">Temporal Workflow</span>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleGuardianRequest(tx)}
-                            disabled={loadingStates.request || !contractAddress}
-                            className="w-full"
-                          >
-                            {loadingStates.request ? (
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            ) : (
-                              <Shield className="h-4 w-4 mr-2" />
-                            )}
-                            Request Transaction (Time-lock)
-                          </Button>
-                        </div>
-                        
-                        <p className="text-xs text-muted-foreground">
-                          Request this transaction through Guardian protocol with time-lock security
-                        </p>
-                      </div>
-
-                      {/* Meta Transaction (Direct signing for immediate broadcast) */}
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <Zap className="h-4 w-4 text-green-500" />
-                          <span className="text-sm font-medium">Meta Transaction</span>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleGuardianMetaTxSign(tx, 'request')}
-                            disabled={loadingStates.metaTx || !contractAddress || isMetaTxSigned(tx, 'request')}
-                            className="w-full"
-                          >
-                            {loadingStates.metaTx ? (
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            ) : isMetaTxSigned(tx, 'request') ? (
-                              <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />
-                            ) : (
-                              <Radio className="h-4 w-4 mr-2" />
-                            )}
-                            {isMetaTxSigned(tx, 'request') ? 'Signed' : 'Sign Request Meta-Tx'}
-                          </Button>
+                    {/* Main Transaction Details Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Left Column - Transaction Details */}
+                      <div className="space-y-4">
+                        <div className="space-y-4 text-sm">
+                          <div className="space-y-1">
+                            <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Recipient</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm" title={tx.to}>
+                                {tx.to.length > 20 ? `${tx.to.slice(0, 10)}...${tx.to.slice(-10)}` : tx.to}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 hover:bg-muted"
+                                onClick={() => copyToClipboard(tx.to, "Address")}
+                              >
+                                <Copy className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
                           
-                          {isMetaTxSigned(tx, 'request') && (
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={() => handleGuardianMetaTxBroadcast(tx, 'request')}
-                              disabled={loadingStates.metaTx}
-                              className="w-full"
-                            >
-                              {loadingStates.metaTx ? (
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              ) : (
-                                <Radio className="h-4 w-4 mr-2" />
-                              )}
-                              Broadcast Meta-Transaction
-                            </Button>
+                          <div className="space-y-1">
+                            <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Value</span>
+                            <div className="text-sm font-semibold">
+                              {formatValue(tx.value)}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Transaction Data */}
+                        {tx.data && tx.data !== '0x' && (
+                          <div className="space-y-2">
+                            <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Transaction Data</span>
+                            <div className="p-3 bg-muted/50 rounded-lg border">
+                              <div className="flex items-center justify-between">
+                                <span className="truncate max-w-[300px] font-mono text-xs" title={tx.data}>
+                                  {tx.data.length > 66 ? `${tx.data.slice(0, 32)}...${tx.data.slice(-32)}` : tx.data}
+                                </span>
+                                <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                                  <Dialog>
+                                    <DialogTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0 hover:bg-muted"
+                                      >
+                                        <Eye className="h-3 w-3" />
+                                      </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
+                                      <DialogHeader>
+                                        <DialogTitle>Transaction Data Preview</DialogTitle>
+                                      </DialogHeader>
+                                      <div className="space-y-4">
+                                        <div>
+                                          <h4 className="text-sm font-medium mb-2">Raw Data:</h4>
+                                          <div className="p-3 bg-muted rounded text-xs font-mono break-all">
+                                            {tx.data}
+                                          </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => copyToClipboard(tx.data, "Transaction data")}
+                                          >
+                                            <Copy className="h-4 w-4 mr-2" />
+                                            Copy Data
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </DialogContent>
+                                  </Dialog>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 hover:bg-muted"
+                                    onClick={() => copyToClipboard(tx.data, "Transaction data")}
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Right Column - Safe Signatures Status */}
+                      <div className="space-y-4">
+                        <div className="p-4 bg-muted/30 rounded-lg border">
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium">Safe Signatures</span>
+                              <Badge 
+                                variant={confirmationStatus.isComplete ? "default" : "secondary"}
+                                className="text-xs"
+                              >
+                                {confirmationStatus.confirmed}/{confirmationStatus.required}
+                              </Badge>
+                            </div>
+                            
+                            {/* Enhanced Progress Bar */}
+                            <div className="space-y-2">
+                              <div className="w-full bg-muted rounded-full h-3 overflow-hidden">
+                                <div 
+                                  className={`h-3 rounded-full transition-all duration-500 ${
+                                    confirmationStatus.isComplete 
+                                      ? 'bg-green-500' 
+                                      : 'bg-primary'
+                                  }`}
+                                  style={{ 
+                                    width: `${(confirmationStatus.confirmed / confirmationStatus.required) * 100}%` 
+                                  }}
+                                />
+                              </div>
+                              
+                              <div className="text-xs text-muted-foreground">
+                                {confirmationStatus.remaining > 0 ? (
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    {confirmationStatus.remaining} more signature{confirmationStatus.remaining !== 1 ? 's' : ''} needed
+                                  </span>
+                                ) : (
+                                  <span className="text-green-600 flex items-center gap-1 font-medium">
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    Ready to execute
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Transaction Status Summary */}
+                        <div className="p-3 bg-card rounded-lg border">
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-muted-foreground">Operation</span>
+                              <div className="flex items-center gap-1">
+                                {(() => {
+                                  const methodInfo = decodeSafeMethodEnhanced(tx.data || '0x');
+                                  return (
+                                    <div className="flex items-center gap-1">
+                                      <Badge 
+                                        variant={methodInfo.isSafeMethod ? "default" : "outline"} 
+                                        className="text-xs"
+                                      >
+                                        {formatOperation(tx.operation, tx.data)}
+                                      </Badge>
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-muted-foreground">Status</span>
+                              <span className={`font-medium ${
+                                confirmationStatus.isComplete ? 'text-green-600' : 'text-amber-600'
+                              }`}>
+                                {confirmationStatus.isComplete ? 'Ready' : 'Pending'}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-muted-foreground">Nonce</span>
+                              <span className="font-mono">{tx.nonce}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                {/* Guardian Protocol Actions Section - Only for lowest nonce */}
+                {(() => {
+                  // Use the same truly pending criteria used for the list to avoid mismatches
+                  const filteredTxs = pendingTransactions.filter(tx => !tx.isExecuted);
+                  const trulyPendingTxs = filteredTxs.filter(tx => {
+                    if (tx.transactionHash && tx.transactionHash !== '0x') return false;
+                    if (tx.blockNumber && tx.blockNumber > 0) return false;
+                    if (tx.executor && tx.executor !== '0x0000000000000000000000000000000000000000') return false;
+                    return true;
+                  });
+                  const sortedTxs = trulyPendingTxs.sort((a, b) => a.nonce - b.nonce);
+                  const lowestNonce = sortedTxs[0]?.nonce;
+                  const isLowestNonce = tx.nonce === lowestNonce;
+                    
+                    if (!isLowestNonce) return null;
+                    
+                    return (
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <h4 className="text-sm font-semibold text-foreground">Guardian Protocol Actions</h4>
+                          <p className="text-xs text-muted-foreground">
+                            Available for transaction #{tx.nonce}. Choose your preferred execution method.
+                          </p>
+                        </div>
+                    
+                        <div className="space-y-4">
+                          {/* Execute in Safe Action - Only show when guardian is not active and for lowest nonce */}
+                          {!isGuardianActive && (
+                            <div className="p-3 border rounded-lg bg-card">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <ExternalLink className="h-4 w-4 text-green-500" />
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm font-medium">Execute in Safe</span>
+                                      <Badge variant="secondary" className="text-xs">Direct</Badge>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                      Execute this transaction directly in Safe UI
+                                    </p>
+                                  </div>
+                                </div>
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => window.open(getSafeUIUrl(tx.safeTxHash), '_blank')}
+                                  className="bg-green-600 hover:bg-green-700 text-white"
+                                >
+                                  <ExternalLink className="h-4 w-4 mr-2" />
+                                  Execute in Safe UI
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Guardian Protocol Actions */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Temporal Workflow Action */}
+                            <div className="p-4 border rounded-lg bg-card">
+                              <div className="flex items-center gap-2 mb-3">
+                                <Timer className="h-4 w-4 text-blue-500" />
+                                <span className="text-sm font-medium">Temporal Workflow</span>
+                                <Badge variant="secondary" className="text-xs">Time-lock</Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground mb-4">
+                                Enhanced security with time-lock protection
+                              </p>
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="default"
+                                      size="sm"
+                                      onClick={() => handleGuardianRequest(tx)}
+                                      disabled={
+                                        loadingStates.request ||
+                                        !contractAddress ||
+                                        !confirmationStatus.isComplete ||
+                                        !hasOwnerRole() ||
+                                        (isDelegateCall && !isDelegatedCallEnabled)
+                                      }
+                                      className="w-full bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                      {loadingStates.request ? (
+                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                      ) : (
+                                        <Shield className="h-4 w-4 mr-2" />
+                                      )}
+                                      Request Transaction
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    {!hasOwnerRole() ? (
+                                      <p>Only contract owners can request Guardian protocol transactions</p>
+                                    ) : !confirmationStatus.isComplete ? (
+                                      <p>Transaction needs {confirmationStatus.remaining} more signature{confirmationStatus.remaining !== 1 ? 's' : ''} before Guardian actions are available</p>
+                                    ) : (isDelegateCall && !isDelegatedCallEnabled) ? (
+                                      <p>Delegated calls are disabled. Enable them in Security Settings to proceed.</p>
+                                    ) : (
+                                      <p>Request transaction through Guardian protocol</p>
+                                    )}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </div>
+
+                            {/* Meta Transaction Action */}
+                            <div className="p-4 border rounded-lg bg-card">
+                              <div className="flex items-center gap-2 mb-3">
+                                <Zap className="h-4 w-4 text-purple-500" />
+                                <span className="text-sm font-medium">Meta Transaction</span>
+                                <Badge variant="secondary" className="text-xs">Immediate</Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground mb-4">
+                                Sign and broadcast for immediate execution
+                              </p>
+                              
+                              <div className="space-y-2">
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="default"
+                                        size="sm"
+                                        onClick={() => handleGuardianMetaTxSign(tx, 'request')}
+                                        disabled={
+                                          loadingStates.metaTx ||
+                                          !contractAddress ||
+                                          isMetaTxSigned(tx, 'request') ||
+                                          !confirmationStatus.isComplete ||
+                                          !hasOwnerRole() ||
+                                          (isDelegateCall && !isDelegatedCallEnabled)
+                                        }
+                                        className="w-full bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                                      >
+                                        {loadingStates.metaTx ? (
+                                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                        ) : isMetaTxSigned(tx, 'request') ? (
+                                          <CheckCircle2 className="h-4 w-4 mr-2 text-white" />
+                                        ) : (
+                                          <Radio className="h-4 w-4 mr-2" />
+                                        )}
+                                        {isMetaTxSigned(tx, 'request') ? 'Signed' : 'Sign Meta-Tx'}
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      {!hasOwnerRole() ? (
+                                        <p>Only contract owners can sign Guardian protocol meta-transactions</p>
+                                      ) : !confirmationStatus.isComplete ? (
+                                        <p>Transaction needs {confirmationStatus.remaining} more signature{confirmationStatus.remaining !== 1 ? 's' : ''} before Guardian actions are available</p>
+                                      ) : (isDelegateCall && !isDelegatedCallEnabled) ? (
+                                        <p>Delegated calls are disabled. Enable them in Security Settings to proceed.</p>
+                                      ) : isMetaTxSigned(tx, 'request') ? (
+                                        <p>Meta-transaction already signed</p>
+                                      ) : (
+                                        <p>Sign meta-transaction for immediate execution</p>
+                                      )}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                                
+                                {isMetaTxSigned(tx, 'request') && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="default"
+                                          size="sm"
+                                          onClick={() => handleGuardianMetaTxBroadcast(tx, 'request')}
+                                          disabled={loadingStates.metaTx || !confirmationStatus.isComplete || !isBroadcaster}
+                                          className="w-full bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                          {loadingStates.metaTx ? (
+                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                          ) : (
+                                            <Radio className="h-4 w-4 mr-2" />
+                                          )}
+                                          Broadcast Meta-Transaction
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        {!isBroadcaster ? (
+                                          <p>Only the broadcaster can broadcast Guardian protocol meta-transactions</p>
+                                        ) : !confirmationStatus.isComplete ? (
+                                          <p>Transaction needs {confirmationStatus.remaining} more signature{confirmationStatus.remaining !== 1 ? 's' : ''} before broadcasting</p>
+                                        ) : (
+                                          <p>Broadcast the signed meta-transaction to the blockchain</p>
+                                        )}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Show message when delegate call is disabled */}
+                          {isDelegateCall && !isDelegatedCallEnabled && (
+                            <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-md">
+                              <div className="flex items-center gap-2">
+                                <AlertCircle className="h-4 w-4 text-orange-600" />
+                                <p className="text-sm text-orange-700">
+                                  Delegated calls are disabled. Enable them in Security Settings to proceed.
+                                </p>
+                              </div>
+                            </div>
                           )}
                         </div>
-                        
-                        <p className="text-xs text-muted-foreground">
-                          Sign and broadcast this transaction immediately through Guardian protocol
-                        </p>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
-                  {/* Sign Transaction Button (Safe UI) */}
-                  {activeTab === "view" && canSignTx && (
-                    <div className="border-t pt-4">
+                  {/* Safe UI Signing Section */}
+                  {canSignTx && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-semibold text-foreground">Safe UI Signing</h4>
+                      </div>
+                      
                       <Alert>
                         <AlertCircle className="h-4 w-4" />
                         <AlertDescription>
@@ -665,7 +1090,7 @@ export function SafePendingTransactions({
                       </Alert>
                       
                       <Button 
-                        className="w-full mt-2"
+                        className="w-full"
                         onClick={() => window.open(getSafeUIUrl(tx.safeTxHash), '_blank')}
                       >
                         <ExternalLink className="h-4 w-4 mr-2" />

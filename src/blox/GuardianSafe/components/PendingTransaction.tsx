@@ -3,10 +3,10 @@ import { Address, Hex } from "viem";
 import { formatEther } from "viem";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, X, CheckCircle2, Clock, XCircle, RefreshCw, Radio, Info } from "lucide-react";
+import { Loader2, X, CheckCircle2, Clock, XCircle, RefreshCw, Radio, Info, Eye, Copy } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+// removed internal Tabs to rely on parent-provided mode
 import { TxStatus } from "../../../Guardian/sdk/typescript/types/lib.index";
 import { SAFE_OPERATIONS } from "../hooks/useOperations";
 import { useOperationTypes } from "@/hooks/useOperationTypes";
@@ -14,8 +14,10 @@ import { NotificationMessage, SafeTxRecord, EnhancedSafeTx } from "../lib/types"
 import { useWorkflowManager } from "@/hooks/useWorkflowManager";
 import { OperationPhase } from "@/types/OperationRegistry";
 import { usePublicClient } from "wagmi";
+import { useMetaTransactionManager } from "@/hooks/useMetaTransactionManager";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 export interface PendingTransactionsProps {
   transactions: SafeTxRecord[];
@@ -33,6 +35,7 @@ export interface PendingTransactionsProps {
   connectedAddress?: Address;
   timeLockPeriodInMinutes: number;
   formatSafeTxForDisplay?: (safeTx: any) => EnhancedSafeTx;
+  broadcasterAddress?: Address;
 }
 
 export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
@@ -50,10 +53,11 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
   onRefresh,
   signedMetaTxStates,
   timeLockPeriodInMinutes,
-  formatSafeTxForDisplay
+  formatSafeTxForDisplay,
+  broadcasterAddress
 }) => {
   const [isRefreshing, setIsRefreshing] = React.useState<boolean>(false);
-  const [activeMode, setActiveMode] = React.useState<'timelock' | 'metatx'>(mode);
+  // broadcasterAddress is provided via props (optional)
   
   // Get operation types for mapping hex values to human-readable names
   const { getOperationName, loading: loadingOperationTypes } = useOperationTypes(contractAddress);
@@ -97,11 +101,15 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
   }, [canExecutePhase, connectedAddress, getOperationName]);
 
   const checkMetaTxBroadcast = React.useCallback((_tx: SafeTxRecord): boolean => {
-    // Generally only broadcasters can broadcast meta transactions
-    return isBroadcaster && !!connectedAddress;
-  }, [isBroadcaster, connectedAddress]);
+    // Only broadcaster can broadcast meta transactions
+    if (!connectedAddress) return false;
+    if (isBroadcaster) return true;
+    // Fallback: allow based on explicit broadcaster address if provided
+    return Boolean((broadcasterAddress && connectedAddress.toLowerCase() === broadcasterAddress.toLowerCase()));
+  }, [isBroadcaster, connectedAddress, broadcasterAddress]);
 
   const publicClient = usePublicClient();
+  const { transactions: storedTransactions } = useMetaTransactionManager(contractAddress);
 
   // Refresh pending transactions manually
   const handleRefresh = () => {
@@ -186,34 +194,44 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
     }
   };
 
-  // Format transaction data display
-  const formatData = (data?: Hex): string => {
-    if (!data || data === '0x') return 'No data';
-    return `${data.slice(0, 10)}...${data.slice(-8)}`;
+  // removed unused formatData helper (not referenced)
+
+  // Copy to clipboard helper
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      console.log(`${label} copied to clipboard`);
+    } catch (err) {
+      console.error('Failed to copy to clipboard:', err);
+    }
   };
 
   // Helper to create description for transaction
   const createTransactionDescription = (tx: SafeTxRecord): string => {
     if (formatSafeTxForDisplay) {
       const formattedTx = formatSafeTxForDisplay({
-        to: tx.to,
-        value: tx.value,
-        data: tx.data,
-        operation: tx.operation
+        to: (tx as any)?.to ?? (tx as any)?.params?.target,
+        value: typeof (tx as any)?.value === 'bigint' ? (tx as any).value : BigInt(((tx as any)?.params?.value) ?? 0),
+        data: ((tx as any)?.data ?? (tx as any)?.params?.data ?? '0x') as Hex,
+        operation: typeof (tx as any)?.operation === 'number' ? (tx as any).operation : 0
       });
       return formattedTx.description || "Unknown transaction";
     }
 
-    const operationType = tx.operation === 0 ? "Call" : "DelegateCall";
-    const valueEth = Number(tx.value) / 1e18;
+    const op = typeof (tx as any)?.operation === 'number' ? (tx as any).operation : 0;
+    const operationType = op === 0 ? "Call" : "DelegateCall";
+    const valueBigInt = typeof (tx as any)?.value === 'bigint' ? (tx as any).value : BigInt(((tx as any)?.params?.value) ?? 0);
+    const valueEth = Number(valueBigInt) / 1e18;
     
-    let description = `${operationType} to ${tx.to}`;
+    const target = (tx as any)?.to ?? (tx as any)?.params?.target ?? 'Unknown';
+    let description = `${operationType} to ${target}`;
     
-    if (tx.value > 0) {
+    if (valueBigInt > 0n) {
       description += ` with ${valueEth} ETH`;
     }
     
-    if (tx.data && tx.data.length > 2) {
+    const dataHex = ((tx as any)?.data ?? (tx as any)?.params?.data ?? '0x') as string;
+    if (dataHex && dataHex.length > 2) {
       description += " with data";
     }
     
@@ -225,7 +243,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
     return (
       <div className="space-y-4">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-medium">Pending Transactions</h3>
+          <h3 className="text-sm font-medium text-muted-foreground">PENDING TRANSACTIONS</h3>
         </div>
         <Card>
           <CardContent className="pt-6 flex justify-center">
@@ -242,7 +260,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
     return (
       <div className="space-y-4">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-medium">Pending Transactions</h3>
+          <h3 className="text-sm font-medium text-muted-foreground">PENDING TRANSACTIONS</h3>
           <Button 
             variant="outline" 
             size="sm" 
@@ -265,8 +283,8 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium">
-          Pending Transactions ({transactions.length})
+        <h3 className="text-sm font-medium text-muted-foreground">
+          PENDING TRANSACTIONS ({transactions.length})
         </h3>
         <Button 
           variant="outline" 
@@ -308,7 +326,9 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
 
             // Key for meta transaction state
             const approveKey = `${tx.txId}-approve`;
-            const hasSignedApproval = signedMetaTxStates?.[approveKey]?.type === 'approve';
+            const hasSignedApprovalFromState = signedMetaTxStates?.[approveKey]?.type === 'approve';
+            const hasStoredSignedApproval = Boolean((storedTransactions as any)?.[Number(tx.txId)]);
+            const hasSignedApproval = hasSignedApprovalFromState || hasStoredSignedApproval;
             
             // Get operation name from hex
             const operationTypeHex = tx.params.operationType as Hex;
@@ -319,6 +339,14 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
               return null;
             }
             
+            // Derive safe display fields with fallbacks to avoid runtime errors
+            const displayTo = (tx as any)?.to ?? (tx as any)?.params?.target ?? 'Unknown';
+            const displayValue: bigint = typeof (tx as any)?.value === 'bigint' 
+              ? (tx as any).value 
+              : BigInt(((tx as any)?.params?.value) ?? 0);
+            const displayOperation: number = typeof (tx as any)?.operation === 'number' ? (tx as any).operation : 0;
+            const displayData: Hex = ((tx as any)?.data ?? (tx as any)?.params?.data ?? '0x') as Hex;
+
             // Create readable description of the transaction
             const txDescription = createTransactionDescription(tx);
             
@@ -335,8 +363,8 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                           <p className="font-medium">
                             Transaction #{tx.txId.toString()}
                           </p>
-                          <Badge variant="outline" className={tx.operation === 0 ? "bg-blue-50" : "bg-purple-50"}>
-                            {tx.operation === 0 ? "Call" : "DelegateCall"}
+                          <Badge variant="outline" className={displayOperation === 0 ? "bg-blue-50" : "bg-purple-50"}>
+                            {displayOperation === 0 ? "Call" : "DelegateCall"}
                           </Badge>
                         </div>
                         <p className="text-sm mt-1">{txDescription}</p>
@@ -344,34 +372,75 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                         <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
                           <div>
                             <p className="font-medium text-xs">Target:</p>
-                            <p className="truncate">{tx.to}</p>
+                            <p className="truncate">{displayTo}</p>
                           </div>
                           <div>
                             <p className="font-medium text-xs">Value:</p>
-                            <p>{formatEther(tx.value)} ETH</p>
+                            <p>{formatEther(displayValue)} ETH</p>
                           </div>
-                          {tx.data && tx.data !== '0x' && (
+                          {displayData && displayData !== '0x' && (
                             <div className="col-span-2">
                               <p className="font-medium text-xs">Data:</p>
-                              <p className="truncate">{formatData(tx.data)}</p>
+                              <div className="p-3 bg-muted/50 rounded-lg border">
+                                <div className="flex items-center justify-between">
+                                  <span className="truncate max-w-[300px] font-mono text-xs" title={displayData}>
+                                    {displayData.length > 66 ? `${displayData.slice(0, 32)}...${displayData.slice(-32)}` : displayData}
+                                  </span>
+                                  <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                                    <Dialog>
+                                      <DialogTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-6 w-6 p-0 hover:bg-muted"
+                                        >
+                                          <Eye className="h-3 w-3" />
+                                        </Button>
+                                      </DialogTrigger>
+                                      <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
+                                        <DialogHeader>
+                                          <DialogTitle>Transaction Data Preview</DialogTitle>
+                                        </DialogHeader>
+                                        <div className="space-y-4">
+                                          <div>
+                                            <h4 className="text-sm font-medium mb-2">Raw Data:</h4>
+                                            <div className="p-3 bg-muted rounded text-xs font-mono break-all">
+                                              {displayData}
+                                            </div>
+                                          </div>
+                                          <div className="flex gap-2">
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              onClick={() => copyToClipboard(displayData, 'Transaction data')}
+                                            >
+                                              <Copy className="h-4 w-4 mr-2" />
+                                              Copy Data
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      </DialogContent>
+                                    </Dialog>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0 hover:bg-muted"
+                                      onClick={() => copyToClipboard(displayData, 'Transaction data')}
+                                    >
+                                      <Copy className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           )}
                         </div>
                       </div>
                     </div>
 
-                    {/* Tabs for switching between temporal and meta-transaction modes */}
-                    <Tabs value={activeMode} onValueChange={(value) => setActiveMode(value as 'timelock' | 'metatx')} className="w-full">
-                      <TabsList className="grid w-full grid-cols-2 bg-background p-1 rounded-lg">
-                        <TabsTrigger value="timelock" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
-                          Temporal (Time Lock)
-                        </TabsTrigger>
-                        <TabsTrigger value="metatx" className="rounded-md data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:font-medium">
-                          Meta Transaction (Immediate)
-                        </TabsTrigger>
-                      </TabsList>
-                      
-                      <TabsContent value="timelock" className="space-y-4">
+                    {/* Render content based on mode; tabs are controlled by parent dialog */}
+                    {mode === 'timelock' ? (
+                      <div className="space-y-4">
                         {/* Time Lock Progress */}
                         <div className="space-y-2">
                           {/* Info about temporal approval timing */}
@@ -382,7 +451,6 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                               This provides security by ensuring transactions cannot be executed immediately.
                             </p>
                           </div>
-                          
                           <div className="flex justify-between text-sm">
                             <span>Time Lock Progress</span>
                             <span>{Math.round(progress)}%</span>
@@ -396,7 +464,6 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                             aria-valuenow={Math.round(progress)}
                           />
                         </div>
-
                         {/* Temporal Action Buttons */}
                         <div className="flex space-x-2">
                           <TooltipProvider>
@@ -435,7 +502,6 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
-
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -463,9 +529,9 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                             </Tooltip>
                           </TooltipProvider>
                         </div>
-                      </TabsContent>
-
-                      <TabsContent value="metatx" className="space-y-4">
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
                         {/* Meta Transaction Action Buttons */}
                         <div className="w-full space-y-2">
                           {/* Info about meta-transaction timing */}
@@ -477,7 +543,6 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                               temporal (timelock) approvals.
                             </p>
                           </div>
-                          
                           <div className="flex space-x-2">
                             <TooltipProvider>
                               <Tooltip>
@@ -497,7 +562,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                         border border-emerald-200 dark:border-emerald-800
                                         disabled:opacity-50 disabled:cursor-not-allowed 
                                         disabled:bg-slate-50 disabled:text-slate-400 
-                                        disabled:bg-slate-900 disabled:text-slate-500
+                                        disabled:dark:bg-slate-900 disabled:dark:text-slate-500
                                       `}
                                       variant="outline"
                                     >
@@ -524,7 +589,6 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
-
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -532,9 +596,9 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                     <Button
                                       onClick={() => handleBroadcastMetaTx(tx, 'approve')}
                                       disabled={
+                                        !hasSignedApproval ||
                                         !checkMetaTxBroadcast(tx) ||
-                                        isLoading || 
-                                        !hasSignedApproval
+                                        isLoading
                                       }
                                       className={`w-full transition-all duration-200 flex items-center justify-center
                                         ${hasSignedApproval 
@@ -543,7 +607,7 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                                         }
                                         disabled:opacity-50 disabled:cursor-not-allowed 
                                         disabled:bg-slate-50 disabled:text-slate-400 
-                                        disabled:bg-slate-900 disabled:text-slate-500
+                                        disabled:dark:bg-slate-900 disabled:dark:text-slate-500
                                       `}
                                       variant="outline"
                                     >
@@ -563,8 +627,8 @@ export const PendingTransactions: React.FC<PendingTransactionsProps> = ({
                             </TooltipProvider>
                           </div>
                         </div>
-                      </TabsContent>
-                    </Tabs>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

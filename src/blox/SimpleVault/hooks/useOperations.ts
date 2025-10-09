@@ -4,11 +4,14 @@ import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
 import { useChain } from '@/hooks/useChain';
 import { useMetaTransactionManager } from '@/hooks/useMetaTransactionManager';
 import { useOperationHistory } from '@/hooks/useOperationHistory';
+import { useQueryInvalidation } from '@/hooks/useQueryInvalidation';
 import { convertBigIntsToStrings } from '@/lib/utils';
 import { NotificationMessage, VaultTxRecord } from '../lib/types';
 import { createVaultMetaTxParams } from '../lib/operations';
 import { SimpleVaultService } from '../lib/services';
 import SimpleVault from '../SimpleVault';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryKeys';
 
 // Valid operation types for SimpleVault
 export const VAULT_OPERATIONS = {
@@ -75,6 +78,7 @@ export function useOperations({
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const chain = useChain();
+  const { invalidateAfterTransaction } = useQueryInvalidation();
   
   // Meta transaction manager
   const { transactions, storeTransaction, error: txManagerError } = useMetaTransactionManager(contractAddress);
@@ -82,8 +86,6 @@ export function useOperations({
   // States
   const [vaultService, setVaultService] = useState<SimpleVaultService | null>(null);
   const [vault, setVault] = useState<SimpleVault | null>(null);
-  const [operations, setOperations] = useState<VaultTxRecord[]>([]);
-  const [isLoadingOperations, setIsLoadingOperations] = useState(false);
   const [signedMetaTxStates, setSignedMetaTxStates] = useState<Record<string, { type: 'approve' | 'cancel' }>>({});
   const [loadingStates, setLoadingStates] = useState<{
     approval: Record<number, boolean>;
@@ -98,7 +100,8 @@ export function useOperations({
   // Initialize services
   useEffect(() => {
     if (!publicClient || !chain || !contractAddress) return;
-    
+    let didCancel = false;
+
     const initializeServices = async () => {
       try {
         const newVault = new SimpleVault(
@@ -107,6 +110,7 @@ export function useOperations({
           contractAddress, 
           chain
         );
+        if (didCancel) return;
         setVault(newVault);
 
         const newService = new SimpleVaultService(
@@ -115,25 +119,24 @@ export function useOperations({
           contractAddress,
           chain
         );
+        if (didCancel) return;
         setVaultService(newService);
-
-        // Fetch initial operations
-        setIsLoadingOperations(true);
-        const txs = await newService.getPendingTransactions();
-        setOperations(txs);
       } catch (error) {
         console.error('Failed to initialize services:', error);
+        if (didCancel) return;
         onError?.({
           type: 'error',
           title: 'Initialization Failed',
           description: error instanceof Error ? error.message : 'Failed to initialize services'
         });
-      } finally {
-        setIsLoadingOperations(false);
       }
     };
 
     initializeServices();
+
+    return () => {
+      didCancel = true;
+    };
   }, [publicClient, walletClient, contractAddress, chain, onError]);
 
   // Add error handling for transaction manager
@@ -147,26 +150,40 @@ export function useOperations({
     }
   }, [txManagerError, onError]);
 
-  // Refresh operations
-  const refreshOperations = useCallback(async () => {
-    if (!vaultService) return;
-    
-    setIsLoadingOperations(true);
-    try {
+  // Fetch operations using TanStack Query
+  const { data: operations = [], isLoading: isLoadingOperations, error: operationsError } = useQuery({
+    queryKey: queryKeys.operations.pendingTxs(chain?.id || 0, contractAddress),
+    queryFn: async () => {
+      if (!vaultService) {
+        return [];
+      }
+      console.log("🔄 SimpleVault: Fetching operation history...");
       const txs = await vaultService.getPendingTransactions();
-      setOperations(txs);
-      onRefresh?.();
-    } catch (error) {
-      console.error('Failed to refresh operations:', error);
+      console.log("✅ SimpleVault: Fetched operations:", txs.length);
+      return txs;
+    },
+    enabled: !!vaultService && !!chain,
+    refetchInterval: false, // Disable automatic refetch to avoid conflicts
+    refetchIntervalInBackground: false,
+    staleTime: 0, // Always consider data stale to allow immediate refetch
+    refetchOnMount: 'always', // Always refetch when component mounts
+  });
+
+  // Handle operations error
+  useEffect(() => {
+    if (operationsError) {
       onError?.({
         type: 'error',
-        title: 'Refresh Failed',
-        description: error instanceof Error ? error.message : 'Failed to refresh operations'
+        title: 'Operations Fetch Failed',
+        description: operationsError.message
       });
-    } finally {
-      setIsLoadingOperations(false);
     }
-  }, [vaultService, onError, onRefresh]);
+  }, [operationsError, onError]);
+
+  // Refresh operations callback for manual refresh
+  const refreshOperations = useCallback(() => {
+    onRefresh?.();
+  }, [onRefresh]);
 
   // Operation History hooks for filtering
   const {
@@ -338,8 +355,20 @@ export function useOperations({
         return newState;
       });
       
+      // Wait a bit for blockchain state to propagate before invalidating
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
       // Refresh operations list
       refreshOperations();
+      
+      // Invalidate query cache to trigger automatic refresh
+      if (chain?.id) {
+        invalidateAfterTransaction(chain.id, contractAddress, {
+          operationType: 'WITHDRAW_ETH',
+          walletAddress: address,
+          invalidateBalances: true
+        });
+      }
     } catch (error) {
       console.error('Failed to broadcast transaction:', error);
       onError?.({
@@ -351,7 +380,7 @@ export function useOperations({
     } finally {
       setLoadingStates(prev => ({ ...prev, metaTx: false }));
     }
-  }, [vault, walletClient, address, transactions, refreshOperations, onSuccess, onError]);
+  }, [vault, walletClient, address, transactions, refreshOperations, onSuccess, onError, chain?.id, contractAddress, invalidateAfterTransaction]);
 
   // TIME LOCK FUNCTIONS
   // Handle withdrawal approval with timelock
@@ -375,8 +404,17 @@ export function useOperations({
         description: `Successfully approved withdrawal #${txId}`
       });
 
-      // Refresh operations list
-      refreshOperations();
+      // Wait a bit for blockchain state to propagate before invalidating
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Invalidate query cache to trigger automatic refresh
+      if (chain?.id) {
+        invalidateAfterTransaction(chain.id, contractAddress, {
+          operationType: 'WITHDRAW_ETH',
+          walletAddress: address,
+          invalidateBalances: true
+        });
+      }
     } catch (error: any) {
       console.error('Approval error:', error);
       onError?.({
@@ -391,7 +429,7 @@ export function useOperations({
         approval: { ...prev.approval, [txId]: false }
       }));
     }
-  }, [vaultService, address, refreshOperations, onSuccess, onError]);
+  }, [vaultService, address, refreshOperations, onSuccess, onError, chain?.id, contractAddress, invalidateAfterTransaction]);
 
   // Handle withdrawal cancellation
   const handleCancelWithdrawal = useCallback(async (txId: number): Promise<void> => {
@@ -414,8 +452,19 @@ export function useOperations({
         description: `Successfully cancelled withdrawal #${txId}`
       });
 
+      // Wait a bit for blockchain state to propagate before invalidating
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
       // Refresh operations list
       refreshOperations();
+      
+      // Invalidate query cache to trigger automatic refresh
+      if (chain?.id) {
+        invalidateAfterTransaction(chain.id, contractAddress, {
+          operationType: 'WITHDRAW_ETH',
+          walletAddress: address
+        });
+      }
     } catch (error: any) {
       console.error('Cancellation error:', error);
       onError?.({
@@ -430,7 +479,7 @@ export function useOperations({
         cancellation: { ...prev.cancellation, [txId]: false }
       }));
     }
-  }, [vaultService, address, refreshOperations, onSuccess, onError]);
+  }, [vaultService, address, refreshOperations, onSuccess, onError, chain?.id, contractAddress, invalidateAfterTransaction]);
 
   // Fix the type mismatch by creating wrapper functions
   const setStatusFilterWrapper = useCallback((filter: string | null) => {
