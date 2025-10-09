@@ -302,6 +302,11 @@ export function useOperations({
     try {
       // Check if this is a delegated call and if it's enabled
       if (safeTx.operation === 1 && !isDelegatedCallEnabled) {
+        onError?.({
+          type: 'error',
+          title: 'Delegated Call Disabled',
+          description: 'Delegated calls are disabled. Enable them in Security Settings to perform delegate calls.'
+        });
         throw new Error("Delegated calls are not enabled");
       }
 
@@ -509,6 +514,11 @@ export function useOperations({
 
       // Check if this is a delegated call and if it's enabled
       if (safeTx.operation === 1 && !isDelegatedCallEnabled) {
+        onError?.({
+          type: 'error',
+          title: 'Delegated Call Disabled',
+          description: 'Delegated calls are disabled. Enable them in Security Settings to perform delegate calls.'
+        });
         throw new Error("Delegated calls are not enabled");
       }
 

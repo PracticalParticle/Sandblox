@@ -67,7 +67,8 @@ export function SafePendingTransactions({
     handleSinglePhaseMetaTxSign,
     handleBroadcastSinglePhaseMetaTx,
     signedMetaTxStates,
-    loadingStates
+    loadingStates,
+    isDelegatedCallEnabled
   } = useOperations({
     contractAddress: contractAddress || "0x0000000000000000000000000000000000000000" as Address,
     onSuccess: onNotification,
@@ -619,6 +620,7 @@ export function SafePendingTransactions({
           })()
             .map((tx) => {
             const confirmationStatus = getConfirmationStatus(tx);
+            const isDelegateCall = tx.operation === 1;
             const canSignTx = canSign(tx);
             
             return (
@@ -935,7 +937,13 @@ export function SafePendingTransactions({
                                       variant="default"
                                       size="sm"
                                       onClick={() => handleGuardianRequest(tx)}
-                                      disabled={loadingStates.request || !contractAddress || !confirmationStatus.isComplete || !hasOwnerRole()}
+                                      disabled={
+                                        loadingStates.request ||
+                                        !contractAddress ||
+                                        !confirmationStatus.isComplete ||
+                                        !hasOwnerRole() ||
+                                        (isDelegateCall && !isDelegatedCallEnabled)
+                                      }
                                       className="w-full bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                       {loadingStates.request ? (
@@ -951,6 +959,8 @@ export function SafePendingTransactions({
                                       <p>Only contract owners can request Guardian protocol transactions</p>
                                     ) : !confirmationStatus.isComplete ? (
                                       <p>Transaction needs {confirmationStatus.remaining} more signature{confirmationStatus.remaining !== 1 ? 's' : ''} before Guardian actions are available</p>
+                                    ) : (isDelegateCall && !isDelegatedCallEnabled) ? (
+                                      <p>Delegated calls are disabled. Enable them in Security Settings to proceed.</p>
                                     ) : (
                                       <p>Request transaction through Guardian protocol</p>
                                     )}
@@ -978,7 +988,14 @@ export function SafePendingTransactions({
                                         variant="default"
                                         size="sm"
                                         onClick={() => handleGuardianMetaTxSign(tx, 'request')}
-                                        disabled={loadingStates.metaTx || !contractAddress || isMetaTxSigned(tx, 'request') || !confirmationStatus.isComplete || !hasOwnerRole()}
+                                        disabled={
+                                          loadingStates.metaTx ||
+                                          !contractAddress ||
+                                          isMetaTxSigned(tx, 'request') ||
+                                          !confirmationStatus.isComplete ||
+                                          !hasOwnerRole() ||
+                                          (isDelegateCall && !isDelegatedCallEnabled)
+                                        }
                                         className="w-full bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                                       >
                                         {loadingStates.metaTx ? (
@@ -996,6 +1013,8 @@ export function SafePendingTransactions({
                                         <p>Only contract owners can sign Guardian protocol meta-transactions</p>
                                       ) : !confirmationStatus.isComplete ? (
                                         <p>Transaction needs {confirmationStatus.remaining} more signature{confirmationStatus.remaining !== 1 ? 's' : ''} before Guardian actions are available</p>
+                                      ) : (isDelegateCall && !isDelegatedCallEnabled) ? (
+                                        <p>Delegated calls are disabled. Enable them in Security Settings to proceed.</p>
                                       ) : isMetaTxSigned(tx, 'request') ? (
                                         <p>Meta-transaction already signed</p>
                                       ) : (
@@ -1039,6 +1058,18 @@ export function SafePendingTransactions({
                               </div>
                             </div>
                           </div>
+                          
+                          {/* Show message when delegate call is disabled */}
+                          {isDelegateCall && !isDelegatedCallEnabled && (
+                            <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-md">
+                              <div className="flex items-center gap-2">
+                                <AlertCircle className="h-4 w-4 text-orange-600" />
+                                <p className="text-sm text-orange-700">
+                                  Delegated calls are disabled. Enable them in Security Settings to proceed.
+                                </p>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
