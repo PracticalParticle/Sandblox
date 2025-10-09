@@ -29,6 +29,6 @@
     "forceConsistentCasingInFileNames": true
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/components/ui/*.tsx"],
-  "exclude": ["particle-core", "particle-core/**/*", "node_modules"],
+  "exclude": ["Guardian", "Guardian/**/*", "node_modules"],
   "references": [{ "path": "./tsconfig.node.json" }]
 } 

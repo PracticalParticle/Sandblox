@@ -1,5 +1,5 @@
-import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index'
-import { ExecutionType, TxStatus } from '../particle-core/sdk/typescript/types/lib.index'
+import { TxRecord } from '../Guardian/sdk/typescript/interfaces/lib.index'
+import { ExecutionType, TxStatus } from '../Guardian/sdk/typescript/types/lib.index'
 import { formatAddress, formatTimestamp } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'

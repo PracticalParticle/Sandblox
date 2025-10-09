@@ -1,7 +1,7 @@
 import { Address, PublicClient, WalletClient, Chain, Abi } from 'viem';
 import GuardianSafeABIJson from './GuardianSafe.abi.json';
-import { MetaTransaction } from '../../particle-core/sdk/typescript/interfaces/lib.index';
-import { TransactionOptions, TransactionResult } from '../../particle-core/sdk/typescript/interfaces/base.index';
+import { MetaTransaction } from '../../Guardian/sdk/typescript/interfaces/lib.index';
+import { TransactionOptions, TransactionResult } from '../../Guardian/sdk/typescript/interfaces/base.index';
 
 // Parse and type the ABI
 const GuardianSafeABI = GuardianSafeABIJson as Abi;
@@ -67,11 +67,11 @@ export default class GuardianSafe {
    * @notice Gets the Safe contract address
    * @return The Safe contract address
    */
-  async safe(): Promise<Address> {
+  async getSafeAddress(): Promise<Address> {
     return await this.client.readContract({
       address: this.contractAddress,
       abi: GuardianSafeABI,
-      functionName: 'safe'
+      functionName: 'getSafeAddress'
     }) as Address;
   }
 

@@ -184,14 +184,14 @@ function SimpleRWA20FactoryDialog({ open, onOpenChange, factoryAddress }: Simple
     initialOwner: Address,
     broadcaster: Address,
     recovery: Address,
-    timeLockPeriodInDays: number
+    timeLockPeriodInMinutes: number
   }) => {
     try {
       setError(null)
       setIsLoading(true)
 
-      // Convert days to minutes for the contract
-      const timeLockPeriodInMinutes = params.timeLockPeriodInDays * 24 * 60
+      // Already in minutes from the form
+      const timeLockPeriodInMinutes = params.timeLockPeriodInMinutes
 
       // Store params for later use
       lastUsedParams.current = {
@@ -208,7 +208,6 @@ function SimpleRWA20FactoryDialog({ open, onOpenChange, factoryAddress }: Simple
         initialOwner: params.initialOwner,
         broadcaster: params.broadcaster,
         recovery: params.recovery,
-        timeLockPeriodInDays: params.timeLockPeriodInDays,
         timeLockPeriodInMinutes
       })
 

@@ -1,28 +1,31 @@
 "use client";
 
-import * as React from "react";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
-import { Address, parseEther, Hex } from "viem";
+import { Address } from "viem";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import GuardianSafe, { SafeTx } from "./GuardianSafe";
+import GuardianSafe from "./GuardianSafe";
 import { useChain } from "@/hooks/useChain";
 import { atom, useAtom } from "jotai";
-import { AlertCircle, Loader2, Shield, Info, Settings2, Radio } from "lucide-react";
+import { AlertCircle, Loader2, Shield, Info, Settings2, Copy, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
 import { ContractInfo as BaseContractInfo } from "@/lib/verification/index";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { PendingTransactions } from "./components/PendingTransaction";
 import { NotificationMessage, SafeMetaTxParams, SafeTxRecord } from "./lib/types";
 import { TransactionManagerProvider } from "@/contexts/MetaTransactionManager";
 import { useOperations } from "./hooks/useOperations";
 import { GuardianSafeService } from "./lib/services";
 import { useWorkflowManager } from "@/hooks/useWorkflowManager";
-import { TxStatus } from "../../particle-core/sdk/typescript/types/lib.index";
+import { TxStatus } from "../../Guardian/sdk/typescript/types/lib.index";
+import { useSafeOwners, useSafeCoreInterface } from "../../blox/GuardianSafe/hooks/useSafeCoreInterface";
+import { useSafeTx } from "./hooks/useSafeTx";
+import { SafePendingTransactions } from "./components/SafePendingTransactions";
+import { GuardInfo } from "./lib/safe/SafeCoreInterface";
 
 // Extend the base ContractInfo interface to include broadcaster and other properties
 interface ContractInfo extends BaseContractInfo {
@@ -57,6 +60,9 @@ const delegatedCallEnabledAtom = atom<boolean>(false);
 
 // Add storage key for meta tx settings
 const META_TX_SETTINGS_KEY = 'guardianSafe.metaTxSettings';
+
+
+
 
 // Default meta-transaction settings
 const defaultMetaTxSettings: SafeMetaTxParams = {
@@ -164,138 +170,119 @@ function MetaTxSettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   );
 }
 
-// TransactionForm Component
-interface TransactionFormProps {
-  onSubmit: (to: Address, value: bigint, data: string, operation: number) => Promise<void>;
-  isLoading: boolean;
-  isDelegatedCallEnabled: boolean;
-}
-
-const TransactionForm = ({ onSubmit, isLoading, isDelegatedCallEnabled }: TransactionFormProps) => {
-  const [to, setTo] = useState<string>("");
-  const [value, setValue] = useState<string>("");
-  const [data, setData] = useState<string>("0x");
-  const [operation, setOperation] = useState<number>(0);
-  const [error, setError] = useState<string>("");
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError("");
-    
-    try {
-      // Validate address
-      if (!/^0x[a-fA-F0-9]{40}$/.test(to)) {
-        throw new Error("Invalid target address");
-      }
-
-      // Validate value
-      let parsedValue: bigint;
-      try {
-        parsedValue = value ? parseEther(value) : BigInt(0);
-      } catch {
-        throw new Error("Invalid ETH value");
-      }
-
-      // Validate data
-      if (data !== "0x" && !/^0x[a-fA-F0-9]*$/.test(data)) {
-        throw new Error("Invalid transaction data - must be hex");
-      }
-
-      // Validate operation
-      if (operation === 1 && !isDelegatedCallEnabled) {
-        throw new Error("Delegated call is not enabled");
-      }
-      
-      await onSubmit(to as Address, parsedValue, data, operation);
-      setTo("");
-      setValue("");
-      setData("0x");
-      setOperation(0);
-    } catch (error: any) {
-      console.error('Form submission error:', error);
-      setError(error.message);
+// Paginated Owners Dialog Component
+function AllOwnersDialog({ 
+  open, 
+  onOpenChange, 
+  owners, 
+  connectedAddress
+}: { 
+  open: boolean; 
+  onOpenChange: (open: boolean) => void; 
+  owners: Address[];
+  connectedAddress: Address | undefined;
+}) {
+  const [currentPage, setCurrentPage] = useState(0);
+  const ownersPerPage = 10;
+  const totalPages = Math.ceil(owners.length / ownersPerPage);
+  
+  const startIndex = currentPage * ownersPerPage;
+  const endIndex = startIndex + ownersPerPage;
+  const currentOwners = owners.slice(startIndex, endIndex);
+  
+  // Reset page when dialog opens
+  useEffect(() => {
+    if (open) {
+      setCurrentPage(0);
     }
+  }, [open]);
+  
+  const handlePrevious = () => {
+    setCurrentPage(prev => Math.max(0, prev - 1));
   };
-
+  
+  const handleNext = () => {
+    setCurrentPage(prev => Math.min(totalPages - 1, prev + 1));
+  };
+  
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="to">Target Address</Label>
-        <Input
-          id="to"
-          placeholder="0x..."
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
-          required
-          pattern="^0x[a-fA-F0-9]{40}$"
-          aria-label="Target address input"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="value">ETH Value</Label>
-        <Input
-          id="value"
-          type="text"
-          placeholder="0.0"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          aria-label="ETH value input"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="data">Transaction Data (Hex)</Label>
-        <Input
-          id="data"
-          placeholder="0x"
-          value={data}
-          onChange={(e) => setData(e.target.value)}
-          aria-label="Transaction data input"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="operation">Operation Type</Label>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Info className="h-4 w-4 text-muted-foreground" />
-              </TooltipTrigger>
-              <TooltipContent>
-                Call (0): Standard call to contract or address<br/>
-                DelegateCall (1): Delegate call to another contract, executing in the context of the Safe
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px] max-h-[80vh]">
+        <DialogHeader>
+          <DialogTitle>All Safe Owners</DialogTitle>
+          <DialogDescription>
+            Complete list of Safe owners ({owners.length} total)
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-3 max-h-[400px] overflow-y-auto">
+          {currentOwners.map((owner: Address, index: number) => {
+            return (
+              <div key={owner} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-medium flex-shrink-0">
+                    {startIndex + index + 1}
+                  </div>
+                  <div className="flex flex-col gap-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">Owner {startIndex + index + 1}</span>
+                      {connectedAddress && owner.toLowerCase() === connectedAddress.toLowerCase() && (
+                        <div className="flex items-center gap-1 text-green-600 text-xs">
+                          <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                          <span>Connected</span>
+                        </div>
+                      )}
+                    </div>
+                    <span className="font-mono text-xs text-muted-foreground truncate" title={owner}>
+                      {owner}
+                    </span>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 flex-shrink-0"
+                  onClick={() => navigator.clipboard.writeText(owner)}
+                  title="Copy address"
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
+              </div>
+            );
+          })}
         </div>
-        <select
-          id="operation"
-          value={operation}
-          onChange={(e) => setOperation(Number(e.target.value))}
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-          aria-label="Operation type selection"
-        >
-          <option value={0}>Call (0)</option>
-          <option value={1} disabled={!isDelegatedCallEnabled}>DelegateCall (1) {!isDelegatedCallEnabled && '- Disabled'}</option>
-        </select>
-      </div>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      <Button type="submit" disabled={isLoading} className="w-full">
-        {isLoading ? "Processing..." : "Request Transaction"}
-      </Button>
-    </form>
+        
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between pt-4 border-t">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePrevious}
+              disabled={currentPage === 0}
+            >
+              Previous
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Page {currentPage + 1} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNext}
+              disabled={currentPage === totalPages - 1}
+            >
+              Next
+            </Button>
+          </div>
+        )}
+        
+        <DialogFooter>
+          <Button onClick={() => onOpenChange(false)}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
-};
+}
 
 // Main Component Interface
 interface GuardianSafeUIProps {
@@ -329,33 +316,51 @@ function GuardianSafeUIContent({
   const [delegatedCallEnabled, setDelegatedCallEnabled] = useAtom(delegatedCallEnabledAtom);
   const [error, setError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [signedMetaTxStates] = useState<Record<string, { type: 'approve' | 'cancel' }>>({});
-  
-  // Operations hook
-  const {
-    handleRequestTransaction,
-    handleApproveTransaction,
-    handleCancelTransaction,
-    handleMetaTxSign,
-    handleBroadcastMetaTx,
-    loadingStates: operationsLoadingStates,
-    handleDelegatedCallToggle,
-  } = useOperations({
-    contractAddress: contractAddress as Address,
-    onSuccess: addMessage,
-    onError: addMessage,
-    onRefresh: () => refreshData()
-  });
+  const [showAllOwnersDialog, setShowAllOwnersDialog] = useState(false);
+  const [isCardExpanded, setIsCardExpanded] = useState(true);
   
   // Workflow manager for role validation
   const { 
-    isOwner,
-    isBroadcaster,
-    isRecovery
+    isOwner
   } = useWorkflowManager(contractAddress as Address);
   
   // Safe address ref for display
   const [safeAddress, setSafeAddress] = useState<Address | null>(null);
+  
+  // Safe owners hook
+  const { 
+    owners: safeOwners, 
+    isLoading: isLoadingOwners, 
+    error: ownersError,
+    refetch: refetchOwners 
+  } = useSafeOwners(safeAddress || undefined);
+  
+  // Safe pending transactions hook
+  const {
+    pendingTransactions: safePendingTxs,
+    isLoading: isLoadingSafeTxs,
+    error: safeTxsError,
+    refreshPendingTransactions: refreshSafeTxs
+  } = useSafeTx({
+    safeAddress: safeAddress || undefined,
+    chainId: chain?.id,
+    autoRefresh: true // TanStack Query handles all refetching via invalidation
+  });
+  
+  // Safe guard hook for guard management
+  const {
+    getGuardInfo,
+    setGuard,
+    removeGuard,
+    isOwner: isSafeOwner,
+    isLoading: isLoadingGuard,
+    error: guardError,
+    isInitialized: isSafeInitialized
+  } = useSafeCoreInterface(safeAddress || undefined);
+  
+  // Guard state
+  const [guardInfo, setGuardInfo] = useState<GuardInfo | null>(null);
+  const [isConnectedWalletSafeOwner, setIsConnectedWalletSafeOwner] = useState<boolean>(false);
   
   // Initialization flag
   const initialLoadDoneRef = useRef(false);
@@ -367,6 +372,36 @@ function GuardianSafeUIContent({
       console.log('Loaded meta tx settings:', storedSettings);
     }
   }, [safeService]);
+
+  // Load guard info when Safe address is available
+  useEffect(() => {
+    if (safeAddress && getGuardInfo && isSafeInitialized) {
+      getGuardInfo()
+        .then(setGuardInfo)
+        .catch(error => {
+          console.error('Failed to load guard info:', error);
+          addMessage?.({
+            type: 'error',
+            title: 'Failed to Load Guard Info',
+            description: error instanceof Error ? error.message : 'Unknown error occurred'
+          });
+        });
+    }
+  }, [safeAddress, getGuardInfo, isSafeInitialized, addMessage]);
+
+  // Check if connected wallet is a Safe owner
+  useEffect(() => {
+    if (safeAddress && address && isSafeOwner && isSafeInitialized) {
+      isSafeOwner(address)
+        .then(setIsConnectedWalletSafeOwner)
+        .catch(error => {
+          console.error('Failed to check if connected wallet is Safe owner:', error);
+          setIsConnectedWalletSafeOwner(false);
+        });
+    } else {
+      setIsConnectedWalletSafeOwner(false);
+    }
+  }, [safeAddress, address, isSafeOwner, isSafeInitialized]);
 
   // Refresh function to update data
   const refreshData = useCallback(async () => {
@@ -399,6 +434,16 @@ function GuardianSafeUIContent({
       setLoadingState(prev => ({ ...prev, transactions: false }));
     }
   }, [safe, safeService, setPendingTxs, onError]);
+
+  // Operations hook - moved after refreshData definition
+  const {
+    handleDelegatedCallToggle,
+  } = useOperations({
+    contractAddress: contractAddress as Address,
+    onSuccess: addMessage,
+    onError: addMessage,
+    onRefresh: () => refreshData()
+  });
 
   // Initialize the component
   useEffect(() => {
@@ -472,62 +517,14 @@ function GuardianSafeUIContent({
     }
   }, [handleDelegatedCallToggle, addMessage]);
 
-  // Handle transaction request
-  const handleTransactionRequest = useCallback(async (to: Address, value: bigint, data: string, operation: number) => {
-    try {
-      setLoadingState(prev => ({ ...prev, requestTx: true }));
-      
-      // Create SafeTx object
-      const safeTx: SafeTx = {
-        to,
-        value,
-        data: data as Hex,
-        operation,
-        safeTxGas: BigInt(0),
-        baseGas: BigInt(0),
-        gasPrice: BigInt(0),
-        gasToken: "0x0000000000000000000000000000000000000000" as Address,
-        refundReceiver: "0x0000000000000000000000000000000000000000" as Address,
-        signatures: "0x" as Hex
-      };
-      
-      await handleRequestTransaction(safeTx);
-      
-      addMessage?.({
-        type: 'success',
-        title: 'Transaction Requested',
-        description: `Successfully requested transaction to ${to}`
-      });
-    } catch (error: any) {
-      console.error('Transaction request error:', error);
-      addMessage?.({
-        type: 'error',
-        title: 'Request Failed',
-        description: error.message || 'Failed to request transaction'
-      });
-    } finally {
-      setLoadingState(prev => ({ ...prev, requestTx: false }));
-    }
-  }, [handleRequestTransaction, addMessage]);
+
 
   // Filter pending transactions
   const pendingTransactions = useMemo(() => {
     return pendingTxs.filter(tx => tx.status === TxStatus.PENDING);
   }, [pendingTxs]);
 
-  // Calculate time lock period in minutes from days
-  const timeLockPeriodInMinutes = useMemo(() => {
-    return (contractInfo?.timeLockPeriodInDays || 0) * 24 * 60;
-  }, [contractInfo]);
-
-  // Notification handler
-  const handleNotification = useCallback((message: NotificationMessage): void => {
-    if (addMessage) {
-      addMessage(message);
-    } else {
-      console.log('Notification:', message);
-    }
-  }, [addMessage]);
+  
 
   // Loading state
   if (loadingState.initialization) {
@@ -607,19 +604,31 @@ function GuardianSafeUIContent({
         <div className="space-y-2">
           <h3 className="font-medium text-sm text-muted-foreground">SAFE INFO</h3>
           <Card className="p-4">
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2">
                 <span className="text-sm text-muted-foreground">Safe Address:</span>
-                <span className="text-sm font-mono truncate max-w-[200px]">{safeAddress || 'Loading...'}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono break-all bg-muted px-2 py-1 rounded flex-1 min-w-0" title={safeAddress || 'Loading...'}>
+                    {safeAddress ? `${safeAddress.slice(0, 8)}...${safeAddress.slice(-6)}` : 'Loading...'}
+                  </span>
+                  {safeAddress && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 flex-shrink-0 touch-manipulation"
+                      onClick={() => navigator.clipboard.writeText(safeAddress)}
+                      title="Copy address"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Delegated Call:</span>
                 <span className="text-sm">{delegatedCallEnabled ? 'Enabled' : 'Disabled'}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Time Lock:</span>
-                <span className="text-sm">{contractInfo?.timeLockPeriodInDays || 0} days</span>
-              </div>
+              
             </div>
           </Card>
         </div>
@@ -632,13 +641,66 @@ function GuardianSafeUIContent({
             </div>
           </div>
         )}
+
+        {safePendingTxs.length > 0 && (
+          <div className="space-y-2">
+            <h3 className="font-medium text-sm text-muted-foreground">SAFE PENDING TRANSACTIONS</h3>
+            <div className="text-sm text-muted-foreground">
+              {safePendingTxs.length} transaction{safePendingTxs.length !== 1 ? 's' : ''} pending
+            </div>
+          </div>
+        )}
+
+        {safeOwners.length > 0 && (
+          <div className="space-y-2">
+            <h3 className="font-medium text-sm text-muted-foreground">SAFE OWNERS</h3>
+            <Card className="p-2">
+              <div className="space-y-2">
+                {safeOwners.slice(0, 3).map((owner: Address, index: number) => {
+                  return (
+                    <div key={owner} className="flex items-start justify-between py-1">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <span className="text-xs text-muted-foreground">Owner {index + 1}:</span>
+                        {address && owner.toLowerCase() === address.toLowerCase() && (
+                          <div className="w-1.5 h-1.5 rounded-full bg-green-500" title="Connected wallet"></div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-[10px] min-w-0" title={owner}>
+                          {owner.slice(0, 4)}...{owner.slice(-3)}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-4 w-4 p-0 flex-shrink-0 touch-manipulation"
+                          onClick={() => navigator.clipboard.writeText(owner)}
+                          title="Copy address"
+                        >
+                          <Copy className="h-2.5 w-2.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {safeOwners.length > 3 && (
+                  <div className="pt-2 border-t">
+                    <p className="text-xs text-muted-foreground text-center">
+                      +{safeOwners.length - 3} more owners
+                    </p>
+                  </div>
+                )}
+              </div>
+            </Card>
+          </div>
+        )}
       </div>
     );
   }
 
   // Fix the network warning JSX
   return (
-    <div className="h-full overflow-auto">
+    <TooltipProvider>
+      <div className="h-full overflow-auto">
       {chain?.id && contractInfo?.chainId && chain.id !== contractInfo.chainId && (
         <Alert variant="destructive" className="mb-4">
           <AlertCircle className="h-4 w-4" />
@@ -649,6 +711,7 @@ function GuardianSafeUIContent({
         </Alert>
       )}
       
+      
       <div className={dashboardMode ? "p-0" : "container mx-auto p-4"}>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -656,18 +719,72 @@ function GuardianSafeUIContent({
               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                 <Shield className="h-4 w-4 text-primary" />
               </div>
+              <div className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-semibold">Guardian Safe</h2>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <Info className="h-4 w-4 text-muted-foreground" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Secure transaction management with time-locked operations</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                {guardInfo?.guardAddress && guardInfo.guardAddress === contractAddress ? (
+                  <div className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-md text-xs font-medium">
+                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                    Active
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-700 rounded-md text-xs font-medium">
+                    <AlertCircle className="w-3 h-3" />
+                    Activation Required
+                  </div>
+                )}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-4 w-4 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Secure transaction management with time-locked operations</p>
+                  </TooltipContent>
+                </Tooltip>
+                </div>
+                {safeAddress && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Safe:</span>
+                    <div className="flex items-center gap-1 bg-muted px-2 py-1 rounded-md max-w-full min-w-0">
+                      <span className="font-mono text-sm truncate flex-1 min-w-0" title={safeAddress}>
+                        {safeAddress.slice(0, 6)}...{safeAddress.slice(-4)}
+                      </span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 flex-shrink-0 touch-manipulation"
+                            onClick={() => navigator.clipboard.writeText(safeAddress)}
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Copy Safe address</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 flex-shrink-0 touch-manipulation"
+                            onClick={() => {
+                              const safeUrl = `https://app.safe.global/home?safe=${chain?.name?.toLowerCase()}:${safeAddress}`;
+                              window.open(safeUrl, '_blank');
+                            }}
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Open in Safe App</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -686,22 +803,31 @@ function GuardianSafeUIContent({
                   'Refresh'
                 )}
               </Button>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSettingsOpen(true)}
-                    >
-                      <Settings2 className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Configure meta-transaction settings</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSettingsOpen(true)}
+                  >
+                    <Settings2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Configure meta-transaction settings</p>
+                </TooltipContent>
+              </Tooltip>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsCardExpanded(!isCardExpanded)}
+              >
+                {isCardExpanded ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </Button>
             </div>
           </CardHeader>
 
@@ -711,118 +837,371 @@ function GuardianSafeUIContent({
             onOpenChange={setSettingsOpen}
           />
 
+          {/* All Owners Dialog */}
+          <AllOwnersDialog
+            open={showAllOwnersDialog}
+            onOpenChange={setShowAllOwnersDialog}
+            owners={safeOwners}
+            connectedAddress={address}
+          />
+
+          {isCardExpanded && (
+            <CardContent>
+              <div className="space-y-6">
+                {/* Safe Owners Information - Moved to top */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium text-muted-foreground">SAFE OWNERS</h3>
+                  {isLoadingOwners && (
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
+                  {ownersError && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <AlertCircle className="h-4 w-4 text-destructive" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Error loading owners: {ownersError?.message || 'Unknown error'}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
+                <div className="rounded-md border p-3">
+                  {safeOwners.length > 0 ? (
+                    <div className="space-y-2">
+                      {safeOwners.slice(0, 3).map((owner: Address, index: number) => {
+                        return (
+                          <div key={owner} className="flex items-center justify-between py-2">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-medium flex-shrink-0">
+                                {index + 1}
+                              </div>
+                              <div className="flex flex-col gap-1 min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium">Owner {index + 1}</span>
+                                  {address && owner.toLowerCase() === address.toLowerCase() && (
+                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500" title="Connected wallet"></div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="font-mono text-xs truncate max-w-[80px]" title={owner}>
+                                {owner.slice(0, 4)}...{owner.slice(-3)}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-5 w-5 p-0 flex-shrink-0 touch-manipulation"
+                                onClick={() => navigator.clipboard.writeText(owner)}
+                                title="Copy address"
+                              >
+                                <Copy className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {safeOwners.length > 3 && (
+                        <div className="pt-2 border-t">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowAllOwnersDialog(true)}
+                            className="w-full"
+                          >
+                            View All {safeOwners.length} Owners
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ) : isLoadingOwners ? (
+                    <div className="text-center py-4">
+                      <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">Loading Safe owners...</p>
+                    </div>
+                  ) : ownersError ? (
+                    <div className="text-center py-4">
+                      <AlertCircle className="h-6 w-6 text-destructive mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">Failed to load Safe owners</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2"
+                        onClick={() => refetchOwners()}
+                      >
+                        Retry
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No owners found
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Security Settings Section - Consolidated */}
+              {isOwner && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-muted-foreground">SECURITY SETTINGS</h3>
+                  
+                  {/* Transaction Guard Section */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    {isLoadingGuard && (
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
+                    {guardError && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <AlertCircle className="h-4 w-4 text-destructive" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Error loading guard info: {guardError?.message || 'Unknown error'}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+                  <div className={`rounded-md border p-4 ${
+                    guardInfo && (!guardInfo.guardAddress || guardInfo.guardAddress === '0x0000000000000000000000000000000000000000' || guardInfo.guardAddress !== contractAddress) 
+                      ? 'border-orange-200 bg-orange-50/50' 
+                      : 'border-border'
+                  }`}>
+                    <div className="space-y-4">
+                      {/* Current Guard Status */}
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium">Guardian Protection</p>
+                            {guardInfo && (!guardInfo.guardAddress || guardInfo.guardAddress === '0x0000000000000000000000000000000000000000' || guardInfo.guardAddress !== contractAddress) && (
+                              <div className="flex items-center gap-1 px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs font-medium">
+                                <AlertCircle className="w-3 h-3" />
+                                Inactive
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {guardInfo ? (
+                              guardInfo.guardAddress && guardInfo.guardAddress !== '0x0000000000000000000000000000000000000000' ? (
+                                <>
+                                  {guardInfo.guardAddress.slice(0, 6)}...{guardInfo.guardAddress.slice(-4)}
+                                  {guardInfo.guardAddress === contractAddress && (
+                                    <span className="ml-2 text-green-600">(GuardianSafe)</span>
+                                  )}
+                                </>
+                              ) : (
+                                'No guard set'
+                              )
+                            ) : isLoadingGuard ? (
+                              'Loading...'
+                            ) : (
+                              'Unknown'
+                            )}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {guardInfo?.guardAddress && guardInfo.guardAddress === contractAddress ? (
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={async () => {
+                                try {
+                                  await removeGuard();
+                                  addMessage?.({
+                                    type: 'success',
+                                    title: 'Guard Removed',
+                                    description: 'GuardianSafe has been removed as the transaction guard.'
+                                  });
+                                  // Refresh guard info
+                                  const newGuardInfo = await getGuardInfo();
+                                  setGuardInfo(newGuardInfo);
+                                } catch (error) {
+                                  addMessage?.({
+                                    type: 'error',
+                                    title: 'Failed to Remove Guard',
+                                    description: error instanceof Error ? error.message : 'Unknown error occurred'
+                                  });
+                                }
+                              }}
+                              disabled={isLoadingGuard || !isConnectedWalletSafeOwner}
+                            >
+                              Remove Guard
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={async () => {
+                                if (!contractAddress) {
+                                  addMessage?.({
+                                    type: 'error',
+                                    title: 'Error',
+                                    description: 'Contract address not available'
+                                  });
+                                  return;
+                                }
+                                try {
+                                  // contractAddress is the GuardianSafe contract address
+                                  // We want to set this GuardianSafe as a guard on the underlying Safe
+                                  // The safeAddress should already be set to the underlying Safe from the contract
+                                  const safeTxHash = await setGuard(contractAddress);
+                                  addMessage?.({
+                                    type: 'success',
+                                    title: 'Guardian Activated',
+                                    description: `Guardian protection activated! Transaction Hash: ${safeTxHash}. The GuardianSafe contract (${contractAddress}) is now protecting the underlying Safe.`
+                                  });
+                                  // Refresh guard info after a short delay to check if it was executed immediately
+                                  setTimeout(async () => {
+                                    try {
+                                      const newGuardInfo = await getGuardInfo();
+                                      setGuardInfo(newGuardInfo);
+                                    } catch (refreshError) {
+                                      console.warn('Failed to refresh guard info:', refreshError);
+                                    }
+                                  }, 3000);
+                                } catch (error) {
+                                  addMessage?.({
+                                    type: 'error',
+                                    title: 'Failed to Activate Guardian',
+                                    description: error instanceof Error ? error.message : 'Unknown error occurred'
+                                  });
+                                }
+                              }}
+                              disabled={isLoadingGuard || !contractAddress || !isConnectedWalletSafeOwner}
+                            >
+                              Activate Guardian Protection
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      
+                                             {/* Guard Information */}
+                       {guardInfo?.guardAddress && (
+                         <div className="pt-4 border-t">
+                           <p className="text-xs text-muted-foreground">
+                              <strong>Note:</strong> When GuardianSafe is activated as a transaction guard, 
+                              all Safe transactions will be validated by the GuardianSafe contract 
+                              before execution. This provides an additional layer of security 
+                              and enables time-locked operations.
+                           </p>
+                         </div>
+                       )}
+                       
+                       {/* Permission Information */}
+                       {!isConnectedWalletSafeOwner && (
+                         <div className="pt-4 border-t">
+                           <p className="text-xs text-muted-foreground">
+                             <strong>Permission Required:</strong> Only Safe owners can activate or remove transaction guards. 
+                             Please connect with a wallet that is an owner of this Safe.
+                           </p>
+                         </div>
+                       )}
+                    </div>
+                  </div>
+                </div>
+
+
+                  {/* Delegated Call Section */}
+              <div className="space-y-2">
+                <div className="rounded-md border p-4">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <Label htmlFor="delegated-call">Enable Delegated Calls</Label>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="h-4 w-4 text-muted-foreground" />
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs">
+                                  <p>Allows the GuardianSafe contract to execute delegate calls on behalf of the Safe</p>
+                                </TooltipContent>
+                              </Tooltip>
+                      </div>
+                             <p className="text-xs text-muted-foreground">
+                               {delegatedCallEnabled 
+                                 ? 'Enabled - GuardianSafe can execute delegate calls' 
+                                 : 'Disabled - GuardianSafe cannot execute delegate calls'
+                               }
+                             </p>
+                    </div>
+                            <div className="flex items-center space-x-3">
+                              <Switch
+                                id="delegated-call"
+                                checked={delegatedCallEnabled}
+                                onCheckedChange={handleToggleDelegatedCall}
+                                disabled={loadingState.delegatedCallToggle}
+                                className="data-[state=checked]:bg-primary data-[state=unchecked]:bg-muted [&>span]:data-[state=checked]:bg-white [&>span]:data-[state=unchecked]:bg-white"
+                              />
+                              <span className={`text-sm font-medium ${delegatedCallEnabled ? 'text-green-600' : 'text-muted-foreground'}`}>
+                                {delegatedCallEnabled ? 'Enabled' : 'Disabled'}
+                              </span>
+                            </div>
+                    </div>
+                        
+                        {/* Delegated Call Information */}
+                        <div className="pt-4 border-t">
+                          <p className="text-xs text-muted-foreground">
+                            <strong>Note:</strong> When delegated calls are enabled, the GuardianSafe contract can execute 
+                            delegate calls on behalf of the Safe. This enables advanced operations but grants significant 
+                            power and should only be enabled if you understand the risks and trust the GuardianSafe contract.
+                          </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              )}
+
+            </div>
+          </CardContent>
+          )}
+        </Card>
+
+        {/* Pending Transactions Card */}
+        <Card className="mt-6">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold">Pending Transactions</h3>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Safe transactions and Guardian transactions awaiting execution</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              {/* Safe address */}
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium text-muted-foreground">SAFE ADDRESS</h3>
-                <div className="rounded-md border p-3">
-                  <p className="font-mono text-sm truncate" title={safeAddress || "Not available"}>
-                    {safeAddress || "Not available"}
-                  </p>
-                </div>
-              </div>
-
-              {/* Delegated Call Toggle (Only for owner) */}
-              {isOwner && (
+              {/* Safe Pending Transactions */}
+              {safeAddress && (
                 <div className="space-y-2">
-                  <h3 className="text-sm font-medium text-muted-foreground">SETTINGS</h3>
-                  <div className="rounded-md border p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <Label htmlFor="delegated-call">Delegated Call</Label>
-                        <p className="text-sm text-muted-foreground">
-                          Enable delegate call operations
-                        </p>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          id="delegated-call"
-                          type="checkbox"
-                          checked={delegatedCallEnabled}
-                          onChange={(e) => handleToggleDelegatedCall(e.target.checked)}
-                          disabled={loadingState.delegatedCallToggle}
-                          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                        />
-                        <span className="text-sm">
-                          {delegatedCallEnabled ? 'Enabled' : 'Disabled'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                  <SafePendingTransactions
+                    pendingTransactions={safePendingTxs}
+                    isLoading={isLoadingSafeTxs}
+                    error={safeTxsError}
+                    onRefresh={refreshSafeTxs}
+                    safeAddress={safeAddress}
+                    chainId={chain?.id}
+                    connectedAddress={address}
+                    contractAddress={contractAddress}
+                    onNotification={addMessage}
+                    isGuardianActive={Boolean(guardInfo?.guardAddress && guardInfo.guardAddress === contractAddress)}
+                    isGuardianContractOwner={isOwner}
+                  />
                 </div>
               )}
 
-              {/* Transaction Request Form (Only for owner) */}
-              {isOwner && (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-medium text-muted-foreground">REQUEST TRANSACTION</h3>
-                  <Card>
-                    <CardContent className="pt-6">
-                      <TransactionForm
-                        onSubmit={handleTransactionRequest}
-                        isLoading={loadingState.requestTx || operationsLoadingStates.request}
-                        isDelegatedCallEnabled={delegatedCallEnabled}
-                      />
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-
-              {/* Pending Transactions */}
-              <div className="space-y-2">
-                <PendingTransactions
-                  transactions={pendingTransactions}
-                  isLoadingTx={loadingState.transactions}
-                  onRefresh={refreshData}
-                  onApprove={handleApproveTransaction}
-                  onCancel={handleCancelTransaction}
-                  onMetaTxSign={handleMetaTxSign}
-                  onBroadcastMetaTx={handleBroadcastMetaTx}
-                  signedMetaTxStates={signedMetaTxStates}
-                  isLoading={operationsLoadingStates.approval[0] || operationsLoadingStates.cancellation[0]}
-                  contractAddress={contractAddress as Address}
-                  mode="timelock"
-                  onNotification={handleNotification}
-                  connectedAddress={address}
-                  timeLockPeriodInMinutes={timeLockPeriodInMinutes}
-                />
-              </div>
-
-              {/* Role Information */}
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium text-muted-foreground">YOUR ROLES</h3>
-                <div className="rounded-md border p-4">
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="flex flex-col items-center">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isOwner ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>
-                        <Shield className="h-5 w-5" />
-                      </div>
-                      <p className="mt-2 text-sm font-medium">Owner</p>
-                      <p className="text-xs text-muted-foreground">{isOwner ? 'Yes' : 'No'}</p>
-                    </div>
-                    <div className="flex flex-col items-center">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isBroadcaster ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-400'}`}>
-                        <Radio className="h-5 w-5" />
-                      </div>
-                      <p className="mt-2 text-sm font-medium">Broadcaster</p>
-                      <p className="text-xs text-muted-foreground">{isBroadcaster ? 'Yes' : 'No'}</p>
-                    </div>
-                    <div className="flex flex-col items-center">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isRecovery ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-400'}`}>
-                        <Shield className="h-5 w-5" />
-                      </div>
-                      <p className="mt-2 text-sm font-medium">Recovery</p>
-                      <p className="text-xs text-muted-foreground">{isRecovery ? 'Yes' : 'No'}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+           
             </div>
           </CardContent>
         </Card>
       </div>
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }
 

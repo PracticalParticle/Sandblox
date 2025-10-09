@@ -7,7 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
 import { Loader2, X, CheckCircle2, Clock, Shield, Wallet } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { TxRecord } from "../../particle-core/sdk/typescript/interfaces/lib.index"
+import { TxRecord } from "../../Guardian/sdk/typescript/interfaces/lib.index"
 import { formatAddress } from "@/lib/utils"
 import { Progress } from "@/components/ui/progress"
 import { useState, useEffect, FormEvent } from "react"
@@ -171,11 +171,11 @@ export function TemporalActionDialog({
     setIsApproving(true)
     try {
       const operationType = getOperationType()
-      await approveOperation(operationType, txId)
-      
-      // Call the parent callback if provided
+      // Prefer parent-provided handler to avoid duplicate wallet prompts
       if (onApprove) {
         await onApprove(txId)
+      } else {
+        await approveOperation(operationType, txId)
       }
       
       // Refresh data

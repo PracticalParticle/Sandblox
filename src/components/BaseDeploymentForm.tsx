@@ -2,6 +2,7 @@ import { useState, ReactNode } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2 } from "lucide-react"
@@ -16,6 +17,7 @@ export interface FormField<T = string> {
   max?: number
   defaultValue?: T
   validate?: (value: T) => string | undefined
+  options?: { label: string; value: string }[]
 }
 
 export interface BaseDeploymentFormProps<T extends Record<string, any>> {
@@ -87,28 +89,105 @@ export function BaseDeploymentForm<T extends Record<string, any>>({
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {fields.map((field) => (
-            <div key={field.id} className="space-y-2">
-              <Label htmlFor={field.id}>{field.label}</Label>
-              <Input
-                id={field.id}
-                type={field.type || 'text'}
-                placeholder={field.placeholder}
-                min={field.min}
-                max={field.max}
-                value={formData[field.id]}
-                onChange={(e) => setFormData(prev => ({ 
-                  ...prev, 
-                  [field.id]: e.target.value 
-                }))}
-              />
-              {field.description && (
-                <p className="text-sm text-muted-foreground">
-                  {field.description}
-                </p>
-              )}
-            </div>
-          ))}
+          {(() => {
+            const elements: JSX.Element[] = []
+            const hasTimeLockPair = fields.some(f => f.id === 'timeLockValue') && fields.some(f => f.id === 'timeLockUnit')
+            const timeLockUnitField = hasTimeLockPair ? fields.find(f => f.id === 'timeLockUnit') : undefined
+
+            for (const field of fields) {
+              if (hasTimeLockPair && field.id === 'timeLockUnit') {
+                // Rendered alongside timeLockValue, skip individual render
+                continue
+              }
+
+              if (hasTimeLockPair && field.id === 'timeLockValue' && timeLockUnitField) {
+                elements.push(
+                  <div key="timelock-pair" className="space-y-2">
+                    <Label htmlFor="timeLockValue">{field.label}</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="timeLockValue"
+                        type="number"
+                        placeholder={field.placeholder}
+                        min={field.min}
+                        max={field.max}
+                        value={formData['timeLockValue']}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          timeLockValue: e.target.value
+                        }))}
+                      />
+                      <Select
+                        value={formData['timeLockUnit']}
+                        onValueChange={(value) => setFormData(prev => ({
+                          ...prev,
+                          timeLockUnit: value
+                        }))}
+                      >
+                        <SelectTrigger id="timeLockUnit" className="min-w-[120px]">
+                          <SelectValue placeholder={timeLockUnitField.placeholder} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(timeLockUnitField.options || []).map(opt => (
+                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {field.description && (
+                      <p className="text-sm text-muted-foreground">
+                        {field.description}
+                      </p>
+                    )}
+                  </div>
+                )
+                continue
+              }
+
+              elements.push(
+                <div key={field.id} className="space-y-2">
+                  <Label htmlFor={field.id}>{field.label}</Label>
+                  {field.type === 'select' ? (
+                    <Select
+                      value={formData[field.id]}
+                      onValueChange={(value) => setFormData(prev => ({
+                        ...prev,
+                        [field.id]: value
+                      }))}
+                    >
+                      <SelectTrigger id={field.id}>
+                        <SelectValue placeholder={field.placeholder} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(field.options || []).map(opt => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id={field.id}
+                      type={field.type || 'text'}
+                      placeholder={field.placeholder}
+                      min={field.min}
+                      max={field.max}
+                      value={formData[field.id]}
+                      onChange={(e) => setFormData(prev => ({ 
+                        ...prev, 
+                        [field.id]: e.target.value 
+                      }))}
+                    />
+                  )}
+                  {field.description && (
+                    <p className="text-sm text-muted-foreground">
+                      {field.description}
+                    </p>
+                  )}
+                </div>
+              )
+            }
+            return elements
+          })()}
 
           {customContent}
 

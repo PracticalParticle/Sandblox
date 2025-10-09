@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 pragma solidity ^0.8.2;
 
-import "../../../particle-core/contracts/GuardianAccountAbstraction.sol";
+import "../../../Guardian/contracts/GuardianAccountAbstraction.sol";
 
 /**
  * @title BloxTemplate

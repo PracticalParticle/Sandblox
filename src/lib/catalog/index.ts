@@ -139,7 +139,7 @@ export async function getContractDetails(contractId: string): Promise<BloxContra
 
 export async function getAllContracts(): Promise<BloxContract[]> {
   const catalog = await loadCatalog()
-  return Object.values(catalog)
+  return Object.values(catalog || {})
 }
 
 export async function getContractCode(contractId: string): Promise<string> {

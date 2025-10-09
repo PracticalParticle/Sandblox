@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { OperationType, CoreOperationType, OperationPhase } from '../types/OperationRegistry'
 import { useRoleValidation } from './useRoleValidation'
 import { getContractDetails } from '@/lib/catalog'
+import { useQueryInvalidation } from './useQueryInvalidation'
 
 export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
   const publicClient = usePublicClient()
@@ -16,6 +17,7 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
   const config = useConfig()
   const { toast } = useToast()
   const { storeTransaction, removeTransaction, refreshTransactions } = useMetaTransactionManager(contractAddress || '')
+  const { invalidateAfterTransaction } = useQueryInvalidation()
   const [manager, setManager] = useState<WorkflowManager | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [pendingOperations, setPendingOperations] = useState<Set<string>>(new Set())
@@ -58,8 +60,9 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
     loadContractType();
   }, [bloxId]);
 
-  // Initialize manager when dependencies change
+  // Initialize manager when dependencies change (guard against StrictMode double-invoke)
   useEffect(() => {
+    let didCancel = false
     const initManager = async () => {
       if (!publicClient || !contractAddress) return
 
@@ -75,7 +78,7 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
           storeTransaction,
           contractType
         )
-        
+        if (didCancel) return
         setManager(workflowManager)
       } catch (error) {
         console.error("Failed to initialize WorkflowManager:", error)
@@ -83,6 +86,7 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
     }
 
     initManager()
+    return () => { didCancel = true }
   }, [publicClient, walletClient, contractAddress, chainId, config.chains, storeTransaction, contractType])
 
   // Helper function to determine required role based on operation and phase
@@ -149,6 +153,14 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
       // Refresh transactions after successful operation
       refreshTransactions()
       
+      // Invalidate query cache to trigger automatic refresh
+      if (contractAddress && chainId) {
+        invalidateAfterTransaction(chainId, contractAddress, {
+          operationType: operationType.toString(),
+          walletAddress: walletClient.account.address
+        })
+      }
+      
       toast({
         title: "Success",
         description: "Operation requested successfully",
@@ -190,6 +202,14 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
       // Clean up the transaction from storage
       removeTransaction(txId.toString())
       
+      // Invalidate query cache to trigger automatic refresh
+      if (contractAddress && chainId) {
+        invalidateAfterTransaction(chainId, contractAddress, {
+          operationType: operationType.toString(),
+          walletAddress: walletClient.account.address
+        })
+      }
+      
       toast({
         title: "Success",
         description: "Operation approved successfully",
@@ -224,6 +244,14 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
       
       // Clean up the transaction from storage
       removeTransaction(txId.toString())
+      
+      // Invalidate query cache to trigger automatic refresh
+      if (contractAddress && chainId) {
+        invalidateAfterTransaction(chainId, contractAddress, {
+          operationType: operationType.toString(),
+          walletAddress: walletClient.account.address
+        })
+      }
       
       toast({
         title: "Success",
@@ -392,6 +420,15 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
         removeTransaction(txId)
       }
       
+      // Invalidate query cache to trigger automatic refresh
+      if (contractAddress && chainId) {
+        invalidateAfterTransaction(chainId, contractAddress, {
+          operationType: operationType.toString(),
+          walletAddress: walletClient.account.address,
+          invalidateRoles: ['OWNERSHIP_TRANSFER', 'BROADCASTER_UPDATE', 'RECOVERY_UPDATE'].includes(operationType.toString())
+        })
+      }
+      
       toast({
         title: "Success",
         description: "Meta-transaction executed successfully",
@@ -419,10 +456,18 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
       
       // Refresh transactions
       refreshTransactions();
+      
+      // Invalidate all contract-related queries for comprehensive refresh
+      if (contractAddress && chainId) {
+        invalidateAfterTransaction(chainId, contractAddress, {
+          invalidateRoles: true,
+          invalidateBalances: true
+        })
+      }
     } catch (error) {
       console.error('Error refreshing data:', error);
     }
-  }, [manager, refreshTransactions]);
+  }, [manager, refreshTransactions, contractAddress, chainId, invalidateAfterTransaction]);
 
   // Enhanced canExecutePhase that falls back to direct role checks if manager isn't initialized
   const canExecutePhase = useCallback((
@@ -484,3 +529,5 @@ export function useWorkflowManager(contractAddress?: Address, bloxId?: string) {
     refreshAllData
   }
 } 
+
+

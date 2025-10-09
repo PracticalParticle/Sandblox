@@ -98,7 +98,7 @@ export function Home() {
               aria-label="chat with AI"
               className="hero-gradient-button"
 
-              onClick={() => window.open('https://www.perplexity.ai/search/you-are-particle-crypto-securi-.8Y9s72dQpmAF_i4bHjXxA', '_blank')}
+              //onClick={() => window.open('https://www.perplexity.ai/search/you-are-particle-crypto-securi-.8Y9s72dQpmAF_i4bHjXxA', '_blank')}
             >
               <Sparkles className="w-4 h-4 mr-2" />
               Chat with AI
