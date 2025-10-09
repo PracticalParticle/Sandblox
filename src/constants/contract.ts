@@ -19,8 +19,8 @@ export const CONTRACT_ERRORS = {
 } as const
 
 export const TIMELOCK_PERIODS = {
-  MIN: 1440, // Minimum 1 day (1440 minutes)
-  MAX: 43200, // Maximum 30 days (43200 minutes)
+  MIN: 1, // Minimum 1 minute
+  MAX: 129600, // Maximum 90 days (129600 minutes)
   DEFAULT: 10080 // Default 7 days (10080 minutes)
 } as const
 

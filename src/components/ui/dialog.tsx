@@ -55,7 +55,7 @@ const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
     )}
     {...props}
   >
-    <DialogTitle className="flex-1">{props.children}</DialogTitle>
+    <div className="flex-1">{props.children}</div>
     <DialogClose className="ml-2 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none flex items-start self-start">
       <X className="h-4 w-4" />
       <span className="sr-only">Close</span>

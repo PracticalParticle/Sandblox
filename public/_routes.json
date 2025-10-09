@@ -15,7 +15,7 @@
       }
     },
     {
-      "src": "^/src/particle-core/.*\\.(js|mjs)$",
+      "src": "^/src/Guardian/.*\\.(js|mjs)$",
       "headers": {
         "Content-Type": "application/javascript;charset=utf-8",
         "Cache-Control": "no-cache"

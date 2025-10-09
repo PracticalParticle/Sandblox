@@ -1,10 +1,10 @@
 import { Address, Chain, Hex, PublicClient, WalletClient, keccak256 } from 'viem';
-import { TransactionOptions } from '../../../particle-core/sdk/typescript/interfaces/base.index';
+import { TransactionOptions } from '../../../Guardian/sdk/typescript/interfaces/base.index';
 import { BaseBloxOperationsHandler } from '../../../types/BloxOperationsHandler';
-import { MetaTransaction, TxRecord } from '../../../particle-core/sdk/typescript/interfaces/lib.index';
+import { MetaTransaction, TxRecord } from '../../../Guardian/sdk/typescript/interfaces/lib.index';
 import { MultiPhaseOperationFunctions, SinglePhaseOperationFunctions } from '../../../types/OperationRegistry';
 import GuardianSafe, { SafeTx } from '../GuardianSafe';
-import { SecureOwnable } from '../../../particle-core/sdk/typescript/SecureOwnable';
+import { SecureOwnable } from '../../../Guardian/sdk/typescript/SecureOwnable';
 import { SafeMetaTxParams, SafeTxRecord } from './types';
 import { MetaTransactionManager } from '../../../services/MetaTransactionManager';
 
@@ -411,8 +411,9 @@ export default class GuardianSafeOperationsHandler extends BaseBloxOperationsHan
 
     // Store the transaction if storeTransaction is provided
     if (this.storeTransaction) {
-      // Get operation name for the transaction type
-      const operationName = this.getOperationName(tx);
+      // For approve/cancel meta transactions, always use the multi-phase operation name
+      // This ensures we don't accidentally use the single-phase operation name
+      const operationName = GuardianSafeOperationsHandler.EXEC_SAFE_TX;
       
       this.storeTransaction(
         tx.txId.toString(),
@@ -495,13 +496,21 @@ export default class GuardianSafeOperationsHandler extends BaseBloxOperationsHan
   /**
    * Handle meta-transaction broadcasting
    */
-  async handleBroadcast(tx: TxRecord, type: 'approve' | 'cancel'): Promise<void> {
+  async handleBroadcast(tx: TxRecord, type: 'approve' | 'cancel' | 'singlePhase'): Promise<void> {
     if (!this.contract || !this.contractAddress || !this.walletClient?.account) {
       throw new Error("Contract not initialized");
     }
 
     if (!this.client) {
       throw new Error("Public client not initialized");
+    }
+
+    // Handle single-phase transactions differently
+    if (type === 'singlePhase') {
+      // For single-phase transactions, we need to find the stored transaction by txId
+      const txId = tx.txId.toString();
+      await this.handleSinglePhaseBroadcast(txId);
+      return;
     }
 
     const contract = this.contract as GuardianSafe;

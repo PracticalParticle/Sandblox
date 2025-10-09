@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { TxInfoCard } from "../TxInfoCard"
 import { useState, useEffect } from "react"
 import { formatAddress } from "@/lib/utils"
-import { TxStatus } from "../../particle-core/sdk/typescript/types/lib.index"
+import { TxStatus } from "../../Guardian/sdk/typescript/types/lib.index"
 import { Address } from "viem"
 import { CoreOperationType } from "@/types/OperationRegistry"
 

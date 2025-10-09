@@ -1,5 +1,5 @@
-import { TxRecord } from '../particle-core/sdk/typescript/interfaces/lib.index'
-import { TxStatus } from '../particle-core/sdk/typescript/types/lib.index'
+import { TxRecord } from '../Guardian/sdk/typescript/interfaces/lib.index'
+import { TxStatus } from '../Guardian/sdk/typescript/types/lib.index'
 import {
   Dialog,
   DialogContent,

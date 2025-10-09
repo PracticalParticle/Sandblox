@@ -1,8 +1,8 @@
 module.exports = {
   root: true,
   ignorePatterns: [
-    'particle-core',     // Ignore the entire particle-core directory
-    'particle-core/**/*', // Ignore all files in particle-core recursively
+    'Guardian',     // Ignore the entire Guardian directory
+    'Guardian/**/*', // Ignore all files in Guardian recursively
     '**/*.sol',          // Ignore all Solidity files
   ],
   extends: [

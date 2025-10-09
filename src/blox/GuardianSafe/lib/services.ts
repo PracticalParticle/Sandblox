@@ -1,11 +1,11 @@
 import { Address, PublicClient, WalletClient, Chain, Hex } from 'viem';
-import { TransactionOptions, TransactionResult } from '../../../particle-core/sdk/typescript/interfaces/base.index';
-import { TxRecord, MetaTransaction } from '../../../particle-core/sdk/typescript/interfaces/lib.index';
-import { TxStatus } from '../../../particle-core/sdk/typescript/types/lib.index';
-import { ContractValidations } from '../../../particle-core/sdk/typescript/utils/validations';
+import { TransactionOptions, TransactionResult } from '../../../Guardian/sdk/typescript/interfaces/base.index';
+import { TxRecord, MetaTransaction } from '../../../Guardian/sdk/typescript/interfaces/lib.index';
+import { TxStatus } from '../../../Guardian/sdk/typescript/types/lib.index';
+import { ContractValidations } from '../../../Guardian/sdk/typescript/utils/validations';
 import GuardianSafe, { SafeTx, SafeMetaTxParams } from '../GuardianSafe';
 import { SafeTxRecord, EnhancedSafeTx } from './types';
-import SecureOwnable from '../../../particle-core/sdk/typescript/SecureOwnable';
+import SecureOwnable from '../../../Guardian/sdk/typescript/SecureOwnable';
 
 // Storage key for meta tx settings
 const META_TX_SETTINGS_KEY = 'guardianSafe.metaTxSettings';
@@ -99,7 +99,7 @@ export class GuardianSafeService {
    * Get the address of the underlying Safe contract
    */
   async getSafeAddress(): Promise<Address> {
-    return this.safe.safe();
+    return this.safe.getSafeAddress();
   }
 
   /**
@@ -269,10 +269,12 @@ export class GuardianSafeService {
       throw new Error("Can only approve pending requests");
     }
 
-    const currentTimestamp = Math.floor(Date.now() / 1000);
-    if (currentTimestamp < Number(operation.releaseTime)) {
-      throw new Error("Current time is before release time");
-    }
+    // Note: Meta-transactions can be signed immediately after request phase
+    // Time delay only applies to temporal (timelock) approvals
+    // const currentTimestamp = Math.floor(Date.now() / 1000);
+    // if (currentTimestamp < Number(operation.releaseTime)) {
+    //   throw new Error("Current time is before release time");
+    // }
 
     // Get stored settings and create meta tx params
     const storedSettings = this.getStoredMetaTxSettings();

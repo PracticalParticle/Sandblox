@@ -16,7 +16,7 @@ import { NotificationMessage } from "@/lib/catalog/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatAddress } from "@/lib/utils";
 import { useMetaTransactionManager } from "@/hooks/useMetaTransactionManager";
-import { TxRecord } from "@/particle-core/sdk/typescript/interfaces/lib.index";
+import { TxRecord } from "@/Guardian/sdk/typescript/interfaces/lib.index";
 import { useOperationRegistry } from "../hooks/useOperationRegistry";
 import { useBloxOperations } from "../hooks/useBloxOperations";
 import { useEffect, useState } from "react";
@@ -77,6 +77,21 @@ export function PendingTransactionDialog({
   const { getOperationInfo } = useOperationRegistry();
   const { getBloxOperations, getBloxComponents } = useBloxOperations();
 
+  // Stabilize hook function references to avoid effect re-running loops
+  const getOperationInfoRef = React.useRef(getOperationInfo);
+  const getBloxComponentsRef = React.useRef(getBloxComponents);
+  const getBloxOperationsRef = React.useRef(getBloxOperations);
+
+  React.useEffect(() => {
+    getOperationInfoRef.current = getOperationInfo;
+  }, [getOperationInfo]);
+  React.useEffect(() => {
+    getBloxComponentsRef.current = getBloxComponents;
+  }, [getBloxComponents]);
+  React.useEffect(() => {
+    getBloxOperationsRef.current = getBloxOperations;
+  }, [getBloxOperations]);
+
   // State for blox-specific components and operations
   const [BloxPendingTransactions, setBloxPendingTransactions] = useState<React.ComponentType<any> | null>(null);
   const [bloxOperations, setBloxOperations] = useState<any>(null);
@@ -88,7 +103,7 @@ export function PendingTransactionDialog({
       setIsLoadingComponents(true);
       try {
         // Get operation info to determine the blox type
-        const operationInfo = await getOperationInfo(transaction.params.operationType);
+        const operationInfo = await getOperationInfoRef.current(transaction.params.operationType);
         if (!operationInfo) {
           console.error('No operation info found for transaction');
           return;
@@ -98,8 +113,8 @@ export function PendingTransactionDialog({
         if (operationInfo.bloxId) {
           // Get blox components and operations
           const [components, operations] = await Promise.all([
-            getBloxComponents(operationInfo.bloxId, 'PendingTransaction'),
-            getBloxOperations(operationInfo.bloxId, contractInfo.contractAddress)
+            getBloxComponentsRef.current(operationInfo.bloxId, 'PendingTransaction'),
+            getBloxOperationsRef.current(operationInfo.bloxId, contractInfo.contractAddress)
           ]);
 
           if (components) {
@@ -134,7 +149,8 @@ export function PendingTransactionDialog({
     if (transaction && contractInfo.contractAddress) {
       loadBloxComponents();
     }
-  }, [transaction, contractInfo.contractAddress, getOperationInfo, getBloxComponents, getBloxOperations]);
+    // Intentionally exclude hook function identities from deps to prevent endless loops
+  }, [transaction, contractInfo.contractAddress]);
 
   // Handle refresh to make sure it calls refreshData
   const handleRefresh = React.useCallback(() => {
@@ -385,6 +401,7 @@ export function PendingTransactionDialog({
                     onNotification={onNotification}
                     connectedAddress={connectedAddress}
                     timeLockPeriodInMinutes={contractInfo.timeLockPeriodInMinutes}
+                    broadcasterAddress={contractInfo.broadcaster}
                   />
                 ) : (
                   <div className="text-center py-4 text-muted-foreground">
@@ -408,6 +425,7 @@ export function PendingTransactionDialog({
                     onNotification={onNotification}
                     connectedAddress={connectedAddress}
                     timeLockPeriodInMinutes={contractInfo.timeLockPeriodInMinutes}
+                    broadcasterAddress={contractInfo.broadcaster}
                   />
                 ) : (
                   <div className="text-center py-4 text-muted-foreground">

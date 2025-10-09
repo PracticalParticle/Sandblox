@@ -38,11 +38,11 @@
   Content-Type: text/html;charset=utf-8
   Cache-Control: no-cache
 
-/src/particle-core/*.js
+/src/Guardian/*.js
   Content-Type: application/javascript;charset=utf-8
   Cache-Control: no-cache
 
-/src/particle-core/*.mjs
+/src/Guardian/*.mjs
   Content-Type: application/javascript;charset=utf-8
   Cache-Control: no-cache
 

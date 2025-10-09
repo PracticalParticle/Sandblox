@@ -1,6 +1,6 @@
 import { Address, Hex } from 'viem';
-import { TxStatus } from '../../../particle-core/sdk/typescript/types/lib.index';
-import { TxRecord, TxParams } from '../../../particle-core/sdk/typescript/interfaces/lib.index';
+import { TxStatus } from '../../../Guardian/sdk/typescript/types/lib.index';
+import { TxRecord, TxParams } from '../../../Guardian/sdk/typescript/interfaces/lib.index';
 
 export interface NotificationMessage {
   type: 'error' | 'warning' | 'info' | 'success';

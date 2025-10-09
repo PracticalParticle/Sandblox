@@ -1,9 +1,12 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Address, Hex } from 'viem';
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
+import { useQuery } from '@tanstack/react-query';
 import { useChain } from '@/hooks/useChain';
 import { useMetaTransactionManager } from '@/hooks/useMetaTransactionManager';
 import { useOperationHistory } from '@/hooks/useOperationHistory';
+import { useQueryInvalidation } from '@/hooks/useQueryInvalidation';
+import { queryKeys } from '@/lib/queryKeys';
 import { NotificationMessage, RWA20TxRecord } from '../lib/types';
 import { SimpleRWA20Service } from '../lib/services';
 import SimpleRWA20 from '../SimpleRWA20';
@@ -62,6 +65,7 @@ export function useOperations({
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const chain = useChain();
+  const { invalidateAfterTransaction } = useQueryInvalidation();
   
   // Meta transaction manager
   const { storeTransaction, error: txManagerError } = useMetaTransactionManager(contractAddress);
@@ -69,8 +73,6 @@ export function useOperations({
   // States
   const [rwa20Service, setRWA20Service] = useState<SimpleRWA20Service | null>(null);
   const [rwa20, setRWA20] = useState<SimpleRWA20 | null>(null);
-  const [operations, setOperations] = useState<RWA20TxRecord[]>([]);
-  const [isLoadingOperations, setIsLoadingOperations] = useState(false);
   const [signedMetaTxStates, setSignedMetaTxStates] = useState<Record<string, { type: 'mint' | 'burn' }>>({});
   const [loadingStates, setLoadingStates] = useState<{
     minting: boolean;
@@ -103,11 +105,6 @@ export function useOperations({
           chain
         );
         setRWA20Service(newService);
-
-        // Fetch initial operations
-        setIsLoadingOperations(true);
-        const txs = await newService.getTokenOperations();
-        setOperations(txs);
       } catch (error) {
         console.error('Failed to initialize services:', error);
         onError?.({
@@ -116,12 +113,42 @@ export function useOperations({
           description: error instanceof Error ? error.message : 'Failed to initialize services'
         });
       } finally {
-        setIsLoadingOperations(false);
+        // Loading state is now managed by TanStack Query
       }
     };
 
     initializeServices();
   }, [publicClient, walletClient, contractAddress, chain, onError]);
+
+  // Fetch operations using TanStack Query
+  const { data: operations = [], isLoading: isLoadingOperations, error: operationsError, refetch: refetchOperations } = useQuery({
+    queryKey: queryKeys.operations.pendingTxs(chain?.id || 0, contractAddress),
+    queryFn: async () => {
+      if (!rwa20Service) {
+        return [];
+      }
+      console.log("🔄 SimpleRWA20: Fetching operation history...");
+      const txs = await rwa20Service.getTokenOperations();
+      console.log("✅ SimpleRWA20: Fetched operations:", txs.length);
+      return txs;
+    },
+    enabled: !!rwa20Service && !!chain,
+    refetchInterval: false, // Disable automatic refetch to avoid conflicts
+    refetchIntervalInBackground: false,
+    staleTime: 0, // Always consider data stale to allow immediate refetch
+    refetchOnMount: 'always', // Always refetch when component mounts
+  });
+
+  // Handle operations error
+  useEffect(() => {
+    if (operationsError) {
+      onError?.({
+        type: 'error',
+        title: 'Operations Fetch Failed',
+        description: operationsError.message
+      });
+    }
+  }, [operationsError, onError]);
 
   // Add error handling for transaction manager
   useEffect(() => {
@@ -134,26 +161,11 @@ export function useOperations({
     }
   }, [txManagerError, onError]);
 
-  // Refresh operations
-  const refreshOperations = useCallback(async () => {
-    if (!rwa20Service) return;
-    
-    setIsLoadingOperations(true);
-    try {
-      const txs = await rwa20Service.getTokenOperations();
-      setOperations(txs);
-      onRefresh?.();
-    } catch (error) {
-      console.error('Failed to refresh operations:', error);
-      onError?.({
-        type: 'error',
-        title: 'Refresh Failed',
-        description: error instanceof Error ? error.message : 'Failed to refresh operations'
-      });
-    } finally {
-      setIsLoadingOperations(false);
-    }
-  }, [rwa20Service, onError, onRefresh]);
+  // Refresh operations callback for manual refresh
+  const refreshOperations = useCallback(() => {
+    refetchOperations();
+    onRefresh?.();
+  }, [refetchOperations, onRefresh]);
 
   // Operation History hooks for filtering
   const {
@@ -432,8 +444,17 @@ export function useOperations({
         return newState;
       });
       
-      // Refresh operations list
-      refreshOperations();
+      // Wait a bit for blockchain state to propagate before invalidating
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Invalidate query cache to trigger automatic refresh
+      if (chain?.id) {
+        invalidateAfterTransaction(chain.id, contractAddress, {
+          operationType: type === 'mint' ? 'MINT_TOKENS' : 'BURN_TOKENS',
+          walletAddress: address,
+          invalidateBalances: true
+        });
+      }
     } catch (error) {
       console.error('Failed to broadcast transaction:', error);
       onError?.({
@@ -445,7 +466,7 @@ export function useOperations({
     } finally {
       setLoadingStates(prev => ({ ...prev, broadcasting: false }));
     }
-  }, [rwa20, walletClient, address, contractAddress, refreshOperations, onSuccess, onError, storeTransaction]);
+  }, [rwa20, walletClient, address, contractAddress, refreshOperations, onSuccess, onError, storeTransaction, chain?.id, invalidateAfterTransaction]);
 
   // Fix the type mismatch by creating wrapper functions
   const setStatusFilterWrapper = useCallback((filter: string | null) => {

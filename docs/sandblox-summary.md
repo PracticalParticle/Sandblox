@@ -68,7 +68,7 @@ sand-blox/
 │   ├── hooks/             # Shared custom React hooks
 │   ├── lib/               # Utility libraries
 │   ├── pages/             # Application pages
-│   ├── particle-core/     # Guardian account abstraction core
+│   ├── Guardian/     # Guardian account abstraction core
 │   │   └── contracts/     # Core smart contracts
 │   ├── services/          # Service integrations
 │   ├── styles/            # Global styles

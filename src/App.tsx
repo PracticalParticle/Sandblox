@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom';
 import { Toaster } from "./components/ui/toaster";
 import { MainLayout } from './components/layouts/MainLayout';
 import { TestnetBanner } from './components/ui/TestnetBanner';
+import { NetworkCSPBanner } from './components/ui/NetworkCSPBanner';
 import { Home } from './pages/Home';
 import { Dashboard } from './pages/Dashboard';
 import { BloxContracts } from './pages/BloxContracts';
@@ -20,6 +21,7 @@ export default function App() {
       <div className="flex flex-col min-h-screen">
         <div className="sticky top-0 z-50">
           <TestnetBanner />
+          <NetworkCSPBanner />
           <Navbar />
         </div>
         <main className="flex-1 flex flex-col">

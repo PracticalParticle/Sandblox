@@ -21,7 +21,7 @@ import { OpHistory } from '@/components/OpHistory';
 import { useMetaTransactionManager } from '@/hooks/useMetaTransactionManager';
 import { useOperationTypes } from '@/hooks/useOperationTypes';
 import { Hex } from 'viem';
-import { TxRecord } from '@/particle-core/sdk/typescript/interfaces/lib.index';
+import { TxRecord } from '@/Guardian/sdk/typescript/interfaces/lib.index';
 import { useChain } from '@/hooks/useChain';
 
 import { MetaTransactionManager } from '@/services/MetaTransactionManager';
@@ -656,7 +656,7 @@ const BloxMiniApp: React.FC = () => {
             connectedAddress={connectedAddress}
             navigationIcon={<Shield className="h-4 w-4" />}
             navigationTooltip="Security Settings"
-            navigateTo={`/blox-security/${address}`}
+            navigateTo={`/blox-security/${address}?type=${encodeURIComponent(type || bloxContract?.id || '')}`}
           />
         </motion.div>
 
@@ -687,10 +687,10 @@ const BloxMiniApp: React.FC = () => {
               transition-all duration-300
               ${isMobileView 
                 ? `w-full ${isSidebarOpen 
-                    ? 'max-h-[500px] mb-4' 
+                    ? 'max-h-[600px] mb-4 shadow-lg' 
                     : 'max-h-0 overflow-hidden opacity-0 m-0 p-0'}`
                 : `border-r rounded-lg shadow-lg ${isSidebarOpen 
-                    ? 'w-80 m-4' 
+                    ? 'w-80 lg:w-96 xl:w-[28rem] m-4' 
                     : 'w-0 opacity-0 m-0 p-0'}`
               }
             `}
@@ -703,7 +703,7 @@ const BloxMiniApp: React.FC = () => {
                     variant="ghost"
                     size="icon"
                     onClick={() => setIsSidebarOpen(false)}
-                    className="h-8 w-8"
+                    className="h-8 w-8 touch-manipulation"
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>

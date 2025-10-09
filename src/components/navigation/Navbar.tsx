@@ -1,6 +1,6 @@
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { useAccount } from 'wagmi'
-import { Menu, X, Github, ChevronDown } from 'lucide-react'
+import { Menu, X, Github, ChevronDown, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ThemeToggle } from '../ThemeToggle'
@@ -11,6 +11,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { Button } from "@/components/ui/button"
+import { ManageNetworksDialog } from '../ManageNetworksDialog'
 
 export function Navbar() {
   const { isConnected } = useAccount()
@@ -70,6 +78,25 @@ export function Navbar() {
 
         {/* Right side items - reorganized */}
         <div className="flex items-center gap-2">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <ManageNetworksDialog>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="rounded-lg p-2 hover:bg-accent"
+                    aria-label="Manage Networks"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </ManageNetworksDialog>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Manage Networks</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <ConnectButton
             showBalance={false}
             chainStatus="icon"
