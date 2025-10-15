@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import { Toaster } from "./components/ui/toaster";
 import { MainLayout } from './components/layouts/MainLayout';
+import { ProtocolUpgradeBanner } from './components/ui/ProtocolUpgradeBanner';
 import { TestnetBanner } from './components/ui/TestnetBanner';
 import { NetworkCSPBanner } from './components/ui/NetworkCSPBanner';
 import { Home } from './pages/Home';
@@ -20,6 +21,7 @@ export default function App() {
     <MainLayout>
       <div className="flex flex-col min-h-screen">
         <div className="sticky top-0 z-50">
+          <ProtocolUpgradeBanner />
           <TestnetBanner />
           <NetworkCSPBanner />
           <Navbar />
