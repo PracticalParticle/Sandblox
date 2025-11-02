@@ -108,18 +108,66 @@ export class WorkflowManager {
 
   /**
    * Loads basic contract information
+   * Handles individual contract call failures gracefully
    */
   private async loadContractInfo(): Promise<SecureContractInfo> {
-    const [owner, broadcaster, recovery, timeLockPeriodInSeconds, chainId] = await Promise.all([
-      this.contract.owner(),
-      this.contract.getBroadcaster(),
-      this.contract.getRecovery(),
-      this.contract.getTimeLockPeriodSec(),
-      this.publicClient.getChainId()
+    // Get chain ID first (this should always work)
+    const chainId = await this.publicClient.getChainId();
+    const chainName = typeof this.chain.name === 'string' ? this.chain.name : 'Unknown Chain';
+
+    // Helper function to safely call contract functions with error handling
+    const safeCall = async <T>(
+      fn: () => Promise<T>,
+      functionName: string,
+      defaultValue: T
+    ): Promise<T> => {
+      try {
+        return await fn();
+      } catch (error: any) {
+        const errorMessage = error?.message || error?.shortMessage || String(error);
+        console.warn(
+          `⚠️ Contract function "${functionName}" reverted or failed for ${this.contractAddress}:`,
+          errorMessage.includes('revert') ? 'Function call reverted' : errorMessage
+        );
+        return defaultValue;
+      }
+    };
+
+    // Load contract info with individual error handling
+    const [owner, broadcaster, recovery, timeLockPeriodInSeconds] = await Promise.all([
+      safeCall(
+        () => this.contract.owner(),
+        'owner()',
+        '0x0000000000000000000000000000000000000000' as `0x${string}`
+      ),
+      safeCall(
+        () => this.contract.getBroadcaster(),
+        'getBroadcaster()',
+        '0x0000000000000000000000000000000000000000' as `0x${string}`
+      ),
+      safeCall(
+        () => this.contract.getRecovery(),
+        'getRecovery()',
+        '0x0000000000000000000000000000000000000000' as `0x${string}`
+      ),
+      safeCall(
+        () => this.contract.getTimeLockPeriodSec(),
+        'getTimeLockPeriodSec()',
+        0n
+      )
     ]);
 
-    // Get a properly typed chain name
-    const chainName = typeof this.chain.name === 'string' ? this.chain.name : 'Unknown Chain';
+    // Check if we got meaningful data - if all critical functions failed, this might not be a SecureOwnable contract
+    const allFailed = owner === '0x0000000000000000000000000000000000000000' &&
+                      broadcaster === '0x0000000000000000000000000000000000000000' &&
+                      recovery === '0x0000000000000000000000000000000000000000';
+
+    if (allFailed) {
+      console.error(
+        `❌ Contract at ${this.contractAddress} does not appear to be a SecureOwnable contract. ` +
+        `All contract function calls failed. Please verify the contract address and network.`
+      );
+    }
 
     return {
       address: this.contractAddress,

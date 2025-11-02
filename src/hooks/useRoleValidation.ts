@@ -53,21 +53,51 @@ export function useRoleValidation(
           chain
         );
 
-        // Get role addresses
+        // Helper function to safely call contract functions with error handling
+        const safeCall = async <T>(
+          fn: () => Promise<T>,
+          functionName: string,
+          defaultValue: T
+        ): Promise<T> => {
+          try {
+            return await fn();
+          } catch (error: any) {
+            const errorMessage = error?.message || error?.shortMessage || String(error);
+            console.warn(
+              `⚠️ Role validation: Contract function "${functionName}" reverted or failed for ${contractAddress}:`,
+              errorMessage.includes('revert') ? 'Function call reverted' : errorMessage
+            );
+            return defaultValue;
+          }
+        };
+
+        // Get role addresses with individual error handling
         const [ownerAddress, broadcasterAddress, recoveryAddress] = await Promise.all([
-          contract.owner(),
-          contract.getBroadcaster(),
-          contract.getRecovery()
+          safeCall(
+            () => contract.owner(),
+            'owner()',
+            '0x0000000000000000000000000000000000000000' as `0x${string}`
+          ),
+          safeCall(
+            () => contract.getBroadcaster(),
+            'getBroadcaster()',
+            '0x0000000000000000000000000000000000000000' as `0x${string}`
+          ),
+          safeCall(
+            () => contract.getRecovery(),
+            'getRecovery()',
+            '0x0000000000000000000000000000000000000000' as `0x${string}`
+          )
         ]);
 
         if (!mounted) return;
 
         // Validate roles if connected address exists
-        const isOwner = connectedAddress ? 
+        const isOwner = connectedAddress && ownerAddress !== '0x0000000000000000000000000000000000000000' ? 
           connectedAddress.toLowerCase() === ownerAddress.toLowerCase() : false;
-        const isBroadcaster = connectedAddress ? 
+        const isBroadcaster = connectedAddress && broadcasterAddress !== '0x0000000000000000000000000000000000000000' ? 
           connectedAddress.toLowerCase() === broadcasterAddress.toLowerCase() : false;
-        const isRecovery = connectedAddress ? 
+        const isRecovery = connectedAddress && recoveryAddress !== '0x0000000000000000000000000000000000000000' ? 
           connectedAddress.toLowerCase() === recoveryAddress.toLowerCase() : false;
 
         setResult({

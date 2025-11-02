@@ -308,8 +308,20 @@ export class SimpleVaultService {
       }).filter((record): record is TxRecord => record !== null);
       
       return records;
-    } catch (error) {
-      console.error("Error fetching operation history:", error);
+    } catch (error: any) {
+      // Check if this is a revert error (function doesn't exist or contract doesn't support it)
+      const errorMessage = error?.message || error?.shortMessage || String(error);
+      const isRevertError = errorMessage.includes('revert') || 
+                            errorMessage.includes('execution reverted') ||
+                            error?.code === 'CALL_EXCEPTION';
+      
+      if (isRevertError) {
+        // Contract function reverted - this is expected for some contracts
+        console.log("ℹ️ getTransactionHistory() reverted (contract may not support this function or no history available)");
+      } else {
+        // Other errors (network issues, etc.) should be logged
+        console.warn("⚠️ Error fetching operation history:", errorMessage);
+      }
       return [];
     }
   }

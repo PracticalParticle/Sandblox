@@ -162,19 +162,54 @@ export class SecureOwnableManager {
 
   async loadContractInfo(): Promise<SecureContractInfo> {
     try {
-      // Fetch basic contract details first
+      // Helper function to safely call contract functions with error handling
+      const safeCall = async <T>(
+        fn: () => Promise<T>,
+        functionName: string,
+        defaultValue: T
+      ): Promise<T> => {
+        try {
+          return await fn();
+        } catch (error: any) {
+          const errorMessage = error?.message || error?.shortMessage || String(error);
+          console.warn(
+            `⚠️ Contract function "${functionName}" reverted or failed for ${this.address}:`,
+            errorMessage.includes('revert') ? 'Function call reverted' : errorMessage
+          );
+          return defaultValue;
+        }
+      };
+
+      // Get chain ID first (this should always work)
+      const chainId = await this.publicClient.getChainId();
+
+      // Fetch basic contract details with individual error handling
       const [
         owner,
         broadcaster,
         recoveryAddress,
-        timeLockPeriodInMinutes,
-        chainId
+        timeLockPeriodInMinutes
       ] = await Promise.all([
-        this.contract.owner(),
-        this.contract.getBroadcaster(),
-        this.contract.getRecovery(),
-        this.contract.getTimeLockPeriodSec(),
-        this.publicClient.getChainId()
+        safeCall(
+          () => this.contract.owner(),
+          'owner()',
+          '0x0000000000000000000000000000000000000000' as `0x${string}`
+        ),
+        safeCall(
+          () => this.contract.getBroadcaster(),
+          'getBroadcaster()',
+          '0x0000000000000000000000000000000000000000' as `0x${string}`
+        ),
+        safeCall(
+          () => this.contract.getRecovery(),
+          'getRecovery()',
+          '0x0000000000000000000000000000000000000000' as `0x${string}`
+        ),
+        safeCall(
+          () => this.contract.getTimeLockPeriodSec(),
+          'getTimeLockPeriodSec()',
+          0n
+        )
       ]);
 
       // Try to get pending transactions (requires role permission)
@@ -182,11 +217,20 @@ export class SecureOwnableManager {
       try {
         pendingTxIds = await this.contract.getPendingTransactions();
       } catch (error: any) {
-        // Handle permission errors gracefully
-        if (error.message?.includes('NoPermission') || error.message?.includes('Missing or invalid parameters')) {
-          console.log('Connected wallet does not have permission to view pending transactions');
+        // Handle various error types gracefully
+        const errorMessage = error?.message || error?.shortMessage || String(error);
+        const isRevertError = errorMessage.includes('revert') || 
+                              errorMessage.includes('execution reverted') ||
+                              errorMessage.includes('NoPermission') ||
+                              errorMessage.includes('Missing or invalid parameters') ||
+                              error?.code === 'CALL_EXCEPTION';
+        
+        if (isRevertError) {
+          // Contract function reverted - expected when wallet lacks permission or function doesn't exist
+          console.log('ℹ️ getPendingTransactions() reverted (wallet may lack permission or contract may not support this function)');
         } else {
-          console.warn('Error fetching pending transactions:', error.message);
+          // Other errors (network issues, etc.) should be logged
+          console.warn('⚠️ Error fetching pending transactions:', errorMessage);
         }
       }
 

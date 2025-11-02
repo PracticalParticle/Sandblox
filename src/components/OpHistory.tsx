@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { TxRecord, TxStatus } from '../Guardian/sdk/typescript'
+import { TxRecord, TxStatus, SecureOwnable } from '../Guardian/sdk/typescript'
 import { Hex } from 'viem'
 import { formatTimestamp } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
@@ -18,7 +18,6 @@ import { useState, useEffect } from 'react'
 import { useAccount, usePublicClient } from 'wagmi'
 import { useQuery } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/queryKeys'
-import { SecureOwnable } from '../Guardian/sdk/typescript/SecureOwnable'
 import { useChain } from '@/hooks/useChain'
 
 import {
@@ -183,11 +182,23 @@ export function OpHistory({
         );
 
         console.log('🔄 OpHistory: Fetching operation history...');
-        const history = await contract.getOperationHistory();
+        const history = await contract.getTransactionHistory(BigInt(0), BigInt(100));
         console.log('✅ OpHistory: Fetched operations:', history.length);
         return history || [];
-      } catch (error) {
-        console.error('❌ OpHistory: Failed to fetch operation history:', error);
+      } catch (error: any) {
+        // Check if this is a revert error (function doesn't exist or contract doesn't support it)
+        const errorMessage = error?.message || error?.shortMessage || String(error);
+        const isRevertError = errorMessage.includes('revert') || 
+                              errorMessage.includes('execution reverted') ||
+                              error?.code === 'CALL_EXCEPTION';
+        
+        if (isRevertError) {
+          // Contract function reverted - this is expected for some contracts
+          console.log('⚠️ OpHistory: getTransactionHistory() reverted (contract may not support this function or no history available)');
+        } else {
+          // Other errors (network issues, etc.) should be logged
+          console.warn('⚠️ OpHistory: Failed to fetch operation history:', errorMessage);
+        }
         return [];
       }
     },
