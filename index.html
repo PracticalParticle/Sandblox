@@ -18,6 +18,7 @@
       default-src 'self';
       connect-src 'self'
         https://ethereum-sepolia-rpc.publicnode.com
+        https://sepolia.era.zksync.dev
         https://sepolia-rollup.arbitrum.io/rpc
         https://*.drpc.org
         ws://*.drpc.org:*
@@ -37,13 +38,15 @@
         wss://*.alchemyapi.io
         https://eth-mainnet.g.alchemy.com
         https://polygon-mainnet.g.alchemy.com
-        https://remote-ganache-1.tailb0865.ts.net
-        wss://remote-ganache-1.tailb0865.ts.net
-        https://*.tailb0865.ts.net
-        wss://*.tailb0865.ts.net
-        https://*.safe.global;
+        https://%GANACHE_ENDPOINT%
+        wss://%GANACHE_ENDPOINT%
+        https://*.%GANACHE_DOMAIN%
+        wss://*.%GANACHE_DOMAIN%
+        https://api.web3modal.org
+        https://pulse.walletconnect.org
+        https://api2.amplitude.com;
       font-src 'self' data: https://fonts.googleapis.com https://rsms.me;
-      script-src 'self' 'unsafe-inline' %VITE_CSP_SCRIPT_SRC%;
+      script-src 'self' 'unsafe-inline' 'unsafe-eval';
       style-src 'self' 'unsafe-inline' https://rsms.me;
       img-src 'self' data: https: blob:;
       media-src 'self' blob:;
@@ -53,11 +56,6 @@
       base-uri 'self';
       form-action 'self'
     ">
-    <!-- 
-      Note: Custom network RPC URLs added through the UI will require a page reload
-      to be included in the Content Security Policy. The NetworkCSPBanner component
-      will notify users when this is needed.
-    -->
     <link rel="preconnect" href="https://rsms.me/" />
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css" crossorigin="anonymous" />
     <link rel="preload" href="/logo.svg" as="image" type="image/svg+xml" />

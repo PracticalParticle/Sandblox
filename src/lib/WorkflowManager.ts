@@ -1,10 +1,7 @@
 import { Address, Chain, Hash, Hex, PublicClient, WalletClient } from 'viem';
-import { MetaTransaction } from '../Guardian/sdk/typescript/interfaces/lib.index';
-import { TransactionOptions } from '../Guardian/sdk/typescript/interfaces/base.index';
-import { SecureOwnable } from '../Guardian/sdk/typescript/SecureOwnable';
+import { MetaTransaction, TransactionOptions, SecureOwnable, ExecutionType, TxAction } from '../Guardian/sdk/typescript';
 import { registerCoreOperations } from '../registrations/CoreOperations';
 import { registerBloxOperations, hasOperationsForContractType } from '../registrations/BloxOperations';
-import { ExecutionType } from '../Guardian/sdk/typescript/types/lib.index';
 import { 
   operationRegistry, 
   CoreOperationType,
@@ -113,11 +110,11 @@ export class WorkflowManager {
    * Loads basic contract information
    */
   private async loadContractInfo(): Promise<SecureContractInfo> {
-    const [owner, broadcaster, recovery, timeLockPeriodInMinutes, chainId] = await Promise.all([
+    const [owner, broadcaster, recovery, timeLockPeriodInSeconds, chainId] = await Promise.all([
       this.contract.owner(),
       this.contract.getBroadcaster(),
-      this.contract.getRecoveryAddress(),
-      this.contract.getTimeLockPeriodInMinutes(),
+      this.contract.getRecovery(),
+      this.contract.getTimeLockPeriodSec(),
       this.publicClient.getChainId()
     ]);
 
@@ -130,7 +127,7 @@ export class WorkflowManager {
       owner,
       broadcaster,
       recoveryAddress: recovery,
-      timeLockPeriodInMinutes: Number(timeLockPeriodInMinutes),
+      timeLockPeriodInMinutes: Number(timeLockPeriodInSeconds) / 60,
       pendingOperations: [],
       recentEvents: [],
       chainId,
@@ -302,6 +299,7 @@ export class WorkflowManager {
     const metaTxParams = await this.contract.createMetaTxParams(
       this.contractAddress,
       functionSelector,
+      TxAction.SIGN_META_APPROVE,
       BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
       BigInt(0), // No max gas price
       options.from
@@ -383,6 +381,7 @@ export class WorkflowManager {
     const metaTxParams = await this.contract.createMetaTxParams(
       this.contractAddress,
       functionSelector,
+      TxAction.SIGN_META_CANCEL,
       BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
       BigInt(0), // No max gas price
       options.from
@@ -556,6 +555,7 @@ export class WorkflowManager {
     const metaTxParams = await this.contract.createMetaTxParams(
       this.contractAddress,
       functionSelector,
+      TxAction.SIGN_META_REQUEST_AND_APPROVE,
       BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
       BigInt(0), // No max gas price
       options.from

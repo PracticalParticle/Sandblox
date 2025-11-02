@@ -35,6 +35,7 @@ coverage.json
 typechain-types
 cache
 artifacts
+experimental/
 
 # Hardhat/Foundry files
 cache/

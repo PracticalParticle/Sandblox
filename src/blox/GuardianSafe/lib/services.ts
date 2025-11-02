@@ -1,11 +1,9 @@
 import { Address, PublicClient, WalletClient, Chain, Hex } from 'viem';
-import { TransactionOptions, TransactionResult } from '../../../Guardian/sdk/typescript/interfaces/base.index';
-import { TxRecord, MetaTransaction } from '../../../Guardian/sdk/typescript/interfaces/lib.index';
-import { TxStatus } from '../../../Guardian/sdk/typescript/types/lib.index';
+import { TransactionOptions, TransactionResult, TxRecord, MetaTransaction, TxStatus, SecureOwnable, OPERATION_TYPES } from '../../../Guardian/sdk/typescript';
 import { ContractValidations } from '../../../Guardian/sdk/typescript/utils/validations';
 import GuardianSafe, { SafeTx, SafeMetaTxParams } from '../GuardianSafe';
 import { SafeTxRecord, EnhancedSafeTx } from './types';
-import SecureOwnable from '../../../Guardian/sdk/typescript/SecureOwnable';
+// Using unified SDK export for SecureOwnable above
 
 // Storage key for meta tx settings
 const META_TX_SETTINGS_KEY = 'guardianSafe.metaTxSettings';
@@ -165,7 +163,7 @@ export class GuardianSafeService {
     const owner = await this.secureOwnable.owner();
     await this.validations.validateRole(options.from, owner, "owner");
 
-    const operation = await this.secureOwnable.getOperation(BigInt(txId));
+    const operation = await this.secureOwnable.getTransaction(BigInt(txId));
     if (operation.status !== TxStatus.PENDING) {
       throw new Error("Can only approve pending requests");
     }
@@ -191,7 +189,7 @@ export class GuardianSafeService {
     const owner = await this.secureOwnable.owner();
     await this.validations.validateRole(options.from, owner, "owner");
 
-    const operation = await this.secureOwnable.getOperation(BigInt(txId));
+    const operation = await this.secureOwnable.getTransaction(BigInt(txId));
     if (operation.status !== TxStatus.PENDING) {
       throw new Error("Can only cancel pending requests");
     }
@@ -264,7 +262,7 @@ export class GuardianSafeService {
     await this.validations.validateRole(options.from, owner, "owner");
 
     // Validate transaction exists and is pending
-    const operation = await this.secureOwnable.getOperation(BigInt(txId));
+    const operation = await this.secureOwnable.getTransaction(BigInt(txId));
     if (operation.status !== TxStatus.PENDING) {
       throw new Error("Can only approve pending requests");
     }
@@ -324,7 +322,7 @@ export class GuardianSafeService {
     await this.validations.validateRole(options.from, owner, "owner");
 
     // Validate transaction exists and is pending
-    const operation = await this.secureOwnable.getOperation(BigInt(txId));
+    const operation = await this.secureOwnable.getTransaction(BigInt(txId));
     if (operation.status !== TxStatus.PENDING) {
       throw new Error("Can only cancel pending requests");
     }
@@ -425,7 +423,7 @@ export class GuardianSafeService {
    */
   async getTransaction(txId: number): Promise<SafeTxRecord> {
     try {
-      const tx = await this.secureOwnable.getOperation(BigInt(txId));
+      const tx = await this.secureOwnable.getTransaction(BigInt(txId));
       if (!tx) throw new Error("Transaction not found");
 
       // Map the status directly from the transaction
@@ -490,8 +488,8 @@ export class GuardianSafeService {
    */
   async getOperationHistory(): Promise<TxRecord[]> {
     try {
-      console.log("Reading operation history from contract...");
-      const result = await this.secureOwnable.getOperationHistory();
+      console.log("Reading transaction history from contract...");
+      const result = await this.secureOwnable.getTransactionHistory(BigInt(0), BigInt(100));
       
       console.log("Raw operation history result:", result);
       
@@ -692,7 +690,22 @@ export class GuardianSafeService {
    * Gets a mapping of operation type hashes to names
    */
   async getSafeOperationTypes(): Promise<Map<Hex, string>> {
-    const operations = await this.secureOwnable.getSupportedOperationTypes();
-    return new Map(operations.map(op => [op.operationType as Hex, op.name]));
+    const operationTypeHashes = await this.secureOwnable.getSupportedOperationTypes();
+    
+    // Create a reverse mapping from hash to name
+    const hashToNameMap = new Map<string, string>()
+    Object.entries(OPERATION_TYPES).forEach(([name, hash]) => {
+      hashToNameMap.set(hash.toLowerCase(), name)
+    })
+    
+    const result = new Map<Hex, string>()
+    operationTypeHashes.forEach((hash) => {
+      const name = hashToNameMap.get(hash.toLowerCase())
+      if (name) {
+        result.set(hash as Hex, name)
+      }
+    })
+    
+    return result
   }
 }

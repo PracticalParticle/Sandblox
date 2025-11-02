@@ -1,6 +1,5 @@
 import { motion } from 'framer-motion'
-import { TxRecord } from '../Guardian/sdk/typescript/interfaces/lib.index'
-import { TxStatus } from '../Guardian/sdk/typescript/types/lib.index'
+import { TxRecord, TxStatus } from '../Guardian/sdk/typescript'
 import { Hex } from 'viem'
 import { formatTimestamp } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'

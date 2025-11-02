@@ -9,7 +9,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Badge } from "@/components/ui/badge"
 import { formatAddress, convertToMinutes } from "@/lib/utils"
 import { TxInfoCard } from "../TxInfoCard"
-import { TxRecord } from '../../Guardian/sdk/typescript/interfaces/lib.index'
+import { TxRecord } from '../../Guardian/sdk/typescript'
 import { useState, useEffect, FormEvent } from "react"
 import { useWorkflowManager } from "@/hooks/useWorkflowManager"
 import { CoreOperationType, OperationPhase } from "../../types/OperationRegistry"

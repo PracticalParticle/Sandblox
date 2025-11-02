@@ -1,18 +1,18 @@
 import { Address, Chain, Hash, Hex, PublicClient, WalletClient } from 'viem';
-import { TxRecord } from '../Guardian/sdk/typescript/interfaces/lib.index';
-import { FUNCTION_SELECTORS, OPERATION_TYPES } from '../Guardian/sdk/typescript/types/core.access.index';
-import { TransactionResult } from '../Guardian/sdk/typescript/interfaces/base.index';
-import { MetaTransaction } from '../Guardian/sdk/typescript/interfaces/lib.index';
-import { ExecutionType } from '../Guardian/sdk/typescript/types/lib.index';
+import { 
+  SecureOwnable,
+  MetaTransaction,
+  TransactionResult,
+  ExecutionType,
+  TxAction,
+  OPERATION_TYPES
+} from '../Guardian/sdk/typescript';
+import { FUNCTION_SELECTORS } from '../Guardian/sdk/typescript/types/core.access.index';
 import { 
   SecureContractInfo, 
-  SecurityOperationEvent, 
-  SecurityOperationDetails,
-  OperationType
+  SecurityOperationEvent
 } from './types';
 import { getChainName } from './utils';
-import SecureOwnable from '../Guardian/sdk/typescript/SecureOwnable';
-import { TxStatus } from '../Guardian/sdk/typescript/types/lib.index';
 
 export class SecureOwnableManager {
   private contract: SecureOwnable;
@@ -21,7 +21,7 @@ export class SecureOwnableManager {
   private chain: Chain;
   private address: Address;
   private storeTransaction?: (txId: string, signedData: string, metadata: any) => void;
-  private operationTypeMap: Map<string, string> | null = null;
+  // private operationTypeMap: Map<string, string> | null = null; // TODO: Re-enable when implementing transaction history
   private broadcaster: Address =  '0x'; // Initialized with an empty string
 
   constructor(
@@ -46,146 +46,161 @@ export class SecureOwnableManager {
   private async initializeBroadcaster(): Promise<Address> {
     return await this.contract.getBroadcaster();
   }
-  /**
-   * Maps a TxStatus enum value to a string status
-   * @param status The numeric status from the contract
-   * @returns A string representation of the status
-   */
-  private mapTxStatusToString(status: number): 'pending' | 'completed' | 'cancelled' {
-    switch (status) {
-      case TxStatus.PENDING:
-        return 'pending';
-      case TxStatus.COMPLETED:
-        return 'completed';
-      case TxStatus.CANCELLED:
-      case TxStatus.FAILED:
-      case TxStatus.REJECTED:
-      case TxStatus.UNDEFINED:
-      default:
-        return 'cancelled';
-    }
-  }
+  // TODO: Re-enable these methods when we implement proper transaction history loading
+  // /**
+  //  * Maps a TxStatus enum value to a string status
+  //  * @param status The numeric status from the contract
+  //  * @returns A string representation of the status
+  //  */
+  // private mapTxStatusToString(status: number): 'pending' | 'completed' | 'cancelled' {
+  //   switch (status) {
+  //     case TxStatus.PENDING:
+  //       return 'pending';
+  //     case TxStatus.COMPLETED:
+  //       return 'completed';
+  //     case TxStatus.CANCELLED:
+  //     case TxStatus.FAILED:
+  //     case TxStatus.REJECTED:
+  //     case TxStatus.UNDEFINED:
+  //     default:
+  //       return 'cancelled';
+  //   }
+  // }
 
-  /**
-   * Calculates remaining time for a transaction
-   * @param releaseTime The release time as a bigint
-   * @returns The remaining time in seconds
-   */
-  private calculateRemainingTime(releaseTime: bigint): number {
-    const currentTimeBigInt = BigInt(Math.floor(Date.now() / 1000));
-    return releaseTime > currentTimeBigInt ? 
-      Number(releaseTime - currentTimeBigInt) : 0;
-  }
+  // /**
+  //  * Calculates remaining time for a transaction
+  //  * @param releaseTime The release time as a bigint
+  //  * @returns The remaining time in seconds
+  //  */
+  // private calculateRemainingTime(releaseTime: bigint): number {
+  //   const currentTimeBigInt = BigInt(Math.floor(Date.now() / 1000));
+  //   return releaseTime > currentTimeBigInt ? 
+  //     Number(releaseTime - currentTimeBigInt) : 0;
+  // }
 
-  /**
-   * Maps an operation type hex to a human-readable type
-   * @param operationType The operation type as a hex string
-   * @returns The operation type as a string
-   */
-  private async mapOperationType(operationType: Hex): Promise<OperationType> {
-    try {
-      // Initialize operation type map if not already done
-      if (!this.operationTypeMap) {
-        const supportedTypes = await this.contract.getSupportedOperationTypes();
-        // Only map our core operation types
-        const coreOperations = supportedTypes.filter(({ name }) => [
-          'OWNERSHIP_TRANSFER',
-          'BROADCASTER_UPDATE',
-          'RECOVERY_UPDATE',
-          'TIMELOCK_UPDATE'
-        ].includes(name));
-        
-        this.operationTypeMap = new Map(
-          coreOperations.map(({ operationType, name }) => [operationType, name])
-        );
-      }
+  // /**
+  //  * Maps an operation type hex to a human-readable type
+  //  * @param operationType The operation type as a hex string
+  //  * @returns The operation type as a string
+  //  */
+  // private async mapOperationType(operationType: Hex): Promise<OperationType> {
+  //   try {
+  //     // Initialize operation type map if not already done
+  //     if (!this.operationTypeMap) {
+  //       // const supportedTypes = await this.contract.getSupportedOperationTypes();
+  //       // Map our core operation types
+  //       this.operationTypeMap = new Map([
+  //         [OPERATION_TYPES.OWNERSHIP_TRANSFER, 'OWNERSHIP_TRANSFER'],
+  //         [OPERATION_TYPES.BROADCASTER_UPDATE, 'BROADCASTER_UPDATE'],
+  //         [OPERATION_TYPES.RECOVERY_UPDATE, 'RECOVERY_UPDATE'],
+  //         [OPERATION_TYPES.TIMELOCK_UPDATE, 'TIMELOCK_UPDATE']
+  //       ]);
+  //     }
 
-      // Get the operation name from the map
-      const operationName = this.operationTypeMap.get(operationType);
-      if (!operationName) {
-        // If not one of our core operations, return null to be filtered out
-        return null as unknown as OperationType;
-      }
+  //     // Get the operation name from the map
+  //     const operationName = this.operationTypeMap.get(operationType);
+  //     if (!operationName) {
+  //       // If not one of our core operations, return null to be filtered out
+  //       return null as unknown as OperationType;
+  //     }
 
-      // Map the operation name to our internal type
-      switch (operationName) {
-        case 'OWNERSHIP_TRANSFER':
-          return 'ownership';
-        case 'BROADCASTER_UPDATE':
-          return 'broadcaster';
-        case 'RECOVERY_UPDATE':
-          return 'recovery';
-        case 'TIMELOCK_UPDATE':
-          return 'timelock';
-        default:
-          return null as unknown as OperationType;
-      }
-    } catch (error) {
-      console.error('Error mapping operation type:', error);
-      return null as unknown as OperationType;
-    }
-  }
+  //     // Map the operation name to our internal type
+  //     switch (operationName) {
+  //       case 'OWNERSHIP_TRANSFER':
+  //         return 'ownership';
+  //       case 'BROADCASTER_UPDATE':
+  //         return 'broadcaster';
+  //       case 'RECOVERY_UPDATE':
+  //         return 'recovery';
+  //       case 'TIMELOCK_UPDATE':
+  //         return 'timelock';
+  //       default:
+  //         return null as unknown as OperationType;
+  //     }
+  //   } catch (error) {
+  //     console.error('Error mapping operation type:', error);
+  //     return null as unknown as OperationType;
+  //   }
+  // }
 
   /**
    * Converts a TxRecord to a SecurityOperationEvent
    * @param op The transaction record from the contract
    * @returns A SecurityOperationEvent or null if conversion fails
    */
-  private async convertToSecurityEvent(op: TxRecord): Promise<SecurityOperationEvent | null> {
-    try {
-      const status = this.mapTxStatusToString(Number(op.status));
-      const type = await this.mapOperationType(op.params.operationType as Hex);
+  // TODO: Re-enable this method when we implement proper transaction history loading
+  // private async convertToSecurityEvent(op: TxRecord): Promise<SecurityOperationEvent | null> {
+  //   try {
+  //     const status = this.mapTxStatusToString(Number(op.status));
+  //     const type = await this.mapOperationType(op.params.operationType as Hex);
       
-      // If the operation type is null (not one of our core types), skip this record
-      if (type === null) {
-        return null;
-      }
+  //     // If the operation type is null (not one of our core types), skip this record
+  //     if (type === null) {
+  //       return null;
+  //     }
       
-      const remainingTime = this.calculateRemainingTime(op.releaseTime);
+  //     const remainingTime = this.calculateRemainingTime(op.releaseTime);
 
-      const details: SecurityOperationDetails = {
-        oldValue: op.params.executionOptions,
-        newValue: op.params.value.toString(),
-        remainingTime
-      };
+  //     const details: SecurityOperationDetails = {
+  //       oldValue: op.params.executionOptions,
+  //       newValue: op.params.value.toString(),
+  //       remainingTime
+  //     };
 
-      return {
-        type,
-        status,
-        timestamp: Number(op.releaseTime),
-        description: `${type.toUpperCase()} operation`,
-        details
-      };
-    } catch (error) {
-      console.warn('Failed to parse operation:', error);
-      return null;
-    }
-  }
+  //     return {
+  //       type,
+  //       status,
+  //       timestamp: Number(op.releaseTime),
+  //       description: `${type.toUpperCase()} operation`,
+  //       details
+  //     };
+  //   } catch (error) {
+  //     console.warn('Failed to parse operation:', error);
+  //     return null;
+  //   }
+  // }
 
   async loadContractInfo(): Promise<SecureContractInfo> {
     try {
-      // Fetch contract details using Promise.all for better performance
+      // Fetch basic contract details first
       const [
         owner,
         broadcaster,
         recoveryAddress,
         timeLockPeriodInMinutes,
-        history,
         chainId
       ] = await Promise.all([
         this.contract.owner(),
         this.contract.getBroadcaster(),
-        this.contract.getRecoveryAddress(),
-        this.contract.getTimeLockPeriodInMinutes(),
-        this.contract.getOperationHistory(),
+        this.contract.getRecovery(),
+        this.contract.getTimeLockPeriodSec(),
         this.publicClient.getChainId()
       ]);
 
-      // Convert operation history to SecurityOperationEvents
-      const events = await Promise.all(
-        history.map(op => this.convertToSecurityEvent(op))
-      );
-      const validEvents = events.filter((event): event is SecurityOperationEvent => event !== null);
+      // Try to get pending transactions (requires role permission)
+      let pendingTxIds: bigint[] = [];
+      try {
+        pendingTxIds = await this.contract.getPendingTransactions();
+      } catch (error: any) {
+        // Handle permission errors gracefully
+        if (error.message?.includes('NoPermission') || error.message?.includes('Missing or invalid parameters')) {
+          console.log('Connected wallet does not have permission to view pending transactions');
+        } else {
+          console.warn('Error fetching pending transactions:', error.message);
+        }
+      }
+
+      // Process pending transaction IDs if available
+      // Note: getPendingTransactions() requires the connected wallet to have a role
+      // If the wallet doesn't have a role, this will revert with NoPermission error
+      const validEvents: SecurityOperationEvent[] = [];
+      
+      // Log pending transactions for debugging
+      if (pendingTxIds && pendingTxIds.length > 0) {
+        console.log(`Found ${pendingTxIds.length} pending transactions:`, pendingTxIds);
+      } else {
+        console.log('No pending transactions found or wallet lacks permission');
+      }
 
       return {
         address: this.address,
@@ -193,12 +208,12 @@ export class SecureOwnableManager {
         owner,
         broadcaster,
         recoveryAddress,
-        timeLockPeriodInMinutes: Number(timeLockPeriodInMinutes),
+        timeLockPeriodInMinutes: Number(timeLockPeriodInMinutes) / 60, // Convert seconds to minutes
         pendingOperations: validEvents.filter(e => e.status === 'pending'),
         recentEvents: validEvents.filter(e => e.status !== 'pending').slice(0, 5),
-        chainId,
-        chainName: getChainName(chainId, [this.chain]),
-        operationHistory: history
+        chainId: Number(chainId),
+        chainName: getChainName(Number(chainId), [this.chain]),
+        operationHistory: [] // TODO: Implement proper transaction history loading
       };
     } catch (error) {
       console.error('Contract loading error:', error);
@@ -256,6 +271,7 @@ export class SecureOwnableManager {
     const metaTxParams = await this.contract.createMetaTxParams(
       this.address,
       FUNCTION_SELECTORS.UPDATE_RECOVERY as Hex,
+      TxAction.SIGN_META_REQUEST_AND_APPROVE,
       BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
       BigInt(0), // No max gas price
       options.from
@@ -337,6 +353,7 @@ export class SecureOwnableManager {
     const metaTxParams = await this.contract.createMetaTxParams(
       this.address,
       FUNCTION_SELECTORS.UPDATE_TIMELOCK as Hex,
+      TxAction.SIGN_META_REQUEST_AND_APPROVE,
       BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
       BigInt(0), // No max gas price
       options.from
@@ -404,6 +421,7 @@ export class SecureOwnableManager {
       const metaTxParams = await this.contract.createMetaTxParams(
         this.address,
         FUNCTION_SELECTORS.TRANSFER_OWNERSHIP_APPROVE_META as Hex,
+        TxAction.SIGN_META_APPROVE,
         BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
         BigInt(0), // No max gas price
         options.from
@@ -468,6 +486,7 @@ export class SecureOwnableManager {
       const metaTxParams = await this.contract.createMetaTxParams(
         this.address,
         FUNCTION_SELECTORS.TRANSFER_OWNERSHIP_CANCEL_META as Hex,
+        TxAction.SIGN_META_CANCEL,
         BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
         BigInt(0), // No max gas price
         options.from
@@ -532,6 +551,7 @@ export class SecureOwnableManager {
       const metaTxParams = await this.contract.createMetaTxParams(
         this.address,
         FUNCTION_SELECTORS.UPDATE_BROADCASTER_APPROVE_META as Hex,
+        TxAction.SIGN_META_APPROVE,
         BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
         BigInt(0), // No max gas price
         options.from
@@ -600,6 +620,7 @@ export class SecureOwnableManager {
       const metaTxParams = await this.contract.createMetaTxParams(
         this.address,
         FUNCTION_SELECTORS.UPDATE_BROADCASTER_CANCEL_META as Hex,
+        TxAction.SIGN_META_CANCEL,
         BigInt(Math.floor(Date.now() / 1000) + 3600), // 1 hour deadline
         BigInt(0), // No max gas price
         options.from

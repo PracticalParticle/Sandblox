@@ -90,6 +90,60 @@ The documentation is organized into categories:
 
 ## Development Workflow
 
+### Getting Started
+
+1. **Install dependencies**:
+```bash
+npm install
+```
+
+2. **Configure environment**:
+```bash
+cp env.example .env
+# Edit .env with your configuration
+```
+
+3. **Start development server**:
+```bash
+npm run dev
+```
+
+4. **Open browser**: Navigate to `http://localhost:5173`
+
+### Enhanced Debugging Setup
+
+#### Prerequisites
+- Ganache for local blockchain development
+- Configured `.env` file with debugging options
+
+#### Environment Configuration
+```bash
+# Enable transaction debugging
+VITE_ENABLE_TRANSACTION_DEBUGGING=true
+VITE_DEBUG_NETWORK_TYPE=ganache
+VITE_DEBUG_LOG_LEVEL=verbose
+
+# Network configuration
+VITE_DEVNET_RPC_URL=http://localhost:8545
+VITE_DEVNET_CHAIN_ID=1337
+VITE_DEVNET_NAME=Ganache Local
+```
+
+#### Debug Panel Features
+When debugging is enabled, a Dev Debug Panel provides:
+- **Network Information**: Connected network type and details
+- **Transaction History**: All simulated transactions with status
+- **Error Analysis**: Detailed error information for failed transactions
+- **Real-time Monitoring**: Gas estimates and revert reasons
+
+#### Testing with Ganache
+1. Start Ganache: `ganache --port 8545 --chainId 1337`
+2. Deploy Guardian contracts using `src/Guardian/scripts/`
+3. Connect SandBlox to Ganache using environment variables
+4. Use the Dev Debug Panel to monitor and debug transactions
+
+For detailed debugging setup, see `experimental/DEPLOYMENT_SUMMARY.md`.
+
 ### Creating a New Blox
 
 1. Create a new folder in `src/blox/` with your blox name (e.g., `CustomVault`)
