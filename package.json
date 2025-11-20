@@ -93,7 +93,7 @@
     "eslint": "^8.56.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
-    "glob": "^11.0.1",
+    "glob": "^11.1.0",
     "jsdom": "^24.0.0",
     "lint-staged": "^15.2.2",
     "postcss": "^8.4.35",
